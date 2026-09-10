@@ -1,0 +1,824 @@
+"""Pydantic schemas."""
+from __future__ import annotations
+
+import datetime as dt
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.models import (
+    CONFIDENCE_CHOICES,
+    DIRECTION_CHOICES,
+    EVIDENCE_STATUS_CHOICES,
+    HOTSPOT_CHOICES,
+    IMAGE_TYPE_CHOICES,
+    INSULATOR_TYPE_CHOICES,
+    MOUNT_TYPE_CHOICES,
+    OHL_CHOICES,
+    OVERALL_CONDITION_CHOICES,
+    PHASE_CHOICES,
+    POLLUTION_CONDITION_CHOICES,
+    SCREENING_RESULT_CHOICES,
+    SEVERITY_CHOICES,
+    STRING_CHOICES,
+    STRING_COUNT_CHOICES,
+    THERMAL_INDICATION_CHOICES,
+    TOWER_PROXIMITY_CHOICES,
+    VISUAL_INDICATION_CHOICES,
+)
+
+
+# ---------- Auth ----------
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    role: str
+    username: str
+    full_name: str | None = None
+
+
+class UserCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=80)
+    email: str | None = None
+    full_name: str | None = None
+    mobile: str | None = Field(default=None, max_length=60)
+    address: str | None = Field(default=None, max_length=300)
+    notes: str | None = None
+    job_type: str | None = Field(default=None, max_length=80, description="e.g. Drone Operator, Photographer — team_member only")
+    password: str = Field(min_length=6)
+    role: str = "inspector"
+    team_id: int | None = None  # set together with role="team_leader"/"team_member" to create-and-link in one step
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    username: str
+    email: str | None
+    full_name: str | None
+    mobile: str | None = None
+    address: str | None = None
+    notes: str | None = None
+    job_type: str | None = None
+    role: str
+    is_active: bool
+    team_id: int | None = None
+
+
+class UserUpdate(BaseModel):
+    email: str | None = None
+    full_name: str | None = None
+    mobile: str | None = None
+    address: str | None = None
+    notes: str | None = None
+    job_type: str | None = None
+    role: str | None = None
+    is_active: bool | None = None
+    team_id: int | None = None
+    # Lets an admin/team_leader reset someone's password for them (e.g. they're locked out) —
+    # separate from the self-service change-password flow. Handled specially in the router (hashed
+    # into hashed_password), never applied via the generic setattr loop.
+    password: str | None = Field(default=None, min_length=6)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6)
+
+
+# ---------- Area (the catalog behind Tower.area — see models.Area) ----------
+class AreaCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    notes: str | None = None
+
+
+class AreaUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    notes: str | None = None
+
+
+class AreaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    notes: str | None
+    tower_count: int = 0
+    created_at: dt.datetime
+    updated_at: dt.datetime
+
+
+# ---------- Tower ----------
+class TowerBase(BaseModel):
+    tower_id: str = Field(min_length=1, max_length=120, description="User-defined, any format, unique")
+    voltage: str | None = None
+    tower_type: str | None = None
+    area: str | None = None
+    line_sector: str | None = Field(default=None, max_length=200, description="Named line segment, e.g. 'Ittin - Thumrait'")
+    assigned_team_id: int | None = Field(default=None, description="Which team is responsible for inspecting this tower")
+    location_name: str | None = Field(default=None, max_length=200, description="e.g. site/landmark name")
+    height_m: float | None = Field(default=None, ge=0, le=1000, description="Tower height in metres")
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    notes: str | None = None
+
+    @field_validator("tower_id")
+    @classmethod
+    def strip_tower_id(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Tower ID cannot be empty")
+        return v
+
+
+class TowerCreate(TowerBase):
+    pass
+
+
+class TowerUpdate(BaseModel):
+    tower_id: str | None = None
+    voltage: str | None = None
+    tower_type: str | None = None
+    area: str | None = None
+    line_sector: str | None = Field(default=None, max_length=200)
+    assigned_team_id: int | None = None
+    location_name: str | None = Field(default=None, max_length=200)
+    height_m: float | None = Field(default=None, ge=0, le=1000)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    notes: str | None = None
+    is_active: bool | None = None
+
+
+class TowerOut(TowerBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    is_active: bool
+    assigned_team_name: str | None = None
+    photo_path: str | None = None
+    photo_thumbnail_path: str | None = None
+    photo_original_filename: str | None = None
+    photo_uploaded_at: dt.datetime | None = None
+    created_at: dt.datetime
+    updated_at: dt.datetime
+
+
+class TowerWithStats(TowerOut):
+    latest_visit_status: str | None = None
+    latest_visit_date: dt.date | None = None
+    visit_count: int = 0
+    open_hotspots: int = 0
+
+
+class TowerBulkAssignRequest(BaseModel):
+    tower_ids: list[int] = Field(min_length=1)
+    team_id: int | None = None  # None = unassign
+
+
+class TowerImportResult(BaseModel):
+    created: int
+    updated: int
+    total_rows: int
+    warnings: list[str] = []
+
+
+# ---------- Image ----------
+class ImageUpdate(BaseModel):
+    capture_date: dt.date | None = None
+    capture_time: dt.time | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    evidence_status: str | None = None
+
+    @field_validator("evidence_status")
+    @classmethod
+    def check_evidence(cls, v):
+        if v is not None and v not in EVIDENCE_STATUS_CHOICES:
+            raise ValueError(f"evidence_status must be one of {EVIDENCE_STATUS_CHOICES}")
+        return v
+
+
+class ImageRetype(BaseModel):
+    new_type: str
+
+    @field_validator("new_type")
+    @classmethod
+    def check_new_type(cls, v):
+        if v not in IMAGE_TYPE_CHOICES:
+            raise ValueError(f"new_type must be one of {IMAGE_TYPE_CHOICES}")
+        return v
+
+
+class ImageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    position_id: int
+    image_type: str
+    image_code: str | None
+    sequence: int = 1
+    capture_date: dt.date | None
+    capture_time: dt.time | None
+    latitude: float | None
+    longitude: float | None
+    evidence_status: str
+    file_path: str | None
+    thumbnail_path: str | None
+    original_filename: str | None
+    file_size: int | None
+    uploaded_at: dt.datetime | None
+    annotated_path: str | None = None
+    annotated_thumbnail_path: str | None = None
+    annotated_uploaded_at: dt.datetime | None = None
+
+
+# ---------- Position ----------
+class PositionUpdate(BaseModel):
+    direction: str | None = None
+    tower_proximity: str | None = None
+    installed: bool | None = None
+    screening_result: str | None = None
+    hotspot: str | None = None
+    tmax_c: float | None = None
+    tref_c: float | None = None
+    severity: str | None = None
+    confidence: str | None = None
+    inspector_notes: str | None = None
+
+    # ---------- OETC report fields (see models.py's Position for what each drives) ----------
+    manufacturer: str | None = None
+    year_installed: int | None = None
+    insulator_type: str | None = None
+    mount_type: str | None = None
+    gs_side: str | None = None
+    string_count: str | None = None
+    pollution_condition: str | None = None
+    thermal_indication: str | None = None
+    visual_indications: str | None = None  # comma-joined subset of VISUAL_INDICATION_CHOICES
+
+    @field_validator("direction")
+    @classmethod
+    def check_direction(cls, v):
+        if v is not None and v not in DIRECTION_CHOICES:
+            raise ValueError(f"direction must be one of {DIRECTION_CHOICES}")
+        return v
+
+    @field_validator("tower_proximity")
+    @classmethod
+    def check_tower_proximity(cls, v):
+        if v is not None and v not in TOWER_PROXIMITY_CHOICES:
+            raise ValueError(f"tower_proximity must be one of {TOWER_PROXIMITY_CHOICES}")
+        return v
+
+    @field_validator("screening_result")
+    @classmethod
+    def check_screening(cls, v):
+        if v is not None and v not in SCREENING_RESULT_CHOICES:
+            raise ValueError(f"screening_result must be one of {SCREENING_RESULT_CHOICES}")
+        return v
+
+    @field_validator("hotspot")
+    @classmethod
+    def check_hotspot(cls, v):
+        if v is not None and v not in HOTSPOT_CHOICES:
+            raise ValueError(f"hotspot must be one of {HOTSPOT_CHOICES}")
+        return v
+
+    @field_validator("severity")
+    @classmethod
+    def check_severity(cls, v):
+        if v is not None and v not in SEVERITY_CHOICES:
+            raise ValueError(f"severity must be one of {SEVERITY_CHOICES}")
+        return v
+
+    @field_validator("confidence")
+    @classmethod
+    def check_confidence(cls, v):
+        if v is not None and v not in CONFIDENCE_CHOICES:
+            raise ValueError(f"confidence must be one of {CONFIDENCE_CHOICES}")
+        return v
+
+    @field_validator("insulator_type")
+    @classmethod
+    def check_insulator_type(cls, v):
+        if v is not None and v not in INSULATOR_TYPE_CHOICES:
+            raise ValueError(f"insulator_type must be one of {INSULATOR_TYPE_CHOICES}")
+        return v
+
+    @field_validator("mount_type")
+    @classmethod
+    def check_mount_type(cls, v):
+        if v is not None and v not in MOUNT_TYPE_CHOICES:
+            raise ValueError(f"mount_type must be one of {MOUNT_TYPE_CHOICES}")
+        return v
+
+    @field_validator("string_count")
+    @classmethod
+    def check_string_count(cls, v):
+        if v is not None and v not in STRING_COUNT_CHOICES:
+            raise ValueError(f"string_count must be one of {STRING_COUNT_CHOICES}")
+        return v
+
+    @field_validator("pollution_condition")
+    @classmethod
+    def check_pollution_condition(cls, v):
+        if v is not None and v not in POLLUTION_CONDITION_CHOICES:
+            raise ValueError(f"pollution_condition must be one of {POLLUTION_CONDITION_CHOICES}")
+        return v
+
+    @field_validator("thermal_indication")
+    @classmethod
+    def check_thermal_indication(cls, v):
+        if v is not None and v not in THERMAL_INDICATION_CHOICES:
+            raise ValueError(f"thermal_indication must be one of {THERMAL_INDICATION_CHOICES}")
+        return v
+
+    @field_validator("visual_indications")
+    @classmethod
+    def check_visual_indications(cls, v):
+        if v is None or v == "":
+            return v
+        bad = [tok for tok in v.split(",") if tok not in VISUAL_INDICATION_CHOICES]
+        if bad:
+            raise ValueError(f"visual_indications entries must be from {VISUAL_INDICATION_CHOICES}, got {bad}")
+        return v
+
+
+class PositionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    visit_id: int
+    ohl: str
+    phase: str
+    string: str
+    direction: str | None
+    tower_proximity: str | None
+    installed: bool
+    screening_result: str
+    hotspot: str | None
+    tmax_c: float | None
+    tref_c: float | None
+    severity: str | None
+    confidence: str | None
+    inspector_notes: str | None
+    manufacturer: str | None = None
+    year_installed: int | None = None
+    insulator_type: str | None = None
+    mount_type: str | None = None
+    gs_side: str | None = None
+    string_count: str | None = None
+    pollution_condition: str | None = None
+    thermal_indication: str | None = None
+    visual_indications: str | None = None
+    position_code: str | None
+    images: list[ImageOut] = []
+
+    @property
+    def delta_t(self) -> float | None:
+        if self.tmax_c is None or self.tref_c is None:
+            return None
+        return round(self.tmax_c - self.tref_c, 2)
+
+
+# ---------- Visit ----------
+class VisitBase(BaseModel):
+    tower_id: int
+    inspection_date: dt.date | None = None
+    inspector_name: str | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    weather_wind: str | None = None
+    electrical_load: str | None = None
+    camera_drone: str | None = None
+    thermal_mode: str | None = None
+    emissivity: float | None = None
+    reflected_temp: float | None = None
+    permit_job_no: str | None = None
+    # ---------- Equipment/environment fields for the OETC report template — captured once per visit,
+    # alongside camera_drone/thermal_mode/emissivity/reflected_temp above. ----------
+    camera_serial_no: str | None = None
+    calibration_cert_no: str | None = None
+    calibration_due_date: dt.date | None = None
+    distance_to_target_m: float | None = None
+    ambient_temp_c: float | None = None
+    humidity_pct: float | None = None
+    # Set these to make this visit a team's mission — same record, nothing separate. mission_seq is
+    # assigned server-side (next number for that team) and can't be set directly on create.
+    team_id: int | None = None
+    start_time: dt.time | None = None
+    end_time: dt.time | None = None
+    mission_status: str = "planned"
+    # Which team_member is responsible for actually working this mission — see
+    # models.Visit.assigned_member_id / UserRole.TEAM_MEMBER for what this scopes.
+    assigned_member_id: int | None = None
+
+
+class VisitCreate(VisitBase):
+    pass
+
+
+class VisitUpdate(BaseModel):
+    inspection_date: dt.date | None = None
+    inspector_name: str | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    weather_wind: str | None = None
+    electrical_load: str | None = None
+    camera_drone: str | None = None
+    thermal_mode: str | None = None
+    emissivity: float | None = None
+    reflected_temp: float | None = None
+    permit_job_no: str | None = None
+    camera_serial_no: str | None = None
+    calibration_cert_no: str | None = None
+    calibration_due_date: dt.date | None = None
+    distance_to_target_m: float | None = None
+    ambient_temp_c: float | None = None
+    humidity_pct: float | None = None
+    status: str | None = None
+    team_id: int | None = None
+    start_time: dt.time | None = None
+    end_time: dt.time | None = None
+    mission_status: str | None = None
+    assigned_member_id: int | None = None
+
+
+class VisitRollup(BaseModel):
+    possible_positions: int
+    installed: int
+    screened: int
+    hotspots: int
+    inconclusive: int
+    images_pending: int
+    completion_pct: float
+    visit_status: str
+
+
+class VisitOut(VisitBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    status: str
+    mission_seq: int | None = None
+    team_name: str | None = None
+    assigned_member_name: str | None = None
+    created_at: dt.datetime
+    updated_at: dt.datetime
+    tower: TowerOut | None = None
+    rollup: VisitRollup | None = None
+    photo_count: int = 0
+
+
+class VisitDetail(VisitOut):
+    positions: list[PositionOut] = []
+
+
+# ---------- Report templates ----------
+class ReportTemplateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    kind: str
+    original_filename: str
+    uploaded_at: dt.datetime
+
+
+class ReportTemplatesActive(BaseModel):
+    docx: ReportTemplateOut | None = None
+    pdf: ReportTemplateOut | None = None
+
+
+# ---------- Dashboard ----------
+class DashboardTowerRow(BaseModel):
+    tower: TowerOut
+    latest_visit: VisitOut | None = None
+    rollup: VisitRollup | None = None
+
+
+class DashboardSummary(BaseModel):
+    tower_count: int
+    visit_count: int
+    total_hotspots: int
+    total_images_pending: int
+    rows: list[DashboardTowerRow]
+
+
+# ---------- Teams (crews, rosters, multi-day missions) ----------
+class TeamMemberCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    phone: str | None = None
+    national_id: str | None = None
+    is_leader: bool = False
+    role_title: str | None = None
+    notes: str | None = None
+
+
+class TeamMemberUpdate(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    national_id: str | None = None
+    is_leader: bool | None = None
+    role_title: str | None = None
+    notes: str | None = None
+
+
+class TeamMemberOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    team_id: int
+    name: str
+    phone: str | None
+    national_id: str | None
+    is_leader: bool
+    role_title: str | None
+    notes: str | None
+
+
+class TeamDailyLogCreate(BaseModel):
+    log_date: dt.date
+    note: str = Field(min_length=1)
+
+
+class TeamDailyLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    team_id: int
+    log_date: dt.date
+    note: str
+    created_by: int | None
+    created_at: dt.datetime
+
+
+class TeamBase(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    leader_name: str | None = None
+    leader_phone: str | None = None
+    leader_user_id: int | None = Field(default=None, description="A team-leader login to link as this team's leader — see routers/teams.py")
+    mission: str | None = None
+    mission_from: str | None = None
+    mission_to: str | None = None
+    primary_sector: str | None = Field(default=None, max_length=200, description="A Tower.line_sector this team is primarily assigned to")
+    daily_target: int | None = Field(default=None, ge=0, le=500, description="Working-plan quota: towers/day this team is expected to cover")
+    start_date: dt.date | None = None
+    end_date: dt.date | None = None
+    status: str = "active"
+    notes: str | None = None
+
+
+class TeamCreate(TeamBase):
+    members: list[TeamMemberCreate] = []
+
+
+class TeamUpdate(BaseModel):
+    name: str | None = None
+    leader_name: str | None = None
+    leader_phone: str | None = None
+    leader_user_id: int | None = None
+    mission: str | None = None
+    mission_from: str | None = None
+    mission_to: str | None = None
+    primary_sector: str | None = None
+    daily_target: int | None = Field(default=None, ge=0, le=500)
+    start_date: dt.date | None = None
+    end_date: dt.date | None = None
+    status: str | None = None
+    notes: str | None = None
+    is_active: bool | None = None
+
+
+class TeamOut(TeamBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    is_active: bool
+    created_at: dt.datetime
+    updated_at: dt.datetime
+    members: list[TeamMemberOut] = []
+    linked_user_count: int = 0
+    # How many missions (Visits) this team has ever run — shown in the delete confirmation so an
+    # admin knows exactly how much is about to be destroyed (see routers/teams.py's delete_team,
+    # which erases all of them, not just unlinks the team).
+    mission_count: int = 0
+
+
+# ---------- Team job map — every tower in the team's assigned sector, done vs. pending, so a
+# leader (and field crew) can see the whole scope of work on one map, not just what's been visited
+# so far. See routers/teams.py's team_job_map. ----------
+class TeamJobMapTower(BaseModel):
+    id: int
+    tower_id: str
+    area: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    status: str  # "completed" | "in_progress" | "pending"
+    visit_id: int | None = None
+
+
+class TeamJobMap(BaseModel):
+    sector: str | None = None
+    total: int = 0
+    completed: int = 0
+    in_progress: int = 0
+    pending: int = 0
+    towers: list[TeamJobMapTower] = []
+
+
+class VisitPhotoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    visit_id: int
+    position_id: int | None = None
+    position_code: str | None = None  # e.g. "ARSD92-OHL1-R-S1-EN" — which insulator this is a photo of
+    original_filename: str | None
+    file_size: int | None
+    caption: str | None
+    latitude: float | None
+    longitude: float | None
+    captured_at: dt.datetime | None
+    uploaded_by: int | None
+    uploaded_at: dt.datetime
+
+
+class VisitPhotoUpdate(BaseModel):
+    caption: str | None = None
+    position_id: int | None = None
+
+
+class VisitPhotoPromote(BaseModel):
+    """Turns a free-form visit photo into the official evidence for one specific checklist image
+    slot — same file, now archived and reported the same way any other position image is. Targets
+    the exact Image row picked (the baseline or a specific extra), replacing whatever's there now.
+    The source photo stays in the free-form gallery — it isn't removed just because it was also
+    used to fill a slot."""
+
+    image_id: int
+
+
+class TeamDayProgress(BaseModel):
+    log_date: dt.date
+    towers_visited: int
+    visits_touched: int
+    screened: int
+    hotspots: int
+    images_captured: int
+    first_seen: dt.datetime | None = None  # earliest GPS ping that day — the day's "start time"
+    last_seen: dt.datetime | None = None
+    notes: list[TeamDailyLogOut] = []
+
+
+# ---------- Field tracking (live team locations + daily progress) ----------
+class LocationPingCreate(BaseModel):
+    latitude: float
+    longitude: float
+    accuracy_m: float | None = None
+
+
+class TrailPoint(BaseModel):
+    latitude: float
+    longitude: float
+    recorded_at: dt.datetime
+
+
+class TeamTodayProgress(BaseModel):
+    towers_visited: int
+    visits_touched: int
+    screened: int
+    hotspots: int
+
+
+class LiveTeamMember(BaseModel):
+    user_id: int
+    username: str
+    full_name: str | None = None
+    team_id: int | None = None
+    team_name: str | None = None
+    latitude: float
+    longitude: float
+    accuracy_m: float | None = None
+    last_seen: dt.datetime
+    is_stale: bool  # no ping in the last STALE_AFTER_MINUTES — probably not actively tracking anymore
+    today: TeamTodayProgress
+
+
+# ---------- Choice lists (for the frontend to render dropdowns from a single source of truth) ----------
+class ChoiceLists(BaseModel):
+    ohl: list[str] = OHL_CHOICES
+    phase: list[str] = PHASE_CHOICES
+    string: list[str] = STRING_CHOICES
+    direction: list[str] = DIRECTION_CHOICES
+    tower_proximity: list[str] = TOWER_PROXIMITY_CHOICES
+    image_type: list[str] = IMAGE_TYPE_CHOICES
+    screening_result: list[str] = SCREENING_RESULT_CHOICES
+    hotspot: list[str] = HOTSPOT_CHOICES
+    severity: list[str] = SEVERITY_CHOICES
+    confidence: list[str] = CONFIDENCE_CHOICES
+    evidence_status: list[str] = EVIDENCE_STATUS_CHOICES
+    insulator_type: list[str] = INSULATOR_TYPE_CHOICES
+    mount_type: list[str] = MOUNT_TYPE_CHOICES
+    string_count: list[str] = STRING_COUNT_CHOICES
+    pollution_condition: list[str] = POLLUTION_CONDITION_CHOICES
+    thermal_indication: list[str] = THERMAL_INDICATION_CHOICES
+    visual_indication: list[str] = VISUAL_INDICATION_CHOICES
+    overall_condition: list[str] = OVERALL_CONDITION_CHOICES
+
+
+# ---------- Field execution plan (the OETC-style mobilization plan report — see
+# services/field_execution_plan.py for how these drive the generated .docx) ----------
+class FieldExecutionPlanRequest(BaseModel):
+    client_name: str = Field(min_length=1, max_length=300, description="Full client name, e.g. the utility company")
+    client_short: str = Field(min_length=1, max_length=60, description="Short code used inline, e.g. 'OETC'")
+    reference_no: str = Field(min_length=1, max_length=120, description="The client's reference letter number")
+    reference_date: str = Field(min_length=1, max_length=40, description="Reference letter date, shown as typed")
+    prepared_by: str = Field(min_length=1, max_length=200, description="Preparing company name")
+    period_label: str = Field(min_length=1, max_length=60, description="Target execution period, e.g. 'September 2026'")
+    voltage_label: str = Field(min_length=1, max_length=40, description="Voltage class label, e.g. '132 كيلوفولت'")
+    region_label: str = Field(min_length=1, max_length=120, description="Region/governorate label, e.g. 'محافظة ظفار'")
+    area: str | None = Field(default=None, description="Restrict included towers to this Tower.area; omit for all active towers")
+    team_ids: list[int] | None = Field(default=None, description="Which teams to include; omit for all active teams")
+    capacity_per_team_per_day: int = Field(default=15, ge=1, le=200, description="Assumed towers/day a 3-person crew can cover")
+
+
+# ---------- OETC-format official report (the customer's exact "Transmission Line Insulator Thermal
+# Inspection Report" template — see services/oetc_report.py) — one team's line campaign over a date
+# range, rendered straight into that template. Everything here is either not derivable from the raw
+# field data (report number, sign-off) or is the engineer's own judgment call at report time. ----------
+class LineInspectionReportRequest(BaseModel):
+    team_id: int
+    start_date: dt.date
+    end_date: dt.date
+    report_number: str = Field(min_length=1, max_length=80)
+    overall_condition: str | None = None
+    probable_cause: str | None = None
+    corrective_action: str | None = None
+    additional_comments: str | None = None
+    prepared_by: str | None = None
+    reviewed_by: str | None = None
+    approved_by: str | None = None
+    approval_date: dt.date | None = None
+
+    @field_validator("overall_condition")
+    @classmethod
+    def check_overall_condition(cls, v):
+        if v is not None and v not in OVERALL_CONDITION_CHOICES:
+            raise ValueError(f"overall_condition must be one of {OVERALL_CONDITION_CHOICES}")
+        return v
+
+
+# ---------- Grouped OETC reports (services/oetc_grouped_report.py) — the same official template as
+# above, but covering every team working one area (OetcAreaReportRequest) or every team in every
+# area at once (OetcConsolidatedReportRequest). Each team's own section is the exact same unmodified
+# report as LineInspectionReportRequest produces; these just decide which sections go in one file,
+# in Area → Team → Mission order, under one shared sign-off. `report_number` is the base — each
+# team's section gets its own suffixed number derived from it, so it stays traceable per team in the
+# report history. ----------
+class OetcAreaReportRequest(BaseModel):
+    area: str
+    start_date: dt.date
+    end_date: dt.date
+    report_number: str = Field(min_length=1, max_length=80)
+    overall_condition: str | None = None
+    probable_cause: str | None = None
+    corrective_action: str | None = None
+    additional_comments: str | None = None
+    prepared_by: str | None = None
+    reviewed_by: str | None = None
+    approved_by: str | None = None
+    approval_date: dt.date | None = None
+
+    @field_validator("overall_condition")
+    @classmethod
+    def check_overall_condition(cls, v):
+        if v is not None and v not in OVERALL_CONDITION_CHOICES:
+            raise ValueError(f"overall_condition must be one of {OVERALL_CONDITION_CHOICES}")
+        return v
+
+
+class OetcConsolidatedReportRequest(BaseModel):
+    start_date: dt.date
+    end_date: dt.date
+    report_number: str = Field(min_length=1, max_length=80)
+    overall_condition: str | None = None
+    probable_cause: str | None = None
+    corrective_action: str | None = None
+    additional_comments: str | None = None
+    prepared_by: str | None = None
+    reviewed_by: str | None = None
+    approved_by: str | None = None
+    approval_date: dt.date | None = None
+
+    @field_validator("overall_condition")
+    @classmethod
+    def check_overall_condition(cls, v):
+        if v is not None and v not in OVERALL_CONDITION_CHOICES:
+            raise ValueError(f"overall_condition must be one of {OVERALL_CONDITION_CHOICES}")
+        return v
+
+
+class LineInspectionReportOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    team_id: int
+    team_name: str | None = None
+    start_date: dt.date
+    end_date: dt.date
+    report_number: str
+    overall_condition: str | None
+    prepared_by: str | None
+    reviewed_by: str | None
+    approved_by: str | None
+    approval_date: dt.date | None
+    created_at: dt.datetime

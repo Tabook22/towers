@@ -1,0 +1,376 @@
+from __future__ import annotations
+
+import datetime as dt
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
+from sqlalchemy.orm import Session, joinedload
+
+from app.config import settings
+from app.database import get_db
+from app.deps import check_visit_team_access, get_current_user, require_role
+from app.models import Area, LineInspectionReport, Position, ReportTemplate, Team, Tower, User, UserRole, Visit
+from app.schemas import (
+    FieldExecutionPlanRequest,
+    LineInspectionReportOut,
+    LineInspectionReportRequest,
+    OetcAreaReportRequest,
+    OetcConsolidatedReportRequest,
+)
+from app.services.docx_reports import render_visit_report_docx
+from app.services.field_execution_plan import render_field_execution_plan_docx
+from app.services.oetc_grouped_report import (
+    plan_area_report,
+    plan_consolidated_report,
+    plan_report_numbers,
+    render_area_report,
+    render_consolidated_report,
+)
+from app.services.oetc_report import render_oetc_line_report_docx
+from app.services.pdf_form_reports import render_visit_report_pdf_form
+from app.services.reports import build_overall_report, build_visit_report
+from app.services.rollup import visit_rollup
+from app.services.team_activity_report import (
+    build_team_activity_tree,
+    build_team_activity_workbook,
+    query_team_activity_visits,
+)
+
+router = APIRouter(prefix="/api/reports", tags=["reports"])
+
+
+def _load_visit(db: Session, visit_id: int) -> Visit:
+    visit = (
+        db.query(Visit)
+        .options(joinedload(Visit.positions).joinedload(Position.images), joinedload(Visit.tower))
+        .filter(Visit.id == visit_id)
+        .first()
+    )
+    if not visit:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    return visit
+
+
+def _active_template_path(db: Session, kind: str):
+    template = (
+        db.query(ReportTemplate)
+        .filter(ReportTemplate.is_active.is_(True), ReportTemplate.kind == kind)
+        .order_by(ReportTemplate.id.desc())
+        .first()
+    )
+    if not template:
+        kind_label = "Word (.docx)" if kind == "docx" else "fillable PDF"
+        raise HTTPException(
+            status_code=404,
+            detail=f"No {kind_label} report template uploaded yet — upload one on the Reports page first.",
+        )
+    template_path = settings.report_templates_dir / template.file_path
+    if not template_path.exists():
+        raise HTTPException(status_code=404, detail="The active report template's file is missing from storage")
+    return template_path
+
+
+@router.get("/visits/{visit_id}.pdf")
+def visit_report(visit_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    visit = _load_visit(db, visit_id)
+    check_visit_team_access(visit, user)
+    pdf_bytes = build_visit_report(visit)
+    filename = f"{visit.tower.tower_id.replace(' ', '')}-visit-{visit.id}-report.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+@router.get("/visits/{visit_id}.docx")
+def visit_report_docx(visit_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """The custom-branded Word version — only available once someone has uploaded a .docx template
+    (see routers/report_templates.py); the fixed-layout PDF above always works regardless."""
+    visit = _load_visit(db, visit_id)
+    check_visit_team_access(visit, user)
+    template_path = _active_template_path(db, "docx")
+    docx_bytes = render_visit_report_docx(visit, template_path)
+    filename = f"{visit.tower.tower_id.replace(' ', '')}-visit-{visit.id}-report.docx"
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/visits/{visit_id}/custom.pdf")
+def visit_report_custom_pdf(visit_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """The custom-branded PDF version, filled into an uploaded fillable PDF *form* template — only
+    available once someone has uploaded one (see routers/report_templates.py); `.pdf` above (the
+    fixed built-in layout) always works regardless and isn't affected by this at all."""
+    visit = _load_visit(db, visit_id)
+    check_visit_team_access(visit, user)
+    template_path = _active_template_path(db, "pdf")
+    pdf_bytes = render_visit_report_pdf_form(visit, template_path)
+    filename = f"{visit.tower.tower_id.replace(' ', '')}-visit-{visit.id}-report.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/overall.pdf")
+def overall_report(area: str | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if user.role in (UserRole.TEAM_LEADER.value, UserRole.TEAM_MEMBER.value):
+        raise HTTPException(status_code=403, detail="Not available for team-leader/team-member accounts — see your mission list instead")
+    q = db.query(Tower).filter(Tower.is_active.is_(True))
+    if area:
+        q = q.filter(Tower.area == area)
+    towers = q.order_by(Tower.tower_id).all()
+
+    rows = []
+    for tower in towers:
+        latest = (
+            db.query(Visit)
+            .options(joinedload(Visit.positions).joinedload(Position.images))
+            .filter(Visit.tower_id == tower.id)
+            .order_by(Visit.inspection_date.desc().nullslast(), Visit.id.desc())
+            .first()
+        )
+        if not latest:
+            continue
+        r = visit_rollup(latest)
+        rows.append({"tower_id": tower.tower_id, "area": tower.area, **r})
+
+    pdf_bytes = build_overall_report(rows, area)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="overall-summary-report.pdf"'},
+    )
+
+
+@router.get("/team-activity")
+def team_activity_report(
+    team_id: int | None = None,
+    start_date: dt.date | None = None,
+    end_date: dt.date | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """The full-detail team/day/tower/position/image breakdown — what every team did, day by day,
+    tower by tower. A team_leader always gets just their own team (team_id is ignored for them, same
+    as everywhere else this pattern is used); admin/reviewer can filter by team_id or leave it off
+    for every team at once."""
+    visits = query_team_activity_visits(db, user, team_id=team_id, start_date=start_date, end_date=end_date)
+    return build_team_activity_tree(visits)
+
+
+@router.get("/team-activity.xlsx")
+def team_activity_report_xlsx(
+    team_id: int | None = None,
+    start_date: dt.date | None = None,
+    end_date: dt.date | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Same data as GET /team-activity, flattened into one filterable/sortable Excel sheet — one row
+    per evidence image (or one row per position, if it has none yet), each carrying its full
+    Team/Day/Tower/Position context so Excel's own sort/filter/pivot keep working."""
+    visits = query_team_activity_visits(db, user, team_id=team_id, start_date=start_date, end_date=end_date)
+    tree = build_team_activity_tree(visits)
+    xlsx_bytes = build_team_activity_workbook(tree)
+    stamp = dt.date.today().isoformat()
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="team-activity-{stamp}.xlsx"'},
+    )
+
+
+@router.post("/field-execution-plan.docx")
+def field_execution_plan_report(
+    payload: FieldExecutionPlanRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
+):
+    """The customer-facing mobilization/execution plan document — client info, live tower/team
+    counts, a computed day-by-day schedule projection. See services/field_execution_plan.py for what
+    each field drives; admin/reviewer only, since this is a project-planning deliverable, not
+    day-to-day field data."""
+    docx_bytes = render_field_execution_plan_docx(db, payload)
+    stamp = dt.date.today().isoformat()
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="field-execution-plan-{stamp}.docx"'},
+    )
+
+
+@router.post("/oetc-line-report.docx")
+def oetc_line_report(
+    payload: LineInspectionReportRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """The official customer-format report (see services/oetc_report.py) — a team's whole line
+    campaign over a date range, rendered straight into the customer's own template. Admin/reviewer
+    can generate for any team; a team_leader only for their own, same boundary as every other
+    team-scoped report in this app; a team_member (whose whole workspace is their own assigned
+    missions, not team-wide reporting) is refused outright."""
+    if user.role == UserRole.TEAM_MEMBER.value:
+        raise HTTPException(status_code=403, detail="Not available for team-member accounts")
+    if user.role == UserRole.TEAM_LEADER.value and user.team_id != payload.team_id:
+        raise HTTPException(status_code=403, detail="You don't have access to this team")
+
+    team = db.get(Team, payload.team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    if db.query(LineInspectionReport).filter(LineInspectionReport.report_number == payload.report_number).first():
+        raise HTTPException(status_code=400, detail=f"Report number '{payload.report_number}' already used")
+
+    visits = (
+        db.query(Visit)
+        .options(joinedload(Visit.positions).joinedload(Position.images), joinedload(Visit.tower))
+        .filter(
+            Visit.team_id == payload.team_id,
+            Visit.inspection_date >= payload.start_date,
+            Visit.inspection_date <= payload.end_date,
+        )
+        .all()
+    )
+    if not visits:
+        raise HTTPException(status_code=400, detail="No visits found for this team in that date range")
+
+    docx_bytes = render_oetc_line_report_docx(team, visits, payload)
+
+    record = LineInspectionReport(
+        team_id=team.id,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        report_number=payload.report_number,
+        overall_condition=payload.overall_condition,
+        probable_cause=payload.probable_cause,
+        corrective_action=payload.corrective_action,
+        additional_comments=payload.additional_comments,
+        prepared_by=payload.prepared_by,
+        reviewed_by=payload.reviewed_by,
+        approved_by=payload.approved_by,
+        approval_date=payload.approval_date,
+        created_by=user.id,
+    )
+    db.add(record)
+    db.commit()
+
+    safe_number = payload.report_number.replace("/", "-")
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{safe_number}.docx"'},
+    )
+
+
+def _persist_blocks(db: Session, blocks, user: User) -> None:
+    """One LineInspectionReport row per team-section in a grouped report — same traceability the
+    single-team endpoint above gives, just one row per section instead of one for the whole file."""
+    for b in blocks:
+        dates = [v.inspection_date for v in b.visits if v.inspection_date]
+        db.add(
+            LineInspectionReport(
+                team_id=b.team.id,
+                start_date=min(dates) if dates else dt.date.today(),
+                end_date=max(dates) if dates else dt.date.today(),
+                report_number=b.report_number,
+                created_by=user.id,
+            )
+        )
+    db.commit()
+
+
+@router.post("/oetc-area-report.docx")
+def oetc_area_report(
+    payload: OetcAreaReportRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
+):
+    """One .docx covering every team currently working `payload.area` — each team's own campaign
+    rendered in the exact same official template as /oetc-line-report.docx, concatenated together
+    (page break between) in Team order. "By area, by team, by mission" — mission order is already
+    handled per team-section, same as the single-team report."""
+    if not db.query(Area).filter(Area.name == payload.area).first():
+        raise HTTPException(status_code=404, detail=f"Unknown area '{payload.area}'")
+
+    plan = plan_area_report(db, payload)
+    if not plan:
+        raise HTTPException(status_code=400, detail=f"No visits found in '{payload.area}' for that date range")
+
+    numbers = plan_report_numbers(plan, payload.report_number)
+    dupes = [n for n in numbers if db.query(LineInspectionReport).filter(LineInspectionReport.report_number == n).first()]
+    if dupes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Report number '{payload.report_number}' is already used for this area/date range — pick a different base number",
+        )
+
+    docx_bytes, blocks = render_area_report(db, payload)
+    _persist_blocks(db, blocks, user)
+
+    safe_number = payload.report_number.replace("/", "-")
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{safe_number}-{payload.area.replace(" ", "-")}.docx"'},
+    )
+
+
+@router.post("/oetc-consolidated-report.docx")
+def oetc_consolidated_report(
+    payload: OetcConsolidatedReportRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
+):
+    """The fully "collected" report — every area in the catalog, and within each area every team
+    that worked it in the date range, all in one .docx: Area, then Team, then (per section) Mission.
+    Can run long — this is meant as the one master document for the whole program's campaign, not a
+    quick read."""
+    plan = plan_consolidated_report(db, payload)
+    if not plan:
+        raise HTTPException(status_code=400, detail="No visits found anywhere in that date range")
+
+    numbers = plan_report_numbers(plan, payload.report_number)
+    dupes = [n for n in numbers if db.query(LineInspectionReport).filter(LineInspectionReport.report_number == n).first()]
+    if dupes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Report number '{payload.report_number}' is already used for that date range — pick a different base number",
+        )
+
+    docx_bytes, blocks = render_consolidated_report(db, payload)
+    _persist_blocks(db, blocks, user)
+
+    safe_number = payload.report_number.replace("/", "-")
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{safe_number}-consolidated.docx"'},
+    )
+
+
+@router.get("/oetc-line-report/history", response_model=list[LineInspectionReportOut])
+def oetc_line_report_history(
+    team_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Past generated reports — for tracing/reprinting; see LineInspectionReport for what's kept."""
+    if user.role == UserRole.TEAM_MEMBER.value:
+        raise HTTPException(status_code=403, detail="Not available for team-member accounts")
+    q = db.query(LineInspectionReport).options(joinedload(LineInspectionReport.team))
+    if user.role == UserRole.TEAM_LEADER.value:
+        q = q.filter(LineInspectionReport.team_id == user.team_id) if user.team_id else q.filter(False)
+    elif team_id:
+        q = q.filter(LineInspectionReport.team_id == team_id)
+    rows = q.order_by(LineInspectionReport.created_at.desc()).all()
+    out = []
+    for r in rows:
+        item = LineInspectionReportOut.model_validate(r)
+        item.team_name = r.team.name if r.team else None
+        out.append(item)
+    return out

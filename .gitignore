@@ -1,0 +1,49 @@
+# ---------- Python / backend ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+backend/.venv/
+backend/venv/
+.venv/
+
+# Runtime data — the live SQLite database, uploaded inspection photos, generated reports/templates.
+# This is real field data, not source code: it belongs on the server (created fresh on first run,
+# or restored from a backup there), never in git — it's large, it's private, and it changes on
+# every request, so committing it would bloat history without ever actually being useful history.
+backend/storage/
+backend/app.db
+backend/*.db
+backend/*.db-journal
+backend/*.log
+backend/uvicorn.log
+
+# ---------- Node / frontend ----------
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+
+# Environment overrides — the tracked frontend/.env holds only a harmless local-dev default
+# (VITE_API_BASE_URL=http://127.0.0.1:8001); anything server/environment-specific goes in one of
+# these instead, created on each machine, never committed.
+.env.local
+.env.*.local
+.env.production
+.env.production.local
+backend/.env
+
+# ---------- Editors / OS ----------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ---------- Claude Code local session state ----------
+.claude/settings.local.json

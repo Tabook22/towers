@@ -1,0 +1,11 @@
+# Normalize to LF in the repo regardless of what OS commits it — this deploys to a Linux VPS, and a
+# stray CRLF in a shell script or Python file can break it there in ways that are annoying to debug.
+* text=auto eol=lf
+
+# Binaries — never touch line endings, never diff as text.
+*.docx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.svg -text

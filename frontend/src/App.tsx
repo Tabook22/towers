@@ -1,0 +1,144 @@
+import type { ReactNode } from 'react';
+import { CssBaseline, ThemeProvider } from '@mui/material';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { theme } from './theme/theme';
+import { AuthProvider, useAuth } from './auth/AuthContext';
+import { TrackingProvider } from './hooks/useFieldTracking';
+import { Layout } from './components/Layout';
+import { LoginPage } from './pages/LoginPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { TowersPage } from './pages/TowersPage';
+import { TowerDetailPage } from './pages/TowerDetailPage';
+import { VisitDetailPage } from './pages/VisitDetailPage';
+import { ArchivePage } from './pages/ArchivePage';
+import { ReportsPage } from './pages/ReportsPage';
+import { FieldTrackerPage } from './pages/FieldTrackerPage';
+import { TeamsPage } from './pages/TeamsPage';
+import { TeamDetailPage } from './pages/TeamDetailPage';
+import { MyMissionsPage } from './pages/MyMissionsPage';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, refetchOnWindowFocus: false },
+  },
+});
+
+function ProtectedLayout({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <Layout>{children}</Layout>;
+}
+
+// A team_member's whole app is their own assigned missions — no dashboard, so "/" renders that
+// instead for them (see components/Layout.tsx's nav, which does the same split).
+function HomePage() {
+  const { user } = useAuth();
+  return user?.role === 'team_member' ? <MyMissionsPage /> : <DashboardPage />;
+}
+
+function AppRoutes() {
+  const { isAuthenticated } = useAuth();
+
+  return (
+    <TrackingProvider active={isAuthenticated}>
+      <AppRoutesInner isAuthenticated={isAuthenticated} />
+    </TrackingProvider>
+  );
+}
+
+function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
+  return (
+    <Routes>
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route
+        path="/"
+        element={
+          <ProtectedLayout>
+            <HomePage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/towers"
+        element={
+          <ProtectedLayout>
+            <TowersPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/towers/:towerId"
+        element={
+          <ProtectedLayout>
+            <TowerDetailPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/visits/:visitId"
+        element={
+          <ProtectedLayout>
+            <VisitDetailPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/archive"
+        element={
+          <ProtectedLayout>
+            <ArchivePage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/reports"
+        element={
+          <ProtectedLayout>
+            <ReportsPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/field-tracker"
+        element={
+          <ProtectedLayout>
+            <FieldTrackerPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/teams"
+        element={
+          <ProtectedLayout>
+            <TeamsPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/teams/:teamId"
+        element={
+          <ProtectedLayout>
+            <TeamDetailPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ThemeProvider>
+  );
+}
