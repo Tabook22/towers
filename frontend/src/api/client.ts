@@ -1,6 +1,15 @@
 import axios from 'axios';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+function resolveApiBase(): string {
+  const env = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (env) return env.replace(/\/$/, '');
+  // Production (no env): talk to whatever host the user opened — IP or domain —
+  // so we stay same-origin and do not trip the browser's CORS rules.
+  if (typeof window !== 'undefined') return window.location.origin;
+  return 'http://127.0.0.1:8001';
+}
+
+export const API_BASE_URL = resolveApiBase();
 
 /**
  * Builds a signed media URL (image/thumbnail/report) for use directly in `<img src>` / `<a href>`.

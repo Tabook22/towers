@@ -7,6 +7,7 @@ than one form submission at a time, is the actual point.
 from __future__ import annotations
 
 import io
+import re
 
 from sqlalchemy.orm import Session
 
@@ -27,6 +28,14 @@ COLUMN_MAP: dict[str, str] = {
     "latitude": "latitude",
     "longitude": "longitude",
     "notes": "notes",
+    # Combined GPS cell used in field exports (DMS like 17°02'32.18"N 54°29'23.82"E).
+    "tower gps location": "_gps",
+    "gps location": "_gps",
+    "gps": "_gps",
+    "coordinates": "_gps",
+    "coord": "_gps",
+    "tower numbers": "_tower_number",
+    "tower number": "_tower_number",
 }
 HEADER_ROW = ["Tower ID", "Voltage", "Tower Type", "Area", "Line Sector", "Location Name", "Height (m)", "Latitude", "Longitude", "Notes"]
 FLOAT_FIELDS = {"height_m", "latitude", "longitude"}
@@ -75,6 +84,54 @@ def build_tower_import_template() -> bytes:
 
 def _normalize_header(h) -> str:
     return str(h or "").strip().lower()
+
+
+# 17°02'32.18"N 54°29'23.82"E  (minutes/seconds optional; curly quotes accepted)
+_DMS_PAIR = re.compile(
+    r"""
+    (?P<lat_d>\d+(?:\.\d+)?)\s*[°º]\s*
+    (?:(?P<lat_m>\d+(?:\.\d+)?)\s*['′’]\s*)?
+    (?:(?P<lat_s>\d+(?:\.\d+)?)\s*["″”]\s*)?
+    (?P<lat_h>[NSns])
+    \s*[,;\s]+\s*
+    (?P<lon_d>\d+(?:\.\d+)?)\s*[°º]\s*
+    (?:(?P<lon_m>\d+(?:\.\d+)?)\s*['′’]\s*)?
+    (?:(?P<lon_s>\d+(?:\.\d+)?)\s*["″”]\s*)?
+    (?P<lon_h>[EWew])
+    """,
+    re.VERBOSE,
+)
+_DEC_PAIR = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*[,;]\s*(-?\d+(?:\.\d+)?)\s*$")
+_KV = re.compile(r"^(\d+)\s*k\s*v$", re.IGNORECASE)
+
+
+def _dms_to_decimal(deg, minutes, seconds, hemi: str) -> float:
+    value = float(deg) + float(minutes or 0) / 60.0 + float(seconds or 0) / 3600.0
+    if hemi.upper() in ("S", "W"):
+        value = -value
+    return value
+
+
+def parse_gps(value) -> tuple[float | None, float | None]:
+    """Turn a combined GPS cell into decimal (lat, lng). Accepts DMS or 'lat, lng'."""
+    if value is None:
+        return None, None
+    text = str(value).strip()
+    if not text:
+        return None, None
+    match = _DMS_PAIR.search(text)
+    if match:
+        lat = _dms_to_decimal(match["lat_d"], match["lat_m"], match["lat_s"], match["lat_h"])
+        lng = _dms_to_decimal(match["lon_d"], match["lon_m"], match["lon_s"], match["lon_h"])
+        if -90 <= lat <= 90 and -180 <= lng <= 180:
+            return lat, lng
+        return None, None
+    match = _DEC_PAIR.match(text)
+    if match:
+        lat, lng = float(match.group(1)), float(match.group(2))
+        if -90 <= lat <= 90 and -180 <= lng <= 180:
+            return lat, lng
+    return None, None
 
 
 def _parse_float(value, field: str, row_num: int, warnings: list[str]) -> float | None:
@@ -155,14 +212,36 @@ def import_towers_from_excel(db: Session, raw: bytes) -> dict:
         for field in ("voltage", "tower_type", "area", "line_sector", "location_name", "notes"):
             value = get(field)
             if value is not None and str(value).strip() != "":
-                setattr(tower, field, str(value).strip())
+                text = str(value).strip()
+                if field == "voltage":
+                    kv = _KV.match(text.replace(" ", ""))
+                    if kv:
+                        text = f"{kv.group(1)} kV"
+                setattr(tower, field, text)
+
+        number = get("_tower_number")
+        if (not tower.location_name) and number is not None and str(number).strip() != "":
+            tower.location_name = f"Tower {str(number).strip()}"
 
         for field in FLOAT_FIELDS:
             value = get(field)
             if value is not None and str(value).strip() != "":
+                if field in ("latitude", "longitude") and parse_gps(value)[0] is not None:
+                    continue
                 parsed = _parse_float(value, field, row_num, warnings)
                 if parsed is not None:
                     setattr(tower, field, parsed)
+
+        if tower.latitude is None or tower.longitude is None:
+            gps_lat, gps_lng = parse_gps(get("_gps"))
+            if gps_lat is None:
+                # Some sheets dump the combined DMS string into the Latitude column.
+                gps_lat, gps_lng = parse_gps(get("latitude"))
+            if gps_lat is not None and gps_lng is not None:
+                tower.latitude = gps_lat
+                tower.longitude = gps_lng
+            elif get("_gps") not in (None, "") or (get("latitude") not in (None, "") and tower.latitude is None):
+                warnings.append(f"Row {row_num}: could not parse GPS for '{tower_id}' — location left blank")
 
         if is_new:
             created += 1
@@ -170,4 +249,11 @@ def import_towers_from_excel(db: Session, raw: bytes) -> dict:
             updated += 1
 
     db.commit()
+    try:
+        from app.database import engine
+        from app.migrations import backfill_areas_from_towers
+
+        backfill_areas_from_towers(engine)
+    except Exception:
+        pass
     return {"created": created, "updated": updated, "total_rows": created + updated, "warnings": warnings}

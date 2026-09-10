@@ -5,8 +5,32 @@ long-lived Python process and build/serve static files, i.e. a **Hostinger VPS**
 access). Hostinger's shared/cPanel hosting cannot run this stack — if that's what you have, upgrade
 to a VPS plan first.
 
-Everything below assumes Ubuntu 22.04+ on the VPS and a domain already pointed at its IP address
-(an A record, set from Hostinger's DNS panel or wherever the domain is managed).
+Everything below assumes Ubuntu 22.04+ on the VPS. A domain is optional: you can go live on the
+VPS IP first (e.g. `http://77.37.45.106`) and add HTTPS later once an A record points at it.
+
+**Hostinger firewall (easy to miss):** hPanel has its own firewall in front of the VM. If ports 80
+and 443 are not allowed there, the site will work on the server (`curl localhost`) but time out
+from the internet. Allow TCP 80, 443, and 22 in **hPanel → VPS → Firewall** before you expect the
+site to load in a browser.
+
+## 0. Fast path — one script, GitHub → VPS
+
+SSH in as root, then:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tabook22/towers/main/scripts/bootstrap-vps.sh -o /tmp/bootstrap-vps.sh
+# If that URL 404s (script not pushed yet), scp scripts/bootstrap-vps.sh from your PC instead.
+sudo PUBLIC_ORIGIN=http://77.37.45.106 bash /tmp/bootstrap-vps.sh
+```
+
+That clones `https://github.com/Tabook22/towers.git` into `/var/www/insulator_inspector_pro`,
+installs Python/Node/Nginx, builds the frontend, and starts the backend as a systemd service.
+
+`VITE_API_BASE_URL` must be the **origin only** (`http://77.37.45.106` or `https://your-domain.com`),
+not `.../api`. Every frontend request already starts with `/api/...`; adding `/api` a second time
+breaks login and every other call.
+
+The rest of this file is the same setup, step by step, if you would rather run it by hand.
 
 ## 1. First-time server setup
 
@@ -95,7 +119,8 @@ sudo systemctl status insulator-backend   # should say "active (running)"
 
 ```bash
 cd /var/www/insulator_inspector_pro/frontend
-echo "VITE_API_BASE_URL=https://your-domain.com/api" > .env.production
+echo "VITE_API_BASE_URL=https://your-domain.com" > .env.production
+# IP-only (no domain yet): echo "VITE_API_BASE_URL=http://77.37.45.106" > .env.production
 npm ci
 npm run build
 ```
@@ -110,7 +135,7 @@ Create `/etc/nginx/sites-available/insulator-inspector`:
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com;
+    server_name your-domain.com 77.37.45.106 _;
 
     root /var/www/insulator_inspector_pro/frontend/dist;
     index index.html;
