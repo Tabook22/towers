@@ -160,17 +160,6 @@ function catalogTowerIcon(highlighted: boolean) {
   const size = highlighted ? 16 : 12;
   return L.divIcon({
     className: '',
-    html: `<div style="width:${size}px;height:${size}px;border-radius:2px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.3);opacity:${highlighted ? 1 : 0.75}"></div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  });
-}
-
-function catalogTowerIcon(highlighted: boolean) {
-  const color = highlighted ? '#0d475c' : '#78909c';
-  const size = highlighted ? 16 : 12;
-  return L.divIcon({
-    className: '',
     html: `<div style="width:${size}px;height:${size}px;border-radius:2px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.3);opacity:${highlighted ? 1 : 0.8}"></div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],

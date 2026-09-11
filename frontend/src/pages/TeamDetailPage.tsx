@@ -578,13 +578,6 @@ export function TeamDetailPage() {
   };
 
   const points = (liveMembers || []).filter((m): m is NonNullable<typeof m> & { latitude: number; longitude: number } => m.latitude != null && m.longitude != null);
-  const trailPts = (teamTrails || []).flatMap((t) => t.points);
-  const mapCenter: [number, number] =
-    points.length > 0
-      ? [points[0].latitude, points[0].longitude]
-      : trailPts.length > 0
-        ? [trailPts[0].latitude, trailPts[0].longitude]
-        : [17.01972, 54.08972];
   const jobMapTowersWithCoords = (jobMap?.towers || []).filter((t) => t.latitude != null && t.longitude != null);
   const jobMapCenter: [number, number] =
     jobMapTowersWithCoords.length > 0
