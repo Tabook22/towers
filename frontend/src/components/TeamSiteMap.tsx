@@ -77,6 +77,7 @@ export function TeamSiteMap({
   myLocation,
   myLabel = 'You',
   height = 380,
+  plannedIds,
 }: {
   towers?: TeamJobMapTower[];
   liveMembers?: LiveTeamMember[];
@@ -84,15 +85,19 @@ export function TeamSiteMap({
   myLocation?: { latitude: number; longitude: number } | null;
   myLabel?: string;
   height?: number;
+  plannedIds?: number[];
 }) {
+  const planned = new Set(plannedIds || []);
+  const hasPlan = planned.size > 0;
   const towerPts = (towers || []).filter((t) => t.latitude != null && t.longitude != null);
   const livePts = (liveMembers || []).filter(
     (m): m is LiveTeamMember & { latitude: number; longitude: number } =>
       m.latitude != null && m.longitude != null,
   );
   const trailPts = (trails || []).flatMap((t) => t.points);
+  const mapTowers = hasPlan ? towerPts.filter((t) => planned.has(t.id)) : towerPts;
   const positions: [number, number][] = [
-    ...towerPts.map((t) => [t.latitude as number, t.longitude as number] as [number, number]),
+    ...mapTowers.map((t) => [t.latitude as number, t.longitude as number] as [number, number]),
     ...livePts.map((m) => [m.latitude, m.longitude] as [number, number]),
     ...trailPts.map((p) => [p.latitude, p.longitude] as [number, number]),
     ...(myLocation ? [[myLocation.latitude, myLocation.longitude] as [number, number]] : []),
@@ -136,6 +141,7 @@ export function TeamSiteMap({
         <Chip size="small" label="Tower done" sx={{ bgcolor: '#2e7d32', color: '#fff' }} />
         <Chip size="small" label="In progress" sx={{ bgcolor: '#1976d2', color: '#fff' }} />
         <Chip size="small" label="Not started" sx={{ bgcolor: '#9e9e9e', color: '#fff' }} />
+        {hasPlan && <Chip size="small" color="primary" label={`${planned.size} tonight`} />}
       </Stack>
       <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)' }}>
         <div style={{ position: 'relative', height: h, width: '100%', transition: 'height 0.2s ease' }}>
@@ -152,7 +158,7 @@ export function TeamSiteMap({
                 />
               )),
             )}
-            {towerPts.map((t) => (
+            {mapTowers.map((t) => (
               <Marker
                 key={`tw-${t.id}`}
                 position={[t.latitude as number, t.longitude as number]}

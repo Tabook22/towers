@@ -535,6 +535,23 @@ export interface TeamJobMapTower {
   visit_id: number | null;
 }
 
+export interface OutingPlanTower {
+  id: number;
+  tower_id: string;
+  area: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  sort_order: number;
+}
+
+export interface OutingPlan {
+  team_id: number;
+  field_date: string;
+  tower_ids: number[];
+  towers: OutingPlanTower[];
+  notes: string | null;
+}
+
 export interface TeamJobMap {
   sector: string | null;
   total: number;

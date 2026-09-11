@@ -24,7 +24,7 @@ import PendingActionsIcon from '@mui/icons-material/PendingActionsRounded';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAreas, useDashboardSummary, useLiveTeams, useTeamJobMap, useTeamLive, useTeams, useTeamTrails } from '../api/hooks';
+import { useAreas, useDashboardSummary, useLiveTeams, useOutingPlan, useShiftInfo, useTeamJobMap, useTeamLive, useTeams, useTeamTrails } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { KpiTile } from '../components/KpiTile';
 import { TowersOverviewMap } from '../components/TowersOverviewMap';
@@ -45,6 +45,8 @@ export function DashboardPage() {
   const { data: myTeams } = useTeams();
   const teamId = user?.team_id ?? (isTeamLeader ? myTeams?.[0]?.id : undefined);
   const { data: teamJobMap } = useTeamJobMap(teamId);
+  const { data: shift } = useShiftInfo();
+  const { data: outingPlan } = useOutingPlan(teamId, shift?.field_date);
   const { data: teamLive } = useTeamLive(teamId);
   const { data: teamTrails } = useTeamTrails(teamId);
   const { lastLatitude, lastLongitude } = useTracking();
@@ -186,6 +188,7 @@ export function DashboardPage() {
                   </Typography>
                   {isTeamLeader || teamId ? (
                     <TeamSiteMap
+                      plannedIds={outingPlan?.tower_ids}
                       towers={
                         teamJobMap?.towers && teamJobMap.towers.length > 0
                           ? teamJobMap.towers

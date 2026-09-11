@@ -87,6 +87,7 @@ import {
   useTeamTrails,
   useTeamFieldHistory,
   useTeamFieldTrack,
+  useOutingPlan,
   useTeamJobMap,
   useTeamMissions,
   useClaimTower,
@@ -109,6 +110,7 @@ import { NextTowersCard } from '../components/NextTowersCard';
 import { NightChannel } from '../components/NightChannel';
 import { requestBrowserLocation, useTracking } from '../hooks/useFieldTracking';
 import { TeamSiteMap } from '../components/TeamSiteMap';
+import { OutingPlanCard } from '../components/OutingPlanCard';
 import { KpiTile } from '../components/KpiTile';
 import type { AdminUser, NextTowerStop, NightClaimStatus, TrackingMission } from '../api/types';
 
@@ -321,6 +323,7 @@ export function TeamDetailPage() {
   // their own team's accounts back, never another team's) — team_member accounts get nothing here.
   const { data: enabledUsers } = useUsers(isAdmin || isTeamLeader);
   const { data: shift } = useShiftInfo();
+  const { data: outingPlan } = useOutingPlan(Number.isFinite(id) ? id : undefined, shift?.field_date);
   const { data: fieldHistory } = useTeamFieldHistory(Number.isFinite(id) ? id : undefined);
   const [trackKey, setTrackKey] = useState('');
   const [trackStayIdx, setTrackStayIdx] = useState<number | null>(null);
@@ -776,6 +779,7 @@ export function TeamDetailPage() {
           </Typography>
           <TeamSiteMap
             towers={jobMap?.towers}
+            plannedIds={outingPlan?.tower_ids}
             liveMembers={liveMembers}
             trails={teamTrails}
             myLocation={
@@ -1463,6 +1467,13 @@ export function TeamDetailPage() {
           </TableContainer>
         </CardContent>
       </Card>
+
+      <OutingPlanCard
+        teamId={id}
+        fieldDate={shift?.field_date}
+        assignedTowers={jobMap?.towers || []}
+        canEdit={canManage}
+      />
 
       <NextTowersCard
         plan={nextPlan}

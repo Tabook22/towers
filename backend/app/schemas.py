@@ -642,6 +642,29 @@ class TeamJobMap(BaseModel):
     towers: list[TeamJobMapTower] = []
 
 
+class OutingPlanTowerOut(BaseModel):
+    id: int
+    tower_id: str
+    area: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    sort_order: int = 0
+
+
+class OutingPlanOut(BaseModel):
+    team_id: int
+    field_date: dt.date
+    tower_ids: list[int] = []
+    towers: list[OutingPlanTowerOut] = []
+    notes: str | None = None
+
+
+class OutingPlanSave(BaseModel):
+    field_date: dt.date | None = None
+    tower_ids: list[int] = []
+    notes: str | None = None
+
+
 class NextTowerStop(BaseModel):
     rank: int
     id: int

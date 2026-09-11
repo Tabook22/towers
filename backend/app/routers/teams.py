@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.deps import effective_team_id, get_current_user, require_role, require_team_read, require_team_scope
-from app.models import LineInspectionReport, LocationPing, Position, Team, TeamDailyLog, TeamDailyLogFile, TeamMember, Tower, TrackingMission, User, UserRole, Visit
+from app.models import LineInspectionReport, LocationPing, Position, Team, TeamDailyLog, TeamDailyLogFile, TeamMember, TeamOutingPlan, TeamOutingTower, Tower, TrackingMission, User, UserRole, Visit
 from app.routers.visits import _load_visit, attach_rollup, create_visit_row, delete_visit_completely
 from app.schemas import (
     LiveTeamMember,
@@ -41,6 +41,9 @@ from app.schemas import (
     TeamDailyLogUpdate,
     TeamDayProgress,
     NextTowersPlan,
+    OutingPlanOut,
+    OutingPlanSave,
+    OutingPlanTowerOut,
     TeamJobMap,
     TeamJobMapTower,
     TeamMemberCreate,
@@ -829,6 +832,102 @@ def team_job_map(team_id: int, db: Session = Depends(get_db), _user: User = Depe
             )
         )
     return TeamJobMap(sector=team.primary_sector, total=len(towers), completed=completed, in_progress=in_progress, pending=pending, towers=rows)
+
+
+def _outing_plan_out(plan: TeamOutingPlan) -> OutingPlanOut:
+    rows: list[OutingPlanTowerOut] = []
+    ids: list[int] = []
+    for row in sorted(plan.towers, key=lambda r: r.sort_order):
+        t = row.tower
+        if t is None:
+            continue
+        ids.append(t.id)
+        rows.append(
+            OutingPlanTowerOut(
+                id=t.id,
+                tower_id=t.tower_id,
+                area=t.area,
+                latitude=t.latitude,
+                longitude=t.longitude,
+                sort_order=row.sort_order,
+            )
+        )
+    return OutingPlanOut(team_id=plan.team_id, field_date=plan.field_date, tower_ids=ids, towers=rows, notes=plan.notes)
+
+
+@router.get("/{team_id}/outing-plan", response_model=OutingPlanOut)
+def get_outing_plan(
+    team_id: int,
+    field_date: dt.date | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_team_read()),
+):
+    """Towers the leader picked for this field night. Empty tower_ids means none chosen yet."""
+    _load_team(db, team_id)
+    day = field_date or current_field_date()
+    plan = (
+        db.query(TeamOutingPlan)
+        .options(joinedload(TeamOutingPlan.towers).joinedload(TeamOutingTower.tower))
+        .filter(TeamOutingPlan.team_id == team_id, TeamOutingPlan.field_date == day)
+        .first()
+    )
+    if not plan:
+        return OutingPlanOut(team_id=team_id, field_date=day)
+    return _outing_plan_out(plan)
+
+
+@router.put("/{team_id}/outing-plan", response_model=OutingPlanOut)
+def save_outing_plan(
+    team_id: int,
+    payload: OutingPlanSave,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_team_scope()),
+):
+    """Leader picks which assigned towers the crew will visit tonight — before leaving for site."""
+    _load_team(db, team_id)
+    day = payload.field_date or current_field_date()
+    wanted: list[int] = []
+    seen: set[int] = set()
+    for tid in payload.tower_ids:
+        if tid in seen:
+            continue
+        seen.add(tid)
+        wanted.append(tid)
+    if wanted:
+        towers = db.query(Tower).filter(Tower.id.in_(wanted), Tower.is_active.is_(True)).all()
+        by_id = {t.id: t for t in towers}
+        missing = [tid for tid in wanted if tid not in by_id]
+        if missing:
+            raise HTTPException(status_code=400, detail="One or more towers were not found")
+        wrong = [t.tower_id for t in towers if t.assigned_team_id != team_id]
+        if wrong:
+            raise HTTPException(
+                status_code=400,
+                detail=f"These towers are not assigned to this team: {', '.join(wrong)}",
+            )
+    plan = (
+        db.query(TeamOutingPlan)
+        .options(joinedload(TeamOutingPlan.towers).joinedload(TeamOutingTower.tower))
+        .filter(TeamOutingPlan.team_id == team_id, TeamOutingPlan.field_date == day)
+        .first()
+    )
+    if plan is None:
+        plan = TeamOutingPlan(team_id=team_id, field_date=day, created_by=user.id)
+        db.add(plan)
+        db.flush()
+    plan.notes = payload.notes
+    plan.updated_at = dt.datetime.utcnow()
+    db.query(TeamOutingTower).filter(TeamOutingTower.plan_id == plan.id).delete()
+    for i, tid in enumerate(wanted):
+        db.add(TeamOutingTower(plan_id=plan.id, tower_pk=tid, sort_order=i))
+    db.commit()
+    plan = (
+        db.query(TeamOutingPlan)
+        .options(joinedload(TeamOutingPlan.towers).joinedload(TeamOutingTower.tower))
+        .filter(TeamOutingPlan.id == plan.id)
+        .first()
+    )
+    return _outing_plan_out(plan)
 
 
 @router.get("/{team_id}/next-towers", response_model=NextTowersPlan)

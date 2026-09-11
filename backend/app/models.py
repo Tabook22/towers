@@ -511,6 +511,9 @@ class Team(Base):
     night_claims: Mapped[list["NightTowerClaim"]] = relationship(
         back_populates="team", cascade="all, delete-orphan", order_by="NightTowerClaim.id"
     )
+    outing_plans: Mapped[list["TeamOutingPlan"]] = relationship(
+        back_populates="team", cascade="all, delete-orphan", order_by="TeamOutingPlan.field_date.desc()"
+    )
 
 
 class TeamMember(Base):
@@ -616,6 +619,39 @@ class TeamChannelMessage(Base):
     tower: Mapped["Tower | None"] = relationship(foreign_keys=[tower_pk])
     visit: Mapped["Visit | None"] = relationship(foreign_keys=[visit_id])
     author: Mapped["User | None"] = relationship(foreign_keys=[created_by])
+
+
+class TeamOutingPlan(Base):
+    """Towers the team leader picked for one field night — set before leaving for site."""
+
+    __tablename__ = "team_outing_plans"
+    __table_args__ = (UniqueConstraint("team_id", "field_date", name="uq_outing_plan_night"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
+    field_date: Mapped[dt.date] = mapped_column(Date, index=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    team: Mapped["Team"] = relationship(back_populates="outing_plans")
+    towers: Mapped[list["TeamOutingTower"]] = relationship(
+        back_populates="plan", cascade="all, delete-orphan", order_by="TeamOutingTower.sort_order"
+    )
+
+
+class TeamOutingTower(Base):
+    __tablename__ = "team_outing_towers"
+    __table_args__ = (UniqueConstraint("plan_id", "tower_pk", name="uq_outing_tower"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("team_outing_plans.id"), index=True)
+    tower_pk: Mapped[int] = mapped_column(ForeignKey("towers.id"), index=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+    plan: Mapped["TeamOutingPlan"] = relationship(back_populates="towers")
+    tower: Mapped["Tower"] = relationship(foreign_keys=[tower_pk])
 
 
 CLAIM_STATUS_CHOICES = ["claimed", "en_route", "on_site", "done", "skipped"]

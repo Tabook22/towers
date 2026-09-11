@@ -28,6 +28,7 @@ import type {
   TeamActivityTeam,
   TeamDailyLog,
   TeamDayProgress,
+  OutingPlan,
   TeamJobMap,
   NextTowersPlan,
   NightClaim,
@@ -1186,6 +1187,32 @@ export function useTeamMissions(teamId: number | undefined) {
 
 // The team's whole assigned job — every tower in its sector, done vs. pending — not just the
 // missions it already has. See backend routers/teams.py's team_job_map.
+export function useOutingPlan(teamId: number | undefined, fieldDate?: string) {
+  return useQuery({
+    queryKey: ['outing-plan', teamId, fieldDate],
+    queryFn: async () =>
+      (
+        await apiClient.get<OutingPlan>(`/api/teams/${teamId}/outing-plan`, {
+          params: { field_date: fieldDate },
+        })
+      ).data,
+    enabled: teamId !== undefined,
+  });
+}
+
+export function useSaveOutingPlan(teamId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { field_date?: string; tower_ids: number[]; notes?: string }) =>
+      (await apiClient.put<OutingPlan>(`/api/teams/${teamId}/outing-plan`, payload)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outing-plan', teamId] });
+      qc.invalidateQueries({ queryKey: ['team-next-towers', teamId] });
+      qc.invalidateQueries({ queryKey: ['team-job-map', teamId] });
+    },
+  });
+}
+
 export function useTeamJobMap(teamId: number | undefined) {
   return useQuery({
     queryKey: ['team-job-map', teamId],

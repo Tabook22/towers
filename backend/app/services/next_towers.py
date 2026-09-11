@@ -20,6 +20,7 @@ from app.models import (
     NightTowerClaim,
     Position,
     Team,
+    TeamOutingPlan,
     Tower,
     User,
     UserRole,
@@ -210,6 +211,16 @@ def build_next_towers(
         .order_by(Tower.tower_id)
         .all()
     )
+    outing = (
+        db.query(TeamOutingPlan)
+        .options(joinedload(TeamOutingPlan.towers))
+        .filter(TeamOutingPlan.team_id == team.id, TeamOutingPlan.field_date == day)
+        .first()
+    )
+    if outing and outing.towers:
+        order = {row.tower_pk: row.sort_order for row in outing.towers}
+        towers = [t for t in towers if t.id in order]
+        towers.sort(key=lambda t: order[t.id])
     with_coords = [t for t in towers if t.latitude is not None and t.longitude is not None]
     all_points = [(t.latitude, t.longitude) for t in with_coords]
 
