@@ -28,6 +28,7 @@ import { useDeleteVisitPhoto, usePromoteVisitPhoto, useUploadVisitPhoto, useVisi
 import { mediaUrl } from '../api/client';
 import { ImageLightbox } from './ImageLightbox';
 import type { Position, VisitPhoto } from '../api/types';
+import { useOffline } from '../offline/OfflineProvider';
 
 const IMAGE_TYPES = ['TH Full', 'TH Close', 'RGB Full', 'RGB Close'];
 
@@ -47,6 +48,8 @@ const positionLabel = (p: Position) => `${p.ohl} ${p.phase} ${p.string}${p.direc
 export function VisitPhotosSection({ visitId, positions }: { visitId: number; positions: Position[] }) {
   const { data: photos, isLoading } = useVisitPhotos(visitId);
   const upload = useUploadVisitPhoto(visitId);
+  const { items: outbox, previewUrl } = useOffline();
+  const queuedPhotos = outbox.filter((i) => i.kind === 'visit-photo' && Number(i.path.visitId) === visitId);
   const del = useDeleteVisitPhoto(visitId);
   const promote = usePromoteVisitPhoto(visitId);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -225,10 +228,40 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
 
         {(isLoading || upload.isPending) && <LinearProgress sx={{ mb: 2 }} />}
 
-        {!isLoading && groups.length === 0 && (
+        {!isLoading && groups.length === 0 && queuedPhotos.length === 0 && (
           <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
             No photos uploaded yet.
           </Typography>
+        )}
+        {queuedPhotos.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <Chip size="small" color="warning" label={`On this phone · ${queuedPhotos.length}`} sx={{ mb: 1 }} />
+            <Grid container spacing={1.5}>
+              {queuedPhotos.map((item) => {
+                const src = previewUrl(item.id);
+                if (!src) return null;
+                return (
+                  <Grid key={item.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
+                    <Box
+                      component="img"
+                      src={src}
+                      alt={item.label}
+                      sx={{
+                        width: '100%',
+                        aspectRatio: '1 / 1',
+                        objectFit: 'cover',
+                        borderRadius: 2,
+                        border: '2px dashed #f9a825',
+                      }}
+                    />
+                    <Typography variant="caption" color="warning.main">
+                      Waiting for signal
+                    </Typography>
+                  </Grid>
+                );
+              })}
+            </Grid>
+          </Box>
         )}
 
         <Stack spacing={2.5}>

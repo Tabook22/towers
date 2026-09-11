@@ -24,17 +24,32 @@ import PendingActionsIcon from '@mui/icons-material/PendingActionsRounded';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAreas, useDashboardSummary } from '../api/hooks';
+import { useAreas, useDashboardSummary, useLiveTeams, useTeamJobMap, useTeamLive, useTeams, useTeamTrails } from '../api/hooks';
+import { useAuth } from '../auth/AuthContext';
 import { KpiTile } from '../components/KpiTile';
 import { TowersOverviewMap } from '../components/TowersOverviewMap';
+import { TeamSiteMap } from '../components/TeamSiteMap';
+import { useTracking } from '../hooks/useFieldTracking';
 import { VisitStatusChip } from '../components/Badges';
 import { mediaUrl } from '../api/client';
 
 export function DashboardPage() {
   const [area, setArea] = useState<string>('');
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: areas } = useAreas();
   const { data, isLoading } = useDashboardSummary(area || undefined);
+  const canMonitorField = user?.role === 'admin' || user?.role === 'reviewer';
+  const isTeamLeader = user?.role === 'team_leader';
+  const { data: liveMembers } = useLiveTeams(undefined, canMonitorField);
+  const { data: myTeams } = useTeams();
+  const teamId = user?.team_id ?? (isTeamLeader ? myTeams?.[0]?.id : undefined);
+  const { data: teamJobMap } = useTeamJobMap(teamId);
+  const { data: teamLive } = useTeamLive(teamId);
+  const { data: teamTrails } = useTeamTrails(teamId);
+  const { lastLatitude, lastLongitude } = useTracking();
+  const liveOnMap = (liveMembers || []).filter((m) => m.latitude != null && m.longitude != null);
+  const liveActive = liveOnMap.filter((m) => !m.is_stale);
 
   const reportUrl = mediaUrl(`/api/reports/overall.pdf${area ? `?area=${encodeURIComponent(area)}` : ''}`);
 
@@ -105,6 +120,63 @@ export function DashboardPage() {
             </Grid>
           </Grid>
 
+          {canMonitorField && (
+            <Card>
+              <CardContent>
+                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                      Field teams — live
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {liveActive.length} live · {liveOnMap.length} on map · {(liveMembers || []).length} field logins
+                    </Typography>
+                  </Box>
+                  <Button variant="contained" onClick={() => navigate('/field-tracker')}>
+                    Open Field Tracker
+                  </Button>
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  Positions update every minute from crew phones while their app is open. Open Field
+                  Tracker for the live map and the path since the mission started.
+                </Typography>
+                {(liveMembers || []).length > 0 && (
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Crew</TableCell>
+                          <TableCell>Team</TableCell>
+                          <TableCell>Status</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(liveMembers || []).slice(0, 8).map((m) => (
+                          <TableRow
+                            key={m.user_id}
+                            hover
+                            sx={{ cursor: 'pointer' }}
+                            onClick={() => navigate('/field-tracker')}
+                          >
+                            <TableCell sx={{ fontWeight: 700 }}>{m.full_name || m.username}</TableCell>
+                            <TableCell>{m.team_name || '—'}</TableCell>
+                            <TableCell>
+                              {m.latitude == null
+                                ? 'Not reporting'
+                                : m.is_stale
+                                  ? 'Last seen (stale)'
+                                  : 'Live on site'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 5 }}>
               <Card sx={{ height: '100%' }}>
@@ -112,7 +184,38 @@ export function DashboardPage() {
                   <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }}>
                     Site map
                   </Typography>
-                  <TowersOverviewMap rows={data.rows} />
+                  {isTeamLeader || teamId ? (
+                    <TeamSiteMap
+                      towers={
+                        teamJobMap?.towers && teamJobMap.towers.length > 0
+                          ? teamJobMap.towers
+                          : data.rows.map((row) => ({
+                              id: row.tower.id,
+                              tower_id: row.tower.tower_id,
+                              area: row.tower.area,
+                              latitude: row.tower.latitude,
+                              longitude: row.tower.longitude,
+                              status: row.rollup
+                                ? row.rollup.visit_status === 'Ready for review'
+                                  ? 'completed'
+                                  : 'in_progress'
+                                : 'pending',
+                              visit_id: row.latest_visit?.id ?? null,
+                            }))
+                      }
+                      liveMembers={teamLive}
+                      trails={teamTrails}
+                      myLocation={
+                        lastLatitude != null && lastLongitude != null
+                          ? { latitude: lastLatitude, longitude: lastLongitude }
+                          : null
+                      }
+                      myLabel={user?.full_name || user?.username || 'You'}
+                      height={340}
+                    />
+                  ) : (
+                    <TowersOverviewMap rows={data.rows} />
+                  )}
                 </CardContent>
               </Card>
             </Grid>

@@ -1,0 +1,18 @@
+{
+  "name": "Insulator Inspector Pro",
+  "short_name": "IIP Field",
+  "description": "132 kV overhead-line insulator field inspection",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d475c",
+  "theme_color": "#0d475c",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import effective_team_id, get_current_user
 from app.models import LocationPing, Team, User, UserRole, Visit
 from app.schemas import ChangePasswordRequest, Token, UserCreate, UserOut, UserUpdate
 from app.security import create_access_token, hash_password, verify_password
@@ -21,11 +21,20 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
     token = create_access_token(subject=user.username, role=user.role)
-    return Token(access_token=token, role=user.role, username=user.username, full_name=user.full_name)
+    team_id = effective_team_id(db, user)
+    return Token(
+        access_token=token,
+        user_id=user.id,
+        role=user.role,
+        username=user.username,
+        full_name=user.full_name,
+        team_id=team_id,
+    )
 
 
 @router.get("/me", response_model=UserOut)
-def me(user: User = Depends(get_current_user)):
+def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    effective_team_id(db, user)
     return user
 
 

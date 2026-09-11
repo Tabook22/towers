@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { MapContainer, Marker, Polyline, TileLayer, Tooltip as LeafletTooltip } from 'react-leaflet';
+import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -57,8 +57,22 @@ import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
 import MapIcon from '@mui/icons-material/MapRounded';
 import DirectionsIcon from '@mui/icons-material/DirectionsRounded';
 import CloseIcon from '@mui/icons-material/CloseRounded';
+import RouteIcon from '@mui/icons-material/RouteRounded';
+import TimerIcon from '@mui/icons-material/TimerRounded';
+import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalkRounded';
+import SubtitlesIcon from '@mui/icons-material/SubtitlesRounded';
+import AttachFileIcon from '@mui/icons-material/AttachFileRounded';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFileRounded';
 import {
   useAddTeamNote,
+  useAddTeamNoteFiles,
+  useDeleteTeamNoteFile,
+  useRenameTeamNoteFile,
+  useReplaceTeamNoteFile,
+  useAddTeamVoiceNote,
+  useTranscribeTeamNote,
+  useUpdateTeamNote,
   useChoiceLists,
   useCreateTeamMission,
   useCreateUser,
@@ -68,9 +82,16 @@ import {
   useGenerateOetcReport,
   useRemoveTeamMember,
   useTeam,
+  useShiftInfo,
   useTeamLive,
+  useTeamTrails,
+  useTeamFieldHistory,
+  useTeamFieldTrack,
   useTeamJobMap,
   useTeamMissions,
+  useClaimTower,
+  useTeamNextTowers,
+  useUpdateClaim,
   useTeamProgress,
   useTowers,
   useUpdateTeam,
@@ -79,9 +100,17 @@ import {
   useUpdateVisit,
 } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
+import { mediaUrl } from '../api/client';
 import { TILE_LAYERS, type MapLayer } from '../components/MapPicker';
+import { VoiceNoteControls, VoiceNotePlayer } from '../components/VoiceNoteControls';
+import { splitTrailSegments } from '../utils/gpsTrail';
+import { useOffline } from '../offline/OfflineProvider';
+import { NextTowersCard } from '../components/NextTowersCard';
+import { NightChannel } from '../components/NightChannel';
+import { requestBrowserLocation, useTracking } from '../hooks/useFieldTracking';
+import { TeamSiteMap } from '../components/TeamSiteMap';
 import { KpiTile } from '../components/KpiTile';
-import type { AdminUser } from '../api/types';
+import type { AdminUser, NextTowerStop, NightClaimStatus, TrackingMission } from '../api/types';
 
 const MISSION_STATUS_COLORS: Record<string, 'default' | 'info' | 'success'> = {
   planned: 'default',
@@ -153,10 +182,78 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+function mergeFiles(existing: File[], incoming: File[]): File[] {
+  const seen = new Set(existing.map((f) => `${f.name}:${f.size}:${f.lastModified}`));
+  return [...existing, ...incoming.filter((f) => !seen.has(`${f.name}:${f.size}:${f.lastModified}`))];
+}
+
+function formatBytes(n: number | null | undefined): string {
+  if (!n) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function formatTime(iso: string | null): string {
   if (!iso) return '-';
   const d = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function isoMs(iso: string): number {
+  return new Date(iso.endsWith('Z') ? iso : `${iso}Z`).getTime();
+}
+
+function missionSelectKey(m: TrackingMission): string {
+  if (m.kind === 'night' || m.id == null) return `night:${m.field_date}`;
+  return `mission:${m.id}`;
+}
+
+function TrackMapBridge({ mapRef }: { mapRef: MutableRefObject<L.Map | null> }) {
+  const map = useMap();
+  useEffect(() => {
+    mapRef.current = map;
+    return () => {
+      if (mapRef.current === map) mapRef.current = null;
+    };
+  }, [map, mapRef]);
+  return null;
+}
+
+function FitTrack({ positions, resetKey }: { positions: [number, number][]; resetKey: string }) {
+  const map = useMap();
+  const lastKey = useRef('');
+  useEffect(() => {
+    if (positions.length === 0) return;
+    if (lastKey.current === resetKey) return;
+    lastKey.current = resetKey;
+    if (positions.length === 1) map.setView(positions[0], 14);
+    else map.fitBounds(L.latLngBounds(positions), { padding: [36, 36], maxZoom: 15 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
+  return null;
+}
+
+function planRankIcon(n: number, color: string) {
+  return L.divIcon({
+    className: 'team-live-label',
+    html: `<div style="width:26px;height:26px;border-radius:50%;background:${color};color:#fff;font:800 12px/26px system-ui,sans-serif;text-align:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)">${n}</div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+  });
+}
+
+function towerSquareIcon(label: string) {
+  const safe = label.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return L.divIcon({
+    className: 'team-live-label',
+    html: `<div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-2px)">
+      <div style="width:18px;height:18px;background:#d32f2f;border:2px solid #fff;box-shadow:0 0 0 2px #d32f2f"></div>
+      <div style="margin-top:4px;padding:2px 7px;border-radius:4px;background:#c62828;color:#fff;font:700 11px/15px system-ui,sans-serif;white-space:nowrap">${safe}</div>
+    </div>`,
+    iconSize: [180, 46],
+    iconAnchor: [90, 9],
+  });
 }
 
 export function TeamDetailPage() {
@@ -164,17 +261,50 @@ export function TeamDetailPage() {
   const id = Number(teamId);
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
+  const { lastLatitude, lastLongitude } = useTracking();
   const { data: team, isLoading, isError, error: teamError } = useTeam(id);
   const updateTeam = useUpdateTeam();
   const removeMember = useRemoveTeamMember(id);
   const addNote = useAddTeamNote(id);
+  const addNoteFiles = useAddTeamNoteFiles(id);
+  const deleteNoteFile = useDeleteTeamNoteFile(id);
+  const renameNoteFile = useRenameTeamNoteFile(id);
+  const replaceNoteFile = useReplaceTeamNoteFile(id);
+  const replaceFileInput = useRef<HTMLInputElement | null>(null);
+  const [replaceTarget, setReplaceTarget] = useState<{ noteId: number; fileId: number } | null>(null);
+  const [renameTarget, setRenameTarget] = useState<{ noteId: number; fileId: number; name: string } | null>(null);
+  const addVoiceNote = useAddTeamVoiceNote(id);
+  const photoInputByDate = useRef<Record<string, HTMLInputElement | null>>({});
+  const docInputByDate = useRef<Record<string, HTMLInputElement | null>>({});
+  const morePhotoInput = useRef<HTMLInputElement | null>(null);
+  const moreDocInput = useRef<HTMLInputElement | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<Record<string, File[]>>({});
+  const [addMoreNoteId, setAddMoreNoteId] = useState<number | null>(null);
+  const transcribeNote = useTranscribeTeamNote(id);
+  const updateNote = useUpdateTeamNote(id);
   const deleteNote = useDeleteTeamNote(id);
+  const [transcriptDraft, setTranscriptDraft] = useState<Record<number, string>>({});
+  const [convertError, setConvertError] = useState<Record<number, string>>({});
   const updateUserMut = useUpdateUser();
   const createUserMut = useCreateUser();
   const { data: liveMembers } = useTeamLive(id);
+  const { data: teamTrails } = useTeamTrails(id);
   const { data: missions } = useTeamMissions(id);
   const { data: jobMap } = useTeamJobMap(id);
+  const [deviceHere, setDeviceHere] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    requestBrowserLocation((lat, lng) => setDeviceHere({ lat, lng }), undefined, false);
+  }, []);
+  const { data: nextPlan, isLoading: nextPlanLoading } = useTeamNextTowers(
+    Number.isFinite(id) ? id : undefined,
+    deviceHere?.lat,
+    deviceHere?.lng,
+  );
   const createMission = useCreateTeamMission(id);
+  const claimTower = useClaimTower(id);
+  const updateClaim = useUpdateClaim(id);
+  const canAssignClaims =
+    currentUser?.role === 'admin' || currentUser?.role === 'reviewer' || currentUser?.role === 'team_leader';
   const updateVisit = useUpdateVisit();
   const deleteVisit = useDeleteVisit();
   const { data: towers } = useTowers({ include_inactive: true });
@@ -183,15 +313,44 @@ export function TeamDetailPage() {
 
   const isAdmin = currentUser?.role === 'admin';
   const isTeamLeader = currentUser?.role === 'team_leader';
+  const isTeamMember = currentUser?.role === 'team_member';
+  const canManage = isAdmin || isTeamLeader;
+  const canLogNotes = canManage || isTeamMember;
   // The users-listing endpoint is admin-or-team_leader on the backend (a leader only ever gets
   // their own team's accounts back, never another team's) — team_member accounts get nothing here.
   const { data: enabledUsers } = useUsers(isAdmin || isTeamLeader);
+  const { data: shift } = useShiftInfo();
+  const { data: fieldHistory } = useTeamFieldHistory(Number.isFinite(id) ? id : undefined);
+  const [trackKey, setTrackKey] = useState('');
+  const [trackStayIdx, setTrackStayIdx] = useState<number | null>(null);
+  const trackMapRef = useRef<L.Map | null>(null);
+  const defaultNightKey = shift?.field_date ? `night:${shift.field_date}` : '';
+  const effectiveTrackKey = trackKey || defaultNightKey;
+  const pickedHistory = (fieldHistory || []).find((m) => missionSelectKey(m) === effectiveTrackKey) || null;
+  const trackDate = pickedHistory?.field_date || shift?.field_date || '';
+  const trackMissionId = effectiveTrackKey.startsWith('mission:') ? Number(effectiveTrackKey.slice(8)) : undefined;
+  const { data: fieldTracks } = useTeamFieldTrack(
+    Number.isFinite(id) ? id : undefined,
+    trackMissionId ? undefined : trackDate || undefined,
+    trackMissionId,
+  );
+  const recap = fieldTracks?.[0] || null;
+  const trackStay = recap && trackStayIdx != null ? recap.stays[trackStayIdx] ?? null : null;
+  const trackNextStay = recap && trackStayIdx != null ? recap.stays[trackStayIdx + 1] : undefined;
 
   const today = new Date().toISOString().slice(0, 10);
   const defaultStart = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
   const [rangeStart, setRangeStart] = useState(defaultStart);
   const [rangeEnd, setRangeEnd] = useState(today);
   const { data: progress, isLoading: progressLoading } = useTeamProgress(id, rangeStart, rangeEnd);
+  const { items: outbox, previewUrl } = useOffline();
+  const queuedNotesForDay = (logDate: string) =>
+    outbox.filter(
+      (i) =>
+        (i.kind === 'team-note' || i.kind === 'team-voice' || i.kind === 'team-files') &&
+        Number(i.path.teamId) === id &&
+        String(i.json?.log_date || '') === logDate,
+    );
 
   // ---------- Official OETC-format report — see services/oetc_report.py. One team's line campaign
   // over a date range, rendered straight into the customer's exact template. ----------
@@ -402,7 +561,7 @@ export function TeamDetailPage() {
         </Button>
         <Alert severity={status === 403 ? 'warning' : 'error'}>
           {status === 403
-            ? "You don't have access to this team — team-leader accounts only see their own team."
+            ? "You don't have access to this team."
             : 'Could not load this team.'}
         </Alert>
       </Stack>
@@ -414,16 +573,55 @@ export function TeamDetailPage() {
   }
 
   const commitField = (field: string, value: unknown) => {
+    if (!canManage) return;
     updateTeam.mutate({ id, payload: { [field]: value } });
   };
 
-  const points = (liveMembers || []).filter((m) => m.latitude != null && m.longitude != null);
-  const mapCenter: [number, number] = points.length > 0 ? [points[0].latitude, points[0].longitude] : [17.01972, 54.08972];
+  const points = (liveMembers || []).filter((m): m is NonNullable<typeof m> & { latitude: number; longitude: number } => m.latitude != null && m.longitude != null);
+  const trailPts = (teamTrails || []).flatMap((t) => t.points);
+  const mapCenter: [number, number] =
+    points.length > 0
+      ? [points[0].latitude, points[0].longitude]
+      : trailPts.length > 0
+        ? [trailPts[0].latitude, trailPts[0].longitude]
+        : [17.01972, 54.08972];
   const jobMapTowersWithCoords = (jobMap?.towers || []).filter((t) => t.latitude != null && t.longitude != null);
   const jobMapCenter: [number, number] =
     jobMapTowersWithCoords.length > 0
       ? [jobMapTowersWithCoords[0].latitude as number, jobMapTowersWithCoords[0].longitude as number]
       : [17.01972, 54.08972];
+
+  const startStop = (stop: NextTowerStop) => {
+    if (stop.visit_id) {
+      if (stop.claim_id) {
+        updateClaim.mutate({ claimId: stop.claim_id, payload: { visit_id: stop.visit_id, status: 'on_site' } });
+      }
+      navigate(`/visits/${stop.visit_id}`);
+      return;
+    }
+    createMission.mutate(
+      {
+        tower_id: stop.id,
+        inspection_date: nextPlan?.field_date || today,
+        assigned_member_id: currentUser?.role === 'team_member' ? currentUser.id : null,
+      },
+      {
+        onSuccess: async (visit) => {
+          try {
+            if (stop.claim_id) {
+              await updateClaim.mutateAsync({ claimId: stop.claim_id, payload: { visit_id: visit.id } });
+            } else {
+              const claim = await claimTower.mutateAsync({ tower_id: stop.id });
+              await updateClaim.mutateAsync({ claimId: claim.id, payload: { visit_id: visit.id } });
+            }
+          } catch {
+            /* visit still opens */
+          }
+          navigate(`/visits/${visit.id}`);
+        },
+      },
+    );
+  };
 
   const focusJobMapTower = (t: { id: number; latitude: number | null; longitude: number | null }) => {
     if (t.latitude == null || t.longitude == null) return;
@@ -515,8 +713,8 @@ export function TeamDetailPage() {
 
   return (
     <Stack spacing={3}>
-      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/teams')} sx={{ alignSelf: 'flex-start' }}>
-        Back to teams
+      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(isTeamMember ? '/' : '/teams')} sx={{ alignSelf: 'flex-start' }}>
+        {isTeamMember ? 'Back to my missions' : 'Back to teams'}
       </Button>
 
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -526,9 +724,11 @@ export function TeamDetailPage() {
         <Chip label={team.status} color={STATUS_COLORS[team.status] || 'default'} />
         {!team.is_active && <Chip label="Archived" variant="outlined" />}
         <Box sx={{ flex: 1 }} />
-        <Button variant="outlined" startIcon={<DescriptionRoundedIcon />} onClick={openReportDialog}>
-          Generate official report
-        </Button>
+        {canManage && (
+          <Button variant="outlined" startIcon={<DescriptionRoundedIcon />} onClick={openReportDialog}>
+            Generate official report
+          </Button>
+        )}
       </Stack>
 
       {totals && (
@@ -570,6 +770,30 @@ export function TeamDetailPage() {
           </Grid>
         </Grid>
       )}
+
+      <Card>
+        <CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Site map
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            You (dark pin), tonight&apos;s GPS track, and assigned towers — so the crew can see where
+            they are and where they have already been this outing.
+          </Typography>
+          <TeamSiteMap
+            towers={jobMap?.towers}
+            liveMembers={liveMembers}
+            trails={teamTrails}
+            myLocation={
+              lastLatitude != null && lastLongitude != null
+                ? { latitude: lastLatitude, longitude: lastLongitude }
+                : null
+            }
+            myLabel={currentUser?.full_name || currentUser?.username || 'You'}
+            height={420}
+          />
+        </CardContent>
+      </Card>
 
       <Grid container spacing={2}>
         {/* Mission info — inline-editable, same pattern as the Visit header */}
@@ -678,42 +902,6 @@ export function TeamDetailPage() {
                   placeholder="Standing notes about this team (not day-specific — see the daily log below for that)"
                 />
               </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Live map of this team's linked logins */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }}>
-                Current location
-              </Typography>
-              {points.length === 0 ? (
-                <Box sx={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'grey.100', borderRadius: 2 }}>
-                  <Typography color="text.secondary" variant="body2">
-                    No location reported yet today — the team's phone(s) will show here once they're signed in with
-                    location sharing on.
-                  </Typography>
-                </Box>
-              ) : (
-                <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)' }}>
-                  <div style={{ height: 260, width: '100%' }}>
-                    <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
-                      <TileLayer attribution={TILE_LAYERS.street.attribution} url={TILE_LAYERS.street.url} maxZoom={TILE_LAYERS.street.maxZoom} />
-                      {points.map((m) => (
-                        <Marker key={m.user_id} position={[m.latitude, m.longitude]} icon={dotIcon(m.is_stale ? '#90a4ae' : '#2e7d32')}>
-                          <LeafletTooltip direction="top" offset={[0, -10]} opacity={1}>
-                            <strong>{m.full_name || m.username}</strong>
-                            <br />
-                            {m.is_stale ? 'Last seen' : 'Active'} {formatTime(m.last_seen)}
-                          </LeafletTooltip>
-                        </Marker>
-                      ))}
-                    </MapContainer>
-                  </div>
-                </Box>
-              )}
             </CardContent>
           </Card>
         </Grid>
@@ -1046,6 +1234,278 @@ export function TeamDetailPage() {
         )}
       </Grid>
 
+      {/* This team's own GPS track, stays, and km — never another crew's. History lets them
+          reopen any previous field night so they can continue from where they stopped. */}
+      <Card>
+        <CardContent>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Your track &amp; towers
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Only this team&apos;s GPS: kilometres so far, time at each tower, and which towers you have
+                already checked. Open a previous night to continue the job.
+              </Typography>
+            </Box>
+            <TextField
+              select
+              size="small"
+              label="History"
+              value={effectiveTrackKey}
+              onChange={(e) => {
+                setTrackKey(e.target.value);
+                setTrackStayIdx(null);
+              }}
+              sx={{ minWidth: 260 }}
+              helperText="Every saved outing stays here"
+            >
+              {shift?.field_date && (
+                <MenuItem value={`night:${shift.field_date}`}>Tonight ({shift.field_date})</MenuItem>
+              )}
+              {(fieldHistory || [])
+                .filter((m) => missionSelectKey(m) !== `night:${shift?.field_date || ''}`)
+                .map((m) => (
+                  <MenuItem key={missionSelectKey(m)} value={missionSelectKey(m)}>
+                    {m.label}
+                    {m.ping_count ? ` · ${m.ping_count} pts` : ''}
+                  </MenuItem>
+                ))}
+            </TextField>
+          </Stack>
+
+          {recap ? (
+            <>
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <KpiTile label="Distance so far" value={`${recap.distance_km} km`} icon={<RouteIcon />} color="#1565c0" />
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <KpiTile label="Time on the clock" value={`${recap.minutes_tracked} min`} icon={<TimerIcon />} />
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <KpiTile label="Towers this outing" value={recap.towers_visited} icon={<CellTowerIcon />} color="#2e7d32" />
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <KpiTile
+                    label="Avg stay / travel"
+                    value={`${recap.avg_minutes_per_tower} / ${recap.avg_travel_minutes} min`}
+                    icon={<DirectionsWalkIcon />}
+                    color="#ef6c00"
+                  />
+                </Grid>
+              </Grid>
+              {recap.vs_previous && (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  vs previous night: {recap.vs_previous.towers_delta >= 0 ? '+' : ''}
+                  {recap.vs_previous.towers_delta} towers, {recap.vs_previous.distance_km_delta >= 0 ? '+' : ''}
+                  {recap.vs_previous.distance_km_delta} km, avg stay {recap.vs_previous.avg_minutes_per_tower_delta >= 0 ? '+' : ''}
+                  {recap.vs_previous.avg_minutes_per_tower_delta} min
+                </Typography>
+              )}
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                Started {formatTime(recap.started_at)} at {recap.start_latitude.toFixed(5)}, {recap.start_longitude.toFixed(5)}
+                {' · '}
+                Now / ended {formatTime(recap.ended_at)} at {recap.end_latitude.toFixed(5)}, {recap.end_longitude.toFixed(5)}
+              </Typography>
+              {recap.path.length > 0 && (
+                <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)', height: 360, mb: 2 }}>
+                  <MapContainer
+                    center={[recap.start_latitude, recap.start_longitude]}
+                    zoom={13}
+                    style={{ height: '100%', width: '100%' }}
+                    scrollWheelZoom
+                  >
+                    <TileLayer attribution={TILE_LAYERS.street.attribution} url={TILE_LAYERS.street.url} maxZoom={TILE_LAYERS.street.maxZoom} />
+                    <TrackMapBridge mapRef={trackMapRef} />
+                    <FitTrack
+                      positions={recap.path.map((p) => [p.latitude, p.longitude] as [number, number])}
+                      resetKey={`${effectiveTrackKey}-${recap.path.length}`}
+                    />
+                    {splitTrailSegments(recap.path).map((pts, i) => (
+                      <Polyline key={i} positions={pts} pathOptions={{ color: '#2e7d32', weight: 4, opacity: 0.85 }} />
+                    ))}
+                    {points.map((m) => (
+                      <Marker key={`live-${m.user_id}`} position={[m.latitude, m.longitude]} icon={dotIcon(m.is_stale ? '#90a4ae' : '#2e7d32')}>
+                        <LeafletTooltip direction="top" offset={[0, -10]} opacity={1} permanent>
+                          {m.full_name || m.username}
+                        </LeafletTooltip>
+                      </Marker>
+                    ))}
+                    {trackStay && trackStay.latitude != null && trackStay.longitude != null && (
+                      <Marker
+                        position={[trackStay.latitude, trackStay.longitude]}
+                        icon={towerSquareIcon(trackStay.tower_id)}
+                        zIndexOffset={2500}
+                        eventHandlers={{ add: (e) => (e.target as L.Marker).openPopup() }}
+                      >
+                        <Popup autoPan={false}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{trackStay.tower_id}</Typography>
+                          <Typography variant="caption" sx={{ display: 'block' }}>
+                            {formatTime(trackStay.arrived_at)} – {formatTime(trackStay.departed_at)} · stayed {trackStay.minutes} min
+                          </Typography>
+                          <Typography variant="caption" sx={{ display: 'block' }}>
+                            {trackNextStay
+                              ? `Then moved to ${trackNextStay.tower_id} (${Math.max(0, Math.round((isoMs(trackNextStay.arrived_at) - isoMs(trackStay.departed_at)) / 60000))} min travel)`
+                              : 'Last tower in this outing'}
+                          </Typography>
+                        </Popup>
+                      </Marker>
+                    )}
+                  </MapContainer>
+                </Box>
+              )}
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                Towers visited this outing — click a row to find it on the map
+              </Typography>
+              <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Tower</TableCell>
+                      <TableCell>Travel from previous</TableCell>
+                      <TableCell>Arrived</TableCell>
+                      <TableCell>Left</TableCell>
+                      <TableCell align="right">Minutes</TableCell>
+                      <TableCell>Inspection</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {recap.stays.map((stay, i) => (
+                      <TableRow
+                        key={`${stay.tower_pk}-${i}`}
+                        hover
+                        selected={i === trackStayIdx}
+                        sx={{ cursor: stay.latitude != null ? 'pointer' : 'default' }}
+                        onClick={() => {
+                          setTrackStayIdx(i);
+                          if (stay.latitude != null && stay.longitude != null) {
+                            trackMapRef.current?.flyTo([stay.latitude, stay.longitude], 17, { duration: 0.75 });
+                          }
+                        }}
+                      >
+                        <TableCell sx={{ fontWeight: 700 }}>
+                          {stay.tower_id}
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            {stay.area || ''}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {stay.travel_from_prev_minutes == null
+                            ? 'Start'
+                            : `${stay.travel_from_prev_minutes} min${stay.travel_from_prev_km != null ? ` · ${stay.travel_from_prev_km} km` : ''}`}
+                        </TableCell>
+                        <TableCell>{formatTime(stay.arrived_at)}</TableCell>
+                        <TableCell>{formatTime(stay.departed_at)}</TableCell>
+                        <TableCell align="right">{stay.minutes}</TableCell>
+                        <TableCell>
+                          {stay.visit_id ? (
+                            <Button size="small" onClick={(e) => { e.stopPropagation(); navigate(`/visits/${stay.visit_id}`); }}>
+                              {stay.visit_status || 'open'}
+                            </Button>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">GPS only</Typography>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {recap.stays.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} align="center">
+                          No tower stays in this outing yet (GPS did not sit within 80 m of a tower).
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          ) : (
+            <Alert severity="info">
+              No GPS track for this period yet. Open the app in the field with location on — the path,
+              kilometres, and tower stays will appear here.
+            </Alert>
+          )}
+
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+            All inspections recorded for this team
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Every tower this crew has opened a visit for — so next outing you can finish what you started.
+            {jobMap && jobMap.total > 0 ? ` Job map: ${jobMap.completed} of ${jobMap.total} assigned towers completed.` : ''}
+          </Typography>
+          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 280 }}>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>#</TableCell>
+                  <TableCell>Tower</TableCell>
+                  <TableCell>Date</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell align="center">Done</TableCell>
+                  <TableCell align="center">Hotspots</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(missions || []).map((m) => (
+                  <TableRow key={m.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/visits/${m.id}`)}>
+                    <TableCell>{m.mission_seq}</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>{m.tower?.tower_id}</TableCell>
+                    <TableCell>{m.inspection_date}</TableCell>
+                    <TableCell>
+                      <Chip size="small" label={String(m.mission_status).replace('_', ' ')} color={MISSION_STATUS_COLORS[m.mission_status] || 'default'} />
+                    </TableCell>
+                    <TableCell align="center">{m.rollup?.completion_pct ?? 0}%</TableCell>
+                    <TableCell align="center">{m.rollup?.hotspots ?? 0}</TableCell>
+                  </TableRow>
+                ))}
+                {(!missions || missions.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">No inspection visits recorded yet.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
+
+      <NextTowersCard
+        plan={nextPlan}
+        loading={nextPlanLoading}
+        canStart={canManage && !createMission.isPending}
+        canAssign={canAssignClaims}
+        currentUserId={currentUser?.id}
+        busy={claimTower.isPending || updateClaim.isPending || createMission.isPending}
+        onShow={(stop) => {
+          focusJobMapTower(stop);
+          showRouteToTower(stop);
+        }}
+        onStart={startStop}
+        onClaim={(stop, userId) => claimTower.mutate({ tower_id: stop.id, assigned_user_id: userId })}
+        onStatus={(stop, status: NightClaimStatus, skipReason) => {
+          if (!stop.claim_id) return;
+          updateClaim.mutate({ claimId: stop.claim_id, payload: { status, skip_reason: skipReason } });
+        }}
+      />
+
+      <NightChannel
+        teamId={id}
+        fieldDate={shift?.field_date}
+        towers={(jobMap?.towers || []).map((t) => ({ id: t.id, tower_id: t.tower_id }))}
+        onTower={(towerPk, visitId) => {
+          if (visitId) {
+            navigate(`/visits/${visitId}`);
+            return;
+          }
+          const t = jobMap?.towers.find((x) => x.id === towerPk);
+          if (t) {
+            focusJobMapTower(t);
+            showRouteToTower(t);
+          }
+        }}
+      />
+
       {/* Job map — the team's FULL assigned scope (every tower an admin has assigned to it via
           Towers page → select → "Assign to team"), not just the missions it already has. Lets a
           leader (or field crew planning the next drone flight) see the whole job at a glance, and
@@ -1187,16 +1647,41 @@ export function TeamDetailPage() {
                     url={TILE_LAYERS[jobMapLayer].url}
                     maxZoom={TILE_LAYERS[jobMapLayer].maxZoom}
                   />
+                  {nextPlan && nextPlan.stops.length > 0 && (
+                    <Polyline
+                      positions={[
+                        ...(nextPlan.origin_latitude != null && nextPlan.origin_longitude != null
+                          ? [[nextPlan.origin_latitude, nextPlan.origin_longitude] as [number, number]]
+                          : []),
+                        ...nextPlan.stops.map((s) => [s.latitude, s.longitude] as [number, number]),
+                      ]}
+                      pathOptions={{ color: '#0d475c', weight: 4, opacity: 0.75 }}
+                    />
+                  )}
+                  {nextPlan && nextPlan.origin_latitude != null && nextPlan.origin_longitude != null && !routeOrigin && (
+                    <Marker position={[nextPlan.origin_latitude, nextPlan.origin_longitude]} icon={myLocationIcon()}>
+                      <LeafletTooltip direction="top" offset={[0, -8]} opacity={1}>
+                        {nextPlan.origin_label || 'You are here'}
+                      </LeafletTooltip>
+                    </Marker>
+                  )}
                   {jobMap.towers
                     .filter((t) => t.latitude != null && t.longitude != null)
                     // Render the focused tower's marker last so its red box sits on top of any
                     // neighboring markers instead of getting buried underneath them.
                     .sort((a, b) => (a.id === focusedJobMapTowerId ? 1 : 0) - (b.id === focusedJobMapTowerId ? 1 : 0))
-                    .map((t) => (
+                    .map((t) => {
+                      const rank = nextPlan?.stops.find((s) => s.id === t.id)?.rank;
+                      return (
                       <Marker
                         key={t.id}
                         position={[t.latitude as number, t.longitude as number]}
-                        icon={dotIcon(JOB_MAP_COLORS[t.status], t.id === focusedJobMapTowerId)}
+                        icon={
+                          rank
+                            ? planRankIcon(rank, JOB_MAP_COLORS[t.status])
+                            : dotIcon(JOB_MAP_COLORS[t.status], t.id === focusedJobMapTowerId)
+                        }
+                        zIndexOffset={rank ? 800 : 0}
                         eventHandlers={{
                           click: () => {
                             focusJobMapTower(t);
@@ -1211,9 +1696,11 @@ export function TeamDetailPage() {
                           <br />
                           {JOB_MAP_LABELS[t.status]}
                           {t.visit_id ? ' — click to open' : ''}
+                          {rank ? ` — next #${rank}` : ''}
                         </LeafletTooltip>
                       </Marker>
-                    ))}
+                      );
+                    })}
                   {routeOrigin && routeTower && routeTower.latitude != null && routeTower.longitude != null && (
                     <>
                       {routePath ? (
@@ -1364,6 +1851,7 @@ export function TeamDetailPage() {
                       {m.end_time ? ` – ${m.end_time.slice(0, 5)}` : ''}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
+                      {canManage ? (
                       <TextField
                         select
                         size="small"
@@ -1384,8 +1872,12 @@ export function TeamDetailPage() {
                           </MenuItem>
                         ))}
                       </TextField>
+                      ) : (
+                        <Typography variant="body2">{m.assigned_member_name || '—'}</Typography>
+                      )}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
+                      {canManage ? (
                       <TextField
                         select
                         size="small"
@@ -1404,6 +1896,9 @@ export function TeamDetailPage() {
                         <MenuItem value="in_progress">In progress</MenuItem>
                         <MenuItem value="completed">Completed</MenuItem>
                       </TextField>
+                      ) : (
+                        <Chip size="small" label={String(m.mission_status).replace('_', ' ')} color={MISSION_STATUS_COLORS[m.mission_status] || 'default'} />
+                      )}
                     </TableCell>
                     <TableCell align="center">{m.rollup?.completion_pct ?? 0}%</TableCell>
                     <TableCell align="center">
@@ -1416,6 +1911,7 @@ export function TeamDetailPage() {
                       </Stack>
                     </TableCell>
                     <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                      {canManage && (
                       <IconButton
                         size="small"
                         color="error"
@@ -1426,6 +1922,7 @@ export function TeamDetailPage() {
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1440,6 +1937,7 @@ export function TeamDetailPage() {
             </Table>
           </TableContainer>
 
+          {canManage && (
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
             <TextField
               select
@@ -1521,6 +2019,7 @@ export function TeamDetailPage() {
               Add mission &amp; open it
             </Button>
           </Stack>
+          )}
         </CardContent>
       </Card>
 
@@ -1528,9 +2027,15 @@ export function TeamDetailPage() {
       <Card>
         <CardContent>
           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Daily progress log
-            </Typography>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Daily progress log
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Type a note, record your voice, or attach several photos and PDFs (add photos, then add
+                documents — they upload together).
+              </Typography>
+            </Box>
             <Stack direction="row" spacing={1.5}>
               <TextField
                 label="From"
@@ -1550,6 +2055,39 @@ export function TeamDetailPage() {
               />
             </Stack>
           </Stack>
+
+          <input
+            type="file"
+            hidden
+            multiple
+            accept="image/*"
+            ref={(el) => {
+              morePhotoInput.current = el;
+            }}
+            onChange={(e) => {
+              const list = Array.from(e.target.files || []);
+              e.target.value = '';
+              if (!list.length || addMoreNoteId == null) return;
+              addNoteFiles.mutate({ log_date: '', files: list, noteId: addMoreNoteId });
+              setAddMoreNoteId(null);
+            }}
+          />
+          <input
+            type="file"
+            hidden
+            multiple
+            accept="application/pdf,.pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            ref={(el) => {
+              moreDocInput.current = el;
+            }}
+            onChange={(e) => {
+              const list = Array.from(e.target.files || []);
+              e.target.value = '';
+              if (!list.length || addMoreNoteId == null) return;
+              addNoteFiles.mutate({ log_date: '', files: list, noteId: addMoreNoteId });
+              setAddMoreNoteId(null);
+            }}
+          />
 
           {progressLoading && <LinearProgress sx={{ mb: 2 }} />}
 
@@ -1587,27 +2125,253 @@ export function TeamDetailPage() {
                   </Stack>
                 </Stack>
 
-                {day.notes.length > 0 && (
-                  <Stack spacing={0.75} sx={{ mt: 1.5 }}>
-                    {day.notes.map((n) => (
+                {(day.notes.length > 0 || queuedNotesForDay(day.log_date).length > 0) && (
+                  <Stack spacing={1.25} sx={{ mt: 1.5 }}>
+                    {queuedNotesForDay(day.log_date).map((item) => {
+                      const audio = item.kind === 'team-voice' ? previewUrl(item.id) : null;
+                      return (
+                        <Paper key={item.id} variant="outlined" sx={{ p: 1, borderStyle: 'dashed', borderColor: 'warning.main' }}>
+                          {audio && <VoiceNotePlayer src={audio} duration={Number(item.json?.duration_seconds) || null} />}
+                          <Typography variant="body2">{String(item.json?.note || item.label)}</Typography>
+                          <Typography variant="caption" color="warning.main">
+                            On this phone — {item.label}
+                          </Typography>
+                        </Paper>
+                      );
+                    })}
+                    {day.notes.map((n) => {
+                      const waitingConvert = n.has_audio && !n.transcribed;
+                      const draft = transcriptDraft[n.id] ?? n.note;
+                      return (
                       <Stack key={n.id} direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
-                        <Typography variant="body2" sx={{ flexGrow: 1 }}>
-                          {n.note}
-                        </Typography>
-                        <IconButton size="small" onClick={() => deleteNote.mutate(n.id)}>
+                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                          {n.has_audio && (
+                            <VoiceNotePlayer
+                              src={mediaUrl(`/api/teams/${id}/notes/${n.id}/audio`, n.created_at)}
+                              duration={n.duration_seconds}
+                            />
+                          )}
+                          {(n.attachments || []).length > 0 && (
+                            <Stack spacing={1} sx={{ mt: 1 }}>
+                              {n.attachments.map((f) => {
+                                const href = mediaUrl(`/api/teams/${id}/notes/${n.id}/files/${f.id}`, n.created_at);
+                                return (
+                                  <Paper key={f.id} variant="outlined" sx={{ p: 1 }}>
+                                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                      {f.is_image ? (
+                                        <Box
+                                          component="a"
+                                          href={href}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          sx={{ flexShrink: 0 }}
+                                        >
+                                          <Box
+                                            component="img"
+                                            src={href}
+                                            alt={f.original_filename || 'photo'}
+                                            sx={{
+                                              width: 72,
+                                              height: 72,
+                                              objectFit: 'cover',
+                                              borderRadius: 1,
+                                              display: 'block',
+                                            }}
+                                          />
+                                        </Box>
+                                      ) : (
+                                        <Box sx={{ width: 40, display: 'flex', justifyContent: 'center' }}>
+                                          {f.is_pdf ? <PictureAsPdfIcon color="error" /> : <InsertDriveFileIcon color="action" />}
+                                        </Box>
+                                      )}
+                                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap title={f.original_filename || ''}>
+                                          {f.original_filename || 'File'}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                          {f.is_image ? 'Image' : f.is_pdf ? 'PDF' : 'Document'}
+                                          {f.file_size ? ` · ${formatBytes(f.file_size)}` : ''}
+                                        </Typography>
+                                      </Box>
+                                      <Stack direction="row" sx={{ flexShrink: 0 }}>
+                                        <Tooltip title="Open">
+                                          <IconButton size="small" component="a" href={href} target="_blank" rel="noreferrer">
+                                            <LinkIcon fontSize="small" />
+                                          </IconButton>
+                                        </Tooltip>
+                                        {canLogNotes && (
+                                          <>
+                                            <Tooltip title="Rename">
+                                              <IconButton
+                                                size="small"
+                                                onClick={() =>
+                                                  setRenameTarget({
+                                                    noteId: n.id,
+                                                    fileId: f.id,
+                                                    name: f.original_filename || '',
+                                                  })
+                                                }
+                                              >
+                                                <EditIcon fontSize="small" />
+                                              </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="Replace this file">
+                                              <IconButton
+                                                size="small"
+                                                onClick={() => {
+                                                  setReplaceTarget({ noteId: n.id, fileId: f.id });
+                                                  replaceFileInput.current?.click();
+                                                }}
+                                              >
+                                                <AttachFileIcon fontSize="small" />
+                                              </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="Delete this file only">
+                                              <IconButton
+                                                size="small"
+                                                color="error"
+                                                disabled={deleteNoteFile.isPending}
+                                                onClick={() => {
+                                                  if (
+                                                    window.confirm(
+                                                      `Delete ${f.original_filename || 'this file'}? Other files on this note stay.`,
+                                                    )
+                                                  ) {
+                                                    deleteNoteFile.mutate({ noteId: n.id, fileId: f.id });
+                                                  }
+                                                }}
+                                              >
+                                                <DeleteIcon fontSize="small" />
+                                              </IconButton>
+                                            </Tooltip>
+                                          </>
+                                        )}
+                                      </Stack>
+                                    </Stack>
+                                  </Paper>
+                                );
+                              })}
+                            </Stack>
+                          )}
+                          {canLogNotes && (
+                            <Stack direction="row" spacing={1} sx={{ mt: 0.75, flexWrap: 'wrap' }}>
+                              <Button
+                                size="small"
+                                startIcon={<PhotoCameraIcon />}
+                                onClick={() => {
+                                  setAddMoreNoteId(n.id);
+                                  morePhotoInput.current?.click();
+                                }}
+                              >
+                                Add more photos
+                              </Button>
+                              <Button
+                                size="small"
+                                startIcon={<PictureAsPdfIcon />}
+                                onClick={() => {
+                                  setAddMoreNoteId(n.id);
+                                  moreDocInput.current?.click();
+                                }}
+                              >
+                                Add more PDF / Word
+                              </Button>
+                            </Stack>
+                          )}
+                          {waitingConvert && (!n.note || n.note === 'Voice note') ? (
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                              Recording saved. Convert it to text to use this note in reports.
+                            </Typography>
+                          ) : canLogNotes ? (
+                            <TextField
+                              size="small"
+                              fullWidth
+                              multiline
+                              minRows={2}
+                              value={draft}
+                              onChange={(e) => setTranscriptDraft((d) => ({ ...d, [n.id]: e.target.value }))}
+                              onBlur={() => {
+                                const next = draft.trim();
+                                if (next && next !== n.note) updateNote.mutate({ noteId: n.id, note: next });
+                              }}
+                              sx={{ mt: 0.75 }}
+                              helperText={
+                                n.has_audio
+                                  ? 'Edit the transcript if needed — this text can go into the final report'
+                                  : 'Edit this note — it can go into the final report'
+                              }
+                            />
+                          ) : (
+                            <Typography variant="body2" sx={{ mt: n.has_audio ? 0.5 : 0 }}>{n.note}</Typography>
+                          )}
+                          {canLogNotes && n.has_audio && (
+                            <Button
+                              size="small"
+                              variant={waitingConvert ? 'contained' : 'outlined'}
+                              startIcon={<SubtitlesIcon />}
+                              sx={{ mt: 0.75 }}
+                              disabled={transcribeNote.isPending}
+                              onClick={() => {
+                                setConvertError((e) => ({ ...e, [n.id]: '' }));
+                                transcribeNote.mutate(n.id, {
+                                  onSuccess: (saved) => {
+                                    setTranscriptDraft((d) => ({ ...d, [n.id]: saved.note }));
+                                  },
+                                  onError: (err: unknown) => {
+                                    const message =
+                                      (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+                                      'Could not convert this recording to text';
+                                    setConvertError((e) => ({ ...e, [n.id]: message }));
+                                  },
+                                });
+                              }}
+                            >
+                              {transcribeNote.isPending && transcribeNote.variables === n.id
+                                ? 'Converting…'
+                                : waitingConvert
+                                  ? 'Convert to text'
+                                  : 'Convert again'}
+                            </Button>
+                          )}
+                          {convertError[n.id] && (
+                            <Alert severity="warning" sx={{ mt: 0.75 }} onClose={() => setConvertError((e) => ({ ...e, [n.id]: '' }))}>
+                              {convertError[n.id]}
+                            </Alert>
+                          )}
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            {n.created_by_name || 'Team'}
+                            {n.has_audio ? (n.transcribed ? ' · voice + text' : ' · voice (not converted yet)') : ''}
+                            {(n.attachments || []).length > 0 ? ` · ${n.attachments.length} file${n.attachments.length === 1 ? '' : 's'}` : ''}
+                            {` · ${formatTime(n.created_at)}`}
+                          </Typography>
+                        </Box>
+                        {canManage && (
+                        <Tooltip title="Delete this whole note (all files in it)">
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            const count = (n.attachments || []).length;
+                            const extra = count ? ` This also removes ${count} attached file${count === 1 ? '' : 's'}. Use the trash on a file to remove only that one.` : '';
+                            if (window.confirm(`Delete this whole note?${extra}`)) deleteNote.mutate(n.id);
+                          }}
+                        >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
+                        </Tooltip>
+                        )}
                       </Stack>
-                    ))}
+                      );
+                    })}
                   </Stack>
                 )}
 
+                {canLogNotes && (
+                <>
                 <Divider sx={{ my: 1.5 }} />
-                <Stack direction="row" spacing={1}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
                   <TextField
                     size="small"
                     fullWidth
-                    placeholder="Add a note for this day — a delay, a check-in, a handover…"
+                    placeholder="Comment for this day — then Add text, Record, or Attach files…"
                     value={noteDraft[day.log_date] || ''}
                     onChange={(e) => setNoteDraft((d) => ({ ...d, [day.log_date]: e.target.value }))}
                     onKeyDown={(e) => {
@@ -1618,10 +2382,11 @@ export function TeamDetailPage() {
                         );
                       }
                     }}
+                    sx={{ flex: '1 1 220px' }}
                   />
                   <Button
                     variant="outlined"
-                    disabled={!noteDraft[day.log_date]?.trim()}
+                    disabled={!noteDraft[day.log_date]?.trim() || addNote.isPending}
                     onClick={() => {
                       addNote.mutate(
                         { log_date: day.log_date, note: noteDraft[day.log_date].trim() },
@@ -1629,9 +2394,112 @@ export function TeamDetailPage() {
                       );
                     }}
                   >
-                    Add
+                    Add text
+                  </Button>
+                  <VoiceNoteControls
+                    disabled={addVoiceNote.isPending}
+                    saving={addVoiceNote.isPending}
+                    onRecorded={(blob, duration, liveTranscript) => {
+                      const caption = (noteDraft[day.log_date] || '').trim() || liveTranscript || undefined;
+                      addVoiceNote.mutate(
+                        {
+                          log_date: day.log_date,
+                          file: blob,
+                          duration_seconds: duration,
+                          note: caption,
+                        },
+                        {
+                          onSuccess: () => setNoteDraft((d) => ({ ...d, [day.log_date]: '' })),
+                        },
+                      );
+                    }}
+                  />
+                  <input
+                    type="file"
+                    hidden
+                    multiple
+                    accept="image/*"
+                    ref={(el) => {
+                      photoInputByDate.current[day.log_date] = el;
+                    }}
+                    onChange={(e) => {
+                      const list = Array.from(e.target.files || []);
+                      setPendingFiles((p) => ({ ...p, [day.log_date]: mergeFiles(p[day.log_date] || [], list) }));
+                      e.target.value = '';
+                    }}
+                  />
+                  <input
+                    type="file"
+                    hidden
+                    multiple
+                    accept="application/pdf,.pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    ref={(el) => {
+                      docInputByDate.current[day.log_date] = el;
+                    }}
+                    onChange={(e) => {
+                      const list = Array.from(e.target.files || []);
+                      setPendingFiles((p) => ({ ...p, [day.log_date]: mergeFiles(p[day.log_date] || [], list) }));
+                      e.target.value = '';
+                    }}
+                  />
+                  <Button
+                    variant="outlined"
+                    startIcon={<PhotoCameraIcon />}
+                    disabled={addNoteFiles.isPending}
+                    onClick={() => photoInputByDate.current[day.log_date]?.click()}
+                  >
+                    Add photos
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<AttachFileIcon />}
+                    disabled={addNoteFiles.isPending}
+                    onClick={() => docInputByDate.current[day.log_date]?.click()}
+                  >
+                    Add PDF / Word
                   </Button>
                 </Stack>
+                {(pendingFiles[day.log_date] || []).length > 0 && (
+                  <Stack spacing={1} sx={{ mt: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {pendingFiles[day.log_date].length} file{pendingFiles[day.log_date].length === 1 ? '' : 's'} ready — tap Add photos or Add PDF / Word again to include more, then Upload.
+                    </Typography>
+                    <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                      {pendingFiles[day.log_date].map((f, i) => (
+                        <Chip key={`${f.name}-${f.size}-${i}`} size="small" label={f.name} onDelete={() => {
+                          setPendingFiles((p) => ({
+                            ...p,
+                            [day.log_date]: (p[day.log_date] || []).filter((x) => x !== f),
+                          }));
+                        }} />
+                      ))}
+                    </Stack>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={addNoteFiles.isPending}
+                      onClick={() => {
+                        addNoteFiles.mutate(
+                          {
+                            log_date: day.log_date,
+                            files: pendingFiles[day.log_date],
+                            note: noteDraft[day.log_date]?.trim() || undefined,
+                          },
+                          {
+                            onSuccess: () => {
+                              setPendingFiles((p) => ({ ...p, [day.log_date]: [] }));
+                              setNoteDraft((d) => ({ ...d, [day.log_date]: '' }));
+                            },
+                          },
+                        );
+                      }}
+                    >
+                      {addNoteFiles.isPending ? 'Uploading…' : `Upload ${pendingFiles[day.log_date].length} file${pendingFiles[day.log_date].length === 1 ? '' : 's'}`}
+                    </Button>
+                  </Stack>
+                )}
+                </>
+                )}
               </Paper>
             ))}
             {!progressLoading && (!progress || progress.length === 0) && (
@@ -1640,6 +2508,52 @@ export function TeamDetailPage() {
           </Stack>
         </CardContent>
       </Card>
+
+      <input
+        type="file"
+        hidden
+        accept="image/*,application/pdf,.pdf,.doc,.docx"
+        ref={(el) => {
+          replaceFileInput.current = el;
+        }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file || !replaceTarget) return;
+          replaceNoteFile.mutate({ noteId: replaceTarget.noteId, fileId: replaceTarget.fileId, file });
+          setReplaceTarget(null);
+        }}
+      />
+      <Dialog open={Boolean(renameTarget)} onClose={() => setRenameTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Rename file</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            label="File name"
+            value={renameTarget?.name || ''}
+            onChange={(e) => setRenameTarget((t) => (t ? { ...t, name: e.target.value } : t))}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRenameTarget(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!renameTarget?.name.trim() || renameNoteFile.isPending}
+            onClick={() => {
+              if (!renameTarget) return;
+              renameNoteFile.mutate(
+                { noteId: renameTarget.noteId, fileId: renameTarget.fileId, original_filename: renameTarget.name.trim() },
+                { onSuccess: () => setRenameTarget(null) },
+              );
+            }}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={reportDialogOpen} onClose={() => setReportDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Generate official report — {team.name}</DialogTitle>

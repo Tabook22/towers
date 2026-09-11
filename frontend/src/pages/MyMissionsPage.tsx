@@ -14,8 +14,10 @@ import PlaceIcon from '@mui/icons-material/PlaceRounded';
 import ScheduleIcon from '@mui/icons-material/ScheduleRounded';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartmentRounded';
 import { useNavigate } from 'react-router-dom';
-import { useMyMissions } from '../api/hooks';
+import { useMyMissions, useTeamJobMap, useTeamLive, useTeamTrails } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
+import { TeamSiteMap } from '../components/TeamSiteMap';
+import { useTracking } from '../hooks/useFieldTracking';
 import { VisitStatusChip } from '../components/Badges';
 
 const MISSION_STATUS_COLORS: Record<string, 'default' | 'info' | 'success'> = {
@@ -32,6 +34,11 @@ export function MyMissionsPage() {
   const { user } = useAuth();
   const { data: missions, isLoading, isError } = useMyMissions();
   const navigate = useNavigate();
+  const teamId = user?.team_id ?? undefined;
+  const { data: jobMap } = useTeamJobMap(teamId);
+  const { data: liveMembers } = useTeamLive(teamId);
+  const { data: trails } = useTeamTrails(teamId);
+  const { lastLatitude, lastLongitude } = useTracking();
 
   return (
     <Stack spacing={3}>
@@ -43,6 +50,29 @@ export function MyMissionsPage() {
           {user?.full_name || user?.username} — the towers and inspections your team leader has assigned to you.
         </Typography>
       </Box>
+
+      <Card>
+        <CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Site map
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Your location, tonight&apos;s track, and the towers assigned to your team.
+          </Typography>
+          <TeamSiteMap
+            towers={jobMap?.towers}
+            liveMembers={liveMembers}
+            trails={trails}
+            myLocation={
+              lastLatitude != null && lastLongitude != null
+                ? { latitude: lastLatitude, longitude: lastLongitude }
+                : null
+            }
+            myLabel={user?.full_name || user?.username || 'You'}
+            height={380}
+          />
+        </CardContent>
+      </Card>
 
       {isLoading && (
         <Box sx={{ py: 6, textAlign: 'center' }}>

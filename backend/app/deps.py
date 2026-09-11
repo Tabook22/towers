@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import User, UserRole, Visit
+from app.models import Team, User, UserRole, Visit
 from app.security import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
@@ -38,6 +38,21 @@ def get_current_user(
     return user
 
 
+def effective_team_id(db: Session, user: User) -> int | None:
+    """User.team_id, or the team this login leads (leader_user_id) if team_id was never filled in."""
+    if user.team_id:
+        return user.team_id
+    if user.role == UserRole.TEAM_LEADER.value:
+        led = db.query(Team).filter(Team.leader_user_id == user.id).first()
+        if led:
+            user.team_id = led.id
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            return led.id
+    return None
+
+
 def require_role(*roles: str):
     def checker(user: User = Depends(get_current_user)) -> User:
         if user.role not in roles:
@@ -57,6 +72,20 @@ def require_team_scope():
         if user.role in (UserRole.ADMIN.value, UserRole.REVIEWER.value):
             return user
         if user.role == UserRole.TEAM_LEADER.value and user.team_id == team_id:
+            return user
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this team")
+
+    return checker
+
+
+def require_team_read():
+    """Read-only team data: same wall as require_team_scope, plus a team_member may view their own
+    team's track, towers, and history so the crew can see how far they have got."""
+
+    def checker(team_id: int, user: User = Depends(get_current_user)) -> User:
+        if user.role in (UserRole.ADMIN.value, UserRole.REVIEWER.value):
+            return user
+        if user.role in (UserRole.TEAM_LEADER.value, UserRole.TEAM_MEMBER.value) and user.team_id == team_id:
             return user
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this team")
 

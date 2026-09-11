@@ -5,6 +5,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { theme } from './theme/theme';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { TrackingProvider } from './hooks/useFieldTracking';
+import { OfflineProvider } from './offline/OfflineProvider';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -14,13 +15,20 @@ import { VisitDetailPage } from './pages/VisitDetailPage';
 import { ArchivePage } from './pages/ArchivePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { FieldTrackerPage } from './pages/FieldTrackerPage';
+import { TeamProgressPage } from './pages/TeamProgressPage';
 import { TeamsPage } from './pages/TeamsPage';
 import { TeamDetailPage } from './pages/TeamDetailPage';
 import { MyMissionsPage } from './pages/MyMissionsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: false },
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      networkMode: 'offlineFirst',
+      gcTime: 24 * 60 * 60 * 1000,
+    },
+    mutations: { networkMode: 'offlineFirst' },
   },
 });
 
@@ -108,6 +116,14 @@ function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
         }
       />
       <Route
+        path="/team-progress"
+        element={
+          <ProtectedLayout>
+            <TeamProgressPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
         path="/teams"
         element={
           <ProtectedLayout>
@@ -135,7 +151,9 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            <AppRoutes />
+            <OfflineProvider>
+              <AppRoutes />
+            </OfflineProvider>
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

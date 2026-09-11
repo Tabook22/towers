@@ -10,6 +10,8 @@ from app.routers import (
     archive,
     areas,
     auth,
+    channel,
+    claims,
     dashboard,
     images,
     lists,
@@ -55,6 +57,8 @@ app.include_router(report_templates.router)
 app.include_router(lists.router)
 app.include_router(tracking.router)
 app.include_router(teams.router)
+app.include_router(channel.router)
+app.include_router(claims.router)
 
 
 @app.get("/api/health")

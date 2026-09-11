@@ -429,6 +429,22 @@ class LocationPing(Base):
     user: Mapped["User"] = relationship()
 
 
+class TrackingMission(Base):
+    """A dispatcher-defined tracking session on the Field Tracker map.
+
+    GPS pings are never deleted. Clicking "New mission" closes this row and opens a new one so the
+    map can start clean; previous sessions stay listed and can be opened again at any time.
+    """
+
+    __tablename__ = "tracking_missions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    label: Mapped[str] = mapped_column(String(200))
+    started_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    ended_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
 TEAM_STATUS_CHOICES = ["active", "paused", "completed"]
 
 
@@ -489,6 +505,12 @@ class Team(Base):
     visits: Mapped[list["Visit"]] = relationship(back_populates="team", order_by="Visit.mission_seq")
     users: Mapped[list["User"]] = relationship(back_populates="team", foreign_keys="User.team_id")
     leader: Mapped["User | None"] = relationship(foreign_keys=[leader_user_id])
+    channel_messages: Mapped[list["TeamChannelMessage"]] = relationship(
+        back_populates="team", cascade="all, delete-orphan", order_by="TeamChannelMessage.id"
+    )
+    night_claims: Mapped[list["NightTowerClaim"]] = relationship(
+        back_populates="team", cascade="all, delete-orphan", order_by="NightTowerClaim.id"
+    )
 
 
 class TeamMember(Base):
@@ -519,14 +541,113 @@ class TeamDailyLog(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
     log_date: Mapped[dt.date] = mapped_column(Date, index=True)
-    note: Mapped[str] = mapped_column(Text)
+    note: Mapped[str] = mapped_column(Text)  # typed text and/or speech-to-text transcript
+    audio_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    audio_content_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    audio_original_filename: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    transcribed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
 
     team: Mapped["Team"] = relationship(back_populates="daily_logs")
+    files: Mapped[list["TeamDailyLogFile"]] = relationship(
+        back_populates="log", cascade="all, delete-orphan", order_by="TeamDailyLogFile.id"
+    )
+
+
+class TeamDailyLogFile(Base):
+    """A photo, PDF, or other site-visit file attached to a daily log note."""
+
+    __tablename__ = "team_daily_log_files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    log_id: Mapped[int] = mapped_column(ForeignKey("team_daily_logs.id"), index=True)
+    file_path: Mapped[str] = mapped_column(String(500))
+    content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    original_filename: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    log: Mapped["TeamDailyLog"] = relationship(back_populates="files")
 
 
 MISSION_STATUS_CHOICES = ["planned", "in_progress", "completed"]
+
+# Live night-shift thread (see routers/channel.py). Distinct from TeamDailyLog, which is a dated
+# diary entry for reports — these are short ops messages the crew and dispatch share *during* the
+# outing, optionally pinned to the nearest tower.
+CHANNEL_KIND_CHOICES = ["note", "dispatch", "access", "weather", "skip", "hotspot", "help"]
+CHANNEL_KIND_DEFAULT_BODY = {
+    "note": "",
+    "dispatch": "",
+    "access": "Access problem",
+    "weather": "Weather / wind hold",
+    "skip": "Skipping this tower",
+    "hotspot": "Hotspot — needs review before we leave",
+    "help": "Need help",
+}
+
+
+class TeamChannelMessage(Base):
+    """One message on a team's live night channel."""
+
+    __tablename__ = "team_channel_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
+    field_date: Mapped[dt.date] = mapped_column(Date, index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="note", server_default="note")
+    body: Mapped[str] = mapped_column(Text, default="", server_default="")
+    tower_pk: Mapped[int | None] = mapped_column(ForeignKey("towers.id"), nullable=True, index=True)
+    visit_id: Mapped[int | None] = mapped_column(ForeignKey("visits.id"), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    photo_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    photo_thumb_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    photo_content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    photo_original_filename: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    audio_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    audio_content_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+    team: Mapped["Team"] = relationship(back_populates="channel_messages")
+    tower: Mapped["Tower | None"] = relationship(foreign_keys=[tower_pk])
+    visit: Mapped["Visit | None"] = relationship(foreign_keys=[visit_id])
+    author: Mapped["User | None"] = relationship(foreign_keys=[created_by])
+
+
+CLAIM_STATUS_CHOICES = ["claimed", "en_route", "on_site", "done", "skipped"]
+ACTIVE_CLAIM_STATUSES = ["claimed", "en_route", "on_site"]
+
+
+class NightTowerClaim(Base):
+    """Who owns a tower on tonight's outing — so two cars don't drive to the same pin.
+
+    Separate from Visit.assigned_member_id: a claim is the live night board (on my way / on site /
+    skip). A visit is the inspection record, created when they tap Start.
+    """
+
+    __tablename__ = "night_tower_claims"
+    __table_args__ = (UniqueConstraint("team_id", "field_date", "tower_pk", name="uq_night_claim_tower"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
+    field_date: Mapped[dt.date] = mapped_column(Date, index=True)
+    tower_pk: Mapped[int] = mapped_column(ForeignKey("towers.id"), index=True)
+    assigned_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="claimed", server_default="claimed")
+    skip_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    visit_id: Mapped[int | None] = mapped_column(ForeignKey("visits.id"), nullable=True)
+    claimed_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+    arrived_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+    team: Mapped["Team"] = relationship(back_populates="night_claims")
+    tower: Mapped["Tower"] = relationship(foreign_keys=[tower_pk])
+    assigned_user: Mapped["User"] = relationship(foreign_keys=[assigned_user_id])
 
 
 class VisitPhoto(Base):

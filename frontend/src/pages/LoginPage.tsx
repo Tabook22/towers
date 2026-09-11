@@ -4,6 +4,7 @@ import BoltIcon from '@mui/icons-material/BoltRounded';
 import { useNavigate } from 'react-router-dom';
 import { useLogin } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
+import { requestBrowserLocation, stashPendingPing } from '../hooks/useFieldTracking';
 
 export function LoginPage() {
   const [username, setUsername] = useState('');
@@ -14,6 +15,8 @@ export function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // One GPS call in this tap (iOS only shows Allow during a user gesture).
+    requestBrowserLocation((lat, lng, acc) => stashPendingPing(lat, lng, acc));
     try {
       const data = await login.mutateAsync({ username, password });
       auth.login(data);

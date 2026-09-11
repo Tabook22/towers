@@ -31,9 +31,11 @@ from app.models import (
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    user_id: int
     role: str
     username: str
     full_name: str | None = None
+    team_id: int | None = None
 
 
 class UserCreate(BaseModel):
@@ -534,13 +536,36 @@ class TeamDailyLogCreate(BaseModel):
     note: str = Field(min_length=1)
 
 
+class TeamDailyLogUpdate(BaseModel):
+    note: str = Field(min_length=1)
+
+
+class TeamDailyLogFileUpdate(BaseModel):
+    original_filename: str = Field(min_length=1, max_length=300)
+
+
+class TeamDailyLogFileOut(BaseModel):
+    id: int
+    original_filename: str | None = None
+    content_type: str | None = None
+    file_size: int | None = None
+    is_image: bool = False
+    is_pdf: bool = False
+
+
 class TeamDailyLogOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     team_id: int
     log_date: dt.date
     note: str
+    has_audio: bool = False
+    transcribed: bool = False
+    audio_content_type: str | None = None
+    duration_seconds: float | None = None
+    attachments: list[TeamDailyLogFileOut] = []
     created_by: int | None
+    created_by_name: str | None = None
     created_at: dt.datetime
 
 
@@ -617,6 +642,118 @@ class TeamJobMap(BaseModel):
     towers: list[TeamJobMapTower] = []
 
 
+class NextTowerStop(BaseModel):
+    rank: int
+    id: int
+    tower_id: str
+    area: str | None = None
+    latitude: float
+    longitude: float
+    status: str
+    visit_id: int | None = None
+    travel_km: float
+    travel_minutes: int
+    dwell_minutes: int
+    cumulative_minutes: int
+    fits_tonight: bool = True
+    reason: str
+    claim_id: int | None = None
+    claim_status: str | None = None
+    claimed_by_id: int | None = None
+    claimed_by_name: str | None = None
+    mine: bool = False
+    skip_reason: str | None = None
+
+
+class NightClaimCrewMember(BaseModel):
+    user_id: int
+    username: str
+    full_name: str | None = None
+    role: str
+
+
+class NightClaimCreate(BaseModel):
+    tower_id: int  # Tower.id
+    assigned_user_id: int | None = None  # default: the caller
+
+
+class NightClaimUpdate(BaseModel):
+    status: str | None = None
+    assigned_user_id: int | None = None
+    skip_reason: str | None = None
+    visit_id: int | None = None
+
+
+class NightClaimOut(BaseModel):
+    id: int
+    team_id: int
+    field_date: dt.date
+    tower_id: int
+    tower_code: str | None = None
+    assigned_user_id: int
+    assigned_user_name: str | None = None
+    status: str
+    skip_reason: str | None = None
+    visit_id: int | None = None
+    claimed_at: dt.datetime
+    arrived_at: dt.datetime | None = None
+    completed_at: dt.datetime | None = None
+
+
+class NextTowersPlan(BaseModel):
+    team_id: int
+    team_name: str
+    field_date: dt.date
+    origin_latitude: float | None = None
+    origin_longitude: float | None = None
+    origin_source: str
+    origin_label: str
+    minutes_left: int
+    still_night: bool
+    daily_target: int | None = None
+    towers_done_tonight: int
+    behind_by: int | None = None
+    remaining_assigned: int
+    in_progress: int
+    pending: int
+    completed: int
+    skipped_no_gps: int = 0
+    can_fit_tonight: int
+    dwell_minutes: int
+    headline: str
+    stops: list[NextTowerStop] = []
+    crew: list[NightClaimCrewMember] = []
+
+
+class ChannelMessageCreate(BaseModel):
+    kind: str = "note"
+    body: str = ""
+    tower_id: int | None = None  # Tower.id (pk)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+
+class ChannelMessageOut(BaseModel):
+    id: int
+    team_id: int
+    team_name: str | None = None
+    field_date: dt.date
+    kind: str
+    body: str
+    tower_id: int | None = None
+    tower_code: str | None = None
+    visit_id: int | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    has_photo: bool = False
+    has_audio: bool = False
+    duration_seconds: float | None = None
+    created_by: int | None = None
+    author_name: str | None = None
+    author_role: str | None = None
+    created_at: dt.datetime
+
+
 class VisitPhotoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -662,15 +799,102 @@ class TeamDayProgress(BaseModel):
 
 # ---------- Field tracking (live team locations + daily progress) ----------
 class LocationPingCreate(BaseModel):
-    latitude: float
-    longitude: float
-    accuracy_m: float | None = None
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    accuracy_m: float | None = Field(default=None, ge=0, le=50_000)
+
+
+class TrackingMissionOut(BaseModel):
+    id: int | None = None
+    kind: str
+    label: str
+    field_date: dt.date
+    started_at: dt.datetime
+    ended_at: dt.datetime | None = None
+    is_current: bool = False
+    ping_count: int = 0
 
 
 class TrailPoint(BaseModel):
     latitude: float
     longitude: float
     recorded_at: dt.datetime
+
+
+class UserTrailOut(BaseModel):
+    user_id: int
+    username: str
+    full_name: str | None = None
+    team_name: str | None = None
+    points: list[TrailPoint]
+
+
+class TowerStayOut(BaseModel):
+    tower_pk: int
+    tower_id: str
+    area: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    arrived_at: dt.datetime
+    departed_at: dt.datetime
+    minutes: int
+    visit_id: int | None = None
+    visit_status: str | None = None
+    travel_from_prev_minutes: int | None = None
+    travel_from_prev_km: float | None = None
+
+
+class TeamProgressLoginOut(BaseModel):
+    user_id: int
+    username: str
+    full_name: str | None = None
+
+
+class TeamProgressDeltaOut(BaseModel):
+    field_date: dt.date
+    minutes_tracked_delta: int
+    distance_km_delta: float
+    towers_delta: int
+    avg_minutes_per_tower_delta: float
+
+
+class TeamProgressOut(BaseModel):
+    team_id: int | None = None
+    team_name: str
+    field_date: dt.date
+    started_at: dt.datetime
+    ended_at: dt.datetime
+    start_latitude: float
+    start_longitude: float
+    end_latitude: float
+    end_longitude: float
+    minutes_tracked: int
+    distance_km: float
+    towers_visited: int
+    dwell_minutes: int
+    travel_minutes: int
+    avg_minutes_per_tower: float
+    avg_travel_minutes: float
+    ping_count: int
+    logins: list[TeamProgressLoginOut]
+    stays: list[TowerStayOut]
+    path: list[TrailPoint]
+    vs_previous: TeamProgressDeltaOut | None = None
+
+
+class MovementDayReportOut(BaseModel):
+    user_id: int
+    username: str
+    full_name: str | None = None
+    team_id: int | None = None
+    team_name: str | None = None
+    first_seen: dt.datetime
+    last_seen: dt.datetime
+    minutes_tracked: int
+    distance_km: float
+    ping_count: int
+    path: list[TrailPoint]
+    stays: list[TowerStayOut]
 
 
 class TeamTodayProgress(BaseModel):
@@ -686,10 +910,10 @@ class LiveTeamMember(BaseModel):
     full_name: str | None = None
     team_id: int | None = None
     team_name: str | None = None
-    latitude: float
-    longitude: float
+    latitude: float | None = None
+    longitude: float | None = None
     accuracy_m: float | None = None
-    last_seen: dt.datetime
+    last_seen: dt.datetime | None = None
     is_stale: bool  # no ping in the last STALE_AFTER_MINUTES — probably not actively tracking anymore
     today: TeamTodayProgress
 

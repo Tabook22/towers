@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   Alert,
   AppBar,
@@ -32,6 +32,7 @@ import GroupsIcon from '@mui/icons-material/GroupsRounded';
 import LogoutIcon from '@mui/icons-material/LogoutRounded';
 import BoltIcon from '@mui/icons-material/BoltRounded';
 import MyLocationIcon from '@mui/icons-material/MyLocationRounded';
+import InsightsIcon from '@mui/icons-material/InsightsRounded';
 import LocationDisabledIcon from '@mui/icons-material/LocationDisabledRounded';
 import AssignmentIcon from '@mui/icons-material/AssignmentTurnedInRounded';
 import LockResetIcon from '@mui/icons-material/LockResetRounded';
@@ -39,6 +40,8 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useTracking } from '../hooks/useFieldTracking';
 import { useChangePassword } from '../api/hooks';
+import { useOffline } from '../offline/OfflineProvider';
+import { OfflineBanner, OfflineChip } from '../offline/OfflineStatus';
 
 const drawerWidth = 232;
 
@@ -55,22 +58,108 @@ const navItems = [
 const memberNavItems = [{ label: 'My Missions', to: '/', icon: <AssignmentIcon /> }];
 
 function TrackingChip() {
-  const { enabled, setEnabled, status } = useTracking();
-  const label = !enabled ? 'Location off' : status === 'watching' ? 'Tracking' : status === 'denied' ? 'Permission denied' : 'Locating…';
+  const { enabled, setEnabled, status, requestNow, lastSentAt, required } = useTracking();
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const ago = lastSentAt
+    ? Math.max(0, Math.round((Date.now() - lastSentAt.getTime()) / 1000))
+    : null;
+  const liveLabel = ago == null ? 'Tracking' : ago < 60 ? `Live · ${ago}s` : `Live · ${Math.round(ago / 60)}m`;
+  const label = !enabled
+    ? 'Location off'
+    : status === 'watching'
+      ? liveLabel
+      : status === 'denied'
+        ? 'Permission denied'
+        : 'Locating…';
   const color = !enabled ? 'default' : status === 'watching' ? 'success' : status === 'denied' ? 'error' : 'warning';
   return (
-    <Tooltip title={enabled ? 'Sharing your location with dispatch — click to stop' : 'Not sharing location — click to start'}>
+    <Tooltip
+      title={
+        required
+          ? 'Location is sent automatically every minute while the app is open. Dispatch can see this crew on Field Tracker.'
+          : enabled
+            ? 'Sharing your location with dispatch — click to stop'
+            : 'Not sharing location — click to start'
+      }
+    >
       <Chip
         size="small"
         icon={enabled && status !== 'denied' ? <MyLocationIcon /> : <LocationDisabledIcon />}
         label={label}
         color={color}
         variant={enabled && status === 'watching' ? 'filled' : 'outlined'}
-        onClick={() => setEnabled(!enabled)}
+        onPointerDown={() => {
+          if (required || !enabled || status !== 'watching') {
+            if (!enabled) setEnabled(true);
+            requestNow();
+          }
+        }}
+        onClick={() => {
+          if (required || !enabled || status !== 'watching') {
+            if (!enabled) setEnabled(true);
+            requestNow();
+            return;
+          }
+          setEnabled(false);
+        }}
         sx={{ mr: 1, '& .MuiChip-icon': { color: 'inherit' } }}
       />
     </Tooltip>
   );
+}
+
+function LocationBanner() {
+  const { status, requestNow, required, needsAllow, insecure, waitingForPrompt } = useTracking();
+  const { online } = useOffline();
+  if (!online || !required) return null;
+  if (insecure) {
+    return (
+      <Alert severity="error" sx={{ borderRadius: 0 }}>
+        Location does not work on plain http:// — open this app with https:// (or localhost). Until
+        then dispatch cannot see this team.
+      </Alert>
+    );
+  }
+  if (needsAllow || status === 'denied' || status === 'locating' || waitingForPrompt) {
+    return (
+      <Alert
+        severity={status === 'denied' ? 'error' : waitingForPrompt ? 'info' : 'warning'}
+        sx={{ borderRadius: 0, '& .MuiAlert-message': { width: '100%' } }}
+      >
+        <Stack spacing={1} sx={{ width: '100%' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+            {waitingForPrompt
+              ? 'Look at the TOP of the phone now'
+              : status === 'denied'
+                ? 'GPS is blocked on this phone'
+                : 'Dispatch needs this team’s location'}
+          </Typography>
+          <Typography variant="body2">
+            {waitingForPrompt
+              ? 'A small popup should appear at the top of the screen (or next to the lock in the address bar). Tap Allow. If nothing appears, tap the green button again.'
+              : status === 'denied'
+                ? 'Open the browser menu → this site’s settings → Location → Allow. Then tap the green button below.'
+                : '1. Tap the green button.  2. Tap Allow on the popup at the top of the phone. After that, tracking runs by itself every minute.'}
+          </Typography>
+          <Button
+            variant="contained"
+            color="success"
+            size="large"
+            onPointerDown={() => requestNow()}
+            onClick={() => requestNow()}
+            sx={{ alignSelf: 'flex-start', fontWeight: 800, px: 2.5 }}
+          >
+            {waitingForPrompt ? 'Waiting for Allow… tap again if no popup' : 'Allow GPS tracking'}
+          </Button>
+        </Stack>
+      </Alert>
+    );
+  }
+  return null;
 }
 
 function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -176,12 +265,23 @@ export function Layout({ children }: { children: ReactNode }) {
   // stays admin/reviewer only (a team_leader already has their own team's live map on their team page).
   const canSeeTeams = user?.role === 'admin' || user?.role === 'reviewer' || user?.role === 'team_leader';
   const canSeeFieldTracker = user?.role === 'admin' || user?.role === 'reviewer';
+  const memberItems = [
+    ...memberNavItems,
+    ...(user?.team_id
+      ? [{ label: 'Our progress', to: `/teams/${user.team_id}`, icon: <GroupsIcon /> }]
+      : []),
+  ];
   const items = isTeamMember
-    ? memberNavItems
+    ? memberItems
     : [
         ...navItems,
         ...(canSeeTeams ? [{ label: 'Teams', to: '/teams', icon: <GroupsIcon /> }] : []),
-        ...(canSeeFieldTracker ? [{ label: 'Field Tracker', to: '/field-tracker', icon: <MyLocationIcon /> }] : []),
+        ...(canSeeFieldTracker
+          ? [
+              { label: 'Field Tracker', to: '/field-tracker', icon: <MyLocationIcon /> },
+              { label: 'Team Progress', to: '/team-progress', icon: <InsightsIcon /> },
+            ]
+          : []),
       ];
 
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -199,6 +299,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 800, flexGrow: 1 }}>
             Insulator Inspector Pro
           </Typography>
+          <OfflineChip />
           <TrackingChip />
           <Typography variant="body2" sx={{ opacity: 0.9, mr: 1 }}>
             {user?.full_name || user?.username} · {user?.role}
@@ -275,6 +376,10 @@ export function Layout({ children }: { children: ReactNode }) {
       </Drawer>
       <Box component="main" sx={{ flexGrow: 1, p: 3, width: `calc(100% - ${drawerWidth}px)` }}>
         <Toolbar />
+        <Box sx={{ mx: -3, mt: -3, mb: 2 }}>
+          <OfflineBanner />
+          <LocationBanner />
+        </Box>
         {children}
       </Box>
       <ChangePasswordDialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)} />

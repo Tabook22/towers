@@ -32,6 +32,8 @@ import { MapPicker } from './MapPicker';
 import { ImageAnnotator } from './ImageAnnotator';
 import { mediaUrl } from '../api/client';
 import { ResizableDialogPaper } from './ResizableDialogPaper';
+import { useOffline } from '../offline/OfflineProvider';
+import { LOCAL_FILE_SENTINEL } from '../offline/types';
 
 interface Props {
   image: ImageRow;
@@ -73,6 +75,9 @@ export function ImageSlotCard({
   const [annotatorOpen, setAnnotatorOpen] = useState(false);
   const [retypeAnchor, setRetypeAnchor] = useState<HTMLElement | null>(null);
   const isThermal = image.image_type.startsWith('TH');
+  const { previewUrlForImage } = useOffline();
+  const localPreview = previewUrlForImage(image.id);
+  const queuedOnPhone = Boolean(localPreview) || image.file_path === LOCAL_FILE_SENTINEL;
 
   // Draft locally, commit on blur — native date/time inputs fire onChange per keystroke/segment,
   // and committing each one straight to the API (like the buttons below do, fine for a single
@@ -119,15 +124,18 @@ export function ImageSlotCard({
           position: 'relative',
         }}
       >
-        {image.thumbnail_path ? (
+        {localPreview || (image.thumbnail_path && image.thumbnail_path !== LOCAL_FILE_SENTINEL) ? (
           <Box
             component="img"
-            src={mediaUrl(
-              image.annotated_thumbnail_path
-                ? `/api/images/${image.id}/annotation/thumbnail`
-                : `/api/images/${image.id}/thumbnail`,
-              image.annotated_thumbnail_path ? image.annotated_uploaded_at : image.uploaded_at,
-            )}
+            src={
+              localPreview ||
+              mediaUrl(
+                image.annotated_thumbnail_path
+                  ? `/api/images/${image.id}/annotation/thumbnail`
+                  : `/api/images/${image.id}/thumbnail`,
+                image.annotated_thumbnail_path ? image.annotated_uploaded_at : image.uploaded_at,
+              )
+            }
             alt={image.image_type}
             sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
@@ -136,6 +144,14 @@ export function ImageSlotCard({
             {isThermal ? <ThermostatIcon /> : <PhotoCameraIcon />}
             <Typography variant="caption">No image uploaded</Typography>
           </Stack>
+        )}
+        {queuedOnPhone && (
+          <Chip
+            label="On this phone"
+            size="small"
+            color="warning"
+            sx={{ position: 'absolute', bottom: 6, right: 6 }}
+          />
         )}
         {image.annotated_path && (
           <Tooltip title="This photo has a marked-up annotation">
@@ -152,7 +168,7 @@ export function ImageSlotCard({
             sx={{ position: 'absolute', top: 6, left: 6, bgcolor: 'rgba(255,255,255,0.85)' }}
           />
         )}
-        {image.file_path && (
+        {image.file_path && image.file_path !== LOCAL_FILE_SENTINEL && (
           <Stack direction="row" spacing={0.5} sx={{ position: 'absolute', top: 6, right: 6 }}>
             <Tooltip title="Enlarge & annotate">
               <IconButton

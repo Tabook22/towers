@@ -32,3 +32,9 @@ body {
 .map-picker-label::before {
   border-top-color: rgba(0, 0, 0, 0.15);
 }
+
+/* Live team pins — name sits under the dot (see FieldTrackerPage labeledIcon). */
+.team-live-label {
+  background: none !important;
+  border: none !important;
+}

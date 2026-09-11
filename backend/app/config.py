@@ -1,7 +1,7 @@
 """Application configuration."""
 from pathlib import Path
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     tower_photo_thumbnails_dir: Path = BASE_DIR / "storage" / "tower_photo_thumbnails"
     # User-uploaded .docx report templates (see models.ReportTemplate / services/docx_reports.py).
     report_templates_dir: Path = BASE_DIR / "storage" / "report_templates"
+    voice_notes_dir: Path = BASE_DIR / "storage" / "voice_notes"
+    log_files_dir: Path = BASE_DIR / "storage" / "log_files"
+    channel_dir: Path = BASE_DIR / "storage" / "channel"
+    # Optional cloud STT (Grok). Local faster-whisper on the VPS is the default when this is unset.
+    xai_api_key: str | None = None
+    # Local Whisper model name: tiny | base | small | medium. "small" fits an 8 GB CPU VPS.
+    whisper_model: str = "small"
 
     secret_key: str = "dev-secret-key-change-me-in-production-please"
     algorithm: str = "HS256"
@@ -33,8 +40,7 @@ class Settings(BaseSettings):
 
     max_upload_size_mb: int = 40
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env")
 
 
 settings = Settings()
@@ -47,5 +53,8 @@ for d in (
     settings.tower_photos_dir,
     settings.tower_photo_thumbnails_dir,
     settings.report_templates_dir,
+    settings.voice_notes_dir,
+    settings.log_files_dir,
+    settings.channel_dir,
 ):
     d.mkdir(parents=True, exist_ok=True)

@@ -250,9 +250,11 @@ export interface LineInspectionReportOut {
 export interface LoginResponse {
   access_token: string;
   token_type: string;
+  user_id: number;
   role: string;
   username: string;
   full_name: string | null;
+  team_id: number | null;
 }
 
 export interface ReportTemplate {
@@ -273,6 +275,93 @@ export interface TrailPoint {
   recorded_at: string;
 }
 
+export interface TrackingMission {
+  id: number | null;
+  kind: 'mission' | 'night' | string;
+  label: string;
+  field_date: string;
+  started_at: string;
+  ended_at: string | null;
+  is_current: boolean;
+  ping_count: number;
+}
+
+export interface UserTrail {
+  user_id: number;
+  username: string;
+  full_name: string | null;
+  team_name?: string | null;
+  points: TrailPoint[];
+}
+
+export interface TowerStay {
+  tower_pk: number;
+  tower_id: string;
+  area: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  arrived_at: string;
+  departed_at: string;
+  minutes: number;
+  visit_id: number | null;
+  visit_status: string | null;
+  travel_from_prev_minutes?: number | null;
+  travel_from_prev_km?: number | null;
+}
+
+export interface TeamProgressLogin {
+  user_id: number;
+  username: string;
+  full_name: string | null;
+}
+
+export interface TeamProgressDelta {
+  field_date: string;
+  minutes_tracked_delta: number;
+  distance_km_delta: number;
+  towers_delta: number;
+  avg_minutes_per_tower_delta: number;
+}
+
+export interface TeamProgress {
+  team_id: number | null;
+  team_name: string;
+  field_date: string;
+  started_at: string;
+  ended_at: string;
+  start_latitude: number;
+  start_longitude: number;
+  end_latitude: number;
+  end_longitude: number;
+  minutes_tracked: number;
+  distance_km: number;
+  towers_visited: number;
+  dwell_minutes: number;
+  travel_minutes: number;
+  avg_minutes_per_tower: number;
+  avg_travel_minutes: number;
+  ping_count: number;
+  logins: TeamProgressLogin[];
+  stays: TowerStay[];
+  path: TrailPoint[];
+  vs_previous: TeamProgressDelta | null;
+}
+
+export interface MovementDayReport {
+  user_id: number;
+  username: string;
+  full_name: string | null;
+  team_id: number | null;
+  team_name: string | null;
+  first_seen: string;
+  last_seen: string;
+  minutes_tracked: number;
+  distance_km: number;
+  ping_count: number;
+  path: TrailPoint[];
+  stays: TowerStay[];
+}
+
 export interface TeamTodayProgress {
   towers_visited: number;
   visits_touched: number;
@@ -286,10 +375,10 @@ export interface LiveTeamMember {
   full_name: string | null;
   team_id: number | null;
   team_name: string | null;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   accuracy_m: number | null;
-  last_seen: string;
+  last_seen: string | null;
   is_stale: boolean;
   today: TeamTodayProgress;
 }
@@ -319,12 +408,27 @@ export interface TeamMember {
   notes: string | null;
 }
 
+export interface TeamDailyLogFile {
+  id: number;
+  original_filename: string | null;
+  content_type: string | null;
+  file_size: number | null;
+  is_image: boolean;
+  is_pdf: boolean;
+}
+
 export interface TeamDailyLog {
   id: number;
   team_id: number;
   log_date: string;
   note: string;
+  has_audio: boolean;
+  transcribed: boolean;
+  audio_content_type: string | null;
+  duration_seconds: number | null;
+  attachments: TeamDailyLogFile[];
   created_by: number | null;
+  created_by_name: string | null;
   created_at: string;
 }
 
@@ -438,6 +542,102 @@ export interface TeamJobMap {
   in_progress: number;
   pending: number;
   towers: TeamJobMapTower[];
+}
+
+export interface NextTowerStop {
+  rank: number;
+  id: number;
+  tower_id: string;
+  area: string | null;
+  latitude: number;
+  longitude: number;
+  status: string;
+  visit_id: number | null;
+  travel_km: number;
+  travel_minutes: number;
+  dwell_minutes: number;
+  cumulative_minutes: number;
+  fits_tonight: boolean;
+  reason: string;
+  claim_id: number | null;
+  claim_status: string | null;
+  claimed_by_id: number | null;
+  claimed_by_name: string | null;
+  mine: boolean;
+  skip_reason: string | null;
+}
+
+export interface NightClaimCrewMember {
+  user_id: number;
+  username: string;
+  full_name: string | null;
+  role: string;
+}
+
+export type NightClaimStatus = 'claimed' | 'en_route' | 'on_site' | 'done' | 'skipped';
+
+export interface NightClaim {
+  id: number;
+  team_id: number;
+  field_date: string;
+  tower_id: number;
+  tower_code: string | null;
+  assigned_user_id: number;
+  assigned_user_name: string | null;
+  status: NightClaimStatus;
+  skip_reason: string | null;
+  visit_id: number | null;
+  claimed_at: string;
+  arrived_at: string | null;
+  completed_at: string | null;
+}
+
+export type ChannelKind = 'note' | 'dispatch' | 'access' | 'weather' | 'skip' | 'hotspot' | 'help';
+
+export interface ChannelMessage {
+  id: number;
+  team_id: number;
+  team_name: string | null;
+  field_date: string;
+  kind: ChannelKind;
+  body: string;
+  tower_id: number | null;
+  tower_code: string | null;
+  visit_id: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  has_photo: boolean;
+  has_audio: boolean;
+  duration_seconds: number | null;
+  created_by: number | null;
+  author_name: string | null;
+  author_role: string | null;
+  created_at: string;
+}
+
+export interface NextTowersPlan {
+  team_id: number;
+  team_name: string;
+  field_date: string;
+  origin_latitude: number | null;
+  origin_longitude: number | null;
+  origin_source: string;
+  origin_label: string;
+  minutes_left: number;
+  still_night: boolean;
+  daily_target: number | null;
+  towers_done_tonight: number;
+  behind_by: number | null;
+  remaining_assigned: number;
+  in_progress: number;
+  pending: number;
+  completed: number;
+  skipped_no_gps: number;
+  can_fit_tonight: number;
+  dwell_minutes: number;
+  headline: string;
+  stops: NextTowerStop[];
+  crew: NightClaimCrewMember[];
 }
 
 export interface VisitPhoto {

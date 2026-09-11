@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import effective_team_id, get_current_user
 from app.models import Position, Tower, User, UserRole, Visit
 from app.schemas import DashboardSummary, DashboardTowerRow, VisitOut, VisitRollup
 from app.services.rollup import visit_rollup
@@ -19,14 +19,16 @@ def dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_cu
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
     is_team_leader = user.role == UserRole.TEAM_LEADER.value
+    leader_team_id = effective_team_id(db, user) if is_team_leader else None
     q = db.query(Tower).filter(Tower.is_active.is_(True))
     if area:
         q = q.filter(Tower.area == area)
     if is_team_leader:
-        # Only towers this team actually has a mission on — not every tower in the org, and
-        # "latest visit" below is scoped the same way so another team's more recent visit to the
-        # same tower never shows through.
-        q = q.join(Visit, Visit.tower_id == Tower.id).filter(Visit.team_id == user.team_id).distinct()
+        # Assigned job-map towers for this crew — not only towers they have already opened a visit on.
+        if not leader_team_id:
+            q = q.filter(False)
+        else:
+            q = q.filter(Tower.assigned_team_id == leader_team_id)
     towers = q.order_by(Tower.tower_id).all()
 
     rows: list[DashboardTowerRow] = []
@@ -36,8 +38,8 @@ def dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_cu
 
     for tower in towers:
         visit_q = db.query(Visit).filter(Visit.tower_id == tower.id)
-        if is_team_leader:
-            visit_q = visit_q.filter(Visit.team_id == user.team_id)
+        if is_team_leader and leader_team_id:
+            visit_q = visit_q.filter(Visit.team_id == leader_team_id)
         latest = (
             visit_q.options(joinedload(Visit.positions).joinedload(Position.images))
             .order_by(Visit.inspection_date.desc().nullslast(), Visit.id.desc())
