@@ -407,10 +407,17 @@ export function TowersPage() {
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             {lineSector
-              ? `Every tower on "${lineSector}" — use this to plan drone flights along the line.`
-              : 'Every tower with GPS coordinates — filter by line sector above to focus on one line.'}
+              ? `Every tower on "${lineSector}". Click a pin to open its details and edit.`
+              : 'Every tower with GPS coordinates. Click a pin to open its details and edit immediately.'}
           </Typography>
-          <TowersOverviewMap rows={mapRows} height={380} />
+          <TowersOverviewMap
+            rows={mapRows}
+            height={380}
+            onTowerClick={(row) => {
+              const t = visibleTowers?.find((x) => x.id === row.tower.id);
+              if (t) openEdit(t);
+            }}
+          />
         </CardContent>
       </Card>
 

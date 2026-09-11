@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MapContainer, Marker, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
+import { MapContainer, Marker, TileLayer, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Box, IconButton, Tooltip, Typography } from '@mui/material';
 import OpenInFullIcon from '@mui/icons-material/OpenInFullRounded';
@@ -9,7 +9,7 @@ import MapIcon from '@mui/icons-material/MapRounded';
 import 'leaflet/dist/leaflet.css';
 import { severityColors } from '../theme/theme';
 import type { DashboardTowerRow } from '../api/types';
-import { Link as RouterLink } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { TILE_LAYERS, type MapLayer } from './MapPicker';
 
 function markerIconFor(row: DashboardTowerRow) {
@@ -58,7 +58,16 @@ function FitToPoints({ positions }: { positions: [number, number][] }) {
   return null;
 }
 
-export function TowersOverviewMap({ rows, height = 340 }: { rows: DashboardTowerRow[]; height?: number }) {
+export function TowersOverviewMap({
+  rows,
+  height = 340,
+  onTowerClick,
+}: {
+  rows: DashboardTowerRow[];
+  height?: number;
+  onTowerClick?: (row: DashboardTowerRow) => void;
+}) {
+  const navigate = useNavigate();
   const points = rows.filter((r) => r.tower.latitude != null && r.tower.longitude != null);
   // Salalah, Oman — the real city at the center of the Dhofar/"Dufar" governorate this app's demo
   // data is set in (see MapPicker.tsx for the source).
@@ -110,8 +119,13 @@ export function TowersOverviewMap({ rows, height = 340 }: { rows: DashboardTower
               key={row.tower.id}
               position={[row.tower.latitude as number, row.tower.longitude as number]}
               icon={markerIconFor(row)}
+              eventHandlers={{
+                click: () => {
+                  if (onTowerClick) onTowerClick(row);
+                  else navigate(`/towers/${row.tower.id}`);
+                },
+              }}
             >
-              {/* Hover shows a quick summary without clicking; click still opens the full Popup below. */}
               <LeafletTooltip direction="top" offset={[0, -10]} opacity={1}>
                 <strong>{row.tower.tower_id}</strong>
                 <br />
@@ -128,21 +142,9 @@ export function TowersOverviewMap({ rows, height = 340 }: { rows: DashboardTower
                     {row.rollup.visit_status} · {row.rollup.hotspots} hotspot{row.rollup.hotspots === 1 ? '' : 's'}
                   </>
                 )}
+                <br />
+                <em>Click to edit</em>
               </LeafletTooltip>
-              <Popup>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  {row.tower.tower_id}
-                </Typography>
-                <Typography variant="caption" sx={{ display: 'block' }}>
-                  {row.tower.voltage} · {row.tower.area}
-                </Typography>
-                {row.rollup && (
-                  <Typography variant="caption" sx={{ display: 'block' }}>
-                    Status: {row.rollup.visit_status} · Hotspots: {row.rollup.hotspots}
-                  </Typography>
-                )}
-                <RouterLink to={`/towers/${row.tower.id}`}>Open tower →</RouterLink>
-              </Popup>
             </Marker>
           ))}
         </MapContainer>
