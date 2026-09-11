@@ -37,6 +37,7 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBackRounded';
 import AddIcon from '@mui/icons-material/AddRounded';
+import LockOpenIcon from '@mui/icons-material/LockOpenRounded';
 import DeleteIcon from '@mui/icons-material/DeleteRounded';
 import EditIcon from '@mui/icons-material/EditRounded';
 import MoreVertIcon from '@mui/icons-material/MoreVertRounded';
@@ -74,6 +75,7 @@ import {
   useTranscribeTeamNote,
   useUpdateTeamNote,
   useChoiceLists,
+  useClaimTowerForTeam,
   useCreateTeamMission,
   useCreateUser,
   useDeleteTeamNote,
@@ -94,6 +96,7 @@ import {
   useTeamNextTowers,
   useUpdateClaim,
   useTeamProgress,
+  useReleaseTower,
   useTowers,
   useUpdateTeam,
   useUpdateUser,
@@ -111,6 +114,7 @@ import { NightChannel } from '../components/NightChannel';
 import { requestBrowserLocation, useTracking } from '../hooks/useFieldTracking';
 import { TeamSiteMap } from '../components/TeamSiteMap';
 import { OutingPlanCard } from '../components/OutingPlanCard';
+import { ClaimTowerDialog } from '../components/ClaimTowerDialog';
 import { KpiTile } from '../components/KpiTile';
 import type { AdminUser, NextTowerStop, NightClaimStatus, TrackingMission } from '../api/types';
 
@@ -309,7 +313,12 @@ export function TeamDetailPage() {
     currentUser?.role === 'admin' || currentUser?.role === 'reviewer' || currentUser?.role === 'team_leader';
   const updateVisit = useUpdateVisit();
   const deleteVisit = useDeleteVisit();
-  const { data: towers } = useTowers({ include_inactive: true });
+  const { data: towers } = useTowers({ include_inactive: true, limit: 5000 });
+  const claimForTeam = useClaimTowerForTeam();
+  const releaseTower = useReleaseTower();
+  const [claimOpen, setClaimOpen] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const freeTowers = (towers || []).filter((t) => t.is_active && t.assigned_team_id == null);
   const { data: lists } = useChoiceLists();
   const generateOetcReport = useGenerateOetcReport();
 
@@ -770,13 +779,39 @@ export function TeamDetailPage() {
 
       <Card>
         <CardContent>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Site map
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            You (dark pin), tonight&apos;s GPS track, and assigned towers — so the crew can see where
-            they are and where they have already been this outing.
-          </Typography>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Site map
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Towers assigned to this team, your live pin, and tonight&apos;s track. Add a tower from
+                the admin catalog — other teams cannot take it until you or an admin release it.
+              </Typography>
+            </Box>
+            {canManage && (
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setClaimError(null); setClaimOpen(true); }}>
+                Add tower
+              </Button>
+            )}
+          </Stack>
+          {canManage && (jobMap?.towers || []).length > 0 && (
+            <Stack direction="row" spacing={1} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
+              {(jobMap?.towers || []).map((t) => (
+                <Chip
+                  key={t.id}
+                  size="small"
+                  label={t.tower_id}
+                  onDelete={() => {
+                    if (window.confirm(`Release ${t.tower_id} so another team can take it?`)) {
+                      releaseTower.mutate(t.id);
+                    }
+                  }}
+                  deleteIcon={<LockOpenIcon />}
+                />
+              ))}
+            </Stack>
+          )}
           <TeamSiteMap
             towers={jobMap?.towers}
             plannedIds={outingPlan?.tower_ids}
@@ -792,6 +827,24 @@ export function TeamDetailPage() {
           />
         </CardContent>
       </Card>
+      <ClaimTowerDialog
+        open={claimOpen}
+        onClose={() => setClaimOpen(false)}
+        freeTowers={freeTowers}
+        claiming={claimForTeam.isPending}
+        error={claimError}
+        onClaim={(towerId) => {
+          setClaimError(null);
+          claimForTeam.mutate(towerId, {
+            onError: (err: unknown) => {
+              const message =
+                (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+                'Could not add that tower';
+              setClaimError(String(message));
+            },
+          });
+        }}
+      />
 
       <Grid container spacing={2}>
         {/* Mission info — inline-editable, same pattern as the Visit header */}

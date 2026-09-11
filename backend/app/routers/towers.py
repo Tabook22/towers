@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.config import settings
 from app.database import get_db
 from app.deps import effective_team_id, get_current_user, require_role
-from app.models import Area, Team, Tower, User, UserRole, Visit
+from app.models import Area, Team, TeamOutingPlan, TeamOutingTower, Tower, User, UserRole, Visit
 from app.schemas import TowerBulkAssignRequest, TowerCreate, TowerImportResult, TowerOut, TowerUpdate, TowerWithStats
 from app.services.archive import (
     ACCEPTED_IMAGE_CONTENT_TYPES,
@@ -39,9 +39,15 @@ def list_towers(
 ):
     """Paginated, searchable tower list — designed for hundreds/thousands of towers."""
     q = db.query(Tower).options(joinedload(Tower.assigned_team))
-    if _user.role in (UserRole.TEAM_LEADER.value, UserRole.TEAM_MEMBER.value):
+    if _user.role == UserRole.TEAM_MEMBER.value:
         tid = effective_team_id(db, _user)
         q = q.filter(Tower.assigned_team_id == tid) if tid else q.filter(False)
+    elif _user.role == UserRole.TEAM_LEADER.value:
+        tid = effective_team_id(db, _user)
+        if tid:
+            q = q.filter((Tower.assigned_team_id == tid) | (Tower.assigned_team_id.is_(None)))
+        else:
+            q = q.filter(Tower.assigned_team_id.is_(None))
     if not include_inactive:
         q = q.filter(Tower.is_active.is_(True))
     if search:
@@ -123,6 +129,58 @@ def bulk_assign_towers(
     for t in towers:
         db.refresh(t)
     return [_tower_out(t) for t in towers]
+
+
+@router.post("/{tower_pk}/claim", response_model=TowerOut)
+def claim_tower(tower_pk: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Team leader takes a free catalog tower for their team. Locked until they or an admin release it."""
+    if user.role not in (UserRole.TEAM_LEADER.value, UserRole.ADMIN.value, UserRole.REVIEWER.value):
+        raise HTTPException(status_code=403, detail="Only the team leader can add a tower to the team")
+    tid = effective_team_id(db, user)
+    if user.role == UserRole.TEAM_LEADER.value and not tid:
+        raise HTTPException(status_code=400, detail="Your login is not linked to a team")
+    if user.role != UserRole.TEAM_LEADER.value:
+        raise HTTPException(status_code=400, detail="Admins assign towers from the Towers page")
+    tower = db.get(Tower, tower_pk)
+    if not tower or not tower.is_active:
+        raise HTTPException(status_code=404, detail="Tower not found")
+    if tower.assigned_team_id and tower.assigned_team_id != tid:
+        other = db.get(Team, tower.assigned_team_id)
+        name = other.name if other else "another team"
+        raise HTTPException(
+            status_code=409,
+            detail=f"{tower.tower_id} is assigned to {name}. That team leader or an admin must release it first.",
+        )
+    tower.assigned_team_id = tid
+    db.commit()
+    db.refresh(tower)
+    return _tower_out(tower)
+
+
+@router.post("/{tower_pk}/release", response_model=TowerOut)
+def release_tower(tower_pk: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Put a tower back in the free pool so another team can take it."""
+    tower = db.get(Tower, tower_pk)
+    if not tower:
+        raise HTTPException(status_code=404, detail="Tower not found")
+    tid = effective_team_id(db, user)
+    is_admin = user.role in (UserRole.ADMIN.value, UserRole.REVIEWER.value)
+    is_owner_leader = user.role == UserRole.TEAM_LEADER.value and tid is not None and tower.assigned_team_id == tid
+    if not is_admin and not is_owner_leader:
+        raise HTTPException(status_code=403, detail="Only this team's leader or an admin can release the tower")
+    if tower.assigned_team_id:
+        plan_ids = [
+            p.id
+            for p in db.query(TeamOutingPlan).filter(TeamOutingPlan.team_id == tower.assigned_team_id).all()
+        ]
+        if plan_ids:
+            db.query(TeamOutingTower).filter(
+                TeamOutingTower.plan_id.in_(plan_ids), TeamOutingTower.tower_pk == tower.id
+            ).delete(synchronize_session=False)
+    tower.assigned_team_id = None
+    db.commit()
+    db.refresh(tower)
+    return _tower_out(tower)
 
 
 @router.get("/import/template")

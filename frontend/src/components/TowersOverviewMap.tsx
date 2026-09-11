@@ -143,7 +143,7 @@ export function TowersOverviewMap({
                   </>
                 )}
                 <br />
-                <em>Click to edit</em>
+                <em>Click to select</em>
               </LeafletTooltip>
             </Marker>
           ))}

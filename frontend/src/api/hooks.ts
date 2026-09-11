@@ -191,6 +191,32 @@ export function useImportTowers() {
 
 // The core of "admin assigns towers to a team" — sets (or clears, with team_id: null)
 // Tower.assigned_team_id on every tower id given, in one action.
+export function useClaimTowerForTeam() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (towerId: number) => (await apiClient.post<Tower>(`/api/towers/${towerId}/claim`)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['towers'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['team-job-map'] });
+      qc.invalidateQueries({ queryKey: ['outing-plan'] });
+    },
+  });
+}
+
+export function useReleaseTower() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (towerId: number) => (await apiClient.post<Tower>(`/api/towers/${towerId}/release`)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['towers'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['team-job-map'] });
+      qc.invalidateQueries({ queryKey: ['outing-plan'] });
+    },
+  });
+}
+
 export function useBulkAssignTowers() {
   const qc = useQueryClient();
   return useMutation({
