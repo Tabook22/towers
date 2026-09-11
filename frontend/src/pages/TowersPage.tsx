@@ -44,6 +44,7 @@ import {
   useAreas,
   useAreasFull,
   useBulkAssignTowers,
+  useClaimTowerForTeam,
   useClearTowerPhoto,
   useCreateArea,
   useCreateTower,
@@ -146,6 +147,8 @@ export function TowersPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const canImport = user?.role === 'admin' || user?.role === 'reviewer';
+  const canEditCatalog = canImport;
+  const isTeamLeader = user?.role === 'team_leader';
   const debouncedSearch = useDebouncedValue(search);
   const { data: towers, isLoading } = useTowers({ search: debouncedSearch || undefined, area: area || undefined });
   const { data: areas } = useAreas();
@@ -177,6 +180,7 @@ export function TowersPage() {
   // a descriptive label.
   const { data: teams } = useTeams();
   const bulkAssign = useBulkAssignTowers();
+  const claimForTeam = useClaimTowerForTeam();
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignTeamId, setAssignTeamId] = useState('');
@@ -296,9 +300,11 @@ export function TowersPage() {
               Import from Excel
             </Button>
           )}
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-            Add tower
-          </Button>
+          {canEditCatalog && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+              Add tower
+            </Button>
+          )}
         </Stack>
       </Stack>
 
@@ -406,16 +412,25 @@ export function TowersPage() {
             Tower locations
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            {lineSector
-              ? `Every tower on "${lineSector}". Click a pin to open its details and edit.`
-              : 'Every tower with GPS coordinates. Click a pin to open its details and edit immediately.'}
+            {canEditCatalog
+              ? 'Click a pin to edit that tower. Only an admin can change, delete, or deactivate catalog towers.'
+              : isTeamLeader
+                ? 'Click a free pin to assign it to your team. You cannot edit or delete towers — that is admin only.'
+                : 'Registered towers with GPS. Catalog edits are admin only.'}
           </Typography>
           <TowersOverviewMap
             rows={mapRows}
             height={380}
             onTowerClick={(row) => {
               const t = visibleTowers?.find((x) => x.id === row.tower.id);
-              if (t) openEdit(t);
+              if (!t) return;
+              if (canEditCatalog) {
+                openEdit(t);
+                return;
+              }
+              if (isTeamLeader && t.assigned_team_id == null) {
+                claimForTeam.mutate(t.id);
+              }
             }}
           />
         </CardContent>
@@ -486,22 +501,34 @@ export function TowersPage() {
                   <VisitStatusChip status={t.latest_visit_status} />
                 </TableCell>
                 <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                  <Tooltip title="Edit tower">
-                    <IconButton size="small" onClick={() => openEdit(t)}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Deactivate tower">
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={() => {
-                        if (confirm(`Deactivate tower ${t.tower_id}?`)) deactivateTower.mutate(t.id);
-                      }}
-                    >
-                      <ArchiveIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                  {canEditCatalog ? (
+                    <>
+                      <Tooltip title="Edit tower">
+                        <IconButton size="small" onClick={() => openEdit(t)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Deactivate tower">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => {
+                            if (confirm(`Deactivate tower ${t.tower_id}?`)) deactivateTower.mutate(t.id);
+                          }}
+                        >
+                          <ArchiveIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  ) : isTeamLeader && t.assigned_team_id == null ? (
+                    <Button size="small" onClick={() => claimForTeam.mutate(t.id)}>
+                      Add to my team
+                    </Button>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">
+                      {t.assigned_team_name || '—'}
+                    </Typography>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

@@ -93,7 +93,11 @@ def _tower_out(tower: Tower) -> TowerOut:
 
 
 @router.post("", response_model=TowerOut, status_code=201)
-def create_tower(payload: TowerCreate, db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
+def create_tower(
+    payload: TowerCreate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
+):
     exists = db.query(Tower).filter(Tower.tower_id.ilike(payload.tower_id)).first()
     if exists:
         raise HTTPException(status_code=400, detail=f"Tower ID '{payload.tower_id}' already exists")
@@ -225,7 +229,10 @@ def get_tower(tower_pk: int, db: Session = Depends(get_db), _user: User = Depend
 
 @router.patch("/{tower_pk}", response_model=TowerOut)
 def update_tower(
-    tower_pk: int, payload: TowerUpdate, db: Session = Depends(get_db), _user: User = Depends(get_current_user)
+    tower_pk: int,
+    payload: TowerUpdate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
 ):
     tower = db.get(Tower, tower_pk)
     if not tower:
@@ -268,7 +275,10 @@ def deactivate_tower(
 
 @router.post("/{tower_pk}/photo", response_model=TowerOut)
 async def upload_tower_photo(
-    tower_pk: int, file: UploadFile = File(...), db: Session = Depends(get_db), _user: User = Depends(get_current_user)
+    tower_pk: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
 ):
     """A single reference/context photo of the tower structure itself — separate from the
     per-position inspection evidence images uploaded under /api/images."""
@@ -300,7 +310,11 @@ async def upload_tower_photo(
 
 
 @router.delete("/{tower_pk}/photo", response_model=TowerOut)
-def clear_tower_photo(tower_pk: int, db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
+def clear_tower_photo(
+    tower_pk: int,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
+):
     tower = db.get(Tower, tower_pk)
     if not tower:
         raise HTTPException(status_code=404, detail="Tower not found")
