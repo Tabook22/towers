@@ -634,6 +634,11 @@ class TeamOutingPlan(Base):
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+    # Set when the leader taps End outing — the pack itself is still computed live; this just
+    # records that tonight is closed and stores the handover note for the next crew.
+    ended_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    ended_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    handover_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     team: Mapped["Team"] = relationship(back_populates="outing_plans")
     towers: Mapped[list["TeamOutingTower"]] = relationship(

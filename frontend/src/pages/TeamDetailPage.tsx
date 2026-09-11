@@ -114,6 +114,7 @@ import { NightChannel } from '../components/NightChannel';
 import { requestBrowserLocation, useTracking } from '../hooks/useFieldTracking';
 import { TeamSiteMap } from '../components/TeamSiteMap';
 import { OutingPlanCard } from '../components/OutingPlanCard';
+import { HandoverPackCard } from '../components/HandoverPackCard';
 import { ClaimTowerDialog } from '../components/ClaimTowerDialog';
 import { KpiTile } from '../components/KpiTile';
 import type { AdminUser, NextTowerStop, NightClaimStatus, TrackingMission } from '../api/types';
@@ -1552,6 +1553,23 @@ export function TeamDetailPage() {
         fieldDate={shift?.field_date}
         towers={(jobMap?.towers || []).map((t) => ({ id: t.id, tower_id: t.tower_id }))}
         onTower={(towerPk, visitId) => {
+          if (visitId) {
+            navigate(`/visits/${visitId}`);
+            return;
+          }
+          const t = jobMap?.towers.find((x) => x.id === towerPk);
+          if (t) {
+            focusJobMapTower(t);
+            showRouteToTower(t);
+          }
+        }}
+      />
+
+      <HandoverPackCard
+        teamId={id}
+        fieldDate={shift?.field_date}
+        canManage={canManage}
+        onShowTower={(towerPk, visitId) => {
           if (visitId) {
             navigate(`/visits/${visitId}`);
             return;

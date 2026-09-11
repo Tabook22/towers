@@ -36,6 +36,7 @@ import { useNavigate } from 'react-router-dom';
 import { useClaimTower, useDayReport, useLiveTeams, useShiftInfo, useStartTrackingMission, useTeamNextTowers, useTeams, useTowers, useTrackingChannel, useTrackingMissions, useUpdateClaim } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { NextTowersCard } from '../components/NextTowersCard';
+import { HandoverPackCard } from '../components/HandoverPackCard';
 import { DispatchChannelFeed, NightChannel } from '../components/NightChannel';
 import type { LiveTeamMember, MovementDayReport, TrackingMission, TowerStay } from '../api/types';
 import { TILE_LAYERS, type MapLayer } from '../components/MapPicker';
@@ -609,6 +610,27 @@ export function FieldTrackerPage() {
           messages={opsMessages}
           onTower={(_towerPk, visitId) => {
             if (visitId) navigate(`/visits/${visitId}`);
+          }}
+        />
+      )}
+      {teamId && (
+        <HandoverPackCard
+          teamId={Number(teamId)}
+          fieldDate={reportDate || undefined}
+          canManage
+          compact
+          onShowTower={(towerPk, visitId) => {
+            if (visitId) {
+              navigate(`/visits/${visitId}`);
+              return;
+            }
+            mapBoxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const t = (catalogTowers || []).find((row) => row.id === towerPk);
+            if (t?.latitude != null && t?.longitude != null) {
+              window.setTimeout(() => {
+                mapRef.current?.flyTo([t.latitude as number, t.longitude as number], 15, { duration: 0.75 });
+              }, 120);
+            }
           }}
         />
       )}

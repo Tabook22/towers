@@ -40,6 +40,9 @@ from app.schemas import (
     TeamDailyLogOut,
     TeamDailyLogUpdate,
     TeamDayProgress,
+    HandoverContinue,
+    HandoverEnd,
+    HandoverPack,
     NextTowersPlan,
     OutingPlanOut,
     OutingPlanSave,
@@ -62,6 +65,7 @@ from app.schemas import (
 )
 from app.config import settings
 from app.services.archive import file_extension, save_upload
+from app.services.handover import build_handover_pack, continue_last_night, end_outing
 from app.services.movement import build_team_progress, current_field_date, hour_window, shift_window
 from app.services.next_towers import build_next_towers
 from app.services.rollup import visit_rollup
@@ -928,6 +932,52 @@ def save_outing_plan(
         .first()
     )
     return _outing_plan_out(plan)
+
+
+@router.get("/{team_id}/handover", response_model=HandoverPack)
+def team_handover(
+    team_id: int,
+    field_date: dt.date | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_team_read()),
+):
+    """Live pack for this field night: done / skipped / still open, hotspots, and where to start next."""
+    team = _load_team(db, team_id)
+    return build_handover_pack(db, team, field_date or current_field_date())
+
+
+@router.post("/{team_id}/handover/end", response_model=HandoverPack)
+def team_end_outing(
+    team_id: int,
+    payload: HandoverEnd,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_team_scope()),
+):
+    """Close tonight's outing and store the leader's handover note for the next crew."""
+    team = _load_team(db, team_id)
+    return end_outing(db, team, user, note=payload.note, field_date=payload.field_date)
+
+
+@router.post("/{team_id}/handover/continue", response_model=HandoverPack)
+def team_continue_last_night(
+    team_id: int,
+    payload: HandoverContinue,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_team_scope()),
+):
+    """Seed tonight's visit list from the last night that still has unfinished towers."""
+    team = _load_team(db, team_id)
+    try:
+        return continue_last_night(
+            db,
+            team,
+            user,
+            field_date=payload.field_date,
+            from_date=payload.from_date,
+            replace=payload.replace,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/{team_id}/next-towers", response_model=NextTowersPlan)

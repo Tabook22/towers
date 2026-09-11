@@ -552,6 +552,105 @@ export interface OutingPlan {
   notes: string | null;
 }
 
+export type HandoverTowerStatus = 'completed' | 'skipped' | 'in_progress' | 'pending';
+
+export interface HandoverTower {
+  id: number;
+  tower_id: string;
+  area: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  status: HandoverTowerStatus;
+  visit_id: number | null;
+  visit_status: string | null;
+  images_pending: number;
+  hotspots: number;
+  claim_status: string | null;
+  skip_reason: string | null;
+  claimed_by_name: string | null;
+}
+
+export interface HandoverHotspot {
+  tower_id: string;
+  tower_pk: number;
+  visit_id: number;
+  position_id: number;
+  position_code: string | null;
+  ohl: string;
+  phase: string;
+  string: string;
+  tmax_c: number | null;
+  tref_c: number | null;
+  delta_t: number | null;
+  severity: string | null;
+  image_id: number | null;
+}
+
+export interface HandoverEvent {
+  id: number;
+  kind: string;
+  body: string;
+  tower_id: string | null;
+  tower_pk: number | null;
+  visit_id: number | null;
+  created_at: string;
+  author_name: string | null;
+}
+
+export interface HandoverNote {
+  id: number;
+  note: string;
+  has_audio: boolean;
+  transcribed: boolean;
+  created_at: string;
+  created_by_name: string | null;
+}
+
+export interface HandoverRecommend {
+  id: number;
+  tower_id: string;
+  area: string | null;
+  latitude: number;
+  longitude: number;
+  reason: string;
+  travel_km: number | null;
+  visit_id: number | null;
+}
+
+export interface HandoverGps {
+  latitude: number;
+  longitude: number;
+  recorded_at: string;
+  user_name: string | null;
+}
+
+export interface HandoverPack {
+  team_id: number;
+  team_name: string;
+  field_date: string;
+  scope: 'outing' | 'assigned' | string;
+  total: number;
+  completed: number;
+  skipped: number;
+  in_progress: number;
+  pending: number;
+  remaining: number;
+  headline: string;
+  ended_at: string | null;
+  ended_by_name: string | null;
+  handover_note: string | null;
+  last_gps: HandoverGps | null;
+  recommended: HandoverRecommend | null;
+  previous_field_date: string | null;
+  previous_remaining: number;
+  towers: HandoverTower[];
+  hotspots: HandoverHotspot[];
+  events: HandoverEvent[];
+  notes: HandoverNote[];
+  unfinished_visits: HandoverTower[];
+  continued_from: string | null;
+}
+
 export interface TeamJobMap {
   sector: string | null;
   total: number;

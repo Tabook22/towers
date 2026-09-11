@@ -29,6 +29,7 @@ import type {
   TeamDailyLog,
   TeamDayProgress,
   OutingPlan,
+  HandoverPack,
   TeamJobMap,
   NextTowersPlan,
   NightClaim,
@@ -1235,6 +1236,52 @@ export function useSaveOutingPlan(teamId: number) {
       qc.invalidateQueries({ queryKey: ['outing-plan', teamId] });
       qc.invalidateQueries({ queryKey: ['team-next-towers', teamId] });
       qc.invalidateQueries({ queryKey: ['team-job-map', teamId] });
+      qc.invalidateQueries({ queryKey: ['team-handover', teamId] });
+    },
+  });
+}
+
+export function useTeamHandover(teamId: number | undefined, fieldDate?: string) {
+  return useQuery({
+    queryKey: ['team-handover', teamId, fieldDate],
+    queryFn: async () =>
+      (
+        await apiClient.get<HandoverPack>(`/api/teams/${teamId}/handover`, {
+          params: { field_date: fieldDate },
+        })
+      ).data,
+    enabled: teamId !== undefined,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useEndOuting(teamId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { note?: string; field_date?: string }) =>
+      (await apiClient.post<HandoverPack>(`/api/teams/${teamId}/handover/end`, payload)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['team-handover', teamId] });
+      qc.invalidateQueries({ queryKey: ['outing-plan', teamId] });
+      qc.invalidateQueries({ queryKey: ['team-next-towers', teamId] });
+      qc.invalidateQueries({ queryKey: ['team-channel', teamId] });
+      qc.invalidateQueries({ queryKey: ['tracking-channel'] });
+    },
+  });
+}
+
+export function useContinueLastNight(teamId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload?: { field_date?: string; from_date?: string; replace?: boolean }) =>
+      (await apiClient.post<HandoverPack>(`/api/teams/${teamId}/handover/continue`, payload || {})).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['team-handover', teamId] });
+      qc.invalidateQueries({ queryKey: ['outing-plan', teamId] });
+      qc.invalidateQueries({ queryKey: ['team-next-towers', teamId] });
+      qc.invalidateQueries({ queryKey: ['team-job-map', teamId] });
+      qc.invalidateQueries({ queryKey: ['team-channel', teamId] });
+      qc.invalidateQueries({ queryKey: ['tracking-channel'] });
     },
   });
 }

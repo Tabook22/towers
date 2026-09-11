@@ -665,6 +665,114 @@ class OutingPlanSave(BaseModel):
     notes: str | None = None
 
 
+class HandoverTower(BaseModel):
+    id: int
+    tower_id: str
+    area: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    status: str
+    visit_id: int | None = None
+    visit_status: str | None = None
+    images_pending: int = 0
+    hotspots: int = 0
+    claim_status: str | None = None
+    skip_reason: str | None = None
+    claimed_by_name: str | None = None
+
+
+class HandoverHotspot(BaseModel):
+    tower_id: str
+    tower_pk: int
+    visit_id: int
+    position_id: int
+    position_code: str | None = None
+    ohl: str
+    phase: str
+    string: str
+    tmax_c: float | None = None
+    tref_c: float | None = None
+    delta_t: float | None = None
+    severity: str | None = None
+    image_id: int | None = None
+
+
+class HandoverEvent(BaseModel):
+    id: int
+    kind: str
+    body: str
+    tower_id: str | None = None
+    tower_pk: int | None = None
+    visit_id: int | None = None
+    created_at: dt.datetime
+    author_name: str | None = None
+
+
+class HandoverNote(BaseModel):
+    id: int
+    note: str
+    has_audio: bool = False
+    transcribed: bool = False
+    created_at: dt.datetime
+    created_by_name: str | None = None
+
+
+class HandoverRecommend(BaseModel):
+    id: int
+    tower_id: str
+    area: str | None = None
+    latitude: float
+    longitude: float
+    reason: str
+    travel_km: float | None = None
+    visit_id: int | None = None
+
+
+class HandoverGps(BaseModel):
+    latitude: float
+    longitude: float
+    recorded_at: dt.datetime
+    user_name: str | None = None
+
+
+class HandoverPack(BaseModel):
+    team_id: int
+    team_name: str
+    field_date: dt.date
+    scope: str
+    total: int = 0
+    completed: int = 0
+    skipped: int = 0
+    in_progress: int = 0
+    pending: int = 0
+    remaining: int = 0
+    headline: str = ""
+    ended_at: dt.datetime | None = None
+    ended_by_name: str | None = None
+    handover_note: str | None = None
+    last_gps: HandoverGps | None = None
+    recommended: HandoverRecommend | None = None
+    previous_field_date: dt.date | None = None
+    previous_remaining: int = 0
+    towers: list[HandoverTower] = []
+    hotspots: list[HandoverHotspot] = []
+    events: list[HandoverEvent] = []
+    notes: list[HandoverNote] = []
+    unfinished_visits: list[HandoverTower] = []
+    continued_from: dt.date | None = None
+
+
+class HandoverEnd(BaseModel):
+    note: str | None = None
+    field_date: dt.date | None = None
+
+
+class HandoverContinue(BaseModel):
+    field_date: dt.date | None = None
+    from_date: dt.date | None = None
+    replace: bool = False
+
+
 class NextTowerStop(BaseModel):
     rank: int
     id: int
