@@ -16,14 +16,12 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 def dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_current_user), area: str | None = None):
     # A team_member's whole app is "my missions" (see routers/visits.py's list_visits) — this
     # cross-tower/cross-team summary isn't part of that narrower workspace.
-    if user.role == UserRole.TEAM_MEMBER.value:
-        raise HTTPException(status_code=403, detail="Not available for team-member accounts")
-    is_team_leader = user.role == UserRole.TEAM_LEADER.value
-    leader_team_id = effective_team_id(db, user) if is_team_leader else None
+    is_crew = user.role in (UserRole.TEAM_LEADER.value, UserRole.TEAM_MEMBER.value)
+    leader_team_id = effective_team_id(db, user) if is_crew else None
     q = db.query(Tower).filter(Tower.is_active.is_(True))
     if area:
         q = q.filter(Tower.area == area)
-    if is_team_leader:
+    if is_crew:
         # Assigned job-map towers for this crew — not only towers they have already opened a visit on.
         if not leader_team_id:
             q = q.filter(False)
@@ -38,7 +36,7 @@ def dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_cu
 
     for tower in towers:
         visit_q = db.query(Visit).filter(Visit.tower_id == tower.id)
-        if is_team_leader and leader_team_id:
+        if is_crew and leader_team_id:
             visit_q = visit_q.filter(Visit.team_id == leader_team_id)
         latest = (
             visit_q.options(joinedload(Visit.positions).joinedload(Position.images))

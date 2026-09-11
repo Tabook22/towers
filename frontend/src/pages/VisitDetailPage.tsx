@@ -152,8 +152,11 @@ export function VisitDetailPage() {
   return (
     <Stack spacing={3}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(isTeamMember ? '/' : `/towers/${visit.tower_id}`)}>
-          {isTeamMember ? 'Back to my missions' : 'Back to tower'}
+        <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`)}
+        >
+          {visit.team_id ? 'Back to team' : 'Back to tower'}
         </Button>
         <Stack direction="row" spacing={1.5}>
           <Button

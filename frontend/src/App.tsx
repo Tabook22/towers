@@ -18,7 +18,6 @@ import { FieldTrackerPage } from './pages/FieldTrackerPage';
 import { TeamProgressPage } from './pages/TeamProgressPage';
 import { TeamsPage } from './pages/TeamsPage';
 import { TeamDetailPage } from './pages/TeamDetailPage';
-import { MyMissionsPage } from './pages/MyMissionsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,12 +37,7 @@ function ProtectedLayout({ children }: { children: ReactNode }) {
   return <Layout>{children}</Layout>;
 }
 
-// A team_member's whole app is their own assigned missions — no dashboard, so "/" renders that
-// instead for them (see components/Layout.tsx's nav, which does the same split).
-function HomePage() {
-  const { user } = useAuth();
-  return user?.role === 'team_member' ? <MyMissionsPage /> : <DashboardPage />;
-}
+
 
 function AppRoutes() {
   const { isAuthenticated } = useAuth();
@@ -63,7 +57,7 @@ function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
         path="/"
         element={
           <ProtectedLayout>
-            <HomePage />
+            <DashboardPage />
           </ProtectedLayout>
         }
       />

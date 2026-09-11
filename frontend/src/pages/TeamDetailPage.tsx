@@ -315,7 +315,8 @@ export function TeamDetailPage() {
   const isTeamLeader = currentUser?.role === 'team_leader';
   const isTeamMember = currentUser?.role === 'team_member';
   const canManage = isAdmin || isTeamLeader;
-  const canLogNotes = canManage || isTeamMember;
+  const canRecord = canManage || isTeamMember;
+  const canLogNotes = canRecord;
   // The users-listing endpoint is admin-or-team_leader on the backend (a leader only ever gets
   // their own team's accounts back, never another team's) — team_member accounts get nothing here.
   const { data: enabledUsers } = useUsers(isAdmin || isTeamLeader);
@@ -706,8 +707,8 @@ export function TeamDetailPage() {
 
   return (
     <Stack spacing={3}>
-      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(isTeamMember ? '/' : '/teams')} sx={{ alignSelf: 'flex-start' }}>
-        {isTeamMember ? 'Back to my missions' : 'Back to teams'}
+      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/')} sx={{ alignSelf: 'flex-start' }}>
+        Back to dashboard
       </Button>
 
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1466,7 +1467,7 @@ export function TeamDetailPage() {
       <NextTowersCard
         plan={nextPlan}
         loading={nextPlanLoading}
-        canStart={canManage && !createMission.isPending}
+        canStart={canRecord && !createMission.isPending}
         canAssign={canAssignClaims}
         currentUserId={currentUser?.id}
         busy={claimTower.isPending || updateClaim.isPending || createMission.isPending}

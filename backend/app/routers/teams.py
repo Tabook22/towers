@@ -768,7 +768,7 @@ def create_mission(
     team_id: int,
     payload: VisitCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_team_scope()),
+    user: User = Depends(require_team_read()),
 ):
     """Creates the mission as a real Visit already tied to this team and numbered (Mission 1, 2,
     3...) — go straight to /visits/{id} afterward to run it: positions, images, screening, all of it."""

@@ -40,7 +40,7 @@ export function DashboardPage() {
   const { data: areas } = useAreas();
   const { data, isLoading } = useDashboardSummary(area || undefined);
   const canMonitorField = user?.role === 'admin' || user?.role === 'reviewer';
-  const isTeamLeader = user?.role === 'team_leader';
+  const isTeamLeader = user?.role === 'team_leader' || user?.role === 'team_member';
   const { data: liveMembers } = useLiveTeams(undefined, canMonitorField);
   const { data: myTeams } = useTeams();
   const teamId = user?.team_id ?? (isTeamLeader ? myTeams?.[0]?.id : undefined);

@@ -34,7 +34,7 @@ import BoltIcon from '@mui/icons-material/BoltRounded';
 import MyLocationIcon from '@mui/icons-material/MyLocationRounded';
 import InsightsIcon from '@mui/icons-material/InsightsRounded';
 import LocationDisabledIcon from '@mui/icons-material/LocationDisabledRounded';
-import AssignmentIcon from '@mui/icons-material/AssignmentTurnedInRounded';
+
 import LockResetIcon from '@mui/icons-material/LockResetRounded';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -55,8 +55,6 @@ const navItems = [
 // A team_member's whole app is their own assigned missions — no dashboard, towers list, archive,
 // reports, or team management, all of which are scoped away server-side anyway (see
 // routers/dashboard.py, archive.py, team_activity_report.py). One nav item, one workspace.
-const memberNavItems = [{ label: 'My Missions', to: '/', icon: <AssignmentIcon /> }];
-
 function TrackingChip() {
   const { enabled, setEnabled, status, requestNow, lastSentAt, required } = useTracking();
   const [, setTick] = useState(0);
@@ -259,20 +257,20 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const isTeamMember = user?.role === 'team_member';
-  // Teams: admin/reviewer see every team; a team_leader sees (and the backend scopes them to)
-  // only their own — same nav entry either way. Field Tracker is the cross-team live board, so it
-  // stays admin/reviewer only (a team_leader already has their own team's live map on their team page).
-  const canSeeTeams = user?.role === 'admin' || user?.role === 'reviewer' || user?.role === 'team_leader';
+  const isCrew = user?.role === 'team_member' || user?.role === 'team_leader';
+  // Teams: admin/reviewer see every team; a crew login sees (and the backend scopes them to)
+  // only their own. Field Tracker is the cross-team live board, so it stays admin/reviewer only.
+  const canSeeTeams = user?.role === 'admin' || user?.role === 'reviewer' || isCrew;
   const canSeeFieldTracker = user?.role === 'admin' || user?.role === 'reviewer';
-  const memberItems = [
-    ...memberNavItems,
+  const crewNav = [
+    { label: 'Dashboard', to: '/', icon: <DashboardIcon /> },
+    { label: 'Towers', to: '/towers', icon: <TowerIcon /> },
     ...(user?.team_id
-      ? [{ label: 'Our progress', to: `/teams/${user.team_id}`, icon: <GroupsIcon /> }]
-      : []),
+      ? [{ label: 'Our team', to: `/teams/${user.team_id}`, icon: <GroupsIcon /> }]
+      : [{ label: 'Teams', to: '/teams', icon: <GroupsIcon /> }]),
   ];
-  const items = isTeamMember
-    ? memberItems
+  const items = isCrew
+    ? crewNav
     : [
         ...navItems,
         ...(canSeeTeams ? [{ label: 'Teams', to: '/teams', icon: <GroupsIcon /> }] : []),

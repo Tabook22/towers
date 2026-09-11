@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.database import get_db
-from app.deps import check_visit_team_access, get_current_user
+from app.deps import check_visit_team_access, effective_team_id, get_current_user
 from app.models import (
     IMAGE_TYPE_CHOICES,
     OHL_CHOICES,
@@ -98,14 +98,9 @@ def list_visits(
         joinedload(Visit.photos),
         joinedload(Visit.assigned_member),
     )
-    if user.role == UserRole.TEAM_MEMBER.value:
-        # Only the missions personally assigned to them — not their whole team's, unlike a
-        # team_leader below. This is their entire "my missions" workspace.
-        q = q.filter(Visit.assigned_member_id == user.id)
-    elif user.role == UserRole.TEAM_LEADER.value:
-        # Their own team's missions only, full stop — whatever team_id they asked for is ignored
-        # in favor of the one they actually belong to (or nothing, if they're not on a team yet).
-        q = q.filter(Visit.team_id == user.team_id) if user.team_id else q.filter(False)
+    if user.role in (UserRole.TEAM_MEMBER.value, UserRole.TEAM_LEADER.value):
+        tid = effective_team_id(db, user)
+        q = q.filter(Visit.team_id == tid) if tid else q.filter(False)
     elif team_id:
         q = q.filter(Visit.team_id == team_id)
     if tower_id:
@@ -159,7 +154,10 @@ def create_visit_row(payload: VisitCreate, db: Session, user: User) -> Visit:
 @router.post("", response_model=VisitDetail, status_code=201)
 def create_visit(payload: VisitCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if user.role == UserRole.TEAM_MEMBER.value:
-        raise HTTPException(status_code=403, detail="Missions are created and assigned by your team leader")
+        tid = effective_team_id(db, user)
+        if not tid:
+            raise HTTPException(status_code=403, detail="Your login is not linked to a team yet")
+        payload = payload.model_copy(update={"team_id": tid})
     visit = create_visit_row(payload, db, user)
     db.commit()
     return attach_rollup(_load_visit(db, visit.id), detail=True)

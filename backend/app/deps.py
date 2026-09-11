@@ -93,13 +93,7 @@ def require_team_read():
 
 
 def check_visit_team_access(visit: Visit, user: User) -> None:
-    """A visit that's also a team's mission (team_id set) is off-limits to a team_leader from a
-    different team, and to a team_member it isn't personally assigned to — called from
-    visits.py/positions.py/images.py after loading the visit, since there's no team_id in those
-    routes' own paths to gate on directly. Non-mission visits (team_id is None) and every other
-    role are unaffected. A team_member's check is narrower than a team_leader's on purpose: the
-    whole team's missions vs. only the ones assigned to that one person (see models.UserRole)."""
-    if user.role == UserRole.TEAM_LEADER.value and visit.team_id != user.team_id:
+    """A visit that's also a team's mission (team_id set) is off-limits to a crew login from a
+    different team. Team leaders and team members on that team can view and record on it."""
+    if user.role in (UserRole.TEAM_LEADER.value, UserRole.TEAM_MEMBER.value) and visit.team_id != user.team_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this visit")
-    if user.role == UserRole.TEAM_MEMBER.value and visit.assigned_member_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This mission isn't assigned to you")

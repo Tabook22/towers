@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.database import get_db
-from app.deps import get_current_user, require_role
+from app.deps import effective_team_id, get_current_user, require_role
 from app.models import Area, Team, Tower, User, UserRole, Visit
 from app.schemas import TowerBulkAssignRequest, TowerCreate, TowerImportResult, TowerOut, TowerUpdate, TowerWithStats
 from app.services.archive import (
@@ -39,6 +39,9 @@ def list_towers(
 ):
     """Paginated, searchable tower list — designed for hundreds/thousands of towers."""
     q = db.query(Tower).options(joinedload(Tower.assigned_team))
+    if _user.role in (UserRole.TEAM_LEADER.value, UserRole.TEAM_MEMBER.value):
+        tid = effective_team_id(db, _user)
+        q = q.filter(Tower.assigned_team_id == tid) if tid else q.filter(False)
     if not include_inactive:
         q = q.filter(Tower.is_active.is_(True))
     if search:
