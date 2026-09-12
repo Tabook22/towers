@@ -75,13 +75,26 @@ def _order_group(group: Sequence[Tower]) -> list[Tower]:
 
 
 def tower_pin_numbers(towers: Sequence[Tower]) -> dict[int, int]:
-    """Per-area 1-based pin numbers, same grouping as the map."""
+    """Number in the pin = trailing number from the Tower ID (Ashoor-Saada-2 → 2)."""
     by_area: dict[str, list[Tower]] = {}
     for t in towers:
         key = (t.area or "").strip() or "_none"
         by_area.setdefault(key, []).append(t)
     out: dict[int, int] = {}
     for group in by_area.values():
-        for i, t in enumerate(_order_group(group)):
-            out[t.id] = i + 1
+        used: set[int] = set()
+        for t in group:
+            n = extract_tower_number(t.tower_id)
+            if n is not None:
+                out[t.id] = n
+                used.add(n)
+        nxt = 1
+        for t in _order_group(group):
+            if t.id in out:
+                continue
+            while nxt in used:
+                nxt += 1
+            out[t.id] = nxt
+            used.add(nxt)
+            nxt += 1
     return out

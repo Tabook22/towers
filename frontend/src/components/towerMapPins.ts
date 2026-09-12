@@ -88,7 +88,8 @@ function orderGroup(group: NumberableTower[]): NumberableTower[] {
   return orderAlongLine(group);
 }
 
-/** Per-area map numbers starting at 1 (Ashoor-Saada 1, 2, 3… independently of other areas). */
+/** Number painted in the pin: the trailing number from the Tower ID (Ashoor-Saada-2 → 2).
+ *  Towers with no number in the ID get a spare sequential value so they still have a label. */
 export function towerNumbersById(towers: NumberableTower[]): Map<number, number> {
   const byArea = new Map<string, NumberableTower[]>();
   for (const t of towers) {
@@ -99,12 +100,27 @@ export function towerNumbersById(towers: NumberableTower[]): Map<number, number>
   }
   const out = new Map<number, number>();
   for (const group of byArea.values()) {
-    orderGroup(group).forEach((t, i) => out.set(t.id, i + 1));
+    const used = new Set<number>();
+    for (const t of group) {
+      const n = extractTowerNumber(t.tower_id);
+      if (n != null) {
+        out.set(t.id, n);
+        used.add(n);
+      }
+    }
+    let next = 1;
+    for (const t of orderGroup(group)) {
+      if (out.has(t.id)) continue;
+      while (used.has(next)) next += 1;
+      out.set(t.id, next);
+      used.add(next);
+      next += 1;
+    }
   }
   return out;
 }
 
-/** Green = free, red = assigned. Number is the area sequence (1, 2, 3…). */
+/** Green = free, red = assigned. Number in the circle is the Tower ID suffix. */
 export function assignmentPinIcon(opts: {
   towerId: string;
   teamName?: string | null;
