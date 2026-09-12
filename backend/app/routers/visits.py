@@ -153,7 +153,10 @@ def create_visit_row(payload: VisitCreate, db: Session, user: User) -> Visit:
 
 @router.post("", response_model=VisitDetail, status_code=201)
 def create_visit(payload: VisitCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == UserRole.TEAM_MEMBER.value:
+    # A team_leader starting a visit here (e.g. the tower detail page's "Start new visit") gets the
+    # same auto-fill as a team_member — otherwise the visit is created with no team_id at all, and
+    # check_visit_team_access then locks the very leader who just created it out of their own visit.
+    if user.role in (UserRole.TEAM_MEMBER.value, UserRole.TEAM_LEADER.value):
         tid = effective_team_id(db, user)
         if not tid:
             raise HTTPException(status_code=403, detail="Your login is not linked to a team yet")

@@ -72,6 +72,35 @@ def backfill_areas_from_towers(engine: Engine) -> None:
             logger.info("Auto-migration: seeded %d area(s) from existing tower data: %s", len(missing), missing)
 
 
+def backfill_visit_team_id_from_towers(engine: Engine) -> None:
+    """One-time repair for visits created with no team_id at all.
+
+    `POST /api/visits` (the tower detail page's "Start new visit") used to only auto-fill team_id
+    for a team_member login, not a team_leader — so a leader-started visit on their own team's
+    tower could end up with team_id NULL. check_visit_team_access() then locked that same leader
+    out of the visit they'd just created (a visit with no team is nobody's team). Fixed going
+    forward in routers/visits.py's create_visit(); this repairs any such visit already sitting in
+    the database, from the tower's current assignment. Safe to call on every startup — only touches
+    rows where team_id is still NULL and the tower has since been assigned to exactly one team.
+    """
+    inspector = inspect(engine)
+    if "visits" not in inspector.get_table_names() or "towers" not in inspector.get_table_names():
+        return  # brand-new DB
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                UPDATE visits
+                SET team_id = (SELECT assigned_team_id FROM towers WHERE towers.id = visits.tower_id)
+                WHERE team_id IS NULL
+                  AND tower_id IN (SELECT id FROM towers WHERE assigned_team_id IS NOT NULL)
+                """
+            )
+        )
+        if result.rowcount:
+            logger.info("Auto-migration: backfilled team_id on %d visit(s) from their tower's assignment", result.rowcount)
+
+
 def dt_now_iso() -> str:
     import datetime as dt
 
