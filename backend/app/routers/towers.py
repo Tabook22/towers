@@ -20,7 +20,7 @@ from app.services.archive import (
     tower_photo_relative_path,
 )
 from app.services.rollup import visit_rollup
-from app.services.tower_import import build_tower_import_template, import_towers_from_excel
+from app.services.tower_import import build_tower_import_template, export_towers_workbook, import_towers_from_excel
 
 router = APIRouter(prefix="/api/towers", tags=["towers"])
 
@@ -198,6 +198,28 @@ def download_tower_import_template(
         content=xlsx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="tower-import-template.xlsx"'},
+    )
+
+
+@router.get("/export.xlsx")
+def export_towers_xlsx(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
+):
+    """Every tower in the catalog as an .xlsx — same columns as the import template, plus assigned
+    team and active flag. Includes deactivated towers. Safe to edit and upload again."""
+    towers = (
+        db.query(Tower)
+        .options(joinedload(Tower.assigned_team))
+        .order_by(Tower.tower_id)
+        .all()
+    )
+    xlsx_bytes = export_towers_workbook(towers)
+    stamp = dt.date.today().isoformat()
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="towers-{stamp}.xlsx"'},
     )
 
 

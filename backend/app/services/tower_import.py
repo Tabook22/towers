@@ -38,6 +38,10 @@ COLUMN_MAP: dict[str, str] = {
     "tower number": "_tower_number",
 }
 HEADER_ROW = ["Tower ID", "Voltage", "Tower Type", "Area", "Line Sector", "Location Name", "Height (m)", "Latitude", "Longitude", "Notes"]
+# Extra columns on the *export* only — the importer ignores unknown headers, so this file can be
+# edited and uploaded again without those two columns wiping anything.
+EXPORT_EXTRA = ["Assigned Team", "Active"]
+EXPORT_HEADER = HEADER_ROW + EXPORT_EXTRA
 FLOAT_FIELDS = {"height_m", "latitude", "longitude"}
 FLOAT_RANGES = {"height_m": (0, 1000), "latitude": (-90, 90), "longitude": (-180, 180)}
 
@@ -73,6 +77,68 @@ def build_tower_import_template() -> bytes:
         "- Height is in metres. Latitude/Longitude are decimal degrees (e.g. 17.01972, 54.08972).",
         "- Column order doesn't matter — only the header text in row 1 of the 'Towers' sheet does.",
         "- Delete the example row before uploading your real list, or just overwrite it.",
+    ]:
+        notes.append([line])
+    notes["A1"].font = Font(bold=True, size=13)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _style_header(ws) -> None:
+    from openpyxl.styles import Font, PatternFill
+
+    header_fill = PatternFill(start_color="0F3A4D", end_color="0F3A4D", fill_type="solid")
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = header_fill
+
+
+def export_towers_workbook(towers: list[Tower]) -> bytes:
+    """Full catalog dump: same columns the importer understands, plus assigned team and active flag."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Towers"
+    ws.append(EXPORT_HEADER)
+    _style_header(ws)
+    for t in towers:
+        ws.append(
+            [
+                t.tower_id,
+                t.voltage,
+                t.tower_type,
+                t.area,
+                t.line_sector,
+                t.location_name,
+                t.height_m,
+                t.latitude,
+                t.longitude,
+                t.notes,
+                t.assigned_team.name if t.assigned_team else None,
+                "Yes" if t.is_active else "No",
+            ]
+        )
+    ws.freeze_panes = "A2"
+    widths = [16, 12, 26, 14, 20, 26, 11, 12, 12, 30, 18, 10]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    notes = wb.create_sheet("Read me")
+    notes.column_dimensions["A"].width = 90
+    for line in [
+        "Tower catalog export",
+        "",
+        f"{len(towers)} tower(s) in this file, including deactivated ones (Active = No).",
+        "",
+        "The first 10 columns match the Import from Excel template. You can edit this sheet and",
+        "upload it again: existing Tower IDs are updated, new IDs are created. Nothing is deleted.",
+        "Assigned Team and Active are for reference only — they are ignored on import.",
+        "Leave a cell blank on re-import to leave that field unchanged on an existing tower.",
     ]:
         notes.append([line])
     notes["A1"].font = Font(bold=True, size=13)

@@ -287,18 +287,28 @@ export function TowersPage() {
         </Box>
         <Stack direction="row" spacing={1.5}>
           {canImport && (
-            <Button
-              variant="outlined"
-              startIcon={<TableChartIcon />}
-              onClick={() => {
-                setImportFile(null);
-                setImportError(null);
-                importTowers.reset();
-                setImportOpen(true);
-              }}
-            >
-              Import from Excel
-            </Button>
+            <>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadRoundedIcon />}
+                component="a"
+                href={mediaUrl('/api/towers/export.xlsx')}
+              >
+                Download Excel
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<TableChartIcon />}
+                onClick={() => {
+                  setImportFile(null);
+                  setImportError(null);
+                  importTowers.reset();
+                  setImportOpen(true);
+                }}
+              >
+                Import from Excel
+              </Button>
+            </>
           )}
           {canEditCatalog && (
             <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
@@ -757,18 +767,26 @@ export function TowersPage() {
                 Upload a spreadsheet with one row per tower. A Tower ID that already exists gets its
                 fields updated; a new one gets created — nothing is deleted.
               </Typography>
-              <Button
-                size="small"
-                variant="text"
-                startIcon={<DownloadRoundedIcon fontSize="small" />}
-                component="a"
-                href={mediaUrl('/api/towers/import/template')}
-                target="_blank"
-                rel="noreferrer"
-                sx={{ alignSelf: 'flex-start' }}
-              >
-                Download template
-              </Button>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<DownloadRoundedIcon fontSize="small" />}
+                  component="a"
+                  href={mediaUrl('/api/towers/export.xlsx')}
+                >
+                  Download current towers
+                </Button>
+                <Button
+                  size="small"
+                  variant="text"
+                  startIcon={<DownloadRoundedIcon fontSize="small" />}
+                  component="a"
+                  href={mediaUrl('/api/towers/import/template')}
+                >
+                  Blank template
+                </Button>
+              </Stack>
 
               {importError && <Alert severity="error">{importError}</Alert>}
 
