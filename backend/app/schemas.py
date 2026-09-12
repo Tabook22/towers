@@ -175,6 +175,11 @@ class TowerBulkAssignRequest(BaseModel):
     team_id: int | None = None  # None = unassign
 
 
+class TowerClaimRequest(BaseModel):
+    """Optional for a team leader (their own team is implied). Required for admin/reviewer."""
+    team_id: int | None = None
+
+
 class TowerImportResult(BaseModel):
     created: int
     updated: int

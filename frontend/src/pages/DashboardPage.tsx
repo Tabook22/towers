@@ -25,7 +25,7 @@ import PendingActionsIcon from '@mui/icons-material/PendingActionsRounded';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAreas, useClaimTowerForTeam, useDashboardSummary, useLiveTeams, useOutingPlan, useShiftInfo, useTeamJobMap, useTeamLive, useTeams, useTeamTrails, useTowers } from '../api/hooks';
+import { useAreas, useClaimTowerForTeam, useDashboardSummary, useLiveTeams, useOutingPlan, useReleaseTower, useShiftInfo, useTeamJobMap, useTeamLive, useTeams, useTeamTrails, useTowers } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { KpiTile } from '../components/KpiTile';
 import { TowersOverviewMap } from '../components/TowersOverviewMap';
@@ -56,7 +56,9 @@ export function DashboardPage() {
   const canClaimTowers = user?.role === 'team_leader' || user?.role === 'admin' || user?.role === 'reviewer';
   const { data: catalogTowers } = useTowers({ include_inactive: false, limit: 5000 });
   const claimForTeam = useClaimTowerForTeam();
+  const releaseTower = useReleaseTower();
   const [claimError, setClaimError] = useState<string | null>(null);
+  const isCatalogAdmin = user?.role === 'admin' || user?.role === 'reviewer';
   const freeTowers = (catalogTowers || []).filter((t) => t.is_active && t.assigned_team_id == null);
 
   const reportUrl = mediaUrl(`/api/reports/overall.pdf${area ? `?area=${encodeURIComponent(area)}` : ''}`);
@@ -194,7 +196,7 @@ export function DashboardPage() {
                   </Typography>
                   {canClaimTowers && (
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Green pins are free — click one to assign it. Red pins show the team that already holds them.
+                      Green pin: assign to your team. Red pin: unassign so another team can take an unfinished tower.
                     </Typography>
                   )}
                   {claimError && (
@@ -217,19 +219,49 @@ export function DashboardPage() {
                       height={340}
                       freeTowers={canClaimTowers ? freeTowers : undefined}
                       catalogTowers={canClaimTowers ? catalogTowers : undefined}
-                      claiming={claimForTeam.isPending}
-                      onFreeTowerClick={
-                        canClaimTowers
-                          ? (towerId) => {
+                      claiming={claimForTeam.isPending || releaseTower.isPending}
+                      onCatalogTowerClick={
+                        canClaimTowers && teamId
+                          ? (t) => {
+                              const errOf = (err: unknown) =>
+                                (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+                                'Could not update that tower';
                               setClaimError(null);
-                              claimForTeam.mutate(towerId, {
-                                onError: (err: unknown) => {
-                                  const message =
-                                    (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-                                    'Could not add that tower';
-                                  setClaimError(String(message));
-                                },
-                              });
+                              if (t.assigned_team_id == null) {
+                                claimForTeam.mutate(
+                                  { towerId: t.id, teamId },
+                                  { onError: (err) => setClaimError(String(errOf(err))) },
+                                );
+                                return;
+                              }
+                              if (t.assigned_team_id === teamId) {
+                                if (
+                                  window.confirm(
+                                    `Unassign ${t.tower_id} from this team so another team can inspect it?`,
+                                  )
+                                ) {
+                                  releaseTower.mutate(t.id, {
+                                    onError: (err) => setClaimError(String(errOf(err))),
+                                  });
+                                }
+                                return;
+                              }
+                              if (isCatalogAdmin) {
+                                if (
+                                  window.confirm(
+                                    `Give ${t.tower_id} to this team? It is currently assigned to ${t.assigned_team_name || 'another team'}.`,
+                                  )
+                                ) {
+                                  claimForTeam.mutate(
+                                    { towerId: t.id, teamId },
+                                    { onError: (err) => setClaimError(String(errOf(err))) },
+                                  );
+                                }
+                                return;
+                              }
+                              setClaimError(
+                                `${t.tower_id} belongs to ${t.assigned_team_name || 'another team'}. That team or an admin must unassign it first.`,
+                              );
                             }
                           : undefined
                       }

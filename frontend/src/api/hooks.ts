@@ -195,7 +195,15 @@ export function useImportTowers() {
 export function useClaimTowerForTeam() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (towerId: number) => (await apiClient.post<Tower>(`/api/towers/${towerId}/claim`)).data,
+    mutationFn: async (vars: number | { towerId: number; teamId?: number }) => {
+      const towerId = typeof vars === 'number' ? vars : vars.towerId;
+      const teamId = typeof vars === 'number' ? undefined : vars.teamId;
+      return (
+        await apiClient.post<Tower>(`/api/towers/${towerId}/claim`, {
+          team_id: teamId ?? null,
+        })
+      ).data;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['towers'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
@@ -216,6 +224,8 @@ export function useReleaseTower() {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['team-job-map'] });
       qc.invalidateQueries({ queryKey: ['outing-plan'] });
+      qc.invalidateQueries({ queryKey: ['team-handover'] });
+      qc.invalidateQueries({ queryKey: ['team-next-towers'] });
     },
   });
 }

@@ -82,6 +82,7 @@ export function TeamSiteMap({
   freeTowers,
   catalogTowers,
   onFreeTowerClick,
+  onCatalogTowerClick,
   claiming,
 }: {
   towers?: TeamJobMapTower[];
@@ -102,6 +103,13 @@ export function TeamSiteMap({
     assigned_team_name: string | null;
   }[];
   onFreeTowerClick?: (towerId: number) => void;
+  onCatalogTowerClick?: (tower: {
+    id: number;
+    tower_id: string;
+    area: string | null;
+    assigned_team_id: number | null;
+    assigned_team_name: string | null;
+  }) => void;
   claiming?: boolean;
 }) {
   const planned = new Set(plannedIds || []);
@@ -119,7 +127,7 @@ export function TeamSiteMap({
   );
   const catalogPts = (catalogTowers || []).filter((t) => t.latitude != null && t.longitude != null);
   const showCatalog = catalogPts.length > 0;
-  const canClaim = Boolean(onFreeTowerClick);
+  const canClaim = Boolean(onCatalogTowerClick || onFreeTowerClick);
   const positions: [number, number][] = [
     ...mapTowers.map((t) => [t.latitude as number, t.longitude as number] as [number, number]),
     ...livePts.map((m) => [m.latitude, m.longitude] as [number, number]),
@@ -209,10 +217,12 @@ export function TeamSiteMap({
                       bubblingMouseEvents={false}
                       zIndexOffset={free ? 500 : 200}
                       eventHandlers={
-                        free && canClaim
+                        canClaim
                           ? {
                               click: () => {
-                                if (!claiming) onFreeTowerClick?.(t.id);
+                                if (claiming) return;
+                                if (onCatalogTowerClick) onCatalogTowerClick(t);
+                                else if (free) onFreeTowerClick?.(t.id);
                               },
                             }
                           : undefined
@@ -225,7 +235,7 @@ export function TeamSiteMap({
                         <br />
                         {free
                           ? 'Free — click to assign to this team'
-                          : `Assigned to ${t.assigned_team_name || 'a team'}`}
+                          : `Assigned to ${t.assigned_team_name || 'a team'} — click to unassign`}
                       </LeafletTooltip>
                     </Marker>
                   );

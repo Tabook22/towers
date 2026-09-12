@@ -46,6 +46,7 @@ import {
   useBulkAssignTowers,
   useClaimTowerForTeam,
   useClearTowerPhoto,
+  useReleaseTower,
   useCreateArea,
   useCreateTower,
   useDeactivateTower,
@@ -182,6 +183,8 @@ export function TowersPage() {
   const { data: teams } = useTeams();
   const bulkAssign = useBulkAssignTowers();
   const claimForTeam = useClaimTowerForTeam();
+  const releaseTower = useReleaseTower();
+  const [mapAssignTeamId, setMapAssignTeamId] = useState('');
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignTeamId, setAssignTeamId] = useState('');
@@ -424,15 +427,34 @@ export function TowersPage() {
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             {canEditCatalog
-              ? 'Click a pin to edit that tower. Only an admin can change, delete, or deactivate catalog towers.'
+              ? 'Green pin: assign to the team selected below. Red pin: unassign so another team can take an unfinished tower. Use the pencil in the table to edit catalog details.'
               : isTeamLeader
-                ? 'Green pins are free — click one to assign it to your team. Red pins show which team holds them. You cannot edit or delete towers — that is admin only.'
+                ? 'Green pin: assign to your team. Red pin on your tower: unassign it so another team can inspect it. You cannot edit or delete towers — that is admin only.'
                 : 'Registered towers with GPS. Catalog edits are admin only.'}
           </Typography>
-          {isTeamLeader && (
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-              Green = free. Red = assigned (team name on the pin). Click a green pin to take it.
-            </Typography>
+          {(isTeamLeader || canEditCatalog) && (
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                Green = free. Red = assigned (team name on the pin).
+              </Typography>
+              {canEditCatalog && (
+                <TextField
+                  select
+                  size="small"
+                  label="Assign free pins to"
+                  value={mapAssignTeamId}
+                  onChange={(e) => setMapAssignTeamId(e.target.value)}
+                  sx={{ minWidth: 220 }}
+                >
+                  <MenuItem value="">Select a team…</MenuItem>
+                  {(teams || []).map((tm) => (
+                    <MenuItem key={tm.id} value={String(tm.id)}>
+                      {tm.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+            </Stack>
           )}
           {claimMsg && (
             <Alert severity="warning" sx={{ mb: 1 }} onClose={() => setClaimMsg(null)}>
@@ -445,28 +467,48 @@ export function TowersPage() {
             onTowerClick={(row) => {
               const t = visibleTowers?.find((x) => x.id === row.tower.id);
               if (!t) return;
+              const errOf = (err: unknown) =>
+                (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+                'Could not update that tower';
               if (canEditCatalog) {
-                openEdit(t);
+                if (t.assigned_team_id == null) {
+                  if (!mapAssignTeamId) {
+                    setClaimMsg('Select a team above, then click a green pin to assign it.');
+                    return;
+                  }
+                  setClaimMsg(null);
+                  claimForTeam.mutate(
+                    { towerId: t.id, teamId: Number(mapAssignTeamId) },
+                    { onError: (err) => setClaimMsg(String(errOf(err))) },
+                  );
+                  return;
+                }
+                if (
+                  window.confirm(
+                    `Unassign ${t.tower_id} from ${t.assigned_team_name || 'its team'} so another team can inspect it?`,
+                  )
+                ) {
+                  setClaimMsg(null);
+                  releaseTower.mutate(t.id, { onError: (err) => setClaimMsg(String(errOf(err))) });
+                }
                 return;
               }
               if (!isTeamLeader) return;
-              if (t.assigned_team_id != null) {
-                setClaimMsg(
-                  t.assigned_team_id === user?.team_id
-                    ? `${t.tower_id} is already on your team.`
-                    : `${t.tower_id} belongs to ${t.assigned_team_name || 'another team'}. They must release it first.`,
-                );
+              if (t.assigned_team_id == null) {
+                setClaimMsg(null);
+                claimForTeam.mutate(t.id, { onError: (err) => setClaimMsg(String(errOf(err))) });
                 return;
               }
-              setClaimMsg(null);
-              claimForTeam.mutate(t.id, {
-                onError: (err: unknown) => {
-                  const message =
-                    (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-                    'Could not add that tower';
-                  setClaimMsg(String(message));
-                },
-              });
+              if (t.assigned_team_id === user?.team_id) {
+                if (window.confirm(`Unassign ${t.tower_id} from your team so another team can inspect it?`)) {
+                  setClaimMsg(null);
+                  releaseTower.mutate(t.id, { onError: (err) => setClaimMsg(String(errOf(err))) });
+                }
+                return;
+              }
+              setClaimMsg(
+                `${t.tower_id} belongs to ${t.assigned_team_name || 'another team'}. That team or an admin must unassign it first.`,
+              );
             }}
           />
         </CardContent>
@@ -539,6 +581,22 @@ export function TowersPage() {
                 <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                   {canEditCatalog ? (
                     <>
+                      {t.assigned_team_id != null && (
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Unassign ${t.tower_id} from ${t.assigned_team_name || 'its team'}?`,
+                              )
+                            ) {
+                              releaseTower.mutate(t.id);
+                            }
+                          }}
+                        >
+                          Unassign
+                        </Button>
+                      )}
                       <Tooltip title="Edit tower">
                         <IconButton size="small" onClick={() => openEdit(t)}>
                           <EditIcon fontSize="small" />
@@ -559,6 +617,17 @@ export function TowersPage() {
                   ) : isTeamLeader && t.assigned_team_id == null ? (
                     <Button size="small" onClick={() => claimForTeam.mutate(t.id)}>
                       Add to my team
+                    </Button>
+                  ) : isTeamLeader && t.assigned_team_id === user?.team_id ? (
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        if (window.confirm(`Unassign ${t.tower_id} from your team so another team can inspect it?`)) {
+                          releaseTower.mutate(t.id);
+                        }
+                      }}
+                    >
+                      Unassign
                     </Button>
                   ) : (
                     <Typography variant="caption" color="text.secondary">

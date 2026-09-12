@@ -131,7 +131,7 @@ export function TowersOverviewMap({
                   {row.tower.assigned_team_name ? (
                     <>
                       <br />
-                      Assigned to {row.tower.assigned_team_name}
+                      Assigned to {row.tower.assigned_team_name} — click to unassign
                     </>
                   ) : (
                     <>
