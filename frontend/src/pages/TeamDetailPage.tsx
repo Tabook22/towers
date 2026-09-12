@@ -819,7 +819,7 @@ export function TeamDetailPage() {
               <Typography variant="body2" color="text.secondary">
                 {canManage
                   ? 'Green pin: click to assign to this team. Red pin: click to unassign (so another team can take an unfinished tower). Admin can also click a red pin from another team to give it to this team.'
-                  : "Towers assigned to this team, your live pin, and tonight's track."}
+                  : "Towers assigned to this team, live GPS, and the crew's recorded track — including previous outings if tonight has not started yet."}
               </Typography>
             </Box>
             {canManage && (
@@ -1379,8 +1379,8 @@ export function TeamDetailPage() {
                 Your track &amp; towers
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Only this team&apos;s GPS: kilometres so far, time at each tower, and which towers you have
-                already checked. Open a previous night to continue the job.
+                Every login on this team sees the same GPS history. Open a previous night to follow
+                the path that was already recorded.
               </Typography>
             </Box>
             <TextField

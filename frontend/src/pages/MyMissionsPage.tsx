@@ -57,7 +57,9 @@ export function MyMissionsPage() {
             Site map
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            Your location, tonight&apos;s track, and the towers assigned to your team.
+            {trails?.some((t) => t.is_previous)
+              ? `Your team's last recorded outing (${trails.find((t) => t.field_date)?.field_date}). Live GPS appears when someone is signed in tonight.`
+              : "Your location, the whole crew's GPS track, and the towers assigned to your team."}
           </Typography>
           <TeamSiteMap
             towers={jobMap?.towers}

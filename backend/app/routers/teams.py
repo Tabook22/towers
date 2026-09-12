@@ -1163,23 +1163,43 @@ def team_trails(
     db: Session = Depends(get_db),
     _user: User = Depends(require_team_read()),
 ):
-    """GPS breadcrumb paths for every login linked to this team, for the team page map."""
+    """GPS breadcrumb paths for every login linked to this team.
+
+    If no date is given and tonight has no pings yet, the last outing that was recorded is returned
+    so a new team member still sees the crew's previous track.
+    """
     team = _load_team(db, team_id)
-    day = on_date or current_field_date()
-    start, end = shift_window(day)
+    requested = on_date or current_field_date()
     user_ids = [u.id for u in team.users]
     if not user_ids:
         return []
-    pings = (
-        db.query(LocationPing)
-        .filter(
-            LocationPing.user_id.in_(user_ids),
-            LocationPing.recorded_at >= start,
-            LocationPing.recorded_at < end,
+
+    def _pings_for(day: dt.date) -> list[LocationPing]:
+        start, end = shift_window(day)
+        return (
+            db.query(LocationPing)
+            .filter(
+                LocationPing.user_id.in_(user_ids),
+                LocationPing.recorded_at >= start,
+                LocationPing.recorded_at < end,
+            )
+            .order_by(LocationPing.user_id.asc(), LocationPing.recorded_at.asc())
+            .all()
         )
-        .order_by(LocationPing.user_id.asc(), LocationPing.recorded_at.asc())
-        .all()
-    )
+
+    day = requested
+    pings = _pings_for(day)
+    is_previous = False
+    if on_date is None and not pings:
+        last_at = (
+            db.query(func.max(LocationPing.recorded_at))
+            .filter(LocationPing.user_id.in_(user_ids))
+            .scalar()
+        )
+        if last_at is not None:
+            day = current_field_date(last_at if last_at.tzinfo else last_at.replace(tzinfo=dt.timezone.utc))
+            pings = _pings_for(day)
+            is_previous = day != requested
     by_user: dict[int, list[TrailPoint]] = {}
     for p in pings:
         by_user.setdefault(p.user_id, []).append(
@@ -1191,7 +1211,17 @@ def team_trails(
         user = users_by_id.get(uid)
         if not user:
             continue
-        out.append(UserTrailOut(user_id=user.id, username=user.username, full_name=user.full_name, points=points))
+        out.append(
+            UserTrailOut(
+                user_id=user.id,
+                username=user.username,
+                full_name=user.full_name,
+                team_name=team.name,
+                field_date=day,
+                is_previous=is_previous,
+                points=points,
+            )
+        )
     return out
 
 

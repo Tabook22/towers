@@ -291,6 +291,8 @@ export interface UserTrail {
   username: string;
   full_name: string | null;
   team_name?: string | null;
+  field_date?: string | null;
+  is_previous?: boolean;
   points: TrailPoint[];
 }
 

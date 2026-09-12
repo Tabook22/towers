@@ -194,6 +194,20 @@ export function DashboardPage() {
                   <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }}>
                     Site map
                   </Typography>
+                  {teamTrails?.some((t) => t.is_previous) && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Showing this team&apos;s last recorded outing
+                      {teamTrails.find((t) => t.field_date)?.field_date
+                        ? ` (${teamTrails.find((t) => t.field_date)?.field_date})`
+                        : ''}
+                      . Every crew login sees the same path. Live GPS overlays when someone is signed in tonight.
+                    </Typography>
+                  )}
+                  {teamId && !teamTrails?.some((t) => t.is_previous) && (user?.role === 'team_member' || user?.role === 'team_leader') && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Live GPS for everyone on this team. Open Our team to review previous nights and daily progress.
+                    </Typography>
+                  )}
                   {canClaimTowers && (
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                       Green pin: assign to your team. Red pin: unassign so another team can take an unfinished tower.

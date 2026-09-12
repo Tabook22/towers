@@ -991,6 +991,8 @@ class UserTrailOut(BaseModel):
     username: str
     full_name: str | None = None
     team_name: str | None = None
+    field_date: dt.date | None = None
+    is_previous: bool = False
     points: list[TrailPoint]
 
 
