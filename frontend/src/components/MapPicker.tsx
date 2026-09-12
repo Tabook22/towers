@@ -11,7 +11,7 @@ import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreenRounded';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
 import MapIcon from '@mui/icons-material/MapRounded';
 import 'leaflet/dist/leaflet.css';
-import { numberedDotIcon, towerNumbersById } from './towerMapPins';
+import { extractTowerNumber, numberedDotIcon, towerNumbersById } from './towerMapPins';
 
 export type MapLayer = 'street' | 'satellite';
 
@@ -216,13 +216,13 @@ export function MapPicker({
           <FitToContext positions={fitPositions.length ? fitPositions : hasPoint ? [[latitude as number, longitude as number]] : []} />
           {!readOnly && <ClickHandler onChange={onChange} />}
           {contextPts.map((t) => {
-            const n = mapNumbers.get(t.id);
+            const n = extractTowerNumber(t.tower_id) ?? mapNumbers.get(t.id);
             if (n == null) return null;
             return (
               <Marker
                 key={t.id}
                 position={[t.latitude as number, t.longitude as number]}
-                icon={numberedDotIcon({ mapNumber: n, color: '#546e7a' })}
+                icon={numberedDotIcon({ towerId: t.tower_id, mapNumber: n, color: '#546e7a' })}
                 interactive
                 bubblingMouseEvents={false}
                 zIndexOffset={100}

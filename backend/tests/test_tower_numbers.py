@@ -30,3 +30,4 @@ def test_pin_number_matches_tower_id_suffix():
     assert pins[1] == 2
     assert pins[2] == 100
     assert pins[3] == 3
+    assert extract_tower_number("Ashoor-Saada-100") == 100

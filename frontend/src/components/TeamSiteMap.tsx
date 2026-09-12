@@ -10,7 +10,7 @@ import 'leaflet/dist/leaflet.css';
 import { TILE_LAYERS, type MapLayer } from './MapPicker';
 import { splitTrailSegments } from '../utils/gpsTrail';
 import type { LiveTeamMember, TeamJobMapTower, TrailPoint, UserTrail } from '../api/types';
-import { ASSIGNED_TOWER_COLOR, FREE_TOWER_COLOR, assignmentPinIcon, numberedDotIcon, towerNumbersById } from './towerMapPins';
+import { ASSIGNED_TOWER_COLOR, FREE_TOWER_COLOR, assignmentPinIcon, extractTowerNumber, numberedDotIcon, towerNumbersById } from './towerMapPins';
 
 const TOWER_COLORS: Record<string, string> = {
   completed: '#2e7d32',
@@ -250,9 +250,9 @@ export function TeamSiteMap({
                     key={`tw-${t.id}`}
                     position={[t.latitude as number, t.longitude as number]}
                     icon={
-                      mapNumbers.get(t.id) != null
+                      extractTowerNumber(t.tower_id) != null
                         ? numberedDotIcon({
-                            mapNumber: mapNumbers.get(t.id) as number,
+                            towerId: t.tower_id,
                             color: TOWER_COLORS[t.status] || '#9e9e9e',
                           })
                         : towerDot(TOWER_COLORS[t.status] || '#9e9e9e')

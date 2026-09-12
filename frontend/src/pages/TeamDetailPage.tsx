@@ -117,7 +117,7 @@ import { OutingPlanCard } from '../components/OutingPlanCard';
 import { HandoverPackCard } from '../components/HandoverPackCard';
 import { ClaimTowerDialog } from '../components/ClaimTowerDialog';
 import { KpiTile } from '../components/KpiTile';
-import { numberedDotIcon, towerNumbersById } from '../components/towerMapPins';
+import { extractTowerNumber, numberedDotIcon, towerNumbersById } from '../components/towerMapPins';
 import type { AdminUser, NextTowerStop, NightClaimStatus, TrackingMission } from '../api/types';
 
 const MISSION_STATUS_COLORS: Record<string, 'default' | 'info' | 'success'> = {
@@ -1802,7 +1802,7 @@ export function TeamDetailPage() {
                     .sort((a, b) => (a.id === focusedJobMapTowerId ? 1 : 0) - (b.id === focusedJobMapTowerId ? 1 : 0))
                     .map((t) => {
                       const rank = nextPlan?.stops.find((s) => s.id === t.id)?.rank;
-                      const lineNo = jobMapNumbers.get(t.id);
+                      const lineNo = extractTowerNumber(t.tower_id) ?? jobMapNumbers.get(t.id);
                       return (
                       <Marker
                         key={t.id}
@@ -1810,6 +1810,7 @@ export function TeamDetailPage() {
                         icon={
                           lineNo != null
                             ? numberedDotIcon({
+                                towerId: t.tower_id,
                                 mapNumber: lineNo,
                                 color: JOB_MAP_COLORS[t.status],
                                 focused: t.id === focusedJobMapTowerId,

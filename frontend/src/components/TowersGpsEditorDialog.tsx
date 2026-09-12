@@ -23,7 +23,7 @@ import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
 import MapIcon from '@mui/icons-material/MapRounded';
 import 'leaflet/dist/leaflet.css';
 import { TILE_LAYERS, type MapLayer } from './MapPicker';
-import { assignmentPinIcon, numberedDotIcon, towerNumbersById } from './towerMapPins';
+import { assignmentPinIcon, extractTowerNumber, numberedDotIcon, towerNumbersById } from './towerMapPins';
 import { useMatchPinIds, usePatchTowerLocation } from '../api/hooks';
 import type { TowerWithStats } from '../api/types';
 
@@ -341,7 +341,7 @@ export function TowersGpsEditorDialog({
               {withGps.map((t) => {
                 const [lat, lng] = posOf(t);
                 const focused = picked?.id === t.id;
-                const n = numbers.get(t.id);
+                const n = extractTowerNumber(displayId(t)) ?? numbers.get(t.id);
                 return (
                   <Marker
                     key={t.id}
@@ -352,6 +352,7 @@ export function TowersGpsEditorDialog({
                     icon={
                       focused && n != null
                         ? numberedDotIcon({
+                            towerId: displayId(t),
                             mapNumber: n,
                             color: t.assigned_team_name ? '#d32f2f' : '#2e7d32',
                             focused: true,

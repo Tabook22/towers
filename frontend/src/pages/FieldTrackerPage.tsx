@@ -40,7 +40,7 @@ import { HandoverPackCard } from '../components/HandoverPackCard';
 import { DispatchChannelFeed, NightChannel } from '../components/NightChannel';
 import type { LiveTeamMember, MovementDayReport, TrackingMission, TowerStay } from '../api/types';
 import { TILE_LAYERS, type MapLayer } from '../components/MapPicker';
-import { numberedDotIcon, towerNumbersById } from '../components/towerMapPins';
+import { extractTowerNumber, numberedDotIcon, towerNumbersById } from '../components/towerMapPins';
 import { splitTrailSegments } from '../utils/gpsTrail';
 import {
   countByKind,
@@ -650,7 +650,7 @@ export function FieldTrackerPage() {
             />
             {catalogWithGps.map((t) => {
               const mine = selectedTeamPk != null && t.assigned_team_id === selectedTeamPk;
-              const n = catalogNumbers.get(t.id);
+              const n = extractTowerNumber(t.tower_id) ?? catalogNumbers.get(t.id);
               return (
                 <Marker
                   key={`tw-${t.id}`}
@@ -658,6 +658,7 @@ export function FieldTrackerPage() {
                   icon={
                     n != null
                       ? numberedDotIcon({
+                          towerId: t.tower_id,
                           mapNumber: n,
                           color: mine || selectedTeamPk == null ? '#0d475c' : '#78909c',
                         })
