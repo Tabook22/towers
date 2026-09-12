@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { MapContainer, Marker, Polyline, TileLayer, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
+import { MapContainer, Marker, Polyline, TileLayer, Tooltip as LeafletTooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { Box, Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
+import { Box, Chip, Dialog, DialogContent, DialogTitle, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import OpenInFullIcon from '@mui/icons-material/OpenInFullRounded';
-import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreenRounded';
+import CloseIcon from '@mui/icons-material/CloseRounded';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
 import MapIcon from '@mui/icons-material/MapRounded';
 import 'leaflet/dist/leaflet.css';
@@ -59,6 +59,24 @@ function FitToPoints({ positions }: { positions: [number, number][] }) {
     else map.fitBounds(L.latLngBounds(positions), { padding: [36, 36], maxZoom: 16 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+  return null;
+}
+
+function OpenPopupOnMapClick({ enabled, onOpen }: { enabled: boolean; onOpen: () => void }) {
+  useMapEvents({
+    click: () => {
+      if (enabled) onOpen();
+    },
+  });
+  return null;
+}
+
+function InvalidateSize() {
+  const map = useMap();
+  useEffect(() => {
+    const id = window.setTimeout(() => map.invalidateSize(), 80);
+    return () => window.clearTimeout(id);
+  }, [map]);
   return null;
 }
 
@@ -133,14 +151,9 @@ export function TeamSiteMap({
   ];
   const center: [number, number] = positions[0] || [17.01972, 54.08972];
   const mapRef = useRef<L.Map | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [popupOpen, setPopupOpen] = useState(false);
   const [layer, setLayer] = useState<MapLayer>('street');
-  const h = expanded ? Math.min(640, height * 1.7) : height;
-
-  useEffect(() => {
-    const id = window.setTimeout(() => mapRef.current?.invalidateSize(), 220);
-    return () => window.clearTimeout(id);
-  }, [h]);
+  const h = height;
 
   if (positions.length === 0) {
     return (
@@ -187,6 +200,7 @@ export function TeamSiteMap({
           <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
             <TileLayer attribution={TILE_LAYERS[layer].attribution} url={TILE_LAYERS[layer].url} maxZoom={TILE_LAYERS[layer].maxZoom} />
             <MapRefBridge mapRef={mapRef} />
+            <OpenPopupOnMapClick enabled={!popupOpen} onOpen={() => setPopupOpen(true)} />
             <FitToPoints positions={positions} />
             {(trails || []).flatMap((trail) =>
               splitTrailSegments(trail.points as TrailPoint[]).map((pts, i) => (
@@ -328,18 +342,154 @@ export function TeamSiteMap({
                 {layer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
-            <Tooltip title={expanded ? 'Smaller' : 'Larger'}>
+            <Tooltip title="Open large map">
               <IconButton
                 size="small"
-                onClick={() => setExpanded((v) => !v)}
+                onClick={() => setPopupOpen(true)}
                 sx={{ bgcolor: 'white', '&:hover': { bgcolor: 'grey.100' } }}
               >
-                {expanded ? <CloseFullscreenIcon fontSize="small" /> : <OpenInFullIcon fontSize="small" />}
+                <OpenInFullIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
         </div>
       </Box>
+
+      <Dialog
+        open={popupOpen}
+        onClose={() => setPopupOpen(false)}
+        maxWidth={false}
+        slotProps={{
+          paper: {
+            sx: {
+              width: '80vw',
+              height: '80vh',
+              maxWidth: '80vw',
+              m: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', pr: 1, py: 1 }}>
+          <Typography sx={{ fontWeight: 800, flex: 1 }}>Site map</Typography>
+          <Tooltip title={layer === 'street' ? 'Satellite' : 'Map'}>
+            <IconButton size="small" onClick={() => setLayer((l) => (l === 'street' ? 'satellite' : 'street'))}>
+              {layer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
+            </IconButton>
+          </Tooltip>
+          <IconButton onClick={() => setPopupOpen(false)} aria-label="Close">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, flex: 1, minHeight: 0, position: 'relative' }}>
+          <MapContainer
+            key="site-map-popup"
+            center={center}
+            zoom={13}
+            style={{ height: '100%', width: '100%' }}
+            scrollWheelZoom
+          >
+            <TileLayer attribution={TILE_LAYERS[layer].attribution} url={TILE_LAYERS[layer].url} maxZoom={TILE_LAYERS[layer].maxZoom} />
+            <InvalidateSize />
+            <FitToPoints positions={positions} />
+            {(trails || []).flatMap((trail) =>
+              splitTrailSegments(trail.points as TrailPoint[]).map((pts, i) => (
+                <Polyline
+                  key={`p-${trail.user_id}-${i}`}
+                  positions={pts}
+                  pathOptions={{ color: '#2e7d32', weight: 5, opacity: 0.9 }}
+                />
+              )),
+            )}
+            {showCatalog
+              ? catalogPts.map((t) => {
+                  const free = t.assigned_team_id == null;
+                  return (
+                    <Marker
+                      key={`p-cat-${t.id}`}
+                      position={[t.latitude as number, t.longitude as number]}
+                      icon={assignmentPinIcon({
+                        towerId: t.tower_id,
+                        teamName: t.assigned_team_name,
+                        mapNumber: mapNumbers.get(t.id),
+                      })}
+                      interactive
+                      bubblingMouseEvents={false}
+                      zIndexOffset={free ? 500 : 200}
+                      eventHandlers={
+                        canClaim
+                          ? {
+                              click: () => {
+                                if (claiming) return;
+                                if (onCatalogTowerClick) onCatalogTowerClick(t);
+                                else if (free) onFreeTowerClick?.(t.id);
+                              },
+                            }
+                          : undefined
+                      }
+                    >
+                      <LeafletTooltip direction="top" offset={[0, -14]} opacity={1} interactive={false}>
+                        <strong>
+                          {mapNumbers.get(t.id) != null ? `#${mapNumbers.get(t.id)} · ` : ''}
+                          {t.tower_id}
+                        </strong>
+                        <br />
+                        {t.area || '—'}
+                        <br />
+                        {free
+                          ? 'Free — click to assign to this team'
+                          : `Assigned to ${t.assigned_team_name || 'a team'} — click to unassign`}
+                      </LeafletTooltip>
+                    </Marker>
+                  );
+                })
+              : mapTowers.map((t) => (
+                  <Marker
+                    key={`p-tw-${t.id}`}
+                    position={[t.latitude as number, t.longitude as number]}
+                    icon={numberedDotIcon({
+                      towerId: t.tower_id,
+                      color: TOWER_COLORS[t.status] || '#9e9e9e',
+                      showIdLabel: true,
+                    })}
+                    interactive
+                    bubblingMouseEvents={false}
+                    zIndexOffset={300}
+                  >
+                    <LeafletTooltip direction="top" offset={[0, -14]} opacity={1} interactive={false}>
+                      <strong>
+                        {extractTowerNumber(t.tower_id) != null ? `#${extractTowerNumber(t.tower_id)} · ` : ''}
+                        {t.tower_id}
+                      </strong>
+                      <br />
+                      {t.area || ''}
+                    </LeafletTooltip>
+                  </Marker>
+                ))}
+            {livePts.map((m) => (
+              <Marker
+                key={`p-lv-${m.user_id}`}
+                position={[m.latitude, m.longitude]}
+                icon={crewDot(m.is_stale ? '#90a4ae' : '#43a047')}
+                zIndexOffset={600}
+              >
+                <LeafletTooltip direction="top" offset={[0, -10]} opacity={1}>
+                  <strong>{m.full_name || m.username}</strong>
+                </LeafletTooltip>
+              </Marker>
+            ))}
+            {myLocation && (
+              <Marker position={[myLocation.latitude, myLocation.longitude]} icon={youIcon()} zIndexOffset={1200}>
+                <LeafletTooltip direction="top" offset={[0, -12]} opacity={1} permanent>
+                  <strong>{myLabel}</strong>
+                </LeafletTooltip>
+              </Marker>
+            )}
+          </MapContainer>
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }
