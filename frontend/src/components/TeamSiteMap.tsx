@@ -18,15 +18,6 @@ const TOWER_COLORS: Record<string, string> = {
   pending: '#9e9e9e',
 };
 
-function towerDot(color: string) {
-  return L.divIcon({
-    className: 'tower-pin',
-    html: `<div class="tower-pin-hit"><div style="width:14px;height:14px;border-radius:2px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35)"></div></div>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-  });
-}
-
 function crewDot(color: string) {
   return L.divIcon({
     className: '',
@@ -181,6 +172,7 @@ export function TeamSiteMap({
           </>
         ) : (
           <>
+            <Chip size="small" label="Number + Tower ID" variant="outlined" />
             <Chip size="small" label="Tower done" sx={{ bgcolor: '#2e7d32', color: '#fff' }} />
             <Chip size="small" label="In progress" sx={{ bgcolor: '#1976d2', color: '#fff' }} />
             <Chip size="small" label="Not started" sx={{ bgcolor: '#9e9e9e', color: '#fff' }} />
@@ -249,19 +241,20 @@ export function TeamSiteMap({
                   <Marker
                     key={`tw-${t.id}`}
                     position={[t.latitude as number, t.longitude as number]}
-                    icon={
-                      extractTowerNumber(t.tower_id) != null
-                        ? numberedDotIcon({
-                            towerId: t.tower_id,
-                            color: TOWER_COLORS[t.status] || '#9e9e9e',
-                          })
-                        : towerDot(TOWER_COLORS[t.status] || '#9e9e9e')
-                    }
+                    icon={numberedDotIcon({
+                      towerId: t.tower_id,
+                      color: TOWER_COLORS[t.status] || '#9e9e9e',
+                      showIdLabel: true,
+                    })}
                     interactive
                     bubblingMouseEvents={false}
+                    zIndexOffset={300}
                   >
                     <LeafletTooltip direction="top" offset={[0, -14]} opacity={1} interactive={false}>
-                      <strong>{t.tower_id}</strong>
+                      <strong>
+                        {extractTowerNumber(t.tower_id) != null ? `#${extractTowerNumber(t.tower_id)} · ` : ''}
+                        {t.tower_id}
+                      </strong>
                       <br />
                       {t.area || ''}
                       <br />
@@ -278,7 +271,6 @@ export function TeamSiteMap({
                   icon={assignmentPinIcon({
                     towerId: t.tower_id,
                     teamName: null,
-                    mapNumber: mapNumbers.get(t.id),
                   })}
                   interactive
                   bubblingMouseEvents={false}

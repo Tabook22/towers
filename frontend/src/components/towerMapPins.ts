@@ -73,18 +73,34 @@ export function numberedDotIcon(opts: {
   towerId?: string;
   color: string;
   focused?: boolean;
+  showIdLabel?: boolean;
 }): L.DivIcon {
-  const n = (opts.towerId ? extractTowerNumber(opts.towerId) : null) ?? opts.mapNumber ?? 0;
-  const pin = `<div class="tower-pin-num" style="background:${opts.color}">${n}</div>`;
+  const n = (opts.towerId ? extractTowerNumber(opts.towerId) : null) ?? opts.mapNumber;
+  const pin =
+    n != null
+      ? `<div class="tower-pin-num" style="background:${opts.color}">${n}</div>`
+      : `<div style="width:16px;height:16px;border-radius:50%;background:${opts.color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35)"></div>`;
+  const idLabel =
+    opts.showIdLabel && opts.towerId
+      ? `<div class="tower-map-label"><div class="tower-map-label-id">${escapeHtml(opts.towerId)}</div></div>`
+      : '';
   if (opts.focused) {
     return L.divIcon({
       className: 'tower-pin',
-      html: `<div class="tower-pin-hit" style="width:40px;height:40px;position:relative">
+      html: `<div class="tower-pin-hit${idLabel ? ' tower-pin-hit--labeled' : ''}" style="${idLabel ? '' : 'width:40px;height:40px;position:relative'}">
         <div style="position:absolute;inset:0;border:3px solid #d32f2f;border-radius:6px;box-shadow:0 0 0 2px rgba(255,255,255,0.9)"></div>
-        <div style="position:relative;z-index:1">${pin}</div>
+        <div style="position:relative;z-index:1">${pin}${idLabel}</div>
       </div>`,
-      iconSize: [40, 40],
-      iconAnchor: [20, 20],
+      iconSize: idLabel ? [96, 56] : [40, 40],
+      iconAnchor: idLabel ? [48, 14] : [20, 20],
+    });
+  }
+  if (idLabel) {
+    return L.divIcon({
+      className: 'tower-pin',
+      html: `<div class="tower-pin-hit tower-pin-hit--labeled">${pin}${idLabel}</div>`,
+      iconSize: [96, 56],
+      iconAnchor: [48, 14],
     });
   }
   return L.divIcon({
