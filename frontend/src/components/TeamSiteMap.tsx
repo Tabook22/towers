@@ -154,27 +154,61 @@ export function TeamSiteMap({
   const [popupOpen, setPopupOpen] = useState(false);
   const [popupW, setPopupW] = useState(80);
   const [popupH, setPopupH] = useState(80);
-  const resizeRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const resizeRef = useRef<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+  } | null>(null);
   const [layer, setLayer] = useState<MapLayer>('street');
   const h = height;
 
   const clampPct = (n: number) => Math.min(98, Math.max(40, Math.round(n)));
-  const onResizePointerDown = (e: React.PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    resizeRef.current = { x: e.clientX, y: e.clientY, w: popupW, h: popupH };
-  };
+  const onResizePointerDown =
+    (edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw') => (e: React.PointerEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      resizeRef.current = { x: e.clientX, y: e.clientY, w: popupW, h: popupH, edge };
+    };
   const onResizePointerMove = (e: React.PointerEvent) => {
-    if (!resizeRef.current) return;
-    const dw = ((e.clientX - resizeRef.current.x) / window.innerWidth) * 100;
-    const dh = ((e.clientY - resizeRef.current.y) / window.innerHeight) * 100;
-    setPopupW(clampPct(resizeRef.current.w + dw));
-    setPopupH(clampPct(resizeRef.current.h + dh));
+    const d = resizeRef.current;
+    if (!d) return;
+    const dw = ((e.clientX - d.x) / window.innerWidth) * 100;
+    const dh = ((e.clientY - d.y) / window.innerHeight) * 100;
+    let w = d.w;
+    let hPct = d.h;
+    if (d.edge === 'e' || d.edge === 'ne' || d.edge === 'se') w = d.w + dw;
+    if (d.edge === 'w' || d.edge === 'nw' || d.edge === 'sw') w = d.w - dw;
+    if (d.edge === 's' || d.edge === 'se' || d.edge === 'sw') hPct = d.h + dh;
+    if (d.edge === 'n' || d.edge === 'ne' || d.edge === 'nw') hPct = d.h - dh;
+    setPopupW(clampPct(w));
+    setPopupH(clampPct(hPct));
   };
   const onResizePointerUp = () => {
     resizeRef.current = null;
   };
+  const resizeHandle = (
+    edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw',
+    sx: Record<string, string | number>,
+  ) => (
+    <Box
+      key={edge}
+      onPointerDown={onResizePointerDown(edge)}
+      onPointerMove={onResizePointerMove}
+      onPointerUp={onResizePointerUp}
+      onPointerCancel={onResizePointerUp}
+      sx={{
+        position: 'absolute',
+        zIndex: 2000,
+        bgcolor: 'transparent',
+        '&:hover': { bgcolor: 'rgba(13,71,92,0.18)' },
+        ...sx,
+      }}
+      title="Drag to resize"
+    />
+  );
 
   if (positions.length === 0) {
     return (
@@ -529,27 +563,15 @@ export function TeamSiteMap({
               </Marker>
             )}
           </MapContainer>
-          <Box
-            onPointerDown={onResizePointerDown}
-            onPointerMove={onResizePointerMove}
-            onPointerUp={onResizePointerUp}
-            onPointerCancel={onResizePointerUp}
-            sx={{
-              position: 'absolute',
-              right: 4,
-              bottom: 4,
-              width: 22,
-              height: 22,
-              cursor: 'nwse-resize',
-              zIndex: 2000,
-              borderRight: '3px solid rgba(0,0,0,0.45)',
-              borderBottom: '3px solid rgba(0,0,0,0.45)',
-              borderRadius: '0 0 4px 0',
-              bgcolor: 'rgba(255,255,255,0.7)',
-            }}
-            title="Drag to resize"
-          />
         </DialogContent>
+        {resizeHandle('n', { top: 0, left: 12, right: 12, height: 10, cursor: 'ns-resize' })}
+        {resizeHandle('s', { bottom: 0, left: 12, right: 12, height: 10, cursor: 'ns-resize' })}
+        {resizeHandle('e', { top: 12, bottom: 12, right: 0, width: 10, cursor: 'ew-resize' })}
+        {resizeHandle('w', { top: 12, bottom: 12, left: 0, width: 10, cursor: 'ew-resize' })}
+        {resizeHandle('ne', { top: 0, right: 0, width: 16, height: 16, cursor: 'nesw-resize' })}
+        {resizeHandle('nw', { top: 0, left: 0, width: 16, height: 16, cursor: 'nwse-resize' })}
+        {resizeHandle('se', { bottom: 0, right: 0, width: 18, height: 18, cursor: 'nwse-resize' })}
+        {resizeHandle('sw', { bottom: 0, left: 0, width: 16, height: 16, cursor: 'nesw-resize' })}
       </Dialog>
     </Box>
   );
