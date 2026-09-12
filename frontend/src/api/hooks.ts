@@ -162,6 +162,22 @@ export function useUpdateTower() {
   });
 }
 
+export function usePatchTowerLocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, latitude, longitude }: { id: number; latitude: number; longitude: number }) =>
+      (await apiClient.patch<Tower>(`/api/towers/${id}`, { latitude, longitude })).data,
+    onSuccess: (updated) => {
+      qc.setQueriesData({ queryKey: ['towers'] }, (old: unknown) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((t: Tower) =>
+          t.id === updated.id ? { ...t, latitude: updated.latitude, longitude: updated.longitude } : t,
+        );
+      });
+    },
+  });
+}
+
 // Bulk create/update towers from an uploaded Excel file — upserted by Tower ID. See backend
 // services/tower_import.py for the exact column rules.
 export interface TowerImportResult {

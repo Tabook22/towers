@@ -65,6 +65,7 @@ import type { DashboardTowerRow, Tower, TowerWithStats } from '../api/types';
 import { VisitStatusChip } from '../components/Badges';
 import { MapPicker } from '../components/MapPicker';
 import { TowersOverviewMap } from '../components/TowersOverviewMap';
+import { TowersGpsEditorDialog } from '../components/TowersGpsEditorDialog';
 import { ExpandableImage } from '../components/ExpandableImage';
 import { ResizableDialogPaper } from '../components/ResizableDialogPaper';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
@@ -191,6 +192,7 @@ export function TowersPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteAll, setDeleteAll] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [gpsEditorOpen, setGpsEditorOpen] = useState(false);
   const claimForTeam = useClaimTowerForTeam();
   const releaseTower = useReleaseTower();
   const [mapAssignTeamId, setMapAssignTeamId] = useState('');
@@ -313,6 +315,14 @@ export function TowersPage() {
                 href={mediaUrl('/api/towers/export.xlsx')}
               >
                 Download Excel
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<EditLocationAltIcon />}
+                onClick={() => setGpsEditorOpen(true)}
+                disabled={!towers?.length}
+              >
+                Move towers on map
               </Button>
               <Button
                 variant="outlined"
@@ -1058,6 +1068,12 @@ export function TowersPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <TowersGpsEditorDialog
+        open={gpsEditorOpen}
+        onClose={() => setGpsEditorOpen(false)}
+        towers={towers || []}
+      />
 
       <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>{deleteAll ? 'Delete all towers' : `Delete ${selected.size} selected tower${selected.size === 1 ? '' : 's'}`}</DialogTitle>
