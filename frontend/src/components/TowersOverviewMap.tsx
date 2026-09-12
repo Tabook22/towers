@@ -46,10 +46,12 @@ export function TowersOverviewMap({
   rows,
   height = 340,
   onTowerClick,
+  onTowerDoubleClick,
 }: {
   rows: DashboardTowerRow[];
   height?: number;
   onTowerClick?: (row: DashboardTowerRow) => void;
+  onTowerDoubleClick?: (row: DashboardTowerRow) => void;
 }) {
   const navigate = useNavigate();
   const points = rows.filter((r) => r.tower.latitude != null && r.tower.longitude != null);
@@ -117,6 +119,10 @@ export function TowersOverviewMap({
                   click: () => {
                     if (onTowerClick) onTowerClick(row);
                     else navigate(`/towers/${row.tower.id}`);
+                  },
+                  dblclick: (e) => {
+                    L.DomEvent.stop(e);
+                    if (onTowerDoubleClick) onTowerDoubleClick(row);
                   },
                 }}
               >

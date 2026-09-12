@@ -152,7 +152,11 @@ export function TowersPage() {
   const canEditCatalog = canImport;
   const isTeamLeader = user?.role === 'team_leader';
   const debouncedSearch = useDebouncedValue(search);
-  const { data: towers, isLoading } = useTowers({ search: debouncedSearch || undefined, area: area || undefined });
+  const { data: towers, isLoading } = useTowers({
+    search: debouncedSearch || undefined,
+    area: area || undefined,
+    limit: 5000,
+  });
   const { data: areas } = useAreas();
   const createTower = useCreateTower();
   const updateTower = useUpdateTower();
@@ -272,8 +276,13 @@ export function TowersPage() {
       }
       setDialogOpen(false);
     } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
       const message =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Could not save tower';
+        typeof detail === 'string'
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((d) => (typeof d === 'string' ? d : (d as { msg?: string })?.msg || '')).filter(Boolean).join(' ')
+            : 'Could not save tower';
       setErrorMsg(message);
     }
   };
@@ -427,7 +436,7 @@ export function TowersPage() {
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             {canEditCatalog
-              ? 'Green pin: assign to the team selected below. Red pin: unassign so another team can take an unfinished tower. Use the pencil in the table to edit catalog details.'
+              ? 'Click a table row or double-click a pin to edit GPS and details. Single-click a pin to assign or unassign it.'
               : isTeamLeader
                 ? 'Green pin: assign to your team. Red pin on your tower: unassign it so another team can inspect it. You cannot edit or delete towers — that is admin only.'
                 : 'Registered towers with GPS. Catalog edits are admin only.'}
@@ -464,6 +473,10 @@ export function TowersPage() {
           <TowersOverviewMap
             rows={mapRows}
             height={380}
+            onTowerDoubleClick={(row) => {
+              const t = visibleTowers?.find((x) => x.id === row.tower.id);
+              if (t && canEditCatalog) openEdit(t);
+            }}
             onTowerClick={(row) => {
               const t = visibleTowers?.find((x) => x.id === row.tower.id);
               if (!t) return;
@@ -542,7 +555,12 @@ export function TowersPage() {
           </TableHead>
           <TableBody>
             {visibleTowers?.map((t) => (
-              <TableRow key={t.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/towers/${t.id}`)}>
+              <TableRow
+                key={t.id}
+                hover
+                sx={{ cursor: 'pointer' }}
+                onClick={() => (canEditCatalog ? openEdit(t) : navigate(`/towers/${t.id}`))}
+              >
                 {canImport && (
                   <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
                     <Checkbox
@@ -597,9 +615,14 @@ export function TowersPage() {
                           Unassign
                         </Button>
                       )}
-                      <Tooltip title="Edit tower">
+                      <Tooltip title="Edit tower details">
                         <IconButton size="small" onClick={() => openEdit(t)}>
                           <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Inspection visits">
+                        <IconButton size="small" onClick={() => navigate(`/towers/${t.id}`)}>
+                          <CellTowerIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Deactivate tower">

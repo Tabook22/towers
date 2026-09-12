@@ -32,7 +32,7 @@ export function TowerDetailPage() {
   const { towerId } = useParams();
   const id = Number(towerId);
   const navigate = useNavigate();
-  const { data: towers } = useTowers({ include_inactive: true });
+  const { data: towers } = useTowers({ include_inactive: true, limit: 5000 });
   const tower = towers?.find((t) => t.id === id);
   const { data: visits, isLoading } = useVisits(id);
   const createVisit = useCreateVisit();
@@ -108,9 +108,14 @@ export function TowerDetailPage() {
             {tower?.height_m != null ? ` · ${tower.height_m} m tall` : ''}
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleNewVisit} disabled={startingVisit}>
-          {startingVisit ? 'Locating…' : 'New inspection visit'}
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button variant="outlined" onClick={() => navigate('/towers')}>
+            Edit tower details
+          </Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleNewVisit} disabled={startingVisit}>
+            {startingVisit ? 'Locating…' : 'New inspection visit'}
+          </Button>
+        </Stack>
       </Stack>
 
       <Grid container spacing={2}>

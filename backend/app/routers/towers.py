@@ -4,7 +4,8 @@ import datetime as dt
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response
-from sqlalchemy import or_
+from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
@@ -43,7 +44,7 @@ def list_towers(
     unassigned: bool = Query(default=False, description="Filter to towers with no team assigned yet"),
     include_inactive: bool = False,
     skip: int = 0,
-    limit: int = 200,
+    limit: int = 5000,
 ):
     """Paginated, searchable tower list — designed for hundreds/thousands of towers."""
     q = db.query(Tower).options(joinedload(Tower.assigned_team))
@@ -122,7 +123,7 @@ def create_tower(
     db: Session = Depends(get_db),
     _admin: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
 ):
-    exists = db.query(Tower).filter(Tower.tower_id.ilike(payload.tower_id)).first()
+    exists = db.query(Tower).filter(func.lower(Tower.tower_id) == payload.tower_id.lower()).first()
     if exists:
         raise HTTPException(status_code=400, detail=f"Tower ID '{payload.tower_id}' already exists")
     tower = Tower(**payload.model_dump())
@@ -300,16 +301,33 @@ def update_tower(
     data = payload.model_dump(exclude_unset=True)
     if "tower_id" in data and data["tower_id"]:
         new_id = data["tower_id"].strip()
-        clash = db.query(Tower).filter(Tower.tower_id.ilike(new_id), Tower.id != tower_pk).first()
-        if clash:
-            raise HTTPException(status_code=400, detail=f"Tower ID '{new_id}' already exists")
         data["tower_id"] = new_id
+        # Equality, not LIKE — IDs such as Ashoor-Saada-17 must not be treated as a pattern.
+        # Skip the check when the ID is unchanged so a GPS/area edit cannot 400 on itself.
+        if new_id.lower() != (tower.tower_id or "").strip().lower():
+            clash = (
+                db.query(Tower)
+                .filter(func.lower(Tower.tower_id) == new_id.lower(), Tower.id != tower_pk)
+                .first()
+            )
+            if clash:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Tower ID '{new_id}' is already used by another tower. Leave this tower's ID as '{tower.tower_id}' or pick a name that is not taken.",
+                )
     if "assigned_team_id" in data and data["assigned_team_id"] is not None:
         if not db.get(Team, data["assigned_team_id"]):
             raise HTTPException(status_code=404, detail="Team not found")
     for k, v in data.items():
         setattr(tower, k, v)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not save — Tower ID '{data.get('tower_id', tower.tower_id)}' is already in the catalog.",
+        )
     db.refresh(tower)
     return _tower_out(tower)
 

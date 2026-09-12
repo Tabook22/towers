@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import re
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import Tower
@@ -263,7 +264,7 @@ def import_towers_from_excel(db: Session, raw: bytes) -> dict:
             warnings.append(f"Row {row_num}: duplicate Tower ID '{tower_id}' in this file — later row wins")
         seen_ids.add(tower_id.lower())
 
-        tower = db.query(Tower).filter(Tower.tower_id.ilike(tower_id)).first()
+        tower = db.query(Tower).filter(func.lower(Tower.tower_id) == tower_id.lower()).first()
         is_new = tower is None
         if is_new:
             tower = Tower(tower_id=tower_id)
