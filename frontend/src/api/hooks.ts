@@ -243,6 +243,24 @@ export function useBulkAssignTowers() {
   });
 }
 
+export function useBulkDeleteTowers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { tower_ids?: number[]; delete_all?: boolean }) =>
+      (
+        await apiClient.post<{ deleted: number; ids: number[] }>('/api/towers/bulk-delete', payload)
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['towers'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['team-job-map'] });
+      qc.invalidateQueries({ queryKey: ['areas'] });
+      qc.invalidateQueries({ queryKey: ['outing-plan'] });
+      qc.invalidateQueries({ queryKey: ['team-handover'] });
+    },
+  });
+}
+
 export function useDeactivateTower() {
   const qc = useQueryClient();
   return useMutation({

@@ -44,6 +44,7 @@ import {
   useAreas,
   useAreasFull,
   useBulkAssignTowers,
+  useBulkDeleteTowers,
   useClaimTowerForTeam,
   useClearTowerPhoto,
   useReleaseTower,
@@ -186,6 +187,10 @@ export function TowersPage() {
   // a descriptive label.
   const { data: teams } = useTeams();
   const bulkAssign = useBulkAssignTowers();
+  const bulkDelete = useBulkDeleteTowers();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteAll, setDeleteAll] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const claimForTeam = useClaimTowerForTeam();
   const releaseTower = useReleaseTower();
   const [mapAssignTeamId, setMapAssignTeamId] = useState('');
@@ -321,6 +326,19 @@ export function TowersPage() {
               >
                 Import from Excel
               </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteOutlineIcon />}
+                onClick={() => {
+                  setDeleteAll(true);
+                  setDeleteError(null);
+                  setDeleteOpen(true);
+                }}
+                disabled={!towers?.length}
+              >
+                Delete all
+              </Button>
             </>
           )}
           {canEditCatalog && (
@@ -422,6 +440,19 @@ export function TowersPage() {
             }}
           >
             Assign to team
+          </Button>
+          <Button
+            size="small"
+            color="error"
+            variant="outlined"
+            startIcon={<DeleteOutlineIcon fontSize="small" />}
+            onClick={() => {
+              setDeleteAll(false);
+              setDeleteError(null);
+              setDeleteOpen(true);
+            }}
+          >
+            Delete selected
           </Button>
           <Button size="small" onClick={() => setSelected(new Set())}>
             Clear selection
@@ -1007,6 +1038,48 @@ export function TowersPage() {
             }}
           >
             {bulkAssign.isPending ? 'Assigning…' : assignTeamId ? 'Assign' : 'Unassign'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>{deleteAll ? 'Delete all towers' : `Delete ${selected.size} selected tower${selected.size === 1 ? '' : 's'}`}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Alert severity="error">
+              {deleteAll
+                ? `This permanently deletes every tower in the catalog (${towers?.length ?? 0}), including inspection visits and photos on those towers. This cannot be undone.`
+                : `This permanently deletes ${selected.size} tower${selected.size === 1 ? '' : 's'} and any inspection visits and photos on them. This cannot be undone.`}
+            </Alert>
+            {deleteError && <Alert severity="error">{deleteError}</Alert>}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteOpen(false)}>Cancel</Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={bulkDelete.isPending || (!deleteAll && selected.size === 0)}
+            onClick={() => {
+              setDeleteError(null);
+              bulkDelete.mutate(
+                deleteAll ? { delete_all: true } : { tower_ids: Array.from(selected) },
+                {
+                  onSuccess: (res) => {
+                    setDeleteOpen(false);
+                    setSelected(new Set());
+                    setDeleteAll(false);
+                    if (!res.deleted) setDeleteError('No towers were deleted.');
+                  },
+                  onError: (err: unknown) => {
+                    const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+                    setDeleteError(typeof detail === 'string' ? detail : 'Could not delete those towers');
+                  },
+                },
+              );
+            }}
+          >
+            {bulkDelete.isPending ? 'Deleting…' : deleteAll ? 'Delete all towers' : 'Delete selected'}
           </Button>
         </DialogActions>
       </Dialog>

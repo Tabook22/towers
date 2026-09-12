@@ -11,9 +11,22 @@ from sqlalchemy.orm import Session, joinedload
 from app.config import settings
 from app.database import get_db
 from app.deps import effective_team_id, get_current_user, require_role
-from app.models import Area, NightTowerClaim, Team, TeamOutingPlan, TeamOutingTower, Tower, User, UserRole, Visit
+from app.models import (
+    Area,
+    NightTowerClaim,
+    Team,
+    TeamChannelMessage,
+    TeamOutingPlan,
+    TeamOutingTower,
+    Tower,
+    User,
+    UserRole,
+    Visit,
+)
 from app.schemas import (
     TowerBulkAssignRequest,
+    TowerBulkDeleteRequest,
+    TowerBulkDeleteResult,
     TowerClaimRequest,
     TowerCreate,
     TowerImportResult,
@@ -117,6 +130,15 @@ def _clear_tower_assignment_links(db: Session, tower: Tower) -> None:
     ).delete(synchronize_session=False)
 
 
+def _strip_tower_fks(db: Session, tower_id: int) -> None:
+    """Drop rows that would block deleting a tower (outing pins, night claims, channel tags)."""
+    db.query(TeamOutingTower).filter(TeamOutingTower.tower_pk == tower_id).delete(synchronize_session=False)
+    db.query(NightTowerClaim).filter(NightTowerClaim.tower_pk == tower_id).delete(synchronize_session=False)
+    db.query(TeamChannelMessage).filter(TeamChannelMessage.tower_pk == tower_id).update(
+        {TeamChannelMessage.tower_pk: None}, synchronize_session=False
+    )
+
+
 @router.post("", response_model=TowerOut, status_code=201)
 def create_tower(
     payload: TowerCreate,
@@ -160,6 +182,32 @@ def bulk_assign_towers(
     for t in towers:
         db.refresh(t)
     return [_tower_out(t) for t in towers]
+
+
+@router.post("/bulk-delete", response_model=TowerBulkDeleteResult)
+def bulk_delete_towers(
+    payload: TowerBulkDeleteRequest,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
+):
+    """Permanently remove many towers (or the whole catalog). Inspection visits on those towers
+    are deleted with them. Use this to wipe a bad import; it cannot be undone."""
+    if payload.delete_all:
+        towers = db.query(Tower).all()
+    else:
+        if not payload.tower_ids:
+            raise HTTPException(status_code=400, detail="Select at least one tower, or use delete_all")
+        towers = db.query(Tower).filter(Tower.id.in_(payload.tower_ids)).all()
+        found = {t.id for t in towers}
+        missing = set(payload.tower_ids) - found
+        if missing:
+            raise HTTPException(status_code=404, detail=f"Tower id(s) not found: {sorted(missing)}")
+    ids = [t.id for t in towers]
+    for t in towers:
+        _strip_tower_fks(db, t.id)
+        db.delete(t)
+    db.commit()
+    return TowerBulkDeleteResult(deleted=len(ids), ids=ids)
 
 
 @router.post("/{tower_pk}/claim", response_model=TowerOut)
@@ -346,6 +394,7 @@ def deactivate_tower(
         tower.is_active = False
         db.commit()
     else:
+        _strip_tower_fks(db, tower.id)
         db.delete(tower)
         db.commit()
     return None
