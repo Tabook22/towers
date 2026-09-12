@@ -194,7 +194,7 @@ export function DashboardPage() {
                   </Typography>
                   {canClaimTowers && (
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Click an orange open pin to assign that tower to your team.
+                      Green pins are free — click one to assign it. Red pins show the team that already holds them.
                     </Typography>
                   )}
                   {claimError && (
@@ -216,6 +216,7 @@ export function DashboardPage() {
                       myLabel={user?.full_name || user?.username || 'You'}
                       height={340}
                       freeTowers={canClaimTowers ? freeTowers : undefined}
+                      catalogTowers={canClaimTowers ? catalogTowers : undefined}
                       claiming={claimForTeam.isPending}
                       onFreeTowerClick={
                         canClaimTowers

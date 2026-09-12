@@ -426,12 +426,12 @@ export function TowersPage() {
             {canEditCatalog
               ? 'Click a pin to edit that tower. Only an admin can change, delete, or deactivate catalog towers.'
               : isTeamLeader
-                ? 'Click a free pin to assign it to your team. You cannot edit or delete towers — that is admin only.'
+                ? 'Green pins are free — click one to assign it to your team. Red pins show which team holds them. You cannot edit or delete towers — that is admin only.'
                 : 'Registered towers with GPS. Catalog edits are admin only.'}
           </Typography>
           {isTeamLeader && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-              Orange open circles are free. Click one to assign it to your team.
+              Green = free. Red = assigned (team name on the pin). Click a green pin to take it.
             </Typography>
           )}
           {claimMsg && (

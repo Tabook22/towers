@@ -42,12 +42,8 @@ def list_towers(
     if _user.role == UserRole.TEAM_MEMBER.value:
         tid = effective_team_id(db, _user)
         q = q.filter(Tower.assigned_team_id == tid) if tid else q.filter(False)
-    elif _user.role == UserRole.TEAM_LEADER.value:
-        tid = effective_team_id(db, _user)
-        if tid:
-            q = q.filter((Tower.assigned_team_id == tid) | (Tower.assigned_team_id.is_(None)))
-        else:
-            q = q.filter(Tower.assigned_team_id.is_(None))
+    # Team leaders may *see* the whole catalog (who holds which pin). Claiming a tower that
+    # already belongs to another team is still rejected on POST /claim.
     if not include_inactive:
         q = q.filter(Tower.is_active.is_(True))
     if search:

@@ -787,7 +787,7 @@ export function TeamDetailPage() {
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 {canManage
-                  ? 'Click an orange open pin to assign that catalog tower to this team. Assigned towers stay locked until you or an admin release them.'
+                  ? 'Green pins are free — click one to assign it to this team. Red pins are already assigned; the label is the team that holds them.'
                   : "Towers assigned to this team, your live pin, and tonight's track."}
               </Typography>
             </Box>
@@ -832,6 +832,7 @@ export function TeamDetailPage() {
             myLabel={currentUser?.full_name || currentUser?.username || 'You'}
             height={420}
             freeTowers={canManage ? freeTowers : undefined}
+            catalogTowers={canManage ? (towers || []).filter((t) => t.is_active) : undefined}
             claiming={claimForTeam.isPending}
             onFreeTowerClick={
               canManage

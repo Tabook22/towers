@@ -7,29 +7,10 @@ import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreenRounded';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
 import MapIcon from '@mui/icons-material/MapRounded';
 import 'leaflet/dist/leaflet.css';
-import { severityColors } from '../theme/theme';
 import type { DashboardTowerRow } from '../api/types';
 import { useNavigate } from 'react-router-dom';
 import { TILE_LAYERS, type MapLayer } from './MapPicker';
-
-function markerIconFor(row: DashboardTowerRow, free = false) {
-  let color = '#90a4ae';
-  if (row.rollup) {
-    if (row.rollup.hotspots > 0) color = severityColors.Critical;
-    else if (row.rollup.visit_status === 'Evidence incomplete') color = severityColors.Medium;
-    else if (row.rollup.visit_status === 'Inspection incomplete') color = severityColors.Low;
-    else color = severityColors.Normal;
-  }
-  const inner = free
-    ? `<div style="width:16px;height:16px;border-radius:50%;border:3px solid #ef6c00;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)"></div>`
-    : `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 0 0 1px rgba(0,0,0,0.35)"></div>`;
-  return L.divIcon({
-    className: 'tower-pin',
-    html: `<div class="tower-pin-hit">${inner}</div>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-  });
-}
+import { assignmentPinIcon } from './towerMapPins';
 
 function MapRefBridge({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
   const map = useMap();
@@ -123,7 +104,10 @@ export function TowersOverviewMap({
               <Marker
                 key={row.tower.id}
                 position={[row.tower.latitude as number, row.tower.longitude as number]}
-                icon={markerIconFor(row, free)}
+                icon={assignmentPinIcon({
+                  towerId: row.tower.tower_id,
+                  teamName: row.tower.assigned_team_name,
+                })}
                 interactive
                 bubblingMouseEvents={false}
                 zIndexOffset={free ? 400 : 200}
@@ -147,12 +131,12 @@ export function TowersOverviewMap({
                   {row.tower.assigned_team_name ? (
                     <>
                       <br />
-                      {row.tower.assigned_team_name}
+                      Assigned to {row.tower.assigned_team_name}
                     </>
                   ) : (
                     <>
                       <br />
-                      Free
+                      Free — click to assign
                     </>
                   )}
                   {row.rollup && (
@@ -161,8 +145,6 @@ export function TowersOverviewMap({
                       {row.rollup.visit_status} · {row.rollup.hotspots} hotspot{row.rollup.hotspots === 1 ? '' : 's'}
                     </>
                   )}
-                  <br />
-                  <em>{free ? 'Click to assign to your team' : 'Click to select'}</em>
                 </LeafletTooltip>
               </Marker>
             );
