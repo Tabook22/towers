@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapContainer, Marker, Polyline, TileLayer, Tooltip as LeafletTooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { Box, Chip, Dialog, DialogContent, DialogTitle, IconButton, Stack, Tooltip, Typography } from '@mui/material';
+import { Box, Chip, Dialog, DialogContent, DialogTitle, IconButton, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import OpenInFullIcon from '@mui/icons-material/OpenInFullRounded';
 import CloseIcon from '@mui/icons-material/CloseRounded';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
@@ -71,12 +71,12 @@ function OpenPopupOnMapClick({ enabled, onOpen }: { enabled: boolean; onOpen: ()
   return null;
 }
 
-function InvalidateSize() {
+function InvalidateSize({ sizeKey }: { sizeKey: string }) {
   const map = useMap();
   useEffect(() => {
     const id = window.setTimeout(() => map.invalidateSize(), 80);
     return () => window.clearTimeout(id);
-  }, [map]);
+  }, [map, sizeKey]);
   return null;
 }
 
@@ -152,8 +152,29 @@ export function TeamSiteMap({
   const center: [number, number] = positions[0] || [17.01972, 54.08972];
   const mapRef = useRef<L.Map | null>(null);
   const [popupOpen, setPopupOpen] = useState(false);
+  const [popupW, setPopupW] = useState(80);
+  const [popupH, setPopupH] = useState(80);
+  const resizeRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const [layer, setLayer] = useState<MapLayer>('street');
   const h = height;
+
+  const clampPct = (n: number) => Math.min(98, Math.max(40, Math.round(n)));
+  const onResizePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    resizeRef.current = { x: e.clientX, y: e.clientY, w: popupW, h: popupH };
+  };
+  const onResizePointerMove = (e: React.PointerEvent) => {
+    if (!resizeRef.current) return;
+    const dw = ((e.clientX - resizeRef.current.x) / window.innerWidth) * 100;
+    const dh = ((e.clientY - resizeRef.current.y) / window.innerHeight) * 100;
+    setPopupW(clampPct(resizeRef.current.w + dw));
+    setPopupH(clampPct(resizeRef.current.h + dh));
+  };
+  const onResizePointerUp = () => {
+    resizeRef.current = null;
+  };
 
   if (positions.length === 0) {
     return (
@@ -362,18 +383,38 @@ export function TeamSiteMap({
         slotProps={{
           paper: {
             sx: {
-              width: '80vw',
-              height: '80vh',
-              maxWidth: '80vw',
+              width: `${popupW}vw`,
+              height: `${popupH}vh`,
+              maxWidth: '98vw',
               m: 0,
               display: 'flex',
               flexDirection: 'column',
+              position: 'relative',
+              overflow: 'hidden',
             },
           },
         }}
       >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', pr: 1, py: 1 }}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1, py: 1, flexWrap: 'wrap' }}>
           <Typography sx={{ fontWeight: 800, flex: 1 }}>Site map</Typography>
+          <TextField
+            size="small"
+            type="number"
+            label="Width %"
+            value={popupW}
+            onChange={(e) => setPopupW(clampPct(Number(e.target.value) || 80))}
+            slotProps={{ htmlInput: { min: 40, max: 98 } }}
+            sx={{ width: 110 }}
+          />
+          <TextField
+            size="small"
+            type="number"
+            label="Height %"
+            value={popupH}
+            onChange={(e) => setPopupH(clampPct(Number(e.target.value) || 80))}
+            slotProps={{ htmlInput: { min: 40, max: 98 } }}
+            sx={{ width: 110 }}
+          />
           <Tooltip title={layer === 'street' ? 'Satellite' : 'Map'}>
             <IconButton size="small" onClick={() => setLayer((l) => (l === 'street' ? 'satellite' : 'street'))}>
               {layer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
@@ -392,7 +433,7 @@ export function TeamSiteMap({
             scrollWheelZoom
           >
             <TileLayer attribution={TILE_LAYERS[layer].attribution} url={TILE_LAYERS[layer].url} maxZoom={TILE_LAYERS[layer].maxZoom} />
-            <InvalidateSize />
+            <InvalidateSize sizeKey={`${popupW}x${popupH}`} />
             <FitToPoints positions={positions} />
             {(trails || []).flatMap((trail) =>
               splitTrailSegments(trail.points as TrailPoint[]).map((pts, i) => (
@@ -488,6 +529,26 @@ export function TeamSiteMap({
               </Marker>
             )}
           </MapContainer>
+          <Box
+            onPointerDown={onResizePointerDown}
+            onPointerMove={onResizePointerMove}
+            onPointerUp={onResizePointerUp}
+            onPointerCancel={onResizePointerUp}
+            sx={{
+              position: 'absolute',
+              right: 4,
+              bottom: 4,
+              width: 22,
+              height: 22,
+              cursor: 'nwse-resize',
+              zIndex: 2000,
+              borderRight: '3px solid rgba(0,0,0,0.45)',
+              borderBottom: '3px solid rgba(0,0,0,0.45)',
+              borderRadius: '0 0 4px 0',
+              bgcolor: 'rgba(255,255,255,0.7)',
+            }}
+            title="Drag to resize"
+          />
         </DialogContent>
       </Dialog>
     </Box>
