@@ -201,6 +201,8 @@ export function useClaimTowerForTeam() {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['team-job-map'] });
       qc.invalidateQueries({ queryKey: ['outing-plan'] });
+      qc.invalidateQueries({ queryKey: ['team-handover'] });
+      qc.invalidateQueries({ queryKey: ['team-next-towers'] });
     },
   });
 }

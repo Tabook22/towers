@@ -38,3 +38,19 @@ body {
   background: none !important;
   border: none !important;
 }
+
+/* Custom map pins — Leaflet's default .leaflet-div-icon is a tiny white box that steals or
+   misses clicks. Transparent wrapper + a real hit target so "click the pin" actually fires. */
+.leaflet-marker-icon.tower-pin {
+  background: none !important;
+  border: none !important;
+  cursor: pointer !important;
+}
+.tower-pin-hit {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}

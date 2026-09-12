@@ -19,10 +19,19 @@ const TOWER_COLORS: Record<string, string> = {
 
 function towerDot(color: string) {
   return L.divIcon({
-    className: '',
-    html: `<div style="width:14px;height:14px;border-radius:2px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35)"></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+    className: 'tower-pin',
+    html: `<div class="tower-pin-hit"><div style="width:14px;height:14px;border-radius:2px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35)"></div></div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+}
+
+function freeTowerDot() {
+  return L.divIcon({
+    className: 'tower-pin',
+    html: `<div class="tower-pin-hit"><div style="width:16px;height:16px;border-radius:50%;border:3px solid #ef6c00;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)"></div></div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
   });
 }
 
@@ -78,6 +87,9 @@ export function TeamSiteMap({
   myLabel = 'You',
   height = 380,
   plannedIds,
+  freeTowers,
+  onFreeTowerClick,
+  claiming,
 }: {
   towers?: TeamJobMapTower[];
   liveMembers?: LiveTeamMember[];
@@ -86,6 +98,9 @@ export function TeamSiteMap({
   myLabel?: string;
   height?: number;
   plannedIds?: number[];
+  freeTowers?: { id: number; tower_id: string; area: string | null; latitude: number | null; longitude: number | null }[];
+  onFreeTowerClick?: (towerId: number) => void;
+  claiming?: boolean;
 }) {
   const planned = new Set(plannedIds || []);
   const hasPlan = planned.size > 0;
@@ -96,11 +111,19 @@ export function TeamSiteMap({
   );
   const trailPts = (trails || []).flatMap((t) => t.points);
   const mapTowers = hasPlan ? towerPts.filter((t) => planned.has(t.id)) : towerPts;
+  const assignedIds = new Set((towers || []).map((t) => t.id));
+  const freePts = (freeTowers || []).filter(
+    (t) => t.latitude != null && t.longitude != null && !assignedIds.has(t.id),
+  );
+  const canClaim = Boolean(onFreeTowerClick);
   const positions: [number, number][] = [
     ...mapTowers.map((t) => [t.latitude as number, t.longitude as number] as [number, number]),
     ...livePts.map((m) => [m.latitude, m.longitude] as [number, number]),
     ...trailPts.map((p) => [p.latitude, p.longitude] as [number, number]),
     ...(myLocation ? [[myLocation.latitude, myLocation.longitude] as [number, number]] : []),
+    ...(mapTowers.length === 0 && canClaim
+      ? freePts.map((t) => [t.latitude as number, t.longitude as number] as [number, number])
+      : []),
   ];
   const center: [number, number] = positions[0] || [17.01972, 54.08972];
   const mapRef = useRef<L.Map | null>(null);
@@ -141,6 +164,9 @@ export function TeamSiteMap({
         <Chip size="small" label="Tower done" sx={{ bgcolor: '#2e7d32', color: '#fff' }} />
         <Chip size="small" label="In progress" sx={{ bgcolor: '#1976d2', color: '#fff' }} />
         <Chip size="small" label="Not started" sx={{ bgcolor: '#9e9e9e', color: '#fff' }} />
+        {canClaim && (
+          <Chip size="small" label="Free — click to assign" sx={{ bgcolor: '#fff', color: '#ef6c00', border: '1px solid #ef6c00' }} />
+        )}
         {hasPlan && <Chip size="small" color="primary" label={`${planned.size} tonight`} />}
       </Stack>
       <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)' }}>
@@ -163,8 +189,10 @@ export function TeamSiteMap({
                 key={`tw-${t.id}`}
                 position={[t.latitude as number, t.longitude as number]}
                 icon={towerDot(TOWER_COLORS[t.status] || '#9e9e9e')}
+                interactive
+                bubblingMouseEvents={false}
               >
-                <LeafletTooltip direction="top" offset={[0, -8]} opacity={1}>
+                <LeafletTooltip direction="top" offset={[0, -14]} opacity={1} interactive={false}>
                   <strong>{t.tower_id}</strong>
                   <br />
                   {t.area || ''}
@@ -173,6 +201,30 @@ export function TeamSiteMap({
                 </LeafletTooltip>
               </Marker>
             ))}
+            {canClaim &&
+              freePts.map((t) => (
+                <Marker
+                  key={`free-${t.id}`}
+                  position={[t.latitude as number, t.longitude as number]}
+                  icon={freeTowerDot()}
+                  interactive
+                  bubblingMouseEvents={false}
+                  zIndexOffset={500}
+                  eventHandlers={{
+                    click: () => {
+                      if (!claiming) onFreeTowerClick?.(t.id);
+                    },
+                  }}
+                >
+                  <LeafletTooltip direction="top" offset={[0, -14]} opacity={1} interactive={false}>
+                    <strong>{t.tower_id}</strong>
+                    <br />
+                    {t.area || '—'}
+                    <br />
+                    <em>Click to assign to this team</em>
+                  </LeafletTooltip>
+                </Marker>
+              ))}
             {livePts.map((m) => (
               <Marker
                 key={`lv-${m.user_id}`}

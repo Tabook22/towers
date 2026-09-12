@@ -786,8 +786,9 @@ export function TeamDetailPage() {
                 Site map
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Towers assigned to this team, your live pin, and tonight&apos;s track. Add a tower from
-                the admin catalog — other teams cannot take it until you or an admin release it.
+                {canManage
+                  ? 'Click an orange open pin to assign that catalog tower to this team. Assigned towers stay locked until you or an admin release them.'
+                  : "Towers assigned to this team, your live pin, and tonight's track."}
               </Typography>
             </Box>
             {canManage && (
@@ -813,6 +814,11 @@ export function TeamDetailPage() {
               ))}
             </Stack>
           )}
+          {claimError && (
+            <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setClaimError(null)}>
+              {claimError}
+            </Alert>
+          )}
           <TeamSiteMap
             towers={jobMap?.towers}
             plannedIds={outingPlan?.tower_ids}
@@ -825,6 +831,23 @@ export function TeamDetailPage() {
             }
             myLabel={currentUser?.full_name || currentUser?.username || 'You'}
             height={420}
+            freeTowers={canManage ? freeTowers : undefined}
+            claiming={claimForTeam.isPending}
+            onFreeTowerClick={
+              canManage
+                ? (towerId) => {
+                    setClaimError(null);
+                    claimForTeam.mutate(towerId, {
+                      onError: (err: unknown) => {
+                        const message =
+                          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+                          'Could not add that tower';
+                        setClaimError(String(message));
+                      },
+                    });
+                  }
+                : undefined
+            }
           />
         </CardContent>
       </Card>

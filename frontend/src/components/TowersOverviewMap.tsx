@@ -12,7 +12,7 @@ import type { DashboardTowerRow } from '../api/types';
 import { useNavigate } from 'react-router-dom';
 import { TILE_LAYERS, type MapLayer } from './MapPicker';
 
-function markerIconFor(row: DashboardTowerRow) {
+function markerIconFor(row: DashboardTowerRow, free = false) {
   let color = '#90a4ae';
   if (row.rollup) {
     if (row.rollup.hotspots > 0) color = severityColors.Critical;
@@ -20,11 +20,14 @@ function markerIconFor(row: DashboardTowerRow) {
     else if (row.rollup.visit_status === 'Inspection incomplete') color = severityColors.Low;
     else color = severityColors.Normal;
   }
+  const inner = free
+    ? `<div style="width:16px;height:16px;border-radius:50%;border:3px solid #ef6c00;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)"></div>`
+    : `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 0 0 1px rgba(0,0,0,0.35)"></div>`;
   return L.divIcon({
-    className: '',
-    html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 0 0 1px rgba(0,0,0,0.35)"></div>`,
-    iconSize: [16, 16],
-    iconAnchor: [8, 8],
+    className: 'tower-pin',
+    html: `<div class="tower-pin-hit">${inner}</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
   });
 }
 
@@ -114,39 +117,56 @@ export function TowersOverviewMap({
           />
           <MapRefBridge mapRef={mapRef} />
           <FitToPoints positions={points.map((row) => [row.tower.latitude as number, row.tower.longitude as number])} />
-          {points.map((row) => (
-            <Marker
-              key={row.tower.id}
-              position={[row.tower.latitude as number, row.tower.longitude as number]}
-              icon={markerIconFor(row)}
-              eventHandlers={{
-                click: () => {
-                  if (onTowerClick) onTowerClick(row);
-                  else navigate(`/towers/${row.tower.id}`);
-                },
-              }}
-            >
-              <LeafletTooltip direction="top" offset={[0, -10]} opacity={1}>
-                <strong>{row.tower.tower_id}</strong>
-                <br />
-                {row.tower.voltage || '—'} · {row.tower.area || 'No area set'}
-                {row.tower.tower_type ? (
-                  <>
-                    <br />
-                    {row.tower.tower_type}
-                  </>
-                ) : null}
-                {row.rollup && (
-                  <>
-                    <br />
-                    {row.rollup.visit_status} · {row.rollup.hotspots} hotspot{row.rollup.hotspots === 1 ? '' : 's'}
-                  </>
-                )}
-                <br />
-                <em>Click to select</em>
-              </LeafletTooltip>
-            </Marker>
-          ))}
+          {points.map((row) => {
+            const free = row.tower.assigned_team_id == null;
+            return (
+              <Marker
+                key={row.tower.id}
+                position={[row.tower.latitude as number, row.tower.longitude as number]}
+                icon={markerIconFor(row, free)}
+                interactive
+                bubblingMouseEvents={false}
+                zIndexOffset={free ? 400 : 200}
+                eventHandlers={{
+                  click: () => {
+                    if (onTowerClick) onTowerClick(row);
+                    else navigate(`/towers/${row.tower.id}`);
+                  },
+                }}
+              >
+                <LeafletTooltip direction="top" offset={[0, -14]} opacity={1} interactive={false}>
+                  <strong>{row.tower.tower_id}</strong>
+                  <br />
+                  {row.tower.voltage || '—'} · {row.tower.area || 'No area set'}
+                  {row.tower.tower_type ? (
+                    <>
+                      <br />
+                      {row.tower.tower_type}
+                    </>
+                  ) : null}
+                  {row.tower.assigned_team_name ? (
+                    <>
+                      <br />
+                      {row.tower.assigned_team_name}
+                    </>
+                  ) : (
+                    <>
+                      <br />
+                      Free
+                    </>
+                  )}
+                  {row.rollup && (
+                    <>
+                      <br />
+                      {row.rollup.visit_status} · {row.rollup.hotspots} hotspot{row.rollup.hotspots === 1 ? '' : 's'}
+                    </>
+                  )}
+                  <br />
+                  <em>{free ? 'Click to assign to your team' : 'Click to select'}</em>
+                </LeafletTooltip>
+              </Marker>
+            );
+          })}
         </MapContainer>
         <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           <Tooltip title={layer === 'street' ? 'Switch to satellite view' : 'Switch to street map'}>

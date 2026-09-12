@@ -1,4 +1,5 @@
 import {
+  Alert,
   Box,
   Card,
   CardContent,
@@ -24,7 +25,7 @@ import PendingActionsIcon from '@mui/icons-material/PendingActionsRounded';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAreas, useDashboardSummary, useLiveTeams, useOutingPlan, useShiftInfo, useTeamJobMap, useTeamLive, useTeams, useTeamTrails } from '../api/hooks';
+import { useAreas, useClaimTowerForTeam, useDashboardSummary, useLiveTeams, useOutingPlan, useShiftInfo, useTeamJobMap, useTeamLive, useTeams, useTeamTrails, useTowers } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { KpiTile } from '../components/KpiTile';
 import { TowersOverviewMap } from '../components/TowersOverviewMap';
@@ -52,6 +53,11 @@ export function DashboardPage() {
   const { lastLatitude, lastLongitude } = useTracking();
   const liveOnMap = (liveMembers || []).filter((m) => m.latitude != null && m.longitude != null);
   const liveActive = liveOnMap.filter((m) => !m.is_stale);
+  const canClaimTowers = user?.role === 'team_leader' || user?.role === 'admin' || user?.role === 'reviewer';
+  const { data: catalogTowers } = useTowers({ include_inactive: false, limit: 5000 });
+  const claimForTeam = useClaimTowerForTeam();
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const freeTowers = (catalogTowers || []).filter((t) => t.is_active && t.assigned_team_id == null);
 
   const reportUrl = mediaUrl(`/api/reports/overall.pdf${area ? `?area=${encodeURIComponent(area)}` : ''}`);
 
@@ -186,26 +192,20 @@ export function DashboardPage() {
                   <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }}>
                     Site map
                   </Typography>
+                  {canClaimTowers && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Click an orange open pin to assign that tower to your team.
+                    </Typography>
+                  )}
+                  {claimError && (
+                    <Alert severity="error" sx={{ mb: 1 }} onClose={() => setClaimError(null)}>
+                      {claimError}
+                    </Alert>
+                  )}
                   {isTeamLeader || teamId ? (
                     <TeamSiteMap
                       plannedIds={outingPlan?.tower_ids}
-                      towers={
-                        teamJobMap?.towers && teamJobMap.towers.length > 0
-                          ? teamJobMap.towers
-                          : data.rows.map((row) => ({
-                              id: row.tower.id,
-                              tower_id: row.tower.tower_id,
-                              area: row.tower.area,
-                              latitude: row.tower.latitude,
-                              longitude: row.tower.longitude,
-                              status: row.rollup
-                                ? row.rollup.visit_status === 'Ready for review'
-                                  ? 'completed'
-                                  : 'in_progress'
-                                : 'pending',
-                              visit_id: row.latest_visit?.id ?? null,
-                            }))
-                      }
+                      towers={teamJobMap?.towers ?? []}
                       liveMembers={teamLive}
                       trails={teamTrails}
                       myLocation={
@@ -215,6 +215,23 @@ export function DashboardPage() {
                       }
                       myLabel={user?.full_name || user?.username || 'You'}
                       height={340}
+                      freeTowers={canClaimTowers ? freeTowers : undefined}
+                      claiming={claimForTeam.isPending}
+                      onFreeTowerClick={
+                        canClaimTowers
+                          ? (towerId) => {
+                              setClaimError(null);
+                              claimForTeam.mutate(towerId, {
+                                onError: (err: unknown) => {
+                                  const message =
+                                    (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+                                    'Could not add that tower';
+                                  setClaimError(String(message));
+                                },
+                              });
+                            }
+                          : undefined
+                      }
                     />
                   ) : (
                     <TowersOverviewMap rows={data.rows} />

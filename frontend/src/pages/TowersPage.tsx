@@ -143,6 +143,7 @@ export function TowersPage() {
   const [editing, setEditing] = useState<TowerWithStats | null>(null);
   const [form, setForm] = useState<TowerFormState>(emptyForm);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [claimMsg, setClaimMsg] = useState<string | null>(null);
 
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -428,6 +429,16 @@ export function TowersPage() {
                 ? 'Click a free pin to assign it to your team. You cannot edit or delete towers — that is admin only.'
                 : 'Registered towers with GPS. Catalog edits are admin only.'}
           </Typography>
+          {isTeamLeader && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+              Orange open circles are free. Click one to assign it to your team.
+            </Typography>
+          )}
+          {claimMsg && (
+            <Alert severity="warning" sx={{ mb: 1 }} onClose={() => setClaimMsg(null)}>
+              {claimMsg}
+            </Alert>
+          )}
           <TowersOverviewMap
             rows={mapRows}
             height={380}
@@ -438,9 +449,24 @@ export function TowersPage() {
                 openEdit(t);
                 return;
               }
-              if (isTeamLeader && t.assigned_team_id == null) {
-                claimForTeam.mutate(t.id);
+              if (!isTeamLeader) return;
+              if (t.assigned_team_id != null) {
+                setClaimMsg(
+                  t.assigned_team_id === user?.team_id
+                    ? `${t.tower_id} is already on your team.`
+                    : `${t.tower_id} belongs to ${t.assigned_team_name || 'another team'}. They must release it first.`,
+                );
+                return;
               }
+              setClaimMsg(null);
+              claimForTeam.mutate(t.id, {
+                onError: (err: unknown) => {
+                  const message =
+                    (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+                    'Could not add that tower';
+                  setClaimMsg(String(message));
+                },
+              });
             }}
           />
         </CardContent>
