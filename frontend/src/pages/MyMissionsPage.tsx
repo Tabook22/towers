@@ -14,7 +14,7 @@ import PlaceIcon from '@mui/icons-material/PlaceRounded';
 import ScheduleIcon from '@mui/icons-material/ScheduleRounded';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartmentRounded';
 import { useNavigate } from 'react-router-dom';
-import { useMyMissions, useTeamJobMap, useTeamLive, useTeamTrails } from '../api/hooks';
+import { useMyMissions, useTeamJobMap, useTeamLive, useTeamTrails, useTowers } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { TeamSiteMap } from '../components/TeamSiteMap';
 import { useTracking } from '../hooks/useFieldTracking';
@@ -38,6 +38,7 @@ export function MyMissionsPage() {
   const { data: jobMap } = useTeamJobMap(teamId);
   const { data: liveMembers } = useTeamLive(teamId);
   const { data: trails } = useTeamTrails(teamId);
+  const { data: catalogTowers } = useTowers({ include_inactive: false, limit: 5000 });
   const { lastLatitude, lastLongitude } = useTracking();
 
   return (
@@ -59,7 +60,7 @@ export function MyMissionsPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             {trails?.some((t) => t.is_previous)
               ? `Your team's last recorded outing (${trails.find((t) => t.field_date)?.field_date}). Live GPS appears when someone is signed in tonight.`
-              : "Your location, the whole crew's GPS track, and the towers assigned to your team."}
+              : "Your location, the whole crew's GPS track, and every registered tower (number + Tower ID)."}
           </Typography>
           <TeamSiteMap
             towers={jobMap?.towers}
@@ -72,6 +73,7 @@ export function MyMissionsPage() {
             }
             myLabel={user?.full_name || user?.username || 'You'}
             height={380}
+            catalogTowers={catalogTowers}
           />
         </CardContent>
       </Card>

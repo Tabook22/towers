@@ -125,8 +125,10 @@ export function TeamSiteMap({
     ...livePts.map((m) => [m.latitude, m.longitude] as [number, number]),
     ...trailPts.map((p) => [p.latitude, p.longitude] as [number, number]),
     ...(myLocation ? [[myLocation.latitude, myLocation.longitude] as [number, number]] : []),
-    ...(mapTowers.length === 0 && canClaim
-      ? freePts.map((t) => [t.latitude as number, t.longitude as number] as [number, number])
+    ...(mapTowers.length === 0
+      ? (catalogPts.length
+          ? catalogPts.map((t) => [t.latitude as number, t.longitude as number] as [number, number])
+          : freePts.map((t) => [t.latitude as number, t.longitude as number] as [number, number]))
       : []),
   ];
   const center: [number, number] = positions[0] || [17.01972, 54.08972];

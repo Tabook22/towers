@@ -819,7 +819,7 @@ export function TeamDetailPage() {
               <Typography variant="body2" color="text.secondary">
                 {canManage
                   ? 'Green pin: click to assign to this team. Red pin: click to unassign (so another team can take an unfinished tower). Admin can also click a red pin from another team to give it to this team.'
-                  : "Towers assigned to this team, live GPS, and the crew's recorded track — including previous outings if tonight has not started yet."}
+                  : "Every registered tower (number + Tower ID), live GPS, and the crew's recorded track."}
               </Typography>
             </Box>
             {canManage && (
@@ -863,7 +863,7 @@ export function TeamDetailPage() {
             myLabel={currentUser?.full_name || currentUser?.username || 'You'}
             height={420}
             freeTowers={canManage ? freeTowers : undefined}
-            catalogTowers={canManage ? (towers || []).filter((t) => t.is_active) : undefined}
+            catalogTowers={(towers || []).filter((t) => t.is_active)}
             claiming={claimForTeam.isPending || releaseTower.isPending}
             onCatalogTowerClick={
               canManage

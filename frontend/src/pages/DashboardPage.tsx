@@ -250,7 +250,7 @@ export function DashboardPage() {
                       myLabel={user?.full_name || user?.username || 'You'}
                       height={340}
                       freeTowers={canClaimTowers ? freeTowers : undefined}
-                      catalogTowers={canClaimTowers ? catalogTowers : undefined}
+                      catalogTowers={catalogTowers}
                       claiming={claimForTeam.isPending || releaseTower.isPending}
                       onCatalogTowerClick={
                         canClaimTowers && teamId
