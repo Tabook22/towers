@@ -30,6 +30,7 @@ import { useAuth } from '../auth/AuthContext';
 import { KpiTile } from '../components/KpiTile';
 import { TowersOverviewMap } from '../components/TowersOverviewMap';
 import { TeamSiteMap } from '../components/TeamSiteMap';
+import { OutingPlanCard } from '../components/OutingPlanCard';
 import { useTracking } from '../hooks/useFieldTracking';
 import { VisitStatusChip } from '../components/Badges';
 import { mediaUrl } from '../api/client';
@@ -100,6 +101,23 @@ export function DashboardPage() {
           </Button>
         </Stack>
       </Stack>
+
+      {teamId && (user?.role === 'team_leader' || user?.role === 'admin' || user?.role === 'reviewer') && (
+        <OutingPlanCard
+          teamId={teamId}
+          fieldDate={shift?.field_date}
+          assignedTowers={teamJobMap?.towers || []}
+          canEdit={user?.role === 'team_leader' || user?.role === 'admin' || user?.role === 'reviewer'}
+        />
+      )}
+      {teamId && user?.role === 'team_member' && (
+        <OutingPlanCard
+          teamId={teamId}
+          fieldDate={shift?.field_date}
+          assignedTowers={teamJobMap?.towers || []}
+          canEdit={false}
+        />
+      )}
 
       {isLoading && <LinearProgress />}
 

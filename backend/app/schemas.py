@@ -686,6 +686,7 @@ class OutingPlanTowerOut(BaseModel):
 class OutingPlanOut(BaseModel):
     team_id: int
     field_date: dt.date
+    name: str | None = None
     tower_ids: list[int] = []
     towers: list[OutingPlanTowerOut] = []
     notes: str | None = None
@@ -693,6 +694,7 @@ class OutingPlanOut(BaseModel):
 
 class OutingPlanSave(BaseModel):
     field_date: dt.date | None = None
+    name: str | None = None
     tower_ids: list[int] = []
     notes: str | None = None
 

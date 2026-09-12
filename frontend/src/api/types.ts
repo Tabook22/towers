@@ -549,6 +549,7 @@ export interface OutingPlanTower {
 export interface OutingPlan {
   team_id: number;
   field_date: string;
+  name: string | null;
   tower_ids: number[];
   towers: OutingPlanTower[];
   notes: string | null;

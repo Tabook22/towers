@@ -856,7 +856,14 @@ def _outing_plan_out(plan: TeamOutingPlan) -> OutingPlanOut:
                 sort_order=row.sort_order,
             )
         )
-    return OutingPlanOut(team_id=plan.team_id, field_date=plan.field_date, tower_ids=ids, towers=rows, notes=plan.notes)
+    return OutingPlanOut(
+        team_id=plan.team_id,
+        field_date=plan.field_date,
+        name=plan.name,
+        tower_ids=ids,
+        towers=rows,
+        notes=plan.notes,
+    )
 
 
 @router.get("/{team_id}/outing-plan", response_model=OutingPlanOut)
@@ -919,6 +926,7 @@ def save_outing_plan(
         plan = TeamOutingPlan(team_id=team_id, field_date=day, created_by=user.id)
         db.add(plan)
         db.flush()
+    plan.name = (payload.name or "").strip() or None
     plan.notes = payload.notes
     plan.updated_at = dt.datetime.utcnow()
     db.query(TeamOutingTower).filter(TeamOutingTower.plan_id == plan.id).delete()

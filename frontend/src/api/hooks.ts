@@ -1312,7 +1312,7 @@ export function useOutingPlan(teamId: number | undefined, fieldDate?: string) {
 export function useSaveOutingPlan(teamId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { field_date?: string; tower_ids: number[]; notes?: string }) =>
+    mutationFn: async (payload: { field_date?: string; name?: string; tower_ids: number[]; notes?: string }) =>
       (await apiClient.put<OutingPlan>(`/api/teams/${teamId}/outing-plan`, payload)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outing-plan', teamId] });
