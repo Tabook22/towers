@@ -40,6 +40,7 @@ import { HandoverPackCard } from '../components/HandoverPackCard';
 import { DispatchChannelFeed, NightChannel } from '../components/NightChannel';
 import type { LiveTeamMember, MovementDayReport, TrackingMission, TowerStay } from '../api/types';
 import { TILE_LAYERS, type MapLayer } from '../components/MapPicker';
+import { numberedDotIcon, towerNumbersById } from '../components/towerMapPins';
 import { splitTrailSegments } from '../utils/gpsTrail';
 import {
   countByKind,
@@ -372,6 +373,7 @@ export function FieldTrackerPage() {
       ? points
       : points.filter((m) => m.team_id != null && opsTeamIds.has(m.team_id));
   const catalogWithGps = (catalogTowers || []).filter((t) => t.latitude != null && t.longitude != null);
+  const catalogNumbers = towerNumbersById(catalogWithGps);
   const selectedTeamPk = teamId ? Number(teamId) : null;
   const fitPositions: [number, number][] =
     opsFilter !== 'all' && opsPins.length > 0
@@ -648,18 +650,29 @@ export function FieldTrackerPage() {
             />
             {catalogWithGps.map((t) => {
               const mine = selectedTeamPk != null && t.assigned_team_id === selectedTeamPk;
+              const n = catalogNumbers.get(t.id);
               return (
                 <Marker
                   key={`tw-${t.id}`}
                   position={[t.latitude as number, t.longitude as number]}
-                  icon={catalogTowerIcon(mine || selectedTeamPk == null)}
+                  icon={
+                    n != null
+                      ? numberedDotIcon({
+                          mapNumber: n,
+                          color: mine || selectedTeamPk == null ? '#0d475c' : '#78909c',
+                        })
+                      : catalogTowerIcon(mine || selectedTeamPk == null)
+                  }
                   zIndexOffset={mine ? 400 : 50}
                   eventHandlers={{
                     click: () => mapRef.current?.flyTo([t.latitude as number, t.longitude as number], 16, { duration: 0.5 }),
                   }}
                 >
                   <LeafletTooltip direction="top" offset={[0, -8]} opacity={1}>
-                    <strong>{t.tower_id}</strong>
+                    <strong>
+                      {n != null ? `#${n} · ` : ''}
+                      {t.tower_id}
+                    </strong>
                     {t.area ? ` · ${t.area}` : ''}
                   </LeafletTooltip>
                   <Popup>

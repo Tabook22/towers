@@ -10,7 +10,7 @@ import 'leaflet/dist/leaflet.css';
 import type { DashboardTowerRow } from '../api/types';
 import { useNavigate } from 'react-router-dom';
 import { TILE_LAYERS, type MapLayer } from './MapPicker';
-import { assignmentPinIcon } from './towerMapPins';
+import { assignmentPinIcon, towerNumbersById } from './towerMapPins';
 
 function MapRefBridge({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
   const map = useMap();
@@ -53,6 +53,7 @@ export function TowersOverviewMap({
 }) {
   const navigate = useNavigate();
   const points = rows.filter((r) => r.tower.latitude != null && r.tower.longitude != null);
+  const mapNumbers = towerNumbersById(rows.map((r) => r.tower));
   // Salalah, Oman — the real city at the center of the Dhofar/"Dufar" governorate this app's demo
   // data is set in (see MapPicker.tsx for the source).
   const center: [number, number] =
@@ -107,6 +108,7 @@ export function TowersOverviewMap({
                 icon={assignmentPinIcon({
                   towerId: row.tower.tower_id,
                   teamName: row.tower.assigned_team_name,
+                  mapNumber: mapNumbers.get(row.tower.id),
                 })}
                 interactive
                 bubblingMouseEvents={false}
@@ -119,7 +121,10 @@ export function TowersOverviewMap({
                 }}
               >
                 <LeafletTooltip direction="top" offset={[0, -14]} opacity={1} interactive={false}>
-                  <strong>{row.tower.tower_id}</strong>
+                  <strong>
+                    {mapNumbers.get(row.tower.id) != null ? `#${mapNumbers.get(row.tower.id)} · ` : ''}
+                    {row.tower.tower_id}
+                  </strong>
                   <br />
                   {row.tower.voltage || '—'} · {row.tower.area || 'No area set'}
                   {row.tower.tower_type ? (

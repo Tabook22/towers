@@ -435,7 +435,7 @@ export function TowersPage() {
           {(isTeamLeader || canEditCatalog) && (
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
               <Typography variant="caption" color="text.secondary">
-                Green = free. Red = assigned (team name on the pin).
+                Green = free. Red = assigned (team name on the pin). Numbers are 1, 2, 3… per area (Ashoor-Saada starts at 1).
               </Typography>
               {canEditCatalog && (
                 <TextField

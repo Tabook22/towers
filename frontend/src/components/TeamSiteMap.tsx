@@ -10,7 +10,7 @@ import 'leaflet/dist/leaflet.css';
 import { TILE_LAYERS, type MapLayer } from './MapPicker';
 import { splitTrailSegments } from '../utils/gpsTrail';
 import type { LiveTeamMember, TeamJobMapTower, TrailPoint, UserTrail } from '../api/types';
-import { ASSIGNED_TOWER_COLOR, FREE_TOWER_COLOR, assignmentPinIcon } from './towerMapPins';
+import { ASSIGNED_TOWER_COLOR, FREE_TOWER_COLOR, assignmentPinIcon, numberedDotIcon, towerNumbersById } from './towerMapPins';
 
 const TOWER_COLORS: Record<string, string> = {
   completed: '#2e7d32',
@@ -128,6 +128,7 @@ export function TeamSiteMap({
   const catalogPts = (catalogTowers || []).filter((t) => t.latitude != null && t.longitude != null);
   const showCatalog = catalogPts.length > 0;
   const canClaim = Boolean(onCatalogTowerClick || onFreeTowerClick);
+  const mapNumbers = towerNumbersById(showCatalog ? catalogPts : [...mapTowers, ...freePts]);
   const positions: [number, number][] = [
     ...mapTowers.map((t) => [t.latitude as number, t.longitude as number] as [number, number]),
     ...livePts.map((m) => [m.latitude, m.longitude] as [number, number]),
@@ -212,6 +213,7 @@ export function TeamSiteMap({
                       icon={assignmentPinIcon({
                         towerId: t.tower_id,
                         teamName: t.assigned_team_name,
+                        mapNumber: mapNumbers.get(t.id),
                       })}
                       interactive
                       bubblingMouseEvents={false}
@@ -229,7 +231,10 @@ export function TeamSiteMap({
                       }
                     >
                       <LeafletTooltip direction="top" offset={[0, -14]} opacity={1} interactive={false}>
-                        <strong>{t.tower_id}</strong>
+                        <strong>
+                          {mapNumbers.get(t.id) != null ? `#${mapNumbers.get(t.id)} · ` : ''}
+                          {t.tower_id}
+                        </strong>
                         <br />
                         {t.area || '—'}
                         <br />
@@ -244,7 +249,14 @@ export function TeamSiteMap({
                   <Marker
                     key={`tw-${t.id}`}
                     position={[t.latitude as number, t.longitude as number]}
-                    icon={towerDot(TOWER_COLORS[t.status] || '#9e9e9e')}
+                    icon={
+                      mapNumbers.get(t.id) != null
+                        ? numberedDotIcon({
+                            mapNumber: mapNumbers.get(t.id) as number,
+                            color: TOWER_COLORS[t.status] || '#9e9e9e',
+                          })
+                        : towerDot(TOWER_COLORS[t.status] || '#9e9e9e')
+                    }
                     interactive
                     bubblingMouseEvents={false}
                   >
@@ -263,7 +275,11 @@ export function TeamSiteMap({
                 <Marker
                   key={`free-${t.id}`}
                   position={[t.latitude as number, t.longitude as number]}
-                  icon={assignmentPinIcon({ towerId: t.tower_id, teamName: null })}
+                  icon={assignmentPinIcon({
+                    towerId: t.tower_id,
+                    teamName: null,
+                    mapNumber: mapNumbers.get(t.id),
+                  })}
                   interactive
                   bubblingMouseEvents={false}
                   zIndexOffset={500}

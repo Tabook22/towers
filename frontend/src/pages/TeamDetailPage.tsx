@@ -117,6 +117,7 @@ import { OutingPlanCard } from '../components/OutingPlanCard';
 import { HandoverPackCard } from '../components/HandoverPackCard';
 import { ClaimTowerDialog } from '../components/ClaimTowerDialog';
 import { KpiTile } from '../components/KpiTile';
+import { numberedDotIcon, towerNumbersById } from '../components/towerMapPins';
 import type { AdminUser, NextTowerStop, NightClaimStatus, TrackingMission } from '../api/types';
 
 const MISSION_STATUS_COLORS: Record<string, 'default' | 'info' | 'success'> = {
@@ -298,6 +299,7 @@ export function TeamDetailPage() {
   const { data: teamTrails } = useTeamTrails(id);
   const { data: missions } = useTeamMissions(id);
   const { data: jobMap } = useTeamJobMap(id);
+  const jobMapNumbers = useMemo(() => towerNumbersById(jobMap?.towers || []), [jobMap?.towers]);
   const [deviceHere, setDeviceHere] = useState<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
     requestBrowserLocation((lat, lng) => setDeviceHere({ lat, lng }), undefined, false);
@@ -1800,14 +1802,21 @@ export function TeamDetailPage() {
                     .sort((a, b) => (a.id === focusedJobMapTowerId ? 1 : 0) - (b.id === focusedJobMapTowerId ? 1 : 0))
                     .map((t) => {
                       const rank = nextPlan?.stops.find((s) => s.id === t.id)?.rank;
+                      const lineNo = jobMapNumbers.get(t.id);
                       return (
                       <Marker
                         key={t.id}
                         position={[t.latitude as number, t.longitude as number]}
                         icon={
-                          rank
-                            ? planRankIcon(rank, JOB_MAP_COLORS[t.status])
-                            : dotIcon(JOB_MAP_COLORS[t.status], t.id === focusedJobMapTowerId)
+                          lineNo != null
+                            ? numberedDotIcon({
+                                mapNumber: lineNo,
+                                color: JOB_MAP_COLORS[t.status],
+                                focused: t.id === focusedJobMapTowerId,
+                              })
+                            : rank
+                              ? planRankIcon(rank, JOB_MAP_COLORS[t.status])
+                              : dotIcon(JOB_MAP_COLORS[t.status], t.id === focusedJobMapTowerId)
                         }
                         zIndexOffset={rank ? 800 : 0}
                         eventHandlers={{
@@ -1818,7 +1827,10 @@ export function TeamDetailPage() {
                         }}
                       >
                         <LeafletTooltip direction="top" offset={[0, -10]} opacity={1}>
-                          <strong>{t.tower_id}</strong>
+                          <strong>
+                            {lineNo != null ? `#${lineNo} · ` : ''}
+                            {t.tower_id}
+                          </strong>
                           <br />
                           {t.area || ''}
                           <br />
