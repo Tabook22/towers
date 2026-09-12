@@ -238,6 +238,9 @@ def match_tower_ids_to_pin_numbers(
             {"id": t.id, "old_id": old, "new_id": new_id, "pin_number": n} for t, old, new_id, n in planned
         ],
     )
+
+
+@router.post("/bulk-delete", response_model=TowerBulkDeleteResult)
 def bulk_delete_towers(
     payload: TowerBulkDeleteRequest,
     db: Session = Depends(get_db),
