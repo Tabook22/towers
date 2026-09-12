@@ -165,13 +165,30 @@ export function useUpdateTower() {
 export function usePatchTowerLocation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, latitude, longitude }: { id: number; latitude: number; longitude: number }) =>
-      (await apiClient.patch<Tower>(`/api/towers/${id}`, { latitude, longitude })).data,
+    mutationFn: async ({
+      id,
+      latitude,
+      longitude,
+      tower_id,
+    }: {
+      id: number;
+      latitude?: number;
+      longitude?: number;
+      tower_id?: string;
+    }) => {
+      const payload: Partial<Tower> = {};
+      if (latitude != null) payload.latitude = latitude;
+      if (longitude != null) payload.longitude = longitude;
+      if (tower_id != null) payload.tower_id = tower_id;
+      return (await apiClient.patch<Tower>(`/api/towers/${id}`, payload)).data;
+    },
     onSuccess: (updated) => {
       qc.setQueriesData({ queryKey: ['towers'] }, (old: unknown) => {
         if (!Array.isArray(old)) return old;
         return old.map((t: Tower) =>
-          t.id === updated.id ? { ...t, latitude: updated.latitude, longitude: updated.longitude } : t,
+          t.id === updated.id
+            ? { ...t, latitude: updated.latitude, longitude: updated.longitude, tower_id: updated.tower_id }
+            : t,
         );
       });
     },

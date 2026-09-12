@@ -8,6 +8,9 @@ import {
   Box,
   Button,
   Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   Stack,
   TextField,
@@ -80,23 +83,30 @@ export function TowersGpsEditorDialog({
   );
   const [layer, setLayer] = useState<MapLayer>('street');
   const [overrides, setOverrides] = useState<Record<number, { lat: number; lng: number }>>({});
+  const [nameOverrides, setNameOverrides] = useState<Record<number, string>>({});
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<SearchHit | null>(null);
   const [flyNonce, setFlyNonce] = useState(0);
+  const [renameTower, setRenameTower] = useState<TowerWithStats | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const patchGps = usePatchTowerLocation();
   const saving = useRef<Set<number>>(new Set());
+  const dragged = useRef(false);
+
+  const displayId = (t: TowerWithStats) => nameOverrides[t.id] ?? t.tower_id;
 
   const searchOptions: SearchHit[] = useMemo(() => {
     return (towers || []).map((t) => {
       const mapNumber = numbers.get(t.id) ?? null;
-      const label = `${mapNumber != null ? `#${mapNumber} · ` : ''}${t.tower_id}${t.area ? ` · ${t.area}` : ''}${
+      const tid = nameOverrides[t.id] ?? t.tower_id;
+      const label = `${mapNumber != null ? `#${mapNumber} · ` : ''}${tid}${t.area ? ` · ${t.area}` : ''}${
         t.latitude == null ? ' · no GPS' : ''
       }`;
       return { id: t.id, label, tower: t, mapNumber };
     });
-  }, [towers, numbers]);
+  }, [towers, numbers, nameOverrides]);
 
   const filteredOptions = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -145,10 +155,12 @@ export function TowersGpsEditorDialog({
   useEffect(() => {
     if (!open) {
       setOverrides({});
+      setNameOverrides({});
       setStatus(null);
       setError(null);
       setQuery('');
       setPicked(null);
+      setRenameTower(null);
     }
   }, [open]);
 
@@ -156,6 +168,40 @@ export function TowersGpsEditorDialog({
     const o = overrides[t.id];
     if (o) return [o.lat, o.lng];
     return [t.latitude as number, t.longitude as number];
+  };
+
+  const openRename = (t: TowerWithStats) => {
+    setRenameTower(t);
+    setRenameValue(displayId(t));
+    setError(null);
+  };
+
+  const saveRename = () => {
+    if (!renameTower) return;
+    const next = renameValue.trim();
+    if (!next) {
+      setError('Tower ID cannot be empty.');
+      return;
+    }
+    if (next.toLowerCase() === displayId(renameTower).toLowerCase()) {
+      setRenameTower(null);
+      return;
+    }
+    const n = numbers.get(renameTower.id);
+    patchGps.mutate(
+      { id: renameTower.id, tower_id: next },
+      {
+        onSuccess: (updated) => {
+          setNameOverrides((prev) => ({ ...prev, [renameTower.id]: updated.tower_id }));
+          setRenameTower(null);
+          setStatus(`Saved ${n != null ? `#${n} ` : ''}ID → ${updated.tower_id}`);
+        },
+        onError: (err: unknown) => {
+          const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+          setError(typeof detail === 'string' ? detail : `Could not rename ${displayId(renameTower)}`);
+        },
+      },
+    );
   };
 
   const handleDragEnd = (t: TowerWithStats, marker: L.Marker) => {
@@ -171,12 +217,12 @@ export function TowersGpsEditorDialog({
       {
         onSuccess: () => {
           saving.current.delete(t.id);
-          setStatus(`Saved ${n != null ? `#${n} ` : ''}${t.tower_id} → ${lat}, ${lng}`);
+          setStatus(`Saved ${n != null ? `#${n} ` : ''}${displayId(t)} → ${lat}, ${lng}`);
         },
         onError: (err: unknown) => {
           saving.current.delete(t.id);
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setError(typeof detail === 'string' ? detail : `Could not save ${t.tower_id}`);
+          setError(typeof detail === 'string' ? detail : `Could not save ${displayId(t)}`);
         },
       },
     );
@@ -233,7 +279,7 @@ export function TowersGpsEditorDialog({
       <Stack sx={{ height: '100%', minHeight: 0 }}>
         <Box sx={{ px: 2, py: 1, borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
           <Typography variant="body2" color="text.secondary">
-            Search a tower number, then drag that pin. GPS is saved as soon as you drop it.
+            Search or click a pin to rename its Tower ID. Drag a pin to move GPS. Both save immediately.
             {withGps.length ? ` Showing ${withGps.length} tower${withGps.length === 1 ? '' : 's'} with coordinates.` : ''}
           </Typography>
           {status && (
@@ -280,22 +326,34 @@ export function TowersGpsEditorDialog({
                             focused: true,
                           })
                         : assignmentPinIcon({
-                            towerId: t.tower_id,
+                            towerId: displayId(t),
                             teamName: t.assigned_team_name,
                             mapNumber: n,
                           })
                     }
                     eventHandlers={{
-                      dragend: (e) => handleDragEnd(t, e.target as L.Marker),
+                      dragstart: () => {
+                        dragged.current = true;
+                      },
+                      dragend: (e) => {
+                        handleDragEnd(t, e.target as L.Marker);
+                        window.setTimeout(() => {
+                          dragged.current = false;
+                        }, 0);
+                      },
+                      click: () => {
+                        if (dragged.current) return;
+                        openRename(t);
+                      },
                     }}
                   >
                     <LeafletTooltip direction="top" offset={[0, -14]} opacity={1} interactive={false}>
                       <strong>
                         {numbers.get(t.id) != null ? `#${numbers.get(t.id)} · ` : ''}
-                        {t.tower_id}
+                        {displayId(t)}
                       </strong>
                       <br />
-                      Drag to update GPS
+                      Click to rename · drag to move GPS
                     </LeafletTooltip>
                   </Marker>
                 );
@@ -315,6 +373,35 @@ export function TowersGpsEditorDialog({
           </Box>
         </Box>
       </Stack>
+
+      <Dialog open={!!renameTower} onClose={() => setRenameTower(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Change Tower ID</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, mt: 0.5 }}>
+            {renameTower && numbers.get(renameTower.id) != null ? `Map #${numbers.get(renameTower.id)} · ` : ''}
+            Saves as soon as you confirm.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Tower ID"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                saveRename();
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRenameTower(null)}>Cancel</Button>
+          <Button variant="contained" onClick={saveRename} disabled={patchGps.isPending || !renameValue.trim()}>
+            {patchGps.isPending ? 'Saving…' : 'Save ID'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 }
