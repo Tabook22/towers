@@ -53,6 +53,7 @@ import {
   useDeactivateTower,
   useDeleteArea,
   useImportTowers,
+  useMatchPinIds,
   useTeams,
   useTowers,
   useUpdateArea,
@@ -193,6 +194,8 @@ export function TowersPage() {
   const [deleteAll, setDeleteAll] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [gpsEditorOpen, setGpsEditorOpen] = useState(false);
+  const matchPinIds = useMatchPinIds();
+  const [renumberMsg, setRenumberMsg] = useState<string | null>(null);
   const claimForTeam = useClaimTowerForTeam();
   const releaseTower = useReleaseTower();
   const [mapAssignTeamId, setMapAssignTeamId] = useState('');
@@ -338,6 +341,33 @@ export function TowersPage() {
               </Button>
               <Button
                 variant="outlined"
+                disabled={!towers?.length || matchPinIds.isPending}
+                onClick={() => {
+                  const scope = area ? `towers in ${area}` : 'all towers';
+                  if (
+                    !window.confirm(
+                      `Match Tower IDs to pin numbers for ${scope}?\n\nExample: Ashoor-Saada-100 with pin 67 becomes Ashoor-Saada-67.`,
+                    )
+                  ) {
+                    return;
+                  }
+                  setRenumberMsg(null);
+                  matchPinIds.mutate(area ? { area } : {}, {
+                    onSuccess: (r) =>
+                      setRenumberMsg(
+                        `Updated ${r.updated} Tower ID${r.updated === 1 ? '' : 's'} to match pin numbers (${r.unchanged} already matched).`,
+                      ),
+                    onError: (err: unknown) => {
+                      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+                      setRenumberMsg(typeof detail === 'string' ? detail : 'Could not match IDs to pin numbers');
+                    },
+                  });
+                }}
+              >
+                {matchPinIds.isPending ? 'Matching IDs…' : 'Match IDs to pin numbers'}
+              </Button>
+              <Button
+                variant="outlined"
                 color="error"
                 startIcon={<DeleteOutlineIcon />}
                 onClick={() => {
@@ -434,6 +464,15 @@ export function TowersPage() {
           ))}
         </TextField>
       </Stack>
+
+      {renumberMsg && (
+        <Alert
+          severity={renumberMsg.startsWith('Updated') ? 'success' : 'error'}
+          onClose={() => setRenumberMsg(null)}
+        >
+          {renumberMsg}
+        </Alert>
+      )}
 
       {selected.size > 0 && canImport && (
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', p: 1.5, bgcolor: 'primary.50', borderRadius: 2 }}>

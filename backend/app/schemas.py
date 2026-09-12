@@ -185,6 +185,23 @@ class TowerBulkDeleteResult(BaseModel):
     ids: list[int] = []
 
 
+class TowerRenumberRequest(BaseModel):
+    area: str | None = None  # if set, only that area; otherwise every area
+
+
+class TowerRenumberChange(BaseModel):
+    id: int
+    old_id: str
+    new_id: str
+    pin_number: int
+
+
+class TowerRenumberResult(BaseModel):
+    updated: int
+    unchanged: int
+    changes: list[TowerRenumberChange] = []
+
+
 class TowerClaimRequest(BaseModel):
     """Optional for a team leader (their own team is implied). Required for admin/reviewer."""
     team_id: int | None = None

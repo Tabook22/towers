@@ -24,7 +24,7 @@ import MapIcon from '@mui/icons-material/MapRounded';
 import 'leaflet/dist/leaflet.css';
 import { TILE_LAYERS, type MapLayer } from './MapPicker';
 import { assignmentPinIcon, numberedDotIcon, towerNumbersById } from './towerMapPins';
-import { usePatchTowerLocation } from '../api/hooks';
+import { useMatchPinIds, usePatchTowerLocation } from '../api/hooks';
 import type { TowerWithStats } from '../api/types';
 
 type SearchHit = {
@@ -92,6 +92,7 @@ export function TowersGpsEditorDialog({
   const [renameTower, setRenameTower] = useState<TowerWithStats | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const patchGps = usePatchTowerLocation();
+  const matchPinIds = useMatchPinIds();
   const saving = useRef<Set<number>>(new Set());
   const dragged = useRef(false);
 
@@ -271,6 +272,36 @@ export function TowersGpsEditorDialog({
               />
             )}
           />
+          <Button
+            color="inherit"
+            disabled={matchPinIds.isPending || !towers.length}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  'Match Tower IDs to pin numbers?\n\nExample: Ashoor-Saada-100 with pin 67 becomes Ashoor-Saada-67.',
+                )
+              ) {
+                return;
+              }
+              matchPinIds.mutate(
+                {},
+                {
+                  onSuccess: (r) => {
+                    setNameOverrides({});
+                    setStatus(
+                      `Updated ${r.updated} Tower ID${r.updated === 1 ? '' : 's'} to match pin numbers (${r.unchanged} already matched).`,
+                    );
+                  },
+                  onError: (err: unknown) => {
+                    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+                    setError(typeof detail === 'string' ? detail : 'Could not match IDs to pin numbers');
+                  },
+                },
+              );
+            }}
+          >
+            {matchPinIds.isPending ? 'Matching IDs…' : 'Match IDs to pin numbers'}
+          </Button>
           <Button color="inherit" onClick={onClose} startIcon={<CloseIcon />}>
             Done
           </Button>

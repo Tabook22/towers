@@ -276,6 +276,25 @@ export function useBulkAssignTowers() {
   });
 }
 
+export function useMatchPinIds() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload?: { area?: string }) =>
+      (
+        await apiClient.post<{
+          updated: number;
+          unchanged: number;
+          changes: { id: number; old_id: string; new_id: string; pin_number: number }[];
+        }>('/api/towers/match-pin-ids', payload || {})
+      ).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['towers'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['team-job-map'] });
+    },
+  });
+}
+
 export function useBulkDeleteTowers() {
   const qc = useQueryClient();
   return useMutation({

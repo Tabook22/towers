@@ -27,6 +27,8 @@ from app.schemas import (
     TowerBulkAssignRequest,
     TowerBulkDeleteRequest,
     TowerBulkDeleteResult,
+    TowerRenumberRequest,
+    TowerRenumberResult,
     TowerClaimRequest,
     TowerCreate,
     TowerImportResult,
@@ -43,6 +45,7 @@ from app.services.archive import (
 )
 from app.services.rollup import visit_rollup
 from app.services.tower_import import build_tower_import_template, export_towers_workbook, import_towers_from_excel
+from app.services.tower_numbers import desired_tower_id, tower_pin_numbers
 
 router = APIRouter(prefix="/api/towers", tags=["towers"])
 
@@ -184,7 +187,57 @@ def bulk_assign_towers(
     return [_tower_out(t) for t in towers]
 
 
-@router.post("/bulk-delete", response_model=TowerBulkDeleteResult)
+@router.post("/match-pin-ids", response_model=TowerRenumberResult)
+def match_tower_ids_to_pin_numbers(
+    payload: TowerRenumberRequest,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
+):
+    """Rewrite Tower IDs so the trailing number equals the map pin number.
+
+    Example: Ashoor-Saada-100 with pin 67 becomes Ashoor-Saada-67. Pin numbers are 1, 2, 3…
+    per area (same rules as the map). Uses a two-step rename so unique IDs do not clash mid-swap.
+    """
+    q = db.query(Tower).filter(Tower.is_active.is_(True))
+    if payload.area:
+        q = q.filter(Tower.area == payload.area)
+    towers = q.all()
+    pins = tower_pin_numbers(towers)
+    planned: list[tuple[Tower, str, str, int]] = []
+    for t in towers:
+        n = pins.get(t.id)
+        if n is None:
+            continue
+        new_id = desired_tower_id(t.tower_id, n, t.area)
+        if new_id != t.tower_id:
+            planned.append((t, t.tower_id, new_id, n))
+    wanted = [new_id for _t, _old, new_id, _n in planned]
+    dupes = sorted({name for name in wanted if wanted.count(name) > 1})
+    if dupes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Two towers would get the same ID after renumbering: {dupes[:8]}",
+        )
+    for t, _old, _new_id, _n in planned:
+        t.tower_id = f"__pin_{t.id}__"
+    db.flush()
+    for t, _old, new_id, _n in planned:
+        t.tower_id = new_id
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Could not rename — a Tower ID would collide. Check for duplicate pin numbers.",
+        )
+    return TowerRenumberResult(
+        updated=len(planned),
+        unchanged=len(towers) - len(planned),
+        changes=[
+            {"id": t.id, "old_id": old, "new_id": new_id, "pin_number": n} for t, old, new_id, n in planned
+        ],
+    )
 def bulk_delete_towers(
     payload: TowerBulkDeleteRequest,
     db: Session = Depends(get_db),
