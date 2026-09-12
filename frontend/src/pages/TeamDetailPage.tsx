@@ -58,6 +58,7 @@ import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
 import MapIcon from '@mui/icons-material/MapRounded';
 import DirectionsIcon from '@mui/icons-material/DirectionsRounded';
 import CloseIcon from '@mui/icons-material/CloseRounded';
+import MyLocationIcon from '@mui/icons-material/MyLocationRounded';
 import RouteIcon from '@mui/icons-material/RouteRounded';
 import TimerIcon from '@mui/icons-material/TimerRounded';
 import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalkRounded';
@@ -118,7 +119,7 @@ import { HandoverPackCard } from '../components/HandoverPackCard';
 import { ClaimTowerDialog } from '../components/ClaimTowerDialog';
 import { KpiTile } from '../components/KpiTile';
 import { extractTowerNumber, numberedDotIcon, towerNumbersById } from '../components/towerMapPins';
-import type { AdminUser, NextTowerStop, NightClaimStatus, TrackingMission } from '../api/types';
+import type { AdminUser, LiveTeamMember, NextTowerStop, NightClaimStatus, TrackingMission } from '../api/types';
 
 const MISSION_STATUS_COLORS: Record<string, 'default' | 'info' | 'success'> = {
   planned: 'default',
@@ -262,6 +263,34 @@ function towerSquareIcon(label: string) {
     iconSize: [180, 46],
     iconAnchor: [90, 9],
   });
+}
+
+function DayPathMap({
+  teamId,
+  logDate,
+  isToday,
+  liveMembers,
+}: {
+  teamId: number;
+  logDate: string;
+  isToday: boolean;
+  liveMembers: LiveTeamMember[] | undefined;
+}) {
+  const { data: trails } = useTeamTrails(teamId, logDate);
+  const hasPath = (trails || []).some((t) => t.points.length > 0);
+  if (!hasPath && !(isToday && (liveMembers || []).length)) return null;
+  return (
+    <Box>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+        GPS path this outing — updates live while the crew is signed in
+      </Typography>
+      <TeamSiteMap
+        liveMembers={isToday ? liveMembers : undefined}
+        trails={trails}
+        height={240}
+      />
+    </Box>
+  );
 }
 
 export function TeamDetailPage() {
@@ -2173,8 +2202,8 @@ export function TeamDetailPage() {
                 Daily progress log
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Type a note, record your voice, or attach several photos and PDFs (add photos, then add
-                documents — they upload together).
+                GPS path is recorded automatically when the crew signs in. Notes, voice, and files can
+                still be added below.
               </Typography>
             </Box>
             <Stack direction="row" spacing={1.5}>
@@ -2263,8 +2292,27 @@ export function TeamDetailPage() {
                     <Chip size="small" label={`${day.screened} screened`} />
                     {day.hotspots > 0 && <Chip size="small" color="error" label={`${day.hotspots} hotspots`} />}
                     <Chip size="small" variant="outlined" label={`${day.images_captured} images`} />
+                    {(day.ping_count ?? 0) > 0 && (
+                      <Chip
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                        icon={<MyLocationIcon />}
+                        label={`${(day.path_km ?? 0).toFixed(1)} km · ${day.ping_count} GPS points`}
+                      />
+                    )}
                   </Stack>
                 </Stack>
+                {(day.ping_count ?? 0) > 0 && (
+                  <Box sx={{ mt: 1.5 }}>
+                    <DayPathMap
+                      teamId={id}
+                      logDate={day.log_date}
+                      isToday={day.log_date === shift?.field_date}
+                      liveMembers={liveMembers}
+                    />
+                  </Box>
+                )}
 
                 {(day.notes.length > 0 || queuedNotesForDay(day.log_date).length > 0) && (
                   <Stack spacing={1.25} sx={{ mt: 1.5 }}>

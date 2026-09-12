@@ -957,6 +957,8 @@ class TeamDayProgress(BaseModel):
     images_captured: int
     first_seen: dt.datetime | None = None  # earliest GPS ping that day — the day's "start time"
     last_seen: dt.datetime | None = None
+    ping_count: int = 0
+    path_km: float = 0
     notes: list[TeamDailyLogOut] = []
 
 

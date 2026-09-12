@@ -14,8 +14,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.deps import get_current_user, require_role
-from app.models import LocationPing, Position, TrackingMission, User, UserRole, Visit
+from app.deps import effective_team_id, get_current_user, require_role
+from app.models import LocationPing, Position, TeamDailyLog, TrackingMission, User, UserRole, Visit
 from app.schemas import (
     LiveTeamMember,
     LocationPingCreate,
@@ -155,7 +155,31 @@ def send_ping(payload: LocationPingCreate, db: Session = Depends(get_db), user: 
         # Ignore a duplicate heartbeat that hasn't actually moved and isn't a minute old yet.
         if age < 50 and moved < 8:
             return None
+    field_date = current_field_date()
+    start, end = shift_window(field_date)
+    first_tonight = (
+        db.query(LocationPing.id)
+        .filter(
+            LocationPing.user_id == user.id,
+            LocationPing.recorded_at >= start,
+            LocationPing.recorded_at < end,
+        )
+        .first()
+        is None
+    )
     db.add(LocationPing(user_id=user.id, **payload.model_dump()))
+    tid = effective_team_id(db, user)
+    if first_tonight and tid:
+        when = dt.datetime.now(FIELD_TZ).strftime("%H:%M")
+        who = user.full_name or user.username
+        db.add(
+            TeamDailyLog(
+                team_id=tid,
+                log_date=field_date,
+                note=f"GPS tracking started — {who} at {when}. Path is recorded for this outing.",
+                created_by=user.id,
+            )
+        )
     db.commit()
     return None
 

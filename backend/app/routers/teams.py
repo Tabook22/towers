@@ -66,7 +66,7 @@ from app.schemas import (
 from app.config import settings
 from app.services.archive import file_extension, save_upload
 from app.services.handover import build_handover_pack, continue_last_night, end_outing
-from app.services.movement import build_team_progress, current_field_date, hour_window, shift_window
+from app.services.movement import build_team_progress, current_field_date, haversine_m, hour_window, shift_window
 from app.services.next_towers import build_next_towers
 from app.services.rollup import visit_rollup
 from app.services.transcribe import transcribe_audio
@@ -1050,20 +1050,33 @@ def team_progress(
                 images_captured += sum(1 for img in p.images if img.file_path)
 
         first_seen = last_seen = None
+        ping_count = 0
+        path_km = 0.0
         if user_ids:
             # Night crews run 18:00–18:00 Oman; a calendar-midnight split would cut one outing in two.
             day_start, day_end = shift_window(d)
-            bounds = (
-                db.query(func.min(LocationPing.recorded_at), func.max(LocationPing.recorded_at))
+            pings = (
+                db.query(LocationPing)
                 .filter(
                     LocationPing.user_id.in_(user_ids),
                     LocationPing.recorded_at >= day_start,
                     LocationPing.recorded_at < day_end,
                 )
-                .first()
+                .order_by(LocationPing.user_id.asc(), LocationPing.recorded_at.asc())
+                .all()
             )
-            if bounds and bounds[0] is not None:
-                first_seen, last_seen = bounds[0], bounds[1]
+            ping_count = len(pings)
+            if pings:
+                first_seen = min(p.recorded_at for p in pings)
+                last_seen = max(p.recorded_at for p in pings)
+                by_user: dict[int, list[LocationPing]] = {}
+                for p in pings:
+                    by_user.setdefault(p.user_id, []).append(p)
+                metres = 0.0
+                for pts in by_user.values():
+                    for a, b in zip(pts, pts[1:]):
+                        metres += haversine_m(a.latitude, a.longitude, b.latitude, b.longitude)
+                path_km = round(metres / 1000.0, 2)
 
         days.append(
             TeamDayProgress(
@@ -1075,6 +1088,8 @@ def team_progress(
                 images_captured=images_captured,
                 first_seen=first_seen,
                 last_seen=last_seen,
+                ping_count=ping_count,
+                path_km=path_km,
                 notes=[_note_out(n, db) for n in notes_by_date.get(d, [])],
             )
         )

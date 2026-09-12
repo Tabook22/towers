@@ -780,5 +780,7 @@ export interface TeamDayProgress {
   images_captured: number;
   first_seen: string | null;
   last_seen: string | null;
+  ping_count: number;
+  path_km: number;
   notes: TeamDailyLog[];
 }

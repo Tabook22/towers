@@ -243,11 +243,13 @@ export function useFieldTracking(active: boolean, required = false): TrackingSta
       /* ignore */
     }
 
-    // Only auto-start if the browser already granted Location for this site.
-    // If we ask here without a tap, Chrome/Safari hide or auto-block the Allow popup,
-    // and the later button click appears to "do nothing".
+    // Field crews: start the GPS watch as soon as they are logged in. If the browser already
+    // allowed Location at Sign in, pings go out immediately. If not, status stays locating and
+    // the Allow banner still appears — we cannot open the OS popup without a tap.
+    startWatch();
     void geoAlreadyAllowed().then((allowed) => {
-      if (allowed && !deniedRef.current) {
+      if (deniedRef.current) return;
+      if (allowed) {
         requestNow();
         startWatch();
       } else if (!lastSentRef.current) {

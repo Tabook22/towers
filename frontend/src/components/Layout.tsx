@@ -78,7 +78,7 @@ function TrackingChip() {
     <Tooltip
       title={
         required
-          ? 'Location is sent automatically every minute while the app is open. Dispatch can see this crew on Field Tracker.'
+          ? 'Location starts when you sign in. The path is saved on the daily team log so dispatch can follow this crew live.'
           : enabled
             ? 'Sharing your location with dispatch — click to stop'
             : 'Not sharing location — click to start'
