@@ -1609,6 +1609,7 @@ export function TeamDetailPage() {
         teamId={id}
         fieldDate={shift?.field_date}
         assignedTowers={jobMap?.towers || []}
+        catalogTowers={(towers || []).filter((t) => t.is_active)}
         canEdit={canManage}
       />
 

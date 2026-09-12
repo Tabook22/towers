@@ -107,6 +107,7 @@ export function DashboardPage() {
           teamId={teamId}
           fieldDate={shift?.field_date}
           assignedTowers={teamJobMap?.towers || []}
+          catalogTowers={catalogTowers}
           canEdit={user?.role === 'team_leader' || user?.role === 'admin' || user?.role === 'reviewer'}
         />
       )}

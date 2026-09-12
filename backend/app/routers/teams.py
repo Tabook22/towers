@@ -860,6 +860,8 @@ def _outing_plan_out(plan: TeamOutingPlan) -> OutingPlanOut:
         team_id=plan.team_id,
         field_date=plan.field_date,
         name=plan.name,
+        start_time=plan.start_time,
+        end_time=plan.end_time,
         tower_ids=ids,
         towers=rows,
         notes=plan.notes,
@@ -894,7 +896,12 @@ def save_outing_plan(
     db: Session = Depends(get_db),
     user: User = Depends(require_team_scope()),
 ):
-    """Leader picks which assigned towers the crew will visit tonight — before leaving for site."""
+    """Leader picks which towers the crew will visit tonight — before leaving for site.
+
+    Picking a tower that isn't assigned to any team yet also assigns it to this team (one step
+    instead of "claim it, then plan it") — but a tower another team already owns can't be taken
+    this way, to avoid two crews being sent to the same tower.
+    """
     _load_team(db, team_id)
     day = payload.field_date or current_field_date()
     wanted: list[int] = []
@@ -910,12 +917,15 @@ def save_outing_plan(
         missing = [tid for tid in wanted if tid not in by_id]
         if missing:
             raise HTTPException(status_code=400, detail="One or more towers were not found")
-        wrong = [t.tower_id for t in towers if t.assigned_team_id != team_id]
+        wrong = [t.tower_id for t in towers if t.assigned_team_id is not None and t.assigned_team_id != team_id]
         if wrong:
             raise HTTPException(
                 status_code=400,
-                detail=f"These towers are not assigned to this team: {', '.join(wrong)}",
+                detail=f"These towers are already assigned to another team: {', '.join(wrong)}",
             )
+        for t in towers:
+            if t.assigned_team_id is None:
+                t.assigned_team_id = team_id
     plan = (
         db.query(TeamOutingPlan)
         .options(joinedload(TeamOutingPlan.towers).joinedload(TeamOutingTower.tower))
@@ -927,6 +937,8 @@ def save_outing_plan(
         db.add(plan)
         db.flush()
     plan.name = (payload.name or "").strip() or None
+    plan.start_time = payload.start_time
+    plan.end_time = payload.end_time
     plan.notes = payload.notes
     plan.updated_at = dt.datetime.utcnow()
     db.query(TeamOutingTower).filter(TeamOutingTower.plan_id == plan.id).delete()

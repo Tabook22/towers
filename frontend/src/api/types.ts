@@ -550,6 +550,9 @@ export interface OutingPlan {
   team_id: number;
   field_date: string;
   name: string | null;
+  // "HH:MM:SS", informational schedule only — see backend TeamOutingPlan.start_time/end_time.
+  start_time: string | null;
+  end_time: string | null;
   tower_ids: number[];
   towers: OutingPlanTower[];
   notes: string | null;

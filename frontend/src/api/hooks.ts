@@ -1312,13 +1312,24 @@ export function useOutingPlan(teamId: number | undefined, fieldDate?: string) {
 export function useSaveOutingPlan(teamId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { field_date?: string; name?: string; tower_ids: number[]; notes?: string }) =>
+    mutationFn: async (payload: {
+      field_date?: string;
+      name?: string;
+      start_time?: string | null;
+      end_time?: string | null;
+      tower_ids: number[];
+      notes?: string;
+    }) =>
       (await apiClient.put<OutingPlan>(`/api/teams/${teamId}/outing-plan`, payload)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outing-plan', teamId] });
       qc.invalidateQueries({ queryKey: ['team-next-towers', teamId] });
       qc.invalidateQueries({ queryKey: ['team-job-map', teamId] });
       qc.invalidateQueries({ queryKey: ['team-handover', teamId] });
+      // A tower picked from the free catalog gets auto-assigned to this team on save (see
+      // save_outing_plan) — refresh the towers catalog so that shows up everywhere else too
+      // (Towers page, other teams' "free towers" lists, etc.).
+      qc.invalidateQueries({ queryKey: ['towers'] });
     },
   });
 }

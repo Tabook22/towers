@@ -631,6 +631,10 @@ class TeamOutingPlan(Base):
     team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
     field_date: Mapped[dt.date] = mapped_column(Date, index=True)
     name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Planned schedule the leader sets for tonight — informational only, no effect on the
+    # automatic field_date/shift logic (see current_field_date()) or on End outing.
+    start_time: Mapped[dt.time | None] = mapped_column(Time, nullable=True)
+    end_time: Mapped[dt.time | None] = mapped_column(Time, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
