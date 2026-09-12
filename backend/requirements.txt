@@ -20,3 +20,4 @@ reportlab==5.0.1
 openpyxl==3.1.5
 faster-whisper==1.1.1
 requests==2.32.3
+tzdata==2026.4
