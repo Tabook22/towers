@@ -872,10 +872,27 @@ export function TowersPage() {
 
             <Typography variant="subtitle2">Tower GPS location</Typography>
             <MapPicker
+              key={editing?.id ?? 'new'}
               latitude={form.latitude}
               longitude={form.longitude}
               onChange={(lat, lng) => setForm((f) => ({ ...f, latitude: lat, longitude: lng }))}
-              label={form.tower_id}
+              label={form.tower_id || 'New tower'}
+              highlight
+              height={420}
+              currentId={editing?.id}
+              otherTowers={(towers || [])
+                .filter((t) => t.id !== editing?.id && t.latitude != null && t.longitude != null)
+                .map((t) => ({
+                  id: t.id,
+                  tower_id: t.tower_id,
+                  area: t.area,
+                  latitude: t.latitude,
+                  longitude: t.longitude,
+                }))}
+              onSelectOther={(id) => {
+                const t = (towers || []).find((x) => x.id === id);
+                if (t) openEdit(t);
+              }}
             />
             <Stack direction="row" spacing={2}>
               <TextField

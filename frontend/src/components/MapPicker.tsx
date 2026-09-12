@@ -11,6 +11,7 @@ import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreenRounded';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
 import MapIcon from '@mui/icons-material/MapRounded';
 import 'leaflet/dist/leaflet.css';
+import { numberedDotIcon, towerNumbersById } from './towerMapPins';
 
 export type MapLayer = 'street' | 'satellite';
 
@@ -67,6 +68,17 @@ interface MapPickerProps {
    * point is "the tower this screen is about" (a mission's tower, a tower's own page), so it's
    * unmistakable at a glance rather than looking like just another location. */
   highlight?: boolean;
+  /** Other catalog towers to draw as numbered context pins (add/edit tower dialog). */
+  otherTowers?: {
+    id: number;
+    tower_id: string;
+    area?: string | null;
+    latitude: number | null;
+    longitude: number | null;
+  }[];
+  /** Clicking a context pin — used to jump to editing that tower. */
+  onSelectOther?: (id: number) => void;
+  currentId?: number;
 }
 
 function ClickHandler({ onChange }: { onChange?: (lat: number, lng: number) => void }) {
@@ -75,6 +87,21 @@ function ClickHandler({ onChange }: { onChange?: (lat: number, lng: number) => v
       onChange?.(Number(e.latlng.lat.toFixed(6)), Number(e.latlng.lng.toFixed(6)));
     },
   });
+  return null;
+}
+
+function FitToContext({ positions }: { positions: [number, number][] }) {
+  const map = useMap();
+  const key = positions.map((p) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join('|');
+  useEffect(() => {
+    if (positions.length === 0) return;
+    if (positions.length === 1) {
+      map.setView(positions[0], 15);
+      return;
+    }
+    map.fitBounds(L.latLngBounds(positions), { padding: [36, 36], maxZoom: 16 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
   return null;
 }
 
@@ -98,14 +125,32 @@ export function MapPicker({
   readOnly = false,
   label,
   highlight = false,
+  otherTowers = [],
+  onSelectOther,
+  currentId,
   // Salalah, Oman (17.01972°N 54.08972°E per Wikipedia) — the real city at the center of the
   // Dhofar/"Dufar" governorate this app's demo data is set in. Was wrongly defaulting to a
   // generic Abu Dhabi-area point before.
   fallbackCenter = [17.01972, 54.08972],
 }: MapPickerProps) {
   const hasPoint = typeof latitude === 'number' && typeof longitude === 'number';
+  const contextPts = otherTowers.filter((t) => t.latitude != null && t.longitude != null);
+  const mapNumbers = towerNumbersById(
+    contextPts.concat(
+      currentId != null && hasPoint
+        ? [{ id: currentId, tower_id: label || '', latitude: latitude as number, longitude: longitude as number }]
+        : [],
+    ),
+  );
+  const fitPositions = useMemo<[number, number][]>(() => {
+    const pts = contextPts.map((t) => [t.latitude as number, t.longitude as number] as [number, number]);
+    if (hasPoint) pts.push([latitude as number, longitude as number]);
+    return pts;
+    // Fit to neighbors + the starting pin, not every drag of the current marker.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextPts.map((t) => t.id).join(',')]);
   const center = useMemo<[number, number]>(
-    () => (hasPoint ? [latitude as number, longitude as number] : fallbackCenter),
+    () => (hasPoint ? [latitude as number, longitude as number] : contextPts[0] ? [contextPts[0].latitude as number, contextPts[0].longitude as number] : fallbackCenter),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
@@ -168,12 +213,48 @@ export function MapPicker({
             maxZoom={TILE_LAYERS[layer].maxZoom}
           />
           <MapRefBridge mapRef={mapRef} />
+          <FitToContext positions={fitPositions.length ? fitPositions : hasPoint ? [[latitude as number, longitude as number]] : []} />
           {!readOnly && <ClickHandler onChange={onChange} />}
+          {contextPts.map((t) => {
+            const n = mapNumbers.get(t.id);
+            if (n == null) return null;
+            return (
+              <Marker
+                key={t.id}
+                position={[t.latitude as number, t.longitude as number]}
+                icon={numberedDotIcon({ mapNumber: n, color: '#546e7a' })}
+                interactive
+                bubblingMouseEvents={false}
+                zIndexOffset={100}
+                eventHandlers={
+                  onSelectOther
+                    ? {
+                        click: () => onSelectOther(t.id),
+                      }
+                    : undefined
+                }
+              >
+                <LeafletTooltip direction="top" offset={[0, -12]} opacity={1} interactive={false}>
+                  <strong>
+                    {n != null ? `#${n} · ` : ''}
+                    {t.tower_id}
+                  </strong>
+                  {onSelectOther ? (
+                    <>
+                      <br />
+                      Click to edit this tower
+                    </>
+                  ) : null}
+                </LeafletTooltip>
+              </Marker>
+            );
+          })}
           {hasPoint && (
             <Marker
               position={[latitude as number, longitude as number]}
               icon={highlight ? highlightIcon : defaultIcon}
               draggable={!readOnly}
+              zIndexOffset={800}
               eventHandlers={
                 readOnly
                   ? undefined
@@ -238,8 +319,10 @@ export function MapPicker({
       {!readOnly && (
         <Box sx={{ px: 1.5, py: 0.75, bgcolor: 'grey.100' }}>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-            Click the map to drop a pin, drag the marker to fine-tune, or use the locate button. Lat:{' '}
-            {hasPoint ? latitude!.toFixed(6) : '-'}, Lng: {hasPoint ? longitude!.toFixed(6) : '-'}
+            {contextPts.length
+              ? 'Numbered pins are towers already in the catalog. Drag this marker (or click the map) to place the one you are editing. Click a numbered pin to switch to that tower. '
+              : 'Click the map to drop a pin, drag the marker to fine-tune, or use the locate button. '}
+            Lat: {hasPoint ? latitude!.toFixed(6) : '-'}, Lng: {hasPoint ? longitude!.toFixed(6) : '-'}
           </Typography>
           {locateError && (
             <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.25 }}>
