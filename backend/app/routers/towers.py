@@ -43,6 +43,7 @@ from app.services.archive import (
     save_upload,
     tower_photo_relative_path,
 )
+from app.services.channel import post_assignment_event
 from app.services.rollup import visit_rollup
 from app.services.tower_import import build_tower_import_template, export_towers_workbook, import_towers_from_excel
 from app.services.tower_numbers import desired_tower_id, tower_pin_numbers
@@ -304,6 +305,7 @@ def claim_tower(
         )
     _clear_tower_assignment_links(db, tower)
     tower.assigned_team_id = target_id
+    post_assignment_event(db, target_id, tower, "assign", user)
     db.commit()
     db.refresh(tower)
     return _tower_out(tower)
@@ -320,8 +322,11 @@ def release_tower(tower_pk: int, db: Session = Depends(get_db), user: User = Dep
     is_owner_leader = user.role == UserRole.TEAM_LEADER.value and tid is not None and tower.assigned_team_id == tid
     if not is_admin and not is_owner_leader:
         raise HTTPException(status_code=403, detail="Only this team's leader or an admin can unassign the tower")
+    was_team_id = tower.assigned_team_id
     _clear_tower_assignment_links(db, tower)
     tower.assigned_team_id = None
+    if was_team_id is not None:
+        post_assignment_event(db, was_team_id, tower, "unassign", user)
     db.commit()
     db.refresh(tower)
     return _tower_out(tower)

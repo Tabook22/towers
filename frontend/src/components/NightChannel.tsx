@@ -39,6 +39,8 @@ const KIND_LABEL: Record<string, string> = {
   skip: 'Skip',
   hotspot: 'Hotspot',
   help: 'Help',
+  assign: 'Assigned',
+  unassign: 'Unassigned',
 };
 
 function clock(iso: string) {
@@ -73,13 +75,20 @@ function MessageBody({
         p: 1,
         borderRadius: 1.5,
         bgcolor:
-          msg.kind === 'help' || msg.kind === 'hotspot'
+          msg.kind === 'help' || msg.kind === 'hotspot' || msg.kind === 'unassign'
             ? 'rgba(211,47,47,0.08)'
-            : msg.kind === 'dispatch'
-              ? 'rgba(2,136,209,0.08)'
-              : 'rgba(0,0,0,0.03)',
+            : msg.kind === 'assign'
+              ? 'rgba(46,125,50,0.08)'
+              : msg.kind === 'dispatch'
+                ? 'rgba(2,136,209,0.08)'
+                : 'rgba(0,0,0,0.03)',
         border: '1px solid',
-        borderColor: msg.kind === 'help' || msg.kind === 'hotspot' ? 'error.light' : 'rgba(0,0,0,0.08)',
+        borderColor:
+          msg.kind === 'help' || msg.kind === 'hotspot' || msg.kind === 'unassign'
+            ? 'error.light'
+            : msg.kind === 'assign'
+              ? 'success.light'
+              : 'rgba(0,0,0,0.08)',
       }}
     >
       <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap', mb: 0.25 }}>

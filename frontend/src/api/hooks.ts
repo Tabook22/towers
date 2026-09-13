@@ -29,6 +29,7 @@ import type {
   TeamDailyLog,
   TeamDayProgress,
   OutingPlan,
+  OutingPlanSummary,
   HandoverPack,
   TeamJobMap,
   NextTowersPlan,
@@ -1323,6 +1324,7 @@ export function useSaveOutingPlan(teamId: number) {
       (await apiClient.put<OutingPlan>(`/api/teams/${teamId}/outing-plan`, payload)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outing-plan', teamId] });
+      qc.invalidateQueries({ queryKey: ['outing-plans', teamId] });
       qc.invalidateQueries({ queryKey: ['team-next-towers', teamId] });
       qc.invalidateQueries({ queryKey: ['team-job-map', teamId] });
       qc.invalidateQueries({ queryKey: ['team-handover', teamId] });
@@ -1330,6 +1332,31 @@ export function useSaveOutingPlan(teamId: number) {
       // save_outing_plan) — refresh the towers catalog so that shows up everywhere else too
       // (Towers page, other teams' "free towers" lists, etc.).
       qc.invalidateQueries({ queryKey: ['towers'] });
+    },
+  });
+}
+
+// Every mission this team has ever planned — the leader's mission history: list, sort, pick one
+// to edit, or delete. See GET /api/teams/{id}/outing-plans.
+export function useOutingPlans(teamId: number | undefined) {
+  return useQuery({
+    queryKey: ['outing-plans', teamId],
+    queryFn: async () =>
+      (await apiClient.get<OutingPlanSummary[]>(`/api/teams/${teamId}/outing-plans`)).data,
+    enabled: teamId !== undefined,
+  });
+}
+
+export function useDeleteOutingPlan(teamId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (fieldDate: string) =>
+      apiClient.delete(`/api/teams/${teamId}/outing-plan`, { params: { field_date: fieldDate } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outing-plans', teamId] });
+      qc.invalidateQueries({ queryKey: ['outing-plan', teamId] });
+      qc.invalidateQueries({ queryKey: ['team-next-towers', teamId] });
+      qc.invalidateQueries({ queryKey: ['team-handover', teamId] });
     },
   });
 }

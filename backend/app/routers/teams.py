@@ -31,6 +31,7 @@ from app.database import get_db
 from app.deps import effective_team_id, get_current_user, require_role, require_team_read, require_team_scope
 from app.models import LineInspectionReport, LocationPing, Position, Team, TeamDailyLog, TeamDailyLogFile, TeamMember, TeamOutingPlan, TeamOutingTower, Tower, TrackingMission, User, UserRole, Visit
 from app.routers.visits import _load_visit, attach_rollup, create_visit_row, delete_visit_completely
+from app.services.channel import post_assignment_event
 from app.schemas import (
     LiveTeamMember,
     TeamCreate,
@@ -46,6 +47,7 @@ from app.schemas import (
     NextTowersPlan,
     OutingPlanOut,
     OutingPlanSave,
+    OutingPlanSummary,
     OutingPlanTowerOut,
     TeamJobMap,
     TeamJobMapTower,
@@ -868,6 +870,38 @@ def _outing_plan_out(plan: TeamOutingPlan) -> OutingPlanOut:
     )
 
 
+@router.get("/{team_id}/outing-plans", response_model=list[OutingPlanSummary])
+def list_outing_plans(
+    team_id: int,
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_team_read()),
+):
+    """Every mission this team has ever planned (one row per field night) — newest first — so a
+    leader can see, sort, and pick a past mission to review, edit, or delete."""
+    _load_team(db, team_id)
+    plans = (
+        db.query(TeamOutingPlan)
+        .options(joinedload(TeamOutingPlan.towers))
+        .filter(TeamOutingPlan.team_id == team_id)
+        .order_by(TeamOutingPlan.field_date.desc())
+        .all()
+    )
+    return [
+        OutingPlanSummary(
+            field_date=p.field_date,
+            name=p.name,
+            start_time=p.start_time,
+            end_time=p.end_time,
+            tower_count=len(p.towers),
+            notes=p.notes,
+            ended_at=p.ended_at,
+            created_at=p.created_at,
+            updated_at=p.updated_at,
+        )
+        for p in plans
+    ]
+
+
 @router.get("/{team_id}/outing-plan", response_model=OutingPlanOut)
 def get_outing_plan(
     team_id: int,
@@ -926,6 +960,7 @@ def save_outing_plan(
         for t in towers:
             if t.assigned_team_id is None:
                 t.assigned_team_id = team_id
+                post_assignment_event(db, team_id, t, "assign", user, body="Added to tonight's mission plan")
     plan = (
         db.query(TeamOutingPlan)
         .options(joinedload(TeamOutingPlan.towers).joinedload(TeamOutingTower.tower))
@@ -952,6 +987,29 @@ def save_outing_plan(
         .first()
     )
     return _outing_plan_out(plan)
+
+
+@router.delete("/{team_id}/outing-plan", status_code=204)
+def delete_outing_plan(
+    team_id: int,
+    field_date: dt.date = Query(...),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_team_scope()),
+):
+    """Remove a named mission from this team's history. Towers already assigned to the team stay
+    assigned — this only deletes the plan record for that one field night, not the team's job."""
+    _load_team(db, team_id)
+    plan = (
+        db.query(TeamOutingPlan)
+        .filter(TeamOutingPlan.team_id == team_id, TeamOutingPlan.field_date == field_date)
+        .first()
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="No mission plan found for that date")
+    db.query(TeamOutingTower).filter(TeamOutingTower.plan_id == plan.id).delete()
+    db.delete(plan)
+    db.commit()
+    return None
 
 
 @router.get("/{team_id}/handover", response_model=HandoverPack)

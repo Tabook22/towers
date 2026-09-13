@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import TeamChannelMessage, Tower, User, Visit
+from app.models import CHANNEL_KIND_DEFAULT_BODY, TeamChannelMessage, Tower, User, Visit
 from app.schemas import ChannelMessageOut
-from app.services.movement import haversine_m
+from app.services.movement import current_field_date, haversine_m
 from app.services.rollup import visit_rollup
 
 TAG_RADIUS_M = 150
@@ -75,6 +75,32 @@ def resolve_location(
     lng = longitude if longitude is not None else tower.longitude
     visit = open_visit_for_tower(db, team_id, tower.id)
     return tower.id, (visit.id if visit else None), lat, lng
+
+
+def post_assignment_event(
+    db: Session,
+    team_id: int,
+    tower: Tower,
+    kind: str,
+    user: User,
+    body: str | None = None,
+) -> TeamChannelMessage:
+    """Auto-post an 'assign'/'unassign' entry onto this team's mission-day channel, so tower
+    hand-outs are traceable in the same log as skip/access/hotspot notes (see NightChannel /
+    the team's "Tonight" feed on the frontend, and its per-day History)."""
+    row = TeamChannelMessage(
+        team_id=team_id,
+        field_date=current_field_date(),
+        kind=kind,
+        body=(body or "").strip() or CHANNEL_KIND_DEFAULT_BODY.get(kind, ""),
+        tower_pk=tower.id,
+        latitude=tower.latitude,
+        longitude=tower.longitude,
+        created_by=user.id,
+    )
+    db.add(row)
+    db.flush()
+    return row
 
 
 def message_out(row: TeamChannelMessage) -> ChannelMessageOut:

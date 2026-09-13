@@ -558,6 +558,19 @@ export interface OutingPlan {
   notes: string | null;
 }
 
+// One row of a team's mission history — see GET /api/teams/{id}/outing-plans.
+export interface OutingPlanSummary {
+  field_date: string;
+  name: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  tower_count: number;
+  notes: string | null;
+  ended_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type HandoverTowerStatus = 'completed' | 'skipped' | 'in_progress' | 'pending';
 
 export interface HandoverTower {
@@ -714,7 +727,7 @@ export interface NightClaim {
   completed_at: string | null;
 }
 
-export type ChannelKind = 'note' | 'dispatch' | 'access' | 'weather' | 'skip' | 'hotspot' | 'help';
+export type ChannelKind = 'note' | 'dispatch' | 'access' | 'weather' | 'skip' | 'hotspot' | 'help' | 'assign' | 'unassign';
 
 export interface ChannelMessage {
   id: number;

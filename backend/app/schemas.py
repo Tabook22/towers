@@ -703,6 +703,21 @@ class OutingPlanSave(BaseModel):
     notes: str | None = None
 
 
+class OutingPlanSummary(BaseModel):
+    """One row of a team's mission history — enough to list, sort, and pick a mission to open
+    without fetching every tower on every night."""
+
+    field_date: dt.date
+    name: str | None = None
+    start_time: dt.time | None = None
+    end_time: dt.time | None = None
+    tower_count: int = 0
+    notes: str | None = None
+    ended_at: dt.datetime | None = None
+    created_at: dt.datetime
+    updated_at: dt.datetime
+
+
 class HandoverTower(BaseModel):
     id: int
     tower_id: str

@@ -115,6 +115,7 @@ import { NightChannel } from '../components/NightChannel';
 import { requestBrowserLocation, useTracking } from '../hooks/useFieldTracking';
 import { TeamSiteMap } from '../components/TeamSiteMap';
 import { OutingPlanCard } from '../components/OutingPlanCard';
+import { MissionHistoryCard, missionDateLabel } from '../components/MissionHistoryCard';
 import { HandoverPackCard } from '../components/HandoverPackCard';
 import { ClaimTowerDialog } from '../components/ClaimTowerDialog';
 import { KpiTile } from '../components/KpiTile';
@@ -364,6 +365,10 @@ export function TeamDetailPage() {
   // their own team's accounts back, never another team's) — team_member accounts get nothing here.
   const { data: enabledUsers } = useUsers(isAdmin || isTeamLeader);
   const { data: shift } = useShiftInfo();
+  // Which field night the Mission plan card below is showing/editing — defaults to tonight, but
+  // Mission history's Edit/Add can point it at any other date without a page navigation.
+  const [missionPlanDate, setMissionPlanDate] = useState('');
+  const effectiveMissionDate = missionPlanDate || shift?.field_date;
   const { data: outingPlan } = useOutingPlan(Number.isFinite(id) ? id : undefined, shift?.field_date);
   const { data: fieldHistory } = useTeamFieldHistory(Number.isFinite(id) ? id : undefined);
   const [trackKey, setTrackKey] = useState('');
@@ -1605,9 +1610,29 @@ export function TeamDetailPage() {
         </CardContent>
       </Card>
 
+      <MissionHistoryCard
+        teamId={id}
+        canEdit={canManage}
+        selectedDate={effectiveMissionDate}
+        onSelectDate={(d) => setMissionPlanDate(d)}
+      />
+
+      {missionPlanDate && missionPlanDate !== shift?.field_date && (
+        <Alert
+          severity="info"
+          action={
+            <Button size="small" onClick={() => setMissionPlanDate('')}>
+              Back to tonight
+            </Button>
+          }
+        >
+          Viewing the mission planned for {missionDateLabel(missionPlanDate)}.
+        </Alert>
+      )}
+
       <OutingPlanCard
         teamId={id}
-        fieldDate={shift?.field_date}
+        fieldDate={effectiveMissionDate}
         assignedTowers={jobMap?.towers || []}
         catalogTowers={(towers || []).filter((t) => t.is_active)}
         canEdit={canManage}

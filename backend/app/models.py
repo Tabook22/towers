@@ -579,7 +579,7 @@ MISSION_STATUS_CHOICES = ["planned", "in_progress", "completed"]
 # Live night-shift thread (see routers/channel.py). Distinct from TeamDailyLog, which is a dated
 # diary entry for reports — these are short ops messages the crew and dispatch share *during* the
 # outing, optionally pinned to the nearest tower.
-CHANNEL_KIND_CHOICES = ["note", "dispatch", "access", "weather", "skip", "hotspot", "help"]
+CHANNEL_KIND_CHOICES = ["note", "dispatch", "access", "weather", "skip", "hotspot", "help", "assign", "unassign"]
 CHANNEL_KIND_DEFAULT_BODY = {
     "note": "",
     "dispatch": "",
@@ -588,6 +588,8 @@ CHANNEL_KIND_DEFAULT_BODY = {
     "skip": "Skipping this tower",
     "hotspot": "Hotspot — needs review before we leave",
     "help": "Need help",
+    "assign": "Assigned to this team",
+    "unassign": "Released back to the free pool",
 }
 
 
