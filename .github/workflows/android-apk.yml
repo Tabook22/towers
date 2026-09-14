@@ -41,16 +41,38 @@ jobs:
         run: npm run build:capacitor
 
       - name: Sync into the Android project
-        run: npx cap sync android
+        id: sync
+        continue-on-error: true
+        run: npx cap sync android --verbose 2>&1 | tee ../sync.log
 
       - name: Build debug APK
+        id: gradle
+        if: steps.sync.outcome == 'success'
+        continue-on-error: true
         working-directory: frontend/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee ../../gradle.log
+
+      # Uploaded even on failure — this is a public repo, so job logs need admin rights to fetch
+      # via the API, but artifacts don't; this is how a build failure actually gets diagnosed.
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            sync.log
+            gradle.log
+          if-no-files-found: warn
 
       - uses: actions/upload-artifact@v4
+        if: steps.gradle.outcome == 'success'
         with:
           name: insulator-inspector-debug-apk
           path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Fail the job if a build step failed
+        if: steps.sync.outcome != 'success' || steps.gradle.outcome != 'success'
+        run: exit 1
