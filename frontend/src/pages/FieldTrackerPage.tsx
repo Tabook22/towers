@@ -15,6 +15,7 @@ import {
   LinearProgress,
   MenuItem,
   Paper,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -151,6 +152,10 @@ function parseHour(value: string): number | undefined {
   const hour = Number(value.slice(0, 2));
   return Number.isFinite(hour) ? hour : undefined;
 }
+
+// Mirrors backend/app/routers/tracking.py's STALE_AFTER_MINUTES — a crew is marked stale (grey,
+// "Last seen") once its last ping is older than this. Used here only to word the went-quiet toast.
+const STALE_AFTER_MINUTES = 2;
 
 function missionKeyOf(m: TrackingMission): string {
   if (m.kind === 'night' || m.id == null) return `night:${m.field_date}`;
@@ -331,6 +336,36 @@ export function FieldTrackerPage() {
   const mapRef = useRef<L.Map | null>(null);
   const mapBoxRef = useRef<HTMLDivElement | null>(null);
   const height = expanded ? 620 : 420;
+
+  // A dispatcher watching this board can easily miss a crew quietly flipping from Live to Last
+  // seen among a long table — surface it as a toast the moment it happens, live→stale only (never
+  // on first load, so a page refresh doesn't dump one toast per already-stale crew). This is the
+  // one thing a web page CAN do about a phone going dark: it cannot stop the phone's own tracking
+  // from pausing (screen lock, a call, an aggressive Android battery manager killing the tab), but
+  // it can make sure dispatch notices fast instead of only spotting it later in the table.
+  const prevStaleRef = useRef<Map<number, boolean> | null>(null);
+  const [staleQueue, setStaleQueue] = useState<string[]>([]);
+  const [staleToast, setStaleToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!members) return;
+    const prev = prevStaleRef.current;
+    const next = new Map<number, boolean>();
+    const wentStale: string[] = [];
+    for (const m of members) {
+      next.set(m.user_id, m.is_stale);
+      if (prev && prev.get(m.user_id) === false && m.is_stale) {
+        wentStale.push(`${teamLabel(m)} has gone quiet — no GPS for over ${STALE_AFTER_MINUTES} min`);
+      }
+    }
+    prevStaleRef.current = next;
+    if (wentStale.length > 0) setStaleQueue((q) => [...q, ...wentStale]);
+  }, [members]);
+  useEffect(() => {
+    if (!staleToast && staleQueue.length > 0) {
+      setStaleToast(staleQueue[0]);
+      setStaleQueue((q) => q.slice(1));
+    }
+  }, [staleQueue, staleToast]);
 
   useEffect(() => {
     setSelectedStayIdx(null);
@@ -569,8 +604,20 @@ export function FieldTrackerPage() {
       )}
       {!viewingSaved && currentMission && (
         <Alert severity="success">
-          Current mission started {clock(currentMission.started_at)} — the map only draws this outing.
-          Open Previous missions to see anything recorded before this.
+          {currentMission.field_date === reportDate ? (
+            <>
+              Current mission started {clock(currentMission.started_at)} — the map only draws this
+              outing. Open Previous missions to see anything recorded before this.
+            </>
+          ) : (
+            <>
+              Current mission has been running since {currentMission.field_date} (nobody has tapped
+              New mission since) — to keep today's board readable, it only draws{' '}
+              <strong>today's</strong> tracking. Nothing is deleted: open Previous missions, or set
+              Field night to {currentMission.field_date}, to see the earlier days of this same
+              outing.
+            </>
+          )}
         </Alert>
       )}
 
@@ -976,6 +1023,14 @@ export function FieldTrackerPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={Boolean(staleToast)}
+        autoHideDuration={7000}
+        onClose={() => setStaleToast(null)}
+        message={staleToast}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Stack>
   );
 }

@@ -125,6 +125,15 @@ def _resolve_report_window(
             raise HTTPException(status_code=404, detail="Mission not found")
         start = _naive_utc(row.started_at)
         end = _naive_utc(row.ended_at) if row.ended_at is not None else dt.datetime.utcnow()
+        if row.ended_at is None and on_date is not None:
+            # The still-open "current" mission keeps running until someone taps New mission — if
+            # that's been days, the default Live-now view should not silently drag forward the
+            # whole multi-day accumulated path onto today's board. Bound it to the requested field
+            # night; the full history is still there (nothing is deleted) by picking that field
+            # night directly or via Previous missions once it's actually closed.
+            day_start, _ = shift_window(on_date)
+            if day_start > start:
+                start = day_start
         return current_field_date(_aware_utc(row.started_at)), start, end
     if from_ts is not None:
         start = _naive_utc(from_ts)
