@@ -1,7 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+import type { BackgroundGeolocationPlugin, Location as NativeLocation, CallbackError } from '@capacitor-community/background-geolocation';
 import { useSendLocationPing } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
+
+// The package ships only TypeScript definitions, not a runtime entry point — this is the
+// registration the plugin's own docs call for; the native side (see frontend/android's plugin
+// manifest) answers to the 'BackgroundGeolocation' name regardless of platform.
+const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation');
 
 // Refresh cadence the user asked for: a new point on the path at least every 10s, moving or not.
 const MIN_INTERVAL_MS = 10_000;
@@ -110,7 +117,9 @@ export function useFieldTracking(active: boolean, required = false): TrackingSta
   const watchIdRef = useRef<number | null>(null);
   const askAtRef = useRef(0);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const nativeWatcherIdRef = useRef<string | null>(null);
   const insecure = isInsecureContext();
+  const native = Capacitor.isNativePlatform();
 
   const consider = useCallback((latitude: number, longitude: number, accuracy?: number | null, force = false) => {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
@@ -204,7 +213,59 @@ export function useFieldTracking(active: boolean, required = false): TrackingSta
     startWatch();
   }, [startWatch]);
 
+  // The Android app (see frontend/android): a real foreground service with its own persistent
+  // notification, which is what actually survives a locked screen, a call, or the app being
+  // switched away from — none of which a plain website's watchPosition can. Every fix the service
+  // produces still runs through `consider()` above so the same throttle/movement rules, ping
+  // endpoint, and UI status apply either way; only how the location itself is obtained differs.
+  const startNativeWatch = useCallback(async () => {
+    if (nativeWatcherIdRef.current) return;
+    setStatus('locating');
+    setWaitingForPrompt(true);
+    try {
+      nativeWatcherIdRef.current = await BackgroundGeolocation.addWatcher(
+        {
+          backgroundTitle: 'Insulator Inspector Pro',
+          backgroundMessage: "Sharing this outing's location with dispatch",
+          requestPermissions: true,
+          stale: false,
+          // We throttle ourselves in `consider()` (10s / 12m) — every fix is allowed through here
+          // so a crew standing still for a while still gets its own heartbeat via that logic.
+          distanceFilter: 0,
+        },
+        (location?: NativeLocation, error?: CallbackError) => {
+          if (error) {
+            if (error.code === 'NOT_AUTHORIZED') {
+              deniedRef.current = true;
+              setStatus('denied');
+            }
+            setWaitingForPrompt(false);
+            return;
+          }
+          if (!location) return;
+          deniedRef.current = false;
+          consider(location.latitude, location.longitude, location.accuracy);
+        },
+      );
+    } catch {
+      deniedRef.current = true;
+      setStatus('denied');
+      setWaitingForPrompt(false);
+    }
+  }, [consider]);
+
+  const stopNativeWatch = useCallback(() => {
+    const id = nativeWatcherIdRef.current;
+    if (!id) return;
+    nativeWatcherIdRef.current = null;
+    void BackgroundGeolocation.removeWatcher({ id }).catch(() => undefined);
+  }, []);
+
   const requestNow = useCallback(() => {
+    if (native) {
+      void startNativeWatch();
+      return;
+    }
     if (isInsecureContext()) {
       setStatus('unsupported');
       return;
@@ -237,7 +298,7 @@ export function useFieldTracking(active: boolean, required = false): TrackingSta
       },
       { enableHighAccuracy: true, timeout: 45_000, maximumAge: 0 },
     );
-  }, [consider, startWatch]);
+  }, [consider, startWatch, native, startNativeWatch]);
 
   const setEnabled = (v: boolean) => {
     if (required && !v) return;
@@ -258,6 +319,14 @@ export function useFieldTracking(active: boolean, required = false): TrackingSta
     if (!active || !enabled) {
       setStatus('idle');
       return;
+    }
+    if (native) {
+      // The Android foreground service (see startNativeWatch above) is what actually keeps this
+      // running through a locked screen or a call — none of the web-only workarounds below
+      // (watchPosition, the heartbeat poll, the visibilitychange restart, the wake lock) apply or
+      // are even meaningful once there's a real background service doing the job.
+      void startNativeWatch();
+      return () => stopNativeWatch();
     }
     if (isInsecureContext()) {
       setStatus('unsupported');
@@ -323,7 +392,7 @@ export function useFieldTracking(active: boolean, required = false): TrackingSta
       void wakeLockRef.current?.release();
       wakeLockRef.current = null;
     };
-  }, [active, enabled, consider, requestNow, startWatch, restartWatch]);
+  }, [active, enabled, native, consider, requestNow, startWatch, restartWatch, startNativeWatch, stopNativeWatch]);
 
   const needsAllow = Boolean(
     active && enabled && !insecure && !lastSentAt && status !== 'watching' && status !== 'unsupported',

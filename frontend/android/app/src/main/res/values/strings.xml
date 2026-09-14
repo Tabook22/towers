@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Insulator Inspector Pro</string>
+    <string name="title_activity_main">Insulator Inspector Pro</string>
+    <string name="package_name">io.skygreenlinelab.insulatorinspector</string>
+    <string name="custom_url_scheme">io.skygreenlinelab.insulatorinspector</string>
+</resources>
