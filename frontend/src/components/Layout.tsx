@@ -141,7 +141,7 @@ function LocationBanner() {
               ? 'A small popup should appear at the top of the screen (or next to the lock in the address bar). Tap Allow. If nothing appears, tap the green button again.'
               : status === 'denied'
                 ? 'Open the browser menu → this site’s settings → Location → Allow. Then tap the green button below.'
-                : '1. Tap the green button.  2. Tap Allow on the popup at the top of the phone. After that, tracking runs by itself every minute.'}
+                : '1. Tap the green button.  2. Tap Allow on the popup at the top of the phone. After that, tracking runs by itself every 10 seconds — keep this screen open (don’t lock the phone) for it to stay live.'}
           </Typography>
           <Button
             variant="contained"
