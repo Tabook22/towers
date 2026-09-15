@@ -68,6 +68,12 @@ export function DashboardPage() {
   const freeTowers = (catalogTowers || []).filter((t) => t.is_active && t.assigned_team_id == null);
 
   const reportUrl = mediaUrl(`/api/reports/overall.pdf${area ? `?area=${encodeURIComponent(area)}` : ''}`);
+  // "Needing attention" means an actually open mission — a tower with no visit yet, or whose
+  // visit is already Completed, isn't something to act on right now, so it drops off this list
+  // automatically rather than sitting there forever once assigned (see mission_status on Visit).
+  const needsAttentionRows = (data?.rows || []).filter(
+    (row) => row.latest_visit?.mission_status === 'planned' || row.latest_visit?.mission_status === 'in_progress',
+  );
 
   return (
     <Stack spacing={3}>
@@ -351,7 +357,7 @@ export function DashboardPage() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {[...data.rows]
+                        {needsAttentionRows
                           .sort((a, b) => (b.rollup?.hotspots ?? 0) - (a.rollup?.hotspots ?? 0))
                           .map((row) => (
                             <TableRow
@@ -372,10 +378,12 @@ export function DashboardPage() {
                               </TableCell>
                             </TableRow>
                           ))}
-                        {data.rows.length === 0 && (
+                        {needsAttentionRows.length === 0 && (
                           <TableRow>
                             <TableCell colSpan={6} align="center">
-                              No towers yet — add one from the Towers page.
+                              {data.rows.length === 0
+                                ? 'No towers yet — add one from the Towers page.'
+                                : "Nothing needs attention right now — every assigned tower is either finished or hasn't been started yet."}
                             </TableCell>
                           </TableRow>
                         )}
