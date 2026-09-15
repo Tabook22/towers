@@ -31,6 +31,7 @@ import { KpiTile } from '../components/KpiTile';
 import { TowersOverviewMap } from '../components/TowersOverviewMap';
 import { TeamSiteMap } from '../components/TeamSiteMap';
 import { OutingPlanCard } from '../components/OutingPlanCard';
+import { MissionHistoryCard, missionDateLabel } from '../components/MissionHistoryCard';
 import { useTracking } from '../hooks/useFieldTracking';
 import { VisitStatusChip } from '../components/Badges';
 import { mediaUrl } from '../api/client';
@@ -48,6 +49,10 @@ export function DashboardPage() {
   const teamId = user?.team_id ?? (isTeamLeader ? myTeams?.[0]?.id : undefined);
   const { data: teamJobMap } = useTeamJobMap(teamId);
   const { data: shift } = useShiftInfo();
+  // Which field night the Mission plan card below is showing/editing — defaults to tonight, but
+  // Mission history's Edit/Add can point it at any other date without leaving this page.
+  const [missionPlanDate, setMissionPlanDate] = useState('');
+  const effectiveMissionDate = missionPlanDate || shift?.field_date;
   const { data: outingPlan } = useOutingPlan(teamId, shift?.field_date);
   const { data: teamLive } = useTeamLive(teamId);
   const { data: teamTrails } = useTeamTrails(teamId);
@@ -102,10 +107,32 @@ export function DashboardPage() {
         </Stack>
       </Stack>
 
+      {teamId && (user?.role === 'team_leader' || user?.role === 'team_member' || user?.role === 'admin' || user?.role === 'reviewer') && (
+        <MissionHistoryCard
+          teamId={teamId}
+          canEdit={user?.role === 'team_leader' || user?.role === 'admin' || user?.role === 'reviewer'}
+          selectedDate={effectiveMissionDate}
+          onSelectDate={(d) => setMissionPlanDate(d)}
+        />
+      )}
+
+      {missionPlanDate && missionPlanDate !== shift?.field_date && (
+        <Alert
+          severity="info"
+          action={
+            <Button size="small" onClick={() => setMissionPlanDate('')}>
+              Back to tonight
+            </Button>
+          }
+        >
+          Viewing the mission planned for {missionDateLabel(missionPlanDate)}.
+        </Alert>
+      )}
+
       {teamId && (user?.role === 'team_leader' || user?.role === 'admin' || user?.role === 'reviewer') && (
         <OutingPlanCard
           teamId={teamId}
-          fieldDate={shift?.field_date}
+          fieldDate={effectiveMissionDate}
           assignedTowers={teamJobMap?.towers || []}
           catalogTowers={catalogTowers}
           canEdit={user?.role === 'team_leader' || user?.role === 'admin' || user?.role === 'reviewer'}
@@ -114,7 +141,7 @@ export function DashboardPage() {
       {teamId && user?.role === 'team_member' && (
         <OutingPlanCard
           teamId={teamId}
-          fieldDate={shift?.field_date}
+          fieldDate={effectiveMissionDate}
           assignedTowers={teamJobMap?.towers || []}
           canEdit={false}
         />
