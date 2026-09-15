@@ -374,6 +374,9 @@ export function TeamDetailPage() {
   const [trackKey, setTrackKey] = useState('');
   const [trackStayIdx, setTrackStayIdx] = useState<number | null>(null);
   const trackMapRef = useRef<L.Map | null>(null);
+  // Same enlarge + satellite toggle as the Job map further down this page.
+  const [trackMapExpanded, setTrackMapExpanded] = useState(false);
+  const [trackMapLayer, setTrackMapLayer] = useState<MapLayer>('street');
   const defaultNightKey = shift?.field_date ? `night:${shift.field_date}` : '';
   const effectiveTrackKey = trackKey || defaultNightKey;
   const pickedHistory = (fieldHistory || []).find((m) => missionSelectKey(m) === effectiveTrackKey) || null;
@@ -574,6 +577,11 @@ export function TeamDetailPage() {
     const t = window.setTimeout(() => jobMapRef.current?.invalidateSize(), 220);
     return () => window.clearTimeout(t);
   }, [jobMapExpanded]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => trackMapRef.current?.invalidateSize(), 220);
+    return () => window.clearTimeout(t);
+  }, [trackMapExpanded]);
 
   // team_member accounts get their own "Team members" card below — exclude them here so this
   // (admin-only) section is just about which login(s) count as this team's leader/tracking device.
@@ -1449,14 +1457,30 @@ export function TeamDetailPage() {
                 Now / ended {formatTime(recap.ended_at)} at {recap.end_latitude.toFixed(5)}, {recap.end_longitude.toFixed(5)}
               </Typography>
               {recap.path.length > 0 && (
-                <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)', height: 360, mb: 2 }}>
+                <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)', mb: 2 }}>
+                  {/* Plain div, not MUI Box — react-leaflet only reads the height on first mount, so
+                      the resizable height has to live on a wrapper it doesn't control (same fix as
+                      the Job map below / TowersOverviewMap). Expanded uses vh so "enlarge" reads as
+                      most of the screen. */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      height: trackMapExpanded ? '68vh' : 360,
+                      width: '100%',
+                      transition: 'height 0.2s ease',
+                    }}
+                  >
                   <MapContainer
                     center={[recap.start_latitude, recap.start_longitude]}
                     zoom={13}
                     style={{ height: '100%', width: '100%' }}
                     scrollWheelZoom
                   >
-                    <TileLayer attribution={TILE_LAYERS.street.attribution} url={TILE_LAYERS.street.url} maxZoom={TILE_LAYERS.street.maxZoom} />
+                    <TileLayer
+                      attribution={TILE_LAYERS[trackMapLayer].attribution}
+                      url={TILE_LAYERS[trackMapLayer].url}
+                      maxZoom={TILE_LAYERS[trackMapLayer].maxZoom}
+                    />
                     <TrackMapBridge mapRef={trackMapRef} />
                     <FitTrack
                       positions={recap.path.map((p) => [p.latitude, p.longitude] as [number, number])}
@@ -1493,6 +1517,27 @@ export function TeamDetailPage() {
                       </Marker>
                     )}
                   </MapContainer>
+                  <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    <Tooltip title={trackMapLayer === 'street' ? 'Switch to satellite view' : 'Switch to street map'}>
+                      <IconButton
+                        size="small"
+                        onClick={() => setTrackMapLayer((v) => (v === 'street' ? 'satellite' : 'street'))}
+                        sx={{ bgcolor: 'background.paper', boxShadow: 2, '&:hover': { bgcolor: 'background.paper' } }}
+                      >
+                        {trackMapLayer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={trackMapExpanded ? 'Shrink map' : 'Enlarge map'}>
+                      <IconButton
+                        size="small"
+                        onClick={() => setTrackMapExpanded((v) => !v)}
+                        sx={{ bgcolor: 'background.paper', boxShadow: 2, '&:hover': { bgcolor: 'background.paper' } }}
+                      >
+                        {trackMapExpanded ? <CloseFullscreenIcon fontSize="small" /> : <OpenInFullIcon fontSize="small" />}
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                  </div>
                 </Box>
               )}
               <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>

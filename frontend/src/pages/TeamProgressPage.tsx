@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -9,6 +9,7 @@ import {
   CardContent,
   Chip,
   Grid,
+  IconButton,
   LinearProgress,
   MenuItem,
   Paper,
@@ -20,18 +21,23 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import RouteIcon from '@mui/icons-material/RouteRounded';
 import TimerIcon from '@mui/icons-material/TimerRounded';
 import CellTowerIcon from '@mui/icons-material/CellTowerRounded';
 import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalkRounded';
+import OpenInFullIcon from '@mui/icons-material/OpenInFullRounded';
+import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreenRounded';
+import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
+import MapIcon from '@mui/icons-material/MapRounded';
 import { MapContainer, Marker, Polyline, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useShiftInfo, useTeamMissionProgress, useTeams } from '../api/hooks';
 import { KpiTile } from '../components/KpiTile';
-import { TILE_LAYERS } from '../components/MapPicker';
+import { TILE_LAYERS, type MapLayer } from '../components/MapPicker';
 import { splitTrailSegments } from '../utils/gpsTrail';
 import type { TeamProgress } from '../api/types';
 
@@ -209,6 +215,15 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
   const pathPts = row.path.map((p) => [p.latitude, p.longitude] as [number, number]);
   const center: [number, number] = pathPts[0] || [17.01972, 54.08972];
   const segments = splitTrailSegments(row.path);
+  const mapRef = useRef<L.Map | null>(null);
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const [mapLayer, setMapLayer] = useState<MapLayer>('street');
+  // Leaflet doesn't notice its container resizing on its own (the enlarge toggle animates height
+  // via CSS) — nudge it once the transition settles, same fix used on the other maps in this app.
+  useEffect(() => {
+    const t = window.setTimeout(() => mapRef.current?.invalidateSize(), 220);
+    return () => window.clearTimeout(t);
+  }, [mapExpanded]);
 
   return (
     <Stack spacing={2}>
@@ -275,15 +290,40 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
       </Grid>
 
       {pathPts.length > 0 && (
-        <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)', height: 320 }}>
-          <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
-            <TileLayer attribution={TILE_LAYERS.street.attribution} url={TILE_LAYERS.street.url} maxZoom={TILE_LAYERS.street.maxZoom} />
-            {segments.map((pts, i) => (
-              <Polyline key={i} positions={pts} pathOptions={{ color: '#1565c0', weight: 4, opacity: 0.85 }} />
-            ))}
-            <Marker position={[row.start_latitude, row.start_longitude]} icon={startEndIcon('start')} />
-            <Marker position={[row.end_latitude, row.end_longitude]} icon={startEndIcon('end')} />
-          </MapContainer>
+        <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)' }}>
+          {/* Plain div, not MUI Box — react-leaflet only reads the height on first mount, so the
+              resizable height has to live on a wrapper it doesn't control. Expanded uses vh so
+              "enlarge" reads as most of the screen. */}
+          <div style={{ position: 'relative', height: mapExpanded ? '68vh' : 320, width: '100%', transition: 'height 0.2s ease' }}>
+            <MapContainer ref={mapRef} center={center} zoom={13} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
+              <TileLayer attribution={TILE_LAYERS[mapLayer].attribution} url={TILE_LAYERS[mapLayer].url} maxZoom={TILE_LAYERS[mapLayer].maxZoom} />
+              {segments.map((pts, i) => (
+                <Polyline key={i} positions={pts} pathOptions={{ color: '#1565c0', weight: 4, opacity: 0.85 }} />
+              ))}
+              <Marker position={[row.start_latitude, row.start_longitude]} icon={startEndIcon('start')} />
+              <Marker position={[row.end_latitude, row.end_longitude]} icon={startEndIcon('end')} />
+            </MapContainer>
+            <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              <Tooltip title={mapLayer === 'street' ? 'Switch to satellite view' : 'Switch to street map'}>
+                <IconButton
+                  size="small"
+                  onClick={() => setMapLayer((v) => (v === 'street' ? 'satellite' : 'street'))}
+                  sx={{ bgcolor: 'background.paper', boxShadow: 2, '&:hover': { bgcolor: 'background.paper' } }}
+                >
+                  {mapLayer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={mapExpanded ? 'Shrink map' : 'Enlarge map'}>
+                <IconButton
+                  size="small"
+                  onClick={() => setMapExpanded((v) => !v)}
+                  sx={{ bgcolor: 'background.paper', boxShadow: 2, '&:hover': { bgcolor: 'background.paper' } }}
+                >
+                  {mapExpanded ? <CloseFullscreenIcon fontSize="small" /> : <OpenInFullIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </div>
         </Box>
       )}
 
