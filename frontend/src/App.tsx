@@ -18,6 +18,7 @@ import { FieldTrackerPage } from './pages/FieldTrackerPage';
 import { TeamProgressPage } from './pages/TeamProgressPage';
 import { TeamsPage } from './pages/TeamsPage';
 import { TeamDetailPage } from './pages/TeamDetailPage';
+import { HelpPage } from './pages/HelpPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -130,6 +131,14 @@ function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
         element={
           <ProtectedLayout>
             <TeamDetailPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/help"
+        element={
+          <ProtectedLayout>
+            <HelpPage />
           </ProtectedLayout>
         }
       />

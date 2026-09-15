@@ -34,6 +34,7 @@ import BoltIcon from '@mui/icons-material/BoltRounded';
 import MyLocationIcon from '@mui/icons-material/MyLocationRounded';
 import InsightsIcon from '@mui/icons-material/InsightsRounded';
 import LocationDisabledIcon from '@mui/icons-material/LocationDisabledRounded';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutlineRounded';
 
 import LockResetIcon from '@mui/icons-material/LockResetRounded';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -299,6 +300,17 @@ export function Layout({ children }: { children: ReactNode }) {
           </Typography>
           <OfflineChip />
           <TrackingChip />
+          <Tooltip title="Step-by-step guides for the daily/mission routine">
+            <Button
+              color="inherit"
+              size="small"
+              startIcon={<HelpOutlineIcon />}
+              onClick={() => navigate('/help')}
+              sx={{ borderRadius: 5, px: 1.5, bgcolor: 'rgba(255,255,255,0.12)', '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}
+            >
+              Help me
+            </Button>
+          </Tooltip>
           <Typography variant="body2" sx={{ opacity: 0.9, mr: 1 }}>
             {user?.full_name || user?.username} · {user?.role}
           </Typography>
