@@ -28,6 +28,7 @@ import type {
   TeamActivityTeam,
   TeamDailyLog,
   TeamDayProgress,
+  HelpChatTurn,
   OutingPlan,
   OutingPlanSummary,
   HandoverPack,
@@ -1752,5 +1753,14 @@ export function useTeamFieldTrack(
       ).data,
     enabled: teamId !== undefined && Boolean(onDate || missionId),
     refetchInterval: 15_000,
+  });
+}
+
+// The Help page's chat assistant (see components/HelpChatWidget.tsx). Stateless like the
+// underlying Claude API — the widget resends the whole conversation's history each turn.
+export function useHelpChat() {
+  return useMutation({
+    mutationFn: async ({ message, history }: { message: string; history: HelpChatTurn[] }) =>
+      (await apiClient.post<{ reply: string }>('/api/help/chat', { message, history })).data,
   });
 }

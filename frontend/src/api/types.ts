@@ -803,3 +803,8 @@ export interface TeamDayProgress {
   path_km: number;
   notes: TeamDailyLog[];
 }
+
+export interface HelpChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}

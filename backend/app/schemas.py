@@ -1234,3 +1234,19 @@ class LineInspectionReportOut(BaseModel):
     approved_by: str | None
     approval_date: dt.date | None
     created_at: dt.datetime
+
+
+class HelpChatTurn(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class HelpChatRequest(BaseModel):
+    message: str
+    # Prior turns of this conversation, oldest first — the API is stateless, so the frontend
+    # resends them each time (see components/HelpChatWidget.tsx).
+    history: list[HelpChatTurn] = []
+
+
+class HelpChatResponse(BaseModel):
+    reply: str

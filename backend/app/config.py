@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     xai_api_key: str | None = None
     # Local Whisper model name: tiny | base | small | medium. "small" fits an 8 GB CPU VPS.
     whisper_model: str = "small"
+    # Powers the Help page's chat assistant (see routers/help_chat.py). Unset = the chat endpoint
+    # returns a clear "not configured yet" message instead of failing — never crash the page.
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-opus-5"
 
     secret_key: str = "dev-secret-key-change-me-in-production-please"
     algorithm: str = "HS256"

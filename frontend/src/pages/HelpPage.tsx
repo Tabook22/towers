@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMoreRounded';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutlineRounded';
+import { HelpChatWidget } from '../components/HelpChatWidget';
 
 function StepNumber({ n }: { n: number }) {
   return (
@@ -87,6 +88,8 @@ export function HelpPage() {
           crew, but useful for anyone finding their way around the app.
         </Typography>
       </Box>
+
+      <HelpChatWidget />
 
       <Section
         title="1. Signing in and GPS tracking"

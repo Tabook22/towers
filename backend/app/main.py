@@ -18,6 +18,7 @@ from app.routers import (
     channel,
     claims,
     dashboard,
+    help_chat,
     images,
     lists,
     positions,
@@ -65,6 +66,7 @@ app.include_router(tracking.router)
 app.include_router(teams.router)
 app.include_router(channel.router)
 app.include_router(claims.router)
+app.include_router(help_chat.router)
 
 
 @app.get("/api/health")
