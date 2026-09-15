@@ -27,7 +27,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22 # @capacitor/cli 8 hard-requires Node >=22 ("cap sync" refuses to run below it)
 
       - uses: actions/setup-java@v4
         with:
@@ -43,7 +43,7 @@ jobs:
       - name: Sync into the Android project
         id: sync
         continue-on-error: true
-        run: npx cap sync android --verbose 2>&1 | tee ../sync.log
+        run: npx cap sync android 2>&1 | tee ../sync.log
 
       - name: Build debug APK
         id: gradle
@@ -54,8 +54,9 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee ../../gradle.log
 
-      # Uploaded even on failure — this is a public repo, so job logs need admin rights to fetch
-      # via the API, but artifacts don't; this is how a build failure actually gets diagnosed.
+      # Uploaded even on failure. Both the job-logs API and artifact downloads require an
+      # authenticated request even on a public repo (GitHub tightened this) — kept anyway since a
+      # human with repo access can still open this run's page and download it from there.
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
