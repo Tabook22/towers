@@ -319,18 +319,21 @@ almost every case is steps 1–2:
 4. **Save** — this happens automatically as the crew works; nothing extra needed. GPS tracking is
    also automatic in the background whenever their app is open with location on.
 5. **Generate it**: Reports → Section 1 → Official report for the customer → pick By tower / By
-   team / Overall → set a date range that actually covers when the work was recorded → Generate.
+   team / By line / Overall → set a date range that actually covers when the work was recorded →
+   Generate.
 
 If a report still comes back "No visits found" after all of that, it's almost always the date range
 not covering the actual work dates, or step 2 (the visit's team link) — check those two first.
 
 - **Section 1 — Official report for the customer** (admin/reviewer) — the customer's own template,
-  filled in with real data, page design never touched. Three kinds: **By tower** (pick one specific
-  tower — its team is worked out automatically, no need to know which team owns it), **By team**
-  (that team's whole campaign so far), or **Overall (final report)** — every team and every tower
-  together, optionally narrowed to one area (leave area blank for the whole project). This is almost
-  always the report an admin actually wants. A team leader reaches the "By team" version for just
-  their own team via **Generate official report** on their own team page.
+  filled in with real data, page design never touched. Four kinds, smallest to largest: **By tower**
+  (pick one specific tower — its team is worked out automatically, no need to know which team owns
+  it), **By team** (that team's whole campaign so far), **By line** (a whole transmission line, e.g.
+  Ashoor-Saada — every team currently working any part of it, combined into one file — this is the
+  Tower.area field; in this app a "line" and an "area" are the same thing), or **Overall (final
+  report)** — every line, every team, every tower together. This last one is almost always the
+  report to hand the customer as the final project report. A team leader reaches the "By team"
+  version for just their own team via **Generate official report** on their own team page.
 - **Section 2 — Team activity report** — not the customer template; an internal view of what each
   team has actually done, grouped team → day → tower → position, plus a filterable Excel download.
   This is the answer to "what did team X do so far".

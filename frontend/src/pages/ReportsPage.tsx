@@ -210,7 +210,7 @@ export function ReportsPage() {
         <ReportSection
           number={1}
           title="Official report for the customer"
-          useWhen='you need the customer-format document — by tower, by team, or the overall final report covering everything. This is almost always the one you want.'
+          useWhen='you need the customer-format document — by tower, by team, by transmission line, or the overall final report covering everything. This is almost always the one you want.'
         >
           <OfficialReportForm />
         </ReportSection>

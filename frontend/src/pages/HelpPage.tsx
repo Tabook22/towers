@@ -534,20 +534,22 @@ function AdminGuide() {
           while their app is open with location on; there's no separate step for it.
         </Step>
         <Step n={5} title="Generate it: Reports → Section 1 → Official report for the customer.">
-          Pick <strong>By tower</strong>, <strong>By team</strong>, or <strong>Overall</strong>, set a
-          date range that actually covers when the work was recorded, fill in the report number, and
-          click Generate. If it still comes back with "No visits found", re-check steps 1–2 first —
-          that's the cause almost every time.
+          Pick <strong>By tower</strong>, <strong>By team</strong>, <strong>By line</strong>, or{' '}
+          <strong>Overall</strong>, set a date range that actually covers when the work was recorded,
+          fill in the report number, and click Generate. If it still comes back with "No visits
+          found", re-check steps 1–2 first — that's the cause almost every time.
         </Step>
 
         <Step n={6} title="Official report for the customer (Reports page, Section 1) — the details.">
-          The customer's own template, filled in with real data — never restyled. Three kinds:
-          <strong> By tower</strong> (pick one specific tower — its team is worked out automatically),
-          <strong> By team</strong> (that team's whole campaign so far), or{' '}
-          <strong>Overall (final report)</strong> — every team and every tower together, optionally
-          narrowed to one area; leave area blank for the whole project. This is almost always the
-          report you want. A team leader can also reach the "By team" version for just their own team
-          from <strong>Generate official report</strong> on their own team page.
+          The customer's own template, filled in with real data — never restyled. Four kinds,
+          smallest to largest: <strong>By tower</strong> (pick one specific tower — its team is worked
+          out automatically), <strong>By team</strong> (that team's whole campaign so far),{' '}
+          <strong>By line</strong> (a whole transmission line, e.g. Ashoor-Saada — every team
+          currently working any part of it, combined into one file), or{' '}
+          <strong>Overall (final report)</strong> — every line, every team, every tower together. This
+          last one is almost always what to hand the customer as the final project report. A team
+          leader can also reach the "By team" version for just their own team from{' '}
+          <strong>Generate official report</strong> on their own team page.
         </Step>
         <Step n={7} title="Team activity report (Reports page, Section 2).">
           Not the customer template — an internal view of what each team has actually done, grouped

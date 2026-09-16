@@ -26,15 +26,17 @@ import {
   useTowers,
 } from '../api/hooks';
 
-type Mode = 'tower' | 'team' | 'overall';
+type Mode = 'tower' | 'team' | 'line' | 'overall';
 
 /** The one place to generate the customer's own official "Transmission Line Insulator Thermal
  * Inspection Report" — the exact template they handed us, filled in from real Position/Visit data,
- * never restyled. Matches how an admin actually thinks about it: report by tower (one specific
- * tower — the team it belongs to is worked out automatically), report by team (that team's whole
- * campaign so far), or the overall report (every team, every tower — optionally narrowed to one
- * area). Same rendering path in every case — see backend services/oetc_report.py and
- * oetc_grouped_report.py. */
+ * never restyled. Matches how an admin actually thinks about it, smallest scope to largest: report
+ * by tower (one specific tower — the team it belongs to is worked out automatically), by team (that
+ * team's whole campaign so far), by line (a whole transmission line, e.g. "Ashoor-Saada" — every
+ * team currently working any part of it, combined into one file), or the overall report (every
+ * line, every team, every tower at once). "Line" here is the Tower.area field — in this app a line
+ * and an area are the same thing, just named for what an admin actually calls it. Same rendering
+ * path in every case — see backend services/oetc_report.py and oetc_grouped_report.py. */
 export function OfficialReportForm() {
   const { data: teams } = useTeams();
   const { data: towers } = useTowers({ include_inactive: true, limit: 5000 });
@@ -76,7 +78,10 @@ export function OfficialReportForm() {
     reportNumber.trim() &&
     startDate &&
     endDate &&
-    (mode === 'overall' || (mode === 'team' && teamId) || (mode === 'tower' && towerId));
+    (mode === 'overall' ||
+      (mode === 'team' && teamId) ||
+      (mode === 'tower' && towerId) ||
+      (mode === 'line' && area));
 
   const handleModeChange = (next: Mode | null) => {
     if (!next) return;
@@ -107,7 +112,7 @@ export function OfficialReportForm() {
       generateTeam.mutate({ ...shared, tower_id: towerId }, { onError });
     } else if (mode === 'team') {
       generateTeam.mutate({ ...shared, team_id: Number(teamId) }, { onError });
-    } else if (area) {
+    } else if (mode === 'line') {
       generateArea.mutate({ ...shared, area }, { onError });
     } else {
       generateConsolidated.mutate(shared, { onError });
@@ -120,8 +125,8 @@ export function OfficialReportForm() {
       ? 'Generate tower report'
       : mode === 'team'
         ? 'Generate team report'
-        : area
-          ? 'Generate area report'
+        : mode === 'line'
+          ? 'Generate line report'
           : 'Generate overall report';
 
   return (
@@ -134,10 +139,12 @@ export function OfficialReportForm() {
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         Fills the customer's own "Transmission Line Insulator Thermal Inspection Report" template with
-        real inspection data — the page design is never changed. There are three kinds:{' '}
+        real inspection data — the page design is never changed. Four kinds, smallest to largest:{' '}
         <strong>by tower</strong> (one specific tower), <strong>by team</strong> (everything that team
-        has done so far), and <strong>overall</strong> (every team and every tower together — the one
-        to hand the customer as the final project report).
+        has done so far), <strong>by line</strong> (a whole transmission line, e.g. Ashoor-Saada —
+        every team currently working any part of it, combined into one file), and{' '}
+        <strong>overall</strong> (every line, every team, every tower together — the one to hand the
+        customer as the final project report).
       </Typography>
 
       <Accordion variant="outlined" sx={{ mb: 2 }} disableGutters>
@@ -174,6 +181,7 @@ export function OfficialReportForm() {
       <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_, v) => handleModeChange(v)} sx={{ mb: 2 }}>
         <ToggleButton value="tower">By tower</ToggleButton>
         <ToggleButton value="team">By team</ToggleButton>
+        <ToggleButton value="line">By line</ToggleButton>
         <ToggleButton value="overall">Overall (final report)</ToggleButton>
       </ToggleButtonGroup>
 
@@ -225,18 +233,19 @@ export function OfficialReportForm() {
             ))}
           </TextField>
         )}
-        {mode === 'overall' && (
+        {mode === 'line' && (
           <Box>
             <TextField
               select
               size="small"
-              label="Area (optional)"
+              label="Transmission line"
               value={area}
               onChange={(e) => setArea(e.target.value)}
               sx={{ minWidth: 220, maxWidth: 320 }}
+              helperText="Every team currently working this line, combined into one file."
             >
               <MenuItem value="">
-                <em>All areas — the whole project</em>
+                <em>Select a line</em>
               </MenuItem>
               {areas?.map((a) => (
                 <MenuItem key={a} value={a}>
@@ -244,14 +253,13 @@ export function OfficialReportForm() {
                 </MenuItem>
               ))}
             </TextField>
-            <Alert severity="info" sx={{ mt: 1.5, maxWidth: 560 }}>
-              {area
-                ? `Every team currently working ${area}, combined into one file.`
-                : 'Every area, every team, every mission — in Area → Team → Mission order, each ' +
-                  "team's own section unchanged. This is the one to hand the customer as the overall " +
-                  'project report.'}
-            </Alert>
           </Box>
+        )}
+        {mode === 'overall' && (
+          <Alert severity="info" sx={{ maxWidth: 560 }}>
+            Every line, every team, every mission — in Line → Team → Mission order, each team's own
+            section unchanged. This is the one to hand the customer as the overall project report.
+          </Alert>
         )}
 
         <TextField
@@ -261,7 +269,7 @@ export function OfficialReportForm() {
           helperText={
             mode === 'tower' || mode === 'team'
               ? 'Must be unique — used as the file name too.'
-              : 'Each team\'s section gets its own number derived from this (e.g. -ASHOOR-SAADA-TEAM1) so it stays traceable per team.'
+              : "Each team's section gets its own number derived from this (e.g. -ASHOOR-SAADA-TEAM1) so it stays traceable per team."
           }
           value={reportNumber}
           onChange={(e) => setReportNumber(e.target.value)}
