@@ -108,10 +108,15 @@ export function OutingPlanCard({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const rest = pool.filter((t) => !selected.includes(t.id));
-    if (!q) return rest;
-    return rest.filter(
-      (t) => t.tower_id.toLowerCase().includes(q) || (t.area || '').toLowerCase().includes(q),
-    );
+    const matched = !q
+      ? rest
+      : rest.filter((t) => t.tower_id.toLowerCase().includes(q) || (t.area || '').toLowerCase().includes(q));
+    // Numeric sort so "Ashoor-Saada-2" sorts before "-10" instead of after it, the way a plain
+    // string sort would ("-10" < "-2" alphabetically) — matches how a leader actually reads tower
+    // numbers down a line.
+    return matched
+      .slice()
+      .sort((a, b) => a.tower_id.localeCompare(b.tower_id, undefined, { numeric: true }));
   }, [pool, search, selected]);
 
   const toggle = (id: number) => {

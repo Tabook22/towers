@@ -26,6 +26,7 @@ from app.models import (
 from app.services.movement import current_field_date, shift_window
 from app.services.next_towers import Candidate, plan_stops
 from app.services.rollup import visit_rollup
+from app.utils import natural_sort_key
 
 REMAINING_STATUSES = ("skipped", "in_progress", "pending")
 OPS_KINDS = ("access", "weather", "skip", "hotspot", "help")
@@ -101,11 +102,9 @@ def _team_user_ids(db: Session, team: Team) -> list[int]:
 
 
 def _scope_towers(db: Session, team: Team, field_date: dt.date) -> tuple[list[Tower], str, TeamOutingPlan | None]:
-    assigned = (
-        db.query(Tower)
-        .filter(Tower.is_active.is_(True), Tower.assigned_team_id == team.id)
-        .order_by(Tower.tower_id)
-        .all()
+    assigned = sorted(
+        db.query(Tower).filter(Tower.is_active.is_(True), Tower.assigned_team_id == team.id).all(),
+        key=lambda t: natural_sort_key(t.tower_id),
     )
     plan = (
         db.query(TeamOutingPlan)

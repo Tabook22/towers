@@ -8,6 +8,7 @@ from app.deps import effective_team_id, get_current_user
 from app.models import Position, Tower, User, UserRole, Visit
 from app.schemas import DashboardSummary, DashboardTowerRow, VisitOut, VisitRollup
 from app.services.rollup import visit_rollup
+from app.utils import natural_sort_key
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -27,7 +28,7 @@ def dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_cu
             q = q.filter(False)
         else:
             q = q.filter(Tower.assigned_team_id == leader_team_id)
-    towers = q.order_by(Tower.tower_id).all()
+    towers = sorted(q.all(), key=lambda t: natural_sort_key(t.tower_id))
 
     rows: list[DashboardTowerRow] = []
     total_hotspots = 0

@@ -35,6 +35,7 @@ from app.services.team_activity_report import (
     build_team_activity_workbook,
     query_team_activity_visits,
 )
+from app.utils import natural_sort_key
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -123,7 +124,7 @@ def overall_report(area: str | None = None, db: Session = Depends(get_db), user:
     q = db.query(Tower).filter(Tower.is_active.is_(True))
     if area:
         q = q.filter(Tower.area == area)
-    towers = q.order_by(Tower.tower_id).all()
+    towers = sorted(q.all(), key=lambda t: natural_sort_key(t.tower_id))
 
     rows = []
     for tower in towers:

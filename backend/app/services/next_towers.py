@@ -33,6 +33,7 @@ from app.services.movement import (
     shift_window,
 )
 from app.services.rollup import visit_rollup
+from app.utils import natural_sort_key
 
 FIELD_SPEED_KMH = 35.0
 DEFAULT_DWELL_MIN = 25
@@ -205,11 +206,9 @@ def build_next_towers(
     limit = max(1, min(limit, MAX_STOPS))
     day = current_field_date()
     shift_start, shift_end = shift_window(day)
-    towers = (
-        db.query(Tower)
-        .filter(Tower.is_active.is_(True), Tower.assigned_team_id == team.id)
-        .order_by(Tower.tower_id)
-        .all()
+    towers = sorted(
+        db.query(Tower).filter(Tower.is_active.is_(True), Tower.assigned_team_id == team.id).all(),
+        key=lambda t: natural_sort_key(t.tower_id),
     )
     outing = (
         db.query(TeamOutingPlan)

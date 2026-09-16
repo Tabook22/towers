@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.config import settings
 from app.database import get_db
 from app.deps import effective_team_id, get_current_user, require_role
+from app.utils import natural_sort_key
 from app.models import (
     Area,
     NightTowerClaim,
@@ -78,7 +79,11 @@ def list_towers(
         q = q.filter(Tower.assigned_team_id.is_(None))
     elif assigned_team_id is not None:
         q = q.filter(Tower.assigned_team_id == assigned_team_id)
-    towers = q.order_by(Tower.tower_id).offset(skip).limit(limit).all()
+    # Natural-sorted (so "-2" comes before "-10") rather than the plain string order SQL would give
+    # — towers are free-text IDs, so this has to happen in Python; sort before paginating.
+    all_matching = q.all()
+    all_matching.sort(key=lambda t: natural_sort_key(t.tower_id))
+    towers = all_matching[skip : skip + limit]
 
     rows = []
     for t in towers:
@@ -353,12 +358,8 @@ def export_towers_xlsx(
 ):
     """Every tower in the catalog as an .xlsx — same columns as the import template, plus assigned
     team and active flag. Includes deactivated towers. Safe to edit and upload again."""
-    towers = (
-        db.query(Tower)
-        .options(joinedload(Tower.assigned_team))
-        .order_by(Tower.tower_id)
-        .all()
-    )
+    towers = db.query(Tower).options(joinedload(Tower.assigned_team)).all()
+    towers.sort(key=lambda t: natural_sort_key(t.tower_id))
     xlsx_bytes = export_towers_workbook(towers)
     stamp = dt.date.today().isoformat()
     return Response(

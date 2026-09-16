@@ -69,6 +69,7 @@ from app.config import settings
 from app.services.archive import file_extension, save_upload
 from app.services.handover import build_handover_pack, continue_last_night, end_outing
 from app.services.movement import build_team_progress, current_field_date, haversine_m, hour_window, shift_window
+from app.utils import natural_sort_key
 from app.services.next_towers import build_next_towers
 from app.services.rollup import visit_rollup
 from app.services.transcribe import transcribe_audio
@@ -802,11 +803,9 @@ def team_job_map(team_id: int, db: Session = Depends(get_db), _user: User = Depe
     team with nothing assigned yet just yields an empty map — assign towers from the Towers page."""
     team = _load_team(db, team_id)
 
-    towers = (
-        db.query(Tower)
-        .filter(Tower.is_active.is_(True), Tower.assigned_team_id == team_id)
-        .order_by(Tower.tower_id)
-        .all()
+    towers = sorted(
+        db.query(Tower).filter(Tower.is_active.is_(True), Tower.assigned_team_id == team_id).all(),
+        key=lambda t: natural_sort_key(t.tower_id),
     )
     if not towers:
         return TeamJobMap()
