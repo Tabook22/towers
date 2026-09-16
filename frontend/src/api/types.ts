@@ -185,9 +185,11 @@ export interface ChoiceLists {
 // ---------- OETC official report (a team's line campaign, rendered into the customer's exact
 // template) — see backend services/oetc_report.py. ----------
 export interface LineInspectionReportRequest {
-  team_id: number;
-  // Omit (or null) for the team's whole campaign ("full towers"); set to scope the report to one
-  // particular tower's visits only, still within start_date/end_date.
+  // "Report by team": team_id alone (tower_id omitted/null) = that team's whole campaign.
+  // "Report by tower": tower_id alone (team_id omitted) — the backend resolves the team from the
+  // tower's current assignment. Giving both scopes one tower within a team already known from
+  // context (the team-page shortcut). At least one of the two is required.
+  team_id?: number | null;
   tower_id?: number | null;
   start_date: string;
   end_date: string;

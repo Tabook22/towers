@@ -490,24 +490,29 @@ function AdminGuide() {
       </Section>
 
       <Section title="7. Reports">
-        <Step n={1} title="Official report for the customer (Reports page, top card).">
-          The customer's own template, filled in with real data — never restyled. Choose a scope:
-          <strong> One team</strong> (that team's whole campaign, or pick one tower from the Tower
-          dropdown for just that tower), <strong>One area</strong> (every team working that area, one
-          file), or <strong>Final report (everything)</strong> — every area, every team, every
-          mission, the one to hand the customer as the overall project report. A team leader can also
-          reach the "One team" version for just their own team from <strong>Generate official
-          report</strong> on their own team page.
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          The Reports page is numbered — every section opens with a "use this when" line, so you can
+          skip straight to the one you need instead of reading top to bottom.
+        </Typography>
+        <Step n={1} title="Official report for the customer (Reports page, Section 1).">
+          The customer's own template, filled in with real data — never restyled. Three kinds:
+          <strong> By tower</strong> (pick one specific tower — its team is worked out automatically),
+          <strong> By team</strong> (that team's whole campaign so far), or{' '}
+          <strong>Overall (final report)</strong> — every team and every tower together, optionally
+          narrowed to one area; leave area blank for the whole project. This is almost always the
+          report you want. A team leader can also reach the "By team" version for just their own team
+          from <strong>Generate official report</strong> on their own team page.
         </Step>
-        <Step n={2} title="Team activity report (Reports page).">
+        <Step n={2} title="Team activity report (Reports page, Section 2).">
           Not the customer template — an internal view of what each team has actually done, grouped
           team → day → tower → position, with a filterable Excel download. This is the quick answer
           to "what did team X do so far".
         </Step>
-        <Step n={3} title="Overall summary (Dashboard / Reports page).">
-          A quick internal PDF snapshot across all towers, optionally filtered by area.
+        <Step n={3} title="Overall summary (Reports page, Section 3).">
+          A quick internal PDF snapshot across all towers, optionally filtered by area — for your own
+          status check, not for the customer.
         </Step>
-        <Step n={4} title="Custom Word/PDF templates (Reports page, advanced).">
+        <Step n={4} title="Custom Word/PDF templates (Reports page, Section 5, advanced).">
           Upload your own branded <code>.docx</code> or a fillable PDF form once — it becomes the
           active template of that kind (Word and PDF are tracked separately, so both can be active
           at once), and every visit offers it as an extra download alongside the built-in fixed

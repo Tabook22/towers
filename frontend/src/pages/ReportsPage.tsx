@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import {
   Alert,
   Box,
@@ -39,6 +39,39 @@ import { TeamActivityReport } from '../components/TeamActivityReport';
 import { FieldExecutionPlanForm } from '../components/FieldExecutionPlanForm';
 import { OfficialReportForm } from '../components/OfficialReportForm';
 import { useAuth } from '../auth/AuthContext';
+
+// A numbered section with a one-line "use this when" callout right at the top, so each card on this
+// page answers "what is this for and when do I use it" before anything else — the page has several
+// different report types and that was the actual point of confusion, not any one form being hard to
+// fill in.
+function ReportSection({
+  number,
+  title,
+  useWhen,
+  children,
+}: {
+  number: number;
+  title: string;
+  useWhen: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card>
+      <CardContent>
+        <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 1 }}>
+          Section {number}
+        </Typography>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+          {title}
+        </Typography>
+        <Alert severity="info" icon={false} sx={{ mb: 2 }}>
+          <strong>Use this when:</strong> {useWhen}
+        </Alert>
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
 
 // One kind's upload/replace/remove/download-starter controls — used twice below (Word, PDF form)
 // with only the labels/accept-filter/endpoints differing.
@@ -168,120 +201,115 @@ export function ReportsPage() {
           Reports
         </Typography>
         <Typography color="text.secondary">
-          Two kinds of report: what a team has done so far (for your own tracking), and the official
-          customer-format report (for one team, one area, or the whole project).
+          Every report on this page is numbered, with a "use this when" line at the top of each
+          section — skip straight to the one that matches what you need.
         </Typography>
       </Box>
 
       {canManageProjectPlans && (
-        <Card>
-          <CardContent>
-            <OfficialReportForm />
-          </CardContent>
-        </Card>
+        <ReportSection
+          number={1}
+          title="Official report for the customer"
+          useWhen='you need the customer-format document — by tower, by team, or the overall final report covering everything. This is almost always the one you want.'
+        >
+          <OfficialReportForm />
+        </ReportSection>
       )}
 
-      <Card>
-        <CardContent>
-          <TeamActivityReport />
-        </CardContent>
-      </Card>
+      <ReportSection
+        number={2}
+        title="Team activity report"
+        useWhen="you just want to see or export what a team has actually done so far — not the customer template, a plain internal breakdown you can filter and download as Excel."
+      >
+        <TeamActivityReport />
+      </ReportSection>
 
-      <Card>
-        <CardContent>
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-            Overall summary (PDF)
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            A quick internal snapshot across all towers, optionally filtered by area — not the
-            customer-format report above.
-          </Typography>
-          <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
-            <TextField
-              select
-              size="small"
-              label="Area"
-              value={area}
-              onChange={(e) => setArea(e.target.value)}
-              sx={{ minWidth: 180 }}
-            >
-              <MenuItem value="">All areas</MenuItem>
-              {areas?.map((a) => (
-                <MenuItem key={a} value={a}>
-                  {a}
-                </MenuItem>
-              ))}
-            </TextField>
-            <Button
-              variant="contained"
-              startIcon={<PictureAsPdfIcon />}
-              component="a"
-              href={overallReportUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Download overall summary (PDF)
-            </Button>
-          </Stack>
-        </CardContent>
-      </Card>
+      <ReportSection
+        number={3}
+        title="Overall summary (PDF)"
+        useWhen="you want a quick internal snapshot PDF across all towers (optionally one area) — a fast status check for yourself, not something to hand the customer."
+      >
+        <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
+          <TextField
+            select
+            size="small"
+            label="Area"
+            value={area}
+            onChange={(e) => setArea(e.target.value)}
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="">All areas</MenuItem>
+            {areas?.map((a) => (
+              <MenuItem key={a} value={a}>
+                {a}
+              </MenuItem>
+            ))}
+          </TextField>
+          <Button
+            variant="contained"
+            startIcon={<PictureAsPdfIcon />}
+            component="a"
+            href={overallReportUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Download overall summary (PDF)
+          </Button>
+        </Stack>
+      </ReportSection>
 
       {canManageProjectPlans && (
-        <Card>
-          <CardContent>
-            <FieldExecutionPlanForm />
-          </CardContent>
-        </Card>
+        <ReportSection
+          number={4}
+          title="Field execution plan"
+          useWhen="you're mobilizing and need a plan document showing tower/team counts and a day-by-day schedule — a planning tool, not an inspection report."
+        >
+          <FieldExecutionPlanForm />
+        </ReportSection>
       )}
 
-      <Card>
-        <CardContent>
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-            Custom report templates
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Advanced: upload your own template — your logo, brand colors, fonts, and layout, exactly
-            as you design it — and matching reports get generated from it, as an extra download
-            alongside the per-tower reports below. Not needed for the official customer report above,
-            which already uses the customer's own fixed template. Download a starter template for a
-            working example with the right placeholder tags already in place.
-          </Typography>
+      <ReportSection
+        number={5}
+        title="Custom report templates"
+        useWhen="you want reports in your own branded layout (logo, colors, fonts) instead of the built-in one — advanced, and not needed for the official customer report in Section 1, which already uses the customer's own fixed template."
+      >
+        <Stack spacing={2.5} divider={<Divider />}>
+          <TemplateSlot
+            kind="docx"
+            label="Word template"
+            accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            description={
+              'A Word (.docx) mail-merge template — full layout freedom, and it supports a repeating table row ' +
+              'per position automatically.'
+            }
+            template={templates?.docx}
+            loading={templatesLoading}
+          />
+          <TemplateSlot
+            kind="pdf"
+            label="PDF template"
+            accept=".pdf,application/pdf"
+            description={
+              'A fillable PDF form — design the page and place named form fields (in Acrobat, LibreOffice, or ' +
+              'a similar PDF form editor); since a PDF form can’t repeat rows the way Word can, the starter ' +
+              'gives one fixed field per position slot (1–12) instead of a loop.'
+            }
+            template={templates?.pdf}
+            loading={templatesLoading}
+          />
+        </Stack>
+      </ReportSection>
 
-          <Stack spacing={2.5} divider={<Divider />}>
-            <TemplateSlot
-              kind="docx"
-              label="Word template"
-              accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              description={
-                'A Word (.docx) mail-merge template — full layout freedom, and it supports a repeating table row ' +
-                'per position automatically.'
-              }
-              template={templates?.docx}
-              loading={templatesLoading}
-            />
-            <TemplateSlot
-              kind="pdf"
-              label="PDF template"
-              accept=".pdf,application/pdf"
-              description={
-                'A fillable PDF form — design the page and place named form fields (in Acrobat, LibreOffice, or ' +
-                'a similar PDF form editor); since a PDF form can’t repeat rows the way Word can, the starter ' +
-                'gives one fixed field per position slot (1–12) instead of a loop.'
-              }
-              template={templates?.pdf}
-              loading={templatesLoading}
-            />
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+      <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 1 }}>
+        Section 6
+      </Typography>
+      <Typography variant="h6" sx={{ fontWeight: 700, mt: -1 }}>
         Per-tower reports
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mt: -2 }}>
-        A one-off PDF or Word download for a single tower's latest visit — not the official
-        customer-format report above.
-      </Typography>
+      <Alert severity="info" icon={false} sx={{ mt: -1 }}>
+        <strong>Use this when:</strong> you want a one-off PDF or Word download for a single tower's
+        latest visit only — not the official customer report in Section 1.
+      </Alert>
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>

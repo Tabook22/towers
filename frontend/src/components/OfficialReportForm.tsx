@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   MenuItem,
@@ -17,29 +18,31 @@ import {
   useGenerateOetcAreaReport,
   useGenerateOetcConsolidatedReport,
   useGenerateOetcReport,
-  useTeamJobMap,
   useTeams,
+  useTowers,
 } from '../api/hooks';
 
-type Mode = 'team' | 'area' | 'consolidated';
+type Mode = 'tower' | 'team' | 'overall';
 
 /** The one place to generate the customer's own official "Transmission Line Insulator Thermal
  * Inspection Report" — the exact template they handed us, filled in from real Position/Visit data,
- * never restyled. Three scopes cover everything an admin asks for: one team's own campaign (with an
- * optional single tower within it, for "just this one tower"), every team working one area, or the
- * whole project at once ("the general final report"). Same rendering path either way — see backend
- * services/oetc_report.py and oetc_grouped_report.py. */
+ * never restyled. Matches how an admin actually thinks about it: report by tower (one specific
+ * tower — the team it belongs to is worked out automatically), report by team (that team's whole
+ * campaign so far), or the overall report (every team, every tower — optionally narrowed to one
+ * area). Same rendering path in every case — see backend services/oetc_report.py and
+ * oetc_grouped_report.py. */
 export function OfficialReportForm() {
   const { data: teams } = useTeams();
+  const { data: towers } = useTowers({ include_inactive: true, limit: 5000 });
   const { data: areas } = useAreas();
   const { data: lists } = useChoiceLists();
   const generateTeam = useGenerateOetcReport();
   const generateArea = useGenerateOetcAreaReport();
   const generateConsolidated = useGenerateOetcConsolidatedReport();
 
-  const [mode, setMode] = useState<Mode>('team');
+  const [mode, setMode] = useState<Mode>('tower');
   const [teamId, setTeamId] = useState('');
-  const [towerId, setTowerId] = useState('');
+  const [towerId, setTowerId] = useState<number | null>(null);
   const [area, setArea] = useState('');
   const [reportNumber, setReportNumber] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -54,19 +57,26 @@ export function OfficialReportForm() {
   const [approvalDate, setApprovalDate] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const { data: jobMap } = useTeamJobMap(mode === 'team' && teamId ? Number(teamId) : undefined);
+  const towerOptions = useMemo(
+    () =>
+      (towers || [])
+        .slice()
+        .sort((a, b) => a.tower_id.localeCompare(b.tower_id, undefined, { numeric: true }))
+        .map((t) => ({ id: t.id, label: t.area ? `${t.tower_id} — ${t.area}` : t.tower_id, assigned_team_name: t.assigned_team_name })),
+    [towers],
+  );
+  const selectedTowerOption = towerOptions.find((t) => t.id === towerId) || null;
 
   const generating = generateTeam.isPending || generateArea.isPending || generateConsolidated.isPending;
   const requiredFilled =
     reportNumber.trim() &&
     startDate &&
     endDate &&
-    (mode === 'consolidated' || (mode === 'area' && area) || (mode === 'team' && teamId));
+    (mode === 'overall' || (mode === 'team' && teamId) || (mode === 'tower' && towerId));
 
   const handleModeChange = (next: Mode | null) => {
     if (!next) return;
     setMode(next);
-    setTowerId('');
     setError(null);
   };
 
@@ -89,12 +99,11 @@ export function OfficialReportForm() {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(detail || 'Could not generate the report.');
     };
-    if (mode === 'team') {
-      generateTeam.mutate(
-        { ...shared, team_id: Number(teamId), tower_id: towerId ? Number(towerId) : null },
-        { onError },
-      );
-    } else if (mode === 'area') {
+    if (mode === 'tower') {
+      generateTeam.mutate({ ...shared, tower_id: towerId }, { onError });
+    } else if (mode === 'team') {
+      generateTeam.mutate({ ...shared, team_id: Number(teamId) }, { onError });
+    } else if (area) {
       generateArea.mutate({ ...shared, area }, { onError });
     } else {
       generateConsolidated.mutate(shared, { onError });
@@ -103,13 +112,13 @@ export function OfficialReportForm() {
 
   const buttonLabel = generating
     ? 'Generating…'
-    : mode === 'team'
-      ? towerId
-        ? 'Generate tower report'
-        : 'Generate team report'
-      : mode === 'area'
-        ? 'Generate area report'
-        : 'Generate final report';
+    : mode === 'tower'
+      ? 'Generate tower report'
+      : mode === 'team'
+        ? 'Generate team report'
+        : area
+          ? 'Generate area report'
+          : 'Generate overall report';
 
   return (
     <Box>
@@ -121,21 +130,16 @@ export function OfficialReportForm() {
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         Fills the customer's own "Transmission Line Insulator Thermal Inspection Report" template with
-        real inspection data — the page design is never changed. Pick what this report should cover:
-        one team's own work (optionally just one tower of theirs), every team in one area, or
-        everything at once as the general final report.
+        real inspection data — the page design is never changed. There are three kinds:{' '}
+        <strong>by tower</strong> (one specific tower), <strong>by team</strong> (everything that team
+        has done so far), and <strong>overall</strong> (every team and every tower together — the one
+        to hand the customer as the final project report).
       </Typography>
 
-      <ToggleButtonGroup
-        exclusive
-        size="small"
-        value={mode}
-        onChange={(_, v) => handleModeChange(v)}
-        sx={{ mb: 2 }}
-      >
-        <ToggleButton value="team">One team</ToggleButton>
-        <ToggleButton value="area">One area</ToggleButton>
-        <ToggleButton value="consolidated">Final report (everything)</ToggleButton>
+      <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_, v) => handleModeChange(v)} sx={{ mb: 2 }}>
+        <ToggleButton value="tower">By tower</ToggleButton>
+        <ToggleButton value="team">By team</ToggleButton>
+        <ToggleButton value="overall">Overall (final report)</ToggleButton>
       </ToggleButtonGroup>
 
       {error && (
@@ -145,67 +149,74 @@ export function OfficialReportForm() {
       )}
 
       <Stack spacing={2}>
-        {mode === 'team' && (
-          <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', rowGap: 2 }}>
-            <TextField
-              select
+        {mode === 'tower' && (
+          <Box>
+            <Autocomplete
               size="small"
-              label="Team"
-              value={teamId}
-              onChange={(e) => {
-                setTeamId(e.target.value);
-                setTowerId('');
-              }}
-              sx={{ minWidth: 220 }}
-            >
-              <MenuItem value="">
-                <em>Select a team</em>
-              </MenuItem>
-              {teams?.map((t) => (
-                <MenuItem key={t.id} value={t.id}>
-                  {t.name}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              select
-              size="small"
-              label="Tower"
-              value={towerId}
-              onChange={(e) => setTowerId(e.target.value)}
-              disabled={!teamId}
-              sx={{ minWidth: 220 }}
-              helperText="Leave as 'All towers' for that team's whole campaign"
-            >
-              <MenuItem value="">
-                <em>All towers (whole team campaign)</em>
-              </MenuItem>
-              {(jobMap?.towers || []).map((t) => (
-                <MenuItem key={t.id} value={t.id}>
-                  {t.tower_id}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Stack>
+              sx={{ maxWidth: 360 }}
+              options={towerOptions}
+              value={selectedTowerOption}
+              onChange={(_e, v) => setTowerId(v ? v.id : null)}
+              getOptionLabel={(o) => o.label}
+              isOptionEqualToValue={(a, b) => a.id === b.id}
+              renderInput={(params) => <TextField {...params} label="Tower" placeholder="Search by tower number" />}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              {selectedTowerOption
+                ? selectedTowerOption.assigned_team_name
+                  ? `Team: ${selectedTowerOption.assigned_team_name} (worked out automatically)`
+                  : 'This tower has no team assigned yet — assign it on the Towers page first.'
+                : 'Just the report for this one tower — the team is worked out automatically.'}
+            </Typography>
+          </Box>
         )}
-        {mode === 'area' && (
-          <TextField select size="small" label="Area" value={area} onChange={(e) => setArea(e.target.value)} sx={{ maxWidth: 320 }}>
+        {mode === 'team' && (
+          <TextField
+            select
+            size="small"
+            label="Team"
+            value={teamId}
+            onChange={(e) => setTeamId(e.target.value)}
+            sx={{ minWidth: 220, maxWidth: 320 }}
+            helperText="Covers that team's whole campaign in the date range below."
+          >
             <MenuItem value="">
-              <em>Select an area</em>
+              <em>Select a team</em>
             </MenuItem>
-            {areas?.map((a) => (
-              <MenuItem key={a} value={a}>
-                {a}
+            {teams?.map((t) => (
+              <MenuItem key={t.id} value={t.id}>
+                {t.name}
               </MenuItem>
             ))}
           </TextField>
         )}
-        {mode === 'consolidated' && (
-          <Alert severity="info" sx={{ maxWidth: 560 }}>
-            Covers every area, every team, every mission — in Area → Team → Mission order, each
-            team's own section unchanged. This is the one to hand the customer as the overall project
-            report.
-          </Alert>
+        {mode === 'overall' && (
+          <Box>
+            <TextField
+              select
+              size="small"
+              label="Area (optional)"
+              value={area}
+              onChange={(e) => setArea(e.target.value)}
+              sx={{ minWidth: 220, maxWidth: 320 }}
+            >
+              <MenuItem value="">
+                <em>All areas — the whole project</em>
+              </MenuItem>
+              {areas?.map((a) => (
+                <MenuItem key={a} value={a}>
+                  {a}
+                </MenuItem>
+              ))}
+            </TextField>
+            <Alert severity="info" sx={{ mt: 1.5, maxWidth: 560 }}>
+              {area
+                ? `Every team currently working ${area}, combined into one file.`
+                : 'Every area, every team, every mission — in Area → Team → Mission order, each ' +
+                  "team's own section unchanged. This is the one to hand the customer as the overall " +
+                  'project report.'}
+            </Alert>
+          </Box>
         )}
 
         <TextField
@@ -213,7 +224,7 @@ export function OfficialReportForm() {
           label="Report number"
           placeholder="e.g. OETC-DFRTRM-IR-2026-01"
           helperText={
-            mode === 'team'
+            mode === 'tower' || mode === 'team'
               ? 'Must be unique — used as the file name too.'
               : 'Each team\'s section gets its own number derived from this (e.g. -ASHOOR-SAADA-TEAM1) so it stays traceable per team.'
           }

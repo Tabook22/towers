@@ -213,30 +213,38 @@ def oetc_line_report(
     """The official customer-format report (see services/oetc_report.py) — a team's whole line
     campaign over a date range by default, or (when payload.tower_id is set) just that one
     particular tower's visits, rendered straight into the customer's own template either way.
+    "Report by tower" gives tower_id alone (team_id left unset) — resolved below from the tower's
+    current assignment, so the caller only needs to know the tower, not which team owns it.
     Admin/reviewer can generate for any team; a team_leader only for their own, same boundary as
     every other team-scoped report in this app; a team_member (whose whole workspace is their own
     assigned missions, not team-wide reporting) is refused outright."""
-    if user.role == UserRole.TEAM_MEMBER.value:
-        raise HTTPException(status_code=403, detail="Not available for team-member accounts")
-    if user.role == UserRole.TEAM_LEADER.value and user.team_id != payload.team_id:
-        raise HTTPException(status_code=403, detail="You don't have access to this team")
-
-    team = db.get(Team, payload.team_id)
-    if not team:
-        raise HTTPException(status_code=404, detail="Team not found")
-    if db.query(LineInspectionReport).filter(LineInspectionReport.report_number == payload.report_number).first():
-        raise HTTPException(status_code=400, detail=f"Report number '{payload.report_number}' already used")
-
     tower = None
     if payload.tower_id is not None:
         tower = db.get(Tower, payload.tower_id)
         if not tower:
             raise HTTPException(status_code=404, detail="Tower not found")
 
+    team_id = payload.team_id
+    if team_id is None:
+        if tower.assigned_team_id is None:
+            raise HTTPException(status_code=400, detail=f"{tower.tower_id} isn't assigned to a team yet")
+        team_id = tower.assigned_team_id
+
+    if user.role == UserRole.TEAM_MEMBER.value:
+        raise HTTPException(status_code=403, detail="Not available for team-member accounts")
+    if user.role == UserRole.TEAM_LEADER.value and user.team_id != team_id:
+        raise HTTPException(status_code=403, detail="You don't have access to this team")
+
+    team = db.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    if db.query(LineInspectionReport).filter(LineInspectionReport.report_number == payload.report_number).first():
+        raise HTTPException(status_code=400, detail=f"Report number '{payload.report_number}' already used")
+
     visits_query = db.query(Visit).options(
         joinedload(Visit.positions).joinedload(Position.images), joinedload(Visit.tower)
     ).filter(
-        Visit.team_id == payload.team_id,
+        Visit.team_id == team.id,
         Visit.inspection_date >= payload.start_date,
         Visit.inspection_date <= payload.end_date,
     )

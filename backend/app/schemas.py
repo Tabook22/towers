@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models import (
     CONFIDENCE_CHOICES,
@@ -1149,9 +1149,12 @@ class FieldExecutionPlanRequest(BaseModel):
 # range, rendered straight into that template. Everything here is either not derivable from the raw
 # field data (report number, sign-off) or is the engineer's own judgment call at report time. ----------
 class LineInspectionReportRequest(BaseModel):
-    team_id: int
-    # None = the team's whole campaign ("full towers"); set to scope the report to one particular
-    # tower's visits only, still within start_date/end_date.
+    # "Report by team" gives team_id alone (None tower_id = that team's whole campaign, i.e. "full
+    # towers"). "Report by tower" gives tower_id alone and leaves team_id unset — the router resolves
+    # the team from the tower's current assignment, so the UI only needs one dropdown, not two, and
+    # never has to guess which team a tower belongs to. Giving both scopes to one tower within one
+    # named team (the team-page shortcut, where the team is already known from context).
+    team_id: int | None = None
     tower_id: int | None = None
     start_date: dt.date
     end_date: dt.date
@@ -1164,6 +1167,12 @@ class LineInspectionReportRequest(BaseModel):
     reviewed_by: str | None = None
     approved_by: str | None = None
     approval_date: dt.date | None = None
+
+    @model_validator(mode="after")
+    def check_team_or_tower(self):
+        if self.team_id is None and self.tower_id is None:
+            raise ValueError("Provide team_id, tower_id, or both")
+        return self
 
     @field_validator("overall_condition")
     @classmethod

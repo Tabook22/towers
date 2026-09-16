@@ -292,25 +292,28 @@ photos read-only.
 
 ## B7. Reports
 
-- **Official report for the customer** (Reports page, top card, admin/reviewer) — the customer's own
-  template, filled in with real data, page design never touched. Three scopes: **One team** (that
-  team's whole campaign, or pick one tower from the Tower dropdown for a single-tower report),
-  **One area** (every team working that area, one file), or **Final report (everything)** — every
-  area, every team, every mission, the one to hand the customer as the overall project report. A
-  team leader reaches the "One team" version for just their own team via **Generate official
-  report** on their own team page.
-- **Team activity report** (Reports page) — not the customer template; an internal view of what
-  each team has actually done, grouped team → day → tower → position, plus a filterable Excel
-  download. This is the answer to "what did team X do so far".
-- **Overall summary** (Dashboard / Reports page) — a quick internal PDF snapshot across all towers,
-  optionally filtered by area.
+The Reports page is numbered, Section 1 through 6, each with a "use this when" line at the top —
+point a confused admin at the section number rather than re-explaining the whole page.
+
+- **Section 1 — Official report for the customer** (admin/reviewer) — the customer's own template,
+  filled in with real data, page design never touched. Three kinds: **By tower** (pick one specific
+  tower — its team is worked out automatically, no need to know which team owns it), **By team**
+  (that team's whole campaign so far), or **Overall (final report)** — every team and every tower
+  together, optionally narrowed to one area (leave area blank for the whole project). This is almost
+  always the report an admin actually wants. A team leader reaches the "By team" version for just
+  their own team via **Generate official report** on their own team page.
+- **Section 2 — Team activity report** — not the customer template; an internal view of what each
+  team has actually done, grouped team → day → tower → position, plus a filterable Excel download.
+  This is the answer to "what did team X do so far".
+- **Section 3 — Overall summary** — a quick internal PDF snapshot across all towers, optionally
+  filtered by area, for the admin's own status check, not for the customer.
+- **Section 4 — Field execution plan** (admin/reviewer) — the mobilization planning document, not an
+  inspection report.
+- **Section 5 — Custom report templates** (advanced) — upload a branded Word/PDF template; not
+  needed for Section 1's official report, which already has its own fixed template.
+- **Section 6 — Per-tower reports** — a one-off PDF/Word download for a single tower's latest visit
+  only, separate from Section 1's official report.
 - **Per-visit PDF** — from any individual inspection visit.
-- **Custom Word/PDF templates** (Reports page, advanced) — upload your own branded `.docx` or a
-  fillable PDF form once; it becomes the active template of that kind (Word and PDF are tracked
-  separately, so both can be active at once) and every per-visit report offers it as an extra
-  download option alongside the built-in fixed layout. Not needed for the official customer report
-  above, which already has its own fixed template. A starter template can be downloaded from the
-  same page as a working example to customize.
 
 ## B8. Accounts & security
 
