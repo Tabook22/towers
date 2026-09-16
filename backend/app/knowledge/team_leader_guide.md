@@ -1,10 +1,16 @@
-# Insulator Inspector Pro — Team Leader & Crew Guide
+# Insulator Inspector Pro — Complete Guide
 
 This is the ground-truth reference for the in-app Help assistant. It documents exactly how the
-app works today — screens, buttons, terminology, and the underlying logic — for a **team leader**
-or **team member** running a field crew that inspects 132 kV overhead-line insulator strings.
-Answer questions using only what is written here; if something isn't covered, say so plainly
-rather than guessing, and suggest the person ask an admin or check the in-app Help & guides page.
+app works today — screens, buttons, terminology, and the underlying logic — for both audiences of
+the app: **Part A** for a team leader or team member running a field crew that inspects 132 kV
+overhead-line insulator strings, and **Part B** for an admin (or reviewer) setting up and running
+the whole operation. Answer using only what is written here; if something isn't covered, say so
+plainly rather than guessing, and suggest the person check the in-app Help & guides page or ask
+whoever administers their account.
+
+---
+
+# Part A — Team Leader & Crew Guide
 
 ## 1. Who uses this app, and what for
 
@@ -176,4 +182,131 @@ These look similar but answer different questions:
   planned), reason from the rollup logic in section 2: Ready for review requires zero images
   pending and every installed position screened — anything less is either "Evidence incomplete"
   or "Inspection incomplete".
+- Never invent a screen, button, or field that isn't described here.
+
+---
+
+# Part B — Administrator Guide
+
+For an **admin** (or **reviewer** — near-identical access, meant as a second set of eyes) setting
+up the whole operation and running it day to day. Admin/reviewer logins see every team and every
+tower; a team leader/member sees only their own.
+
+## B1. Recommended setup order — start here
+
+This is the order the app's own screens are designed around (e.g. the "Add a new team" dialog
+picks a team leader from a dropdown of *already-created* leader logins, and auto-fills their name/
+phone from that login):
+
+1. **Build the tower catalog first** (Towers page) — either add towers one at a time, or bulk
+   import a spreadsheet via **Import from Excel**. Set up Areas if the line spans more than one.
+2. **Create each team leader's login** (Teams page → Team leaders section → **Add team leader**)
+   — name, mobile, address, username, password (6+ characters). This creates their account before
+   any team exists to link it to.
+3. **Create the team and link that leader** (Teams page → **Add team**) — name the team, pick the
+   team leader login from the dropdown (auto-fills their name/phone), optionally set a Mission
+   description, primary line sector, and a daily target (towers/day).
+4. **Assign towers to that team** — any of: select tower rows on the Towers page and use **Assign
+   to team**; click a green (free) pin on any Site map and it assigns to that team; or let a team
+   leader's own Mission plan auto-assign a picked tower on save.
+5. **Hand off to the team leader.** From here it's their workflow (see Part A): they sign in, add
+   their own crew members, plan nightly missions, and run inspections. An admin never has to do
+   this step-by-step work personally — but can, from any team's own page, if needed.
+6. **Monitor as it runs** — Field Tracker (live map, all teams), Team Progress (per-night stats),
+   or open any team's own page directly to see/adjust their Missions, Job map, or Handover.
+7. **Pull reports** as needed — overall, per-team, or from custom Word/PDF templates.
+
+## B2. Managing the tower catalog (Towers page)
+
+- **Add tower** — Tower ID (any format, no fixed list required), Voltage, Tower type, Area/
+  Region, Line sector (free-text project label, e.g. "Ittin - Thumrait"), Location name, Height
+  (m), plus GPS coordinates and an optional reference photo.
+- **Import from Excel** — bulk-create or update towers from a spreadsheet.
+- **Download Excel** — export the current catalog (also doubles as an import template).
+- **Move towers on map** — a GPS editor to drag-place tower pins visually instead of typing
+  coordinates.
+- **Match IDs to pin numbers** — rewrites Tower IDs so the trailing number matches each tower's
+  map pin number within its area (e.g. `Ashoor-Saada-100` with pin 67 becomes `Ashoor-Saada-67`).
+- **Manage areas** (pencil icon next to the Area filter) — add, rename, or delete areas.
+- Filters: Area, Line sector, Assigned team (including an "Unassigned" filter to find free towers).
+- Select rows (checkboxes) for bulk **Assign to team** or **Delete selected**; **Delete all**
+  wipes the whole catalog — inspection visits on those towers are deleted with them, and this
+  cannot be undone.
+- Click a tower's own row to open its detail page (edit details, see its inspection visits,
+  start one manually).
+
+## B3. Creating teams and team leaders (Teams page)
+
+- **Team leaders** table — every team-leader login, independent of whether it's linked to a team
+  yet ("Unassigned" if not). **Add team leader**: full name, mobile, address, username, password.
+  Editing an existing leader can reset their password (leave blank to keep it) but never shows
+  the current one back. Deleting a leader who already has real missions recorded deactivates
+  their account instead of removing it, so the historical record stays intact.
+- **Teams** table — **Add a new team**: team name (required), the linked team-leader login (name/
+  phone auto-fill from it), a free-text Mission description, an optional primary line sector, and
+  a daily target (towers/day) used as the working-plan quota shown against actual progress.
+  Team **Status**: active / paused / completed.
+- A team leader's login only ever sees their own team's data — this is enforced server-side, not
+  just hidden in the UI, so it can't be worked around from the leader's own account.
+
+## B4. Team members
+
+- Either the team leader (from their own **Our team** page) or an admin (visiting that same team's
+  page) can add a team member login: full name, mobile, job type (Drone Operator, Photographer,
+  Recorder / Data Logger, Data Entry, Analyst, or a custom one), username, password.
+- A team_member login's whole app is scoped to the missions assigned to them — no dashboard,
+  towers catalog, archive, or reports; they see and act on their own work only.
+
+## B5. Monitoring everything
+
+- **Field Tracker** (admin/reviewer only) — the live, all-teams map: every crew's GPS position,
+  breadcrumb trails, and the towers on the map. **New mission** closes the current tracking
+  session and starts a clean one (useful to separate one outing's path from the next on the map;
+  no GPS data is ever deleted — old sessions stay in **Previous missions**). Ops filters (Access /
+  Hold / Skip / Hotspot / Help) surface trouble across every team at once. The same Tonight/crew
+  channel messages team leaders see are visible here too, across all teams.
+- **Team Progress** (admin/reviewer only) — a mission recap per team: start/end, distance, total
+  time, minutes at each tower, travel between towers, and a comparison against the previous field
+  night to see day-to-day improvement or slippage.
+- **Any team's own page** (Teams → click a team) — the exact same Missions table, Job map,
+  Handover pack, and Daily progress log a team leader sees for their own team. An admin can act on
+  any of it directly (reassign a visit, change a mission's status, delete a mistaken visit) without
+  needing the team leader to do it.
+
+## B6. Reports
+
+- **Overall report** (Dashboard) — PDF across all towers, optionally filtered by area.
+- **Generate official report** (a team's own page) — a formatted report for that team over a
+  chosen date range.
+- **Per-visit PDF** — from any individual inspection visit.
+- **Custom Word/PDF templates** (Reports page) — upload your own branded `.docx` or a fillable
+  PDF form once; it becomes the active template of that kind (Word and PDF are tracked
+  separately, so both can be active at once) and every per-visit report offers it as an extra
+  download option alongside the built-in fixed layout. A starter template can be downloaded from
+  the same page as a working example to customize.
+
+## B7. Accounts & security
+
+- Every login can change their own password (avatar menu, top right → Change password).
+- Deleting a login that already has real recorded work deactivates it instead of deleting it, so
+  historical data (visits, GPS history, channel messages) is never silently orphaned.
+- **Reviewer** is a second admin-equivalent role for most day-to-day screens — intended as a
+  second set of eyes (e.g. QA), not a lesser role.
+
+## B8. Optional add-ons an admin may want to set up
+
+- **Help chat assistant** (this very chat) needs an Anthropic API key in the server's
+  configuration to actually answer questions — without one it replies with a clear "not set up
+  yet" message instead of failing.
+- **Android app** for crews that need GPS tracking to survive a locked screen or a phone call —
+  a real Android foreground service instead of a website tab. Built automatically via GitHub
+  Actions as a direct-install `.apk` (no Play Store account needed); ask whoever manages the
+  repository for the current download link.
+
+## B9. Answering style for admin questions
+
+- Lead with the recommended order (B1) when the question is about getting started or "what do I
+  do first".
+- Name the exact page and button, matching the wording actually in the app (e.g. "Teams page →
+  Add team leader", not "the user management screen").
 - Never invent a screen, button, or field that isn't described here.

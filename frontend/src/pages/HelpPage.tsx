@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Accordion,
   AccordionDetails,
@@ -9,11 +9,14 @@ import {
   Divider,
   Paper,
   Stack,
+  Tab,
+  Tabs,
   Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMoreRounded';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutlineRounded';
 import { HelpChatWidget } from '../components/HelpChatWidget';
+import { useAuth } from '../auth/AuthContext';
 
 function StepNumber({ n }: { n: number }) {
   return (
@@ -74,6 +77,10 @@ function Section({
 }
 
 export function HelpPage() {
+  const { user } = useAuth();
+  const isAdminRole = user?.role === 'admin' || user?.role === 'reviewer';
+  const [tab, setTab] = useState(isAdminRole ? 0 : 1);
+
   return (
     <Stack spacing={3}>
       <Box>
@@ -84,13 +91,22 @@ export function HelpPage() {
           </Typography>
         </Stack>
         <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-          Step-by-step guides for running a field team — mainly written for team leaders and
-          crew, but useful for anyone finding their way around the app.
+          Step-by-step guides for setting up and running the whole operation — for admins, team
+          leaders, and crew alike.
         </Typography>
       </Box>
 
       <HelpChatWidget />
 
+      <Tabs value={tab} onChange={(_e, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tab label="For Admins" />
+        <Tab label="For Team Leaders & Crew" />
+      </Tabs>
+
+      {tab === 0 && <AdminGuide />}
+
+      {tab === 1 && (
+      <>
       <Section
         title="1. Signing in and GPS tracking"
         subtitle="What happens the moment you log in"
@@ -329,6 +345,167 @@ export function HelpPage() {
           </Box>
         </Stack>
       </Paper>
+      </>
+      )}
     </Stack>
+  );
+}
+
+function AdminGuide() {
+  return (
+    <>
+      <Alert severity="info" sx={{ mb: -1 }}>
+        Recommended reading order: start with section 1 below if you&apos;re setting this up for
+        the first time — it&apos;s the exact order the app&apos;s own screens expect.
+      </Alert>
+
+      <Section
+        title="1. Recommended setup order — start here"
+        subtitle="What to do first, second, third…"
+        defaultExpanded
+      >
+        <Step n={1} title="Build the tower catalog first (Towers page).">
+          Add towers one at a time, or bulk-import a spreadsheet with <strong>Import from
+          Excel</strong>. Set up Areas first if the line spans more than one (pencil icon next to
+          the Area filter).
+        </Step>
+        <Step n={2} title="Create each team leader's login.">
+          Teams page → Team leaders section → <strong>Add team leader</strong>: name, mobile,
+          address, username, password (6+ characters). Do this before creating the team itself.
+        </Step>
+        <Step n={3} title="Create the team and link that leader.">
+          Teams page → <strong>Add team</strong>: team name, then pick the team leader login from
+          the dropdown — their name and phone fill in automatically. Optionally add a Mission
+          description, a primary line sector, and a daily target (towers/day).
+        </Step>
+        <Step n={4} title="Assign towers to that team.">
+          Any of: select tower rows on the Towers page and use <strong>Assign to team</strong>;
+          click a green (free) pin on any Site map; or let the team leader's own Mission plan
+          auto-assign a picked tower when they save it.
+        </Step>
+        <Step n={5} title="Hand off to the team leader.">
+          From here it&apos;s their day-to-day workflow (see the "For Team Leaders & Crew" tab):
+          sign in, add crew members, plan nightly missions, run inspections. You never have to do
+          this step-by-step yourself — but you can, from any team&apos;s own page, any time.
+        </Step>
+        <Step n={6} title="Monitor as it runs.">
+          Field Tracker (live map, all teams), Team Progress (per-night stats), or open any
+          team&apos;s own page directly to see or adjust their Missions, Job map, or Handover.
+        </Step>
+        <Step n={7} title="Pull reports as needed.">
+          Overall, per-team, per-visit, or from your own custom Word/PDF templates.
+        </Step>
+      </Section>
+
+      <Section title="2. Managing the tower catalog" subtitle="Towers page">
+        <Step n={1} title="Add tower.">
+          Tower ID (any format — no fixed list required), Voltage, Tower type, Area/Region, Line
+          sector (a free-text project label, e.g. "Ittin - Thumrait"), Location name, Height (m),
+          plus GPS coordinates and an optional reference photo.
+        </Step>
+        <Step n={2} title="Import from Excel / Download Excel.">
+          Bulk-create or update towers from a spreadsheet; Download Excel exports the current
+          catalog and doubles as an import template.
+        </Step>
+        <Step n={3} title="Move towers on map.">
+          A GPS editor to drag-place tower pins visually instead of typing coordinates.
+        </Step>
+        <Step n={4} title="Match IDs to pin numbers.">
+          Rewrites Tower IDs so the trailing number matches each tower&apos;s map pin number
+          within its area — e.g. <em>Ashoor-Saada-100</em> with pin 67 becomes{' '}
+          <em>Ashoor-Saada-67</em>.
+        </Step>
+        <Step n={5} title="Bulk actions and filters.">
+          Select rows for <strong>Assign to team</strong> or <strong>Delete selected</strong>;
+          filter by Area, Line sector, or Assigned team (including an "Unassigned" filter to find
+          free towers). <strong>Delete all</strong> wipes the whole catalog — inspection visits on
+          those towers go with it, and this can&apos;t be undone.
+        </Step>
+      </Section>
+
+      <Section title="3. Creating teams and team leaders" subtitle="Teams page">
+        <Step n={1} title="Team leaders table.">
+          Every team-leader login, whether or not it&apos;s linked to a team yet (shown as
+          "Unassigned" if not). Editing one can reset their password (leave it blank to keep the
+          current one — it&apos;s never shown back to you).
+        </Step>
+        <Step n={2} title="Teams table.">
+          Name, linked leader, Mission description, primary line sector, daily target, and Status
+          (active / paused / completed).
+        </Step>
+        <Step n={3} title="Deleting a leader with real history.">
+          If they already have missions recorded, deleting deactivates the account instead of
+          removing it, so the historical record stays intact.
+        </Step>
+      </Section>
+
+      <Section title="4. Team members">
+        <Typography variant="body2" color="text.secondary">
+          Either the team leader (from their own Our team page) or an admin (visiting that same
+          team&apos;s page) can add a member: full name, mobile, job type (Drone Operator,
+          Photographer, Recorder / Data Logger, Data Entry, Analyst, or a custom one), username,
+          password. A team_member login's whole app is scoped to the missions assigned to them —
+          no dashboard, towers catalog, archive, or reports.
+        </Typography>
+      </Section>
+
+      <Section title="5. Monitoring everything">
+        <Step n={1} title="Field Tracker.">
+          The live, all-teams map: every crew's GPS position, breadcrumb trails, and towers.{' '}
+          <strong>New mission</strong> starts a clean tracking session on the map (nothing is ever
+          deleted — old sessions stay under Previous missions). Ops filters (Access / Hold / Skip
+          / Hotspot / Help) surface trouble across every team at once, and the same crew channel
+          messages team leaders see are visible here too.
+        </Step>
+        <Step n={2} title="Team Progress.">
+          A mission recap per team — start/end, distance, total time, minutes at each tower,
+          travel between towers — compared against the previous field night.
+        </Step>
+        <Step n={3} title="Any team's own page.">
+          The exact same Missions table, Job map, Handover pack, and Daily progress log a team
+          leader sees. You can act on any of it directly — reassign a visit, change its status,
+          delete a mistaken one — without needing the team leader to do it.
+        </Step>
+      </Section>
+
+      <Section title="6. Reports">
+        <Step n={1} title="Overall report (Dashboard).">
+          PDF across all towers, optionally filtered by area.
+        </Step>
+        <Step n={2} title="Generate official report (a team's own page).">
+          A formatted report for that team over a chosen date range.
+        </Step>
+        <Step n={3} title="Custom Word/PDF templates (Reports page).">
+          Upload your own branded <code>.docx</code> or a fillable PDF form once — it becomes the
+          active template of that kind (Word and PDF are tracked separately, so both can be active
+          at once), and every visit offers it as an extra download alongside the built-in fixed
+          layout. Download the starter template from the same page as a working example.
+        </Step>
+      </Section>
+
+      <Section title="7. Accounts & security">
+        <Typography variant="body2" color="text.secondary">
+          Every login can change their own password from the avatar menu, top right. Deleting a
+          login that already has real recorded work deactivates it instead, so historical data
+          (visits, GPS history, channel messages) is never silently orphaned. <strong>Reviewer</strong>{' '}
+          is a second admin-equivalent role for most day-to-day screens — a second set of eyes,
+          not a lesser account.
+        </Typography>
+      </Section>
+
+      <Section title="8. Optional add-ons">
+        <Step n={1} title="Help chat assistant.">
+          This very chat needs an Anthropic API key in the server&apos;s configuration to answer
+          questions — without one it replies with a clear "not set up yet" message instead of
+          failing.
+        </Step>
+        <Step n={2} title="Android app.">
+          For crews that need GPS tracking to survive a locked screen or a phone call — a real
+          Android foreground service instead of a website tab. Built automatically as a
+          direct-install <code>.apk</code> (no Play Store account needed); ask whoever manages the
+          repository for the current download link.
+        </Step>
+      </Section>
+    </>
   );
 }
