@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import { TrackingProvider } from './hooks/useFieldTracking';
 import { OfflineProvider } from './offline/OfflineProvider';
 import { Layout } from './components/Layout';
+import { UpdateBanner } from './components/UpdateBanner';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { TowersPage } from './pages/TowersPage';
@@ -151,6 +152,7 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      <UpdateBanner />
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
