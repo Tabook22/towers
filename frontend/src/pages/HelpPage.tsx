@@ -293,6 +293,12 @@ export function HelpPage() {
       </Section>
 
       <Section title="9. Reports">
+        <Alert severity="info" sx={{ mb: 2 }}>
+          For a tower's work to show up in the official report at all, always start the visit
+          yourself from your own login — tap the tower, then <strong>Start visit</strong>. That's what
+          links your inspection to this team; work an admin enters on your behalf a different way
+          won't show up until they fix the link.
+        </Alert>
         <Step n={1} title="Per-tower PDF.">
           Open any tower and use <strong>Download tower report (PDF)</strong> from its inspection
           visit page.
@@ -393,8 +399,17 @@ function AdminGuide() {
           Field Tracker (live map, all teams), Team Progress (per-night stats), or open any
           team&apos;s own page directly to see or adjust their Missions, Job map, or Handover.
         </Step>
-        <Step n={7} title="Pull reports as needed.">
-          Overall, per-team, per-visit, or from your own custom Word/PDF templates.
+        <Step n={7} title="Pull the official report — the full path, start to finish.">
+          A tower only shows up in the customer's official report once all of this has actually
+          happened, in order: (1) the tower exists and is <strong>assigned to a team</strong>; (2) the
+          team leader or a crew member — signed into <strong>their own login</strong>, not you creating
+          it for them — opened that tower and <strong>started a visit</strong>; (3) at least one
+          position on that visit got a <strong>Direction set or a photo uploaded</strong> (an untouched
+          position is correctly left out, not a bug); (4) you go to{' '}
+          <strong>Reports → Section 1 → Official report for the customer</strong>, pick By tower / By
+          team / Overall, and set a date range that actually covers when the work happened. See
+          "How to build the final report" under Section 7 below for the full walkthrough — that's the
+          one to follow if a report comes back empty or you're not sure what's missing.
         </Step>
       </Section>
 
@@ -494,7 +509,38 @@ function AdminGuide() {
           The Reports page is numbered — every section opens with a "use this when" line, so you can
           skip straight to the one you need instead of reading top to bottom.
         </Typography>
-        <Step n={1} title="Official report for the customer (Reports page, Section 1).">
+
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <strong>How to build the final report — the full sequence.</strong> Follow this in order the
+          first time, or whenever a report comes back empty and you're not sure why:
+        </Alert>
+        <Step n={1} title="Tower exists and is assigned to a team.">
+          Towers page: the tower is added, and its <strong>Assigned team</strong> is set (not
+          "Unassigned"). A report can't guess whose work it is otherwise.
+        </Step>
+        <Step n={2} title="The visit was started from the team's own login — not created by you.">
+          This is the step that trips people up. Sign in as the team leader (or have them do it),
+          open the tower, and click <strong>Start visit</strong> from there. That's what links the
+          visit to the team behind the scenes. A visit an admin creates or edits directly for testing
+          can end up with no team attached — invisible to every report scope until someone fixes it.
+        </Step>
+        <Step n={3} title="At least one position has real work recorded.">
+          In the inspection form, a position only counts as a finding once it has a{' '}
+          <strong>Direction</strong> set or a <strong>photo</strong> uploaded. A position nobody
+          touched yet is correctly left out — that's not a missing report, it's an untouched slot.
+        </Step>
+        <Step n={4} title="Save — GPS tracking needs nothing extra.">
+          The form saves as you go. The team's GPS trail records automatically in the background
+          while their app is open with location on; there's no separate step for it.
+        </Step>
+        <Step n={5} title="Generate it: Reports → Section 1 → Official report for the customer.">
+          Pick <strong>By tower</strong>, <strong>By team</strong>, or <strong>Overall</strong>, set a
+          date range that actually covers when the work was recorded, fill in the report number, and
+          click Generate. If it still comes back with "No visits found", re-check steps 1–2 first —
+          that's the cause almost every time.
+        </Step>
+
+        <Step n={6} title="Official report for the customer (Reports page, Section 1) — the details.">
           The customer's own template, filled in with real data — never restyled. Three kinds:
           <strong> By tower</strong> (pick one specific tower — its team is worked out automatically),
           <strong> By team</strong> (that team's whole campaign so far), or{' '}
@@ -503,16 +549,16 @@ function AdminGuide() {
           report you want. A team leader can also reach the "By team" version for just their own team
           from <strong>Generate official report</strong> on their own team page.
         </Step>
-        <Step n={2} title="Team activity report (Reports page, Section 2).">
+        <Step n={7} title="Team activity report (Reports page, Section 2).">
           Not the customer template — an internal view of what each team has actually done, grouped
           team → day → tower → position, with a filterable Excel download. This is the quick answer
           to "what did team X do so far".
         </Step>
-        <Step n={3} title="Overall summary (Reports page, Section 3).">
+        <Step n={8} title="Overall summary (Reports page, Section 3).">
           A quick internal PDF snapshot across all towers, optionally filtered by area — for your own
           status check, not for the customer.
         </Step>
-        <Step n={4} title="Custom Word/PDF templates (Reports page, Section 5, advanced).">
+        <Step n={9} title="Custom Word/PDF templates (Reports page, Section 5, advanced).">
           Upload your own branded <code>.docx</code> or a fillable PDF form once — it becomes the
           active template of that kind (Word and PDF are tracked separately, so both can be active
           at once), and every visit offers it as an extra download alongside the built-in fixed

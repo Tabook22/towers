@@ -214,7 +214,14 @@ phone from that login):
    this step-by-step work personally — but can, from any team's own page, if needed.
 6. **Monitor as it runs** — Field Tracker (live map, all teams), Team Progress (per-night stats),
    or open any team's own page directly to see/adjust their Missions, Job map, or Handover.
-7. **Pull reports** as needed — overall, per-team, or from custom Word/PDF templates.
+7. **Pull the official report — the full path, start to finish.** A tower only shows up in it once
+   all of this has happened, in order: the tower is assigned to a team; the team leader or a crew
+   member — signed into *their own login*, not an admin creating it for them — opened that tower
+   and started a visit (this is what links the visit to the team; the step that trips people up
+   most); at least one position on that visit got a Direction set or a photo uploaded (an untouched
+   position is correctly left out, not a bug); and the date range used when generating covers when
+   the work was recorded. See B7 below ("How to build the final report") for the full walkthrough —
+   that's the one to point an admin at when a report comes back empty.
 
 ## B2. Managing the tower catalog (Towers page)
 
@@ -294,6 +301,28 @@ photos read-only.
 
 The Reports page is numbered, Section 1 through 6, each with a "use this when" line at the top —
 point a confused admin at the section number rather than re-explaining the whole page.
+
+### How to build the final report (the sequence that actually matters)
+
+When an admin says a report is empty, missing, or "not working", walk them through this in order —
+almost every case is steps 1–2:
+
+1. **Tower exists and is assigned to a team** (Towers page — check "Assigned team" isn't blank).
+2. **The visit was started from the team's own login, not created by the admin.** The team leader
+   or a crew member has to open the tower and tap **Start visit** themselves — that's the action
+   that links the visit to their team behind the scenes. A visit an admin adds or edits directly
+   (for testing, importing, or fixing something) can end up with no team attached, which makes it
+   invisible to every report scope (by tower, by team, or by area) even though the data exists.
+3. **At least one position on that visit has a Direction set or a photo uploaded** — the report only
+   turns a position into a "finding" once it has real recorded activity; an untouched slot is
+   correctly skipped, not a bug.
+4. **Save** — this happens automatically as the crew works; nothing extra needed. GPS tracking is
+   also automatic in the background whenever their app is open with location on.
+5. **Generate it**: Reports → Section 1 → Official report for the customer → pick By tower / By
+   team / Overall → set a date range that actually covers when the work was recorded → Generate.
+
+If a report still comes back "No visits found" after all of that, it's almost always the date range
+not covering the actual work dates, or step 2 (the visit's team link) — check those two first.
 
 - **Section 1 — Official report for the customer** (admin/reviewer) — the customer's own template,
   filled in with real data, page design never touched. Three kinds: **By tower** (pick one specific

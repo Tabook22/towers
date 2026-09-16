@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Autocomplete,
   Box,
@@ -11,6 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import TextField from '@mui/material/TextField';
 import {
   useAreas,
@@ -135,6 +139,37 @@ export function OfficialReportForm() {
         has done so far), and <strong>overall</strong> (every team and every tower together — the one
         to hand the customer as the final project report).
       </Typography>
+
+      <Accordion variant="outlined" sx={{ mb: 2 }} disableGutters>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+          <Typography variant="subtitle2">
+            Getting "No visits found" or an empty report? Check this first
+          </Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Stack spacing={1}>
+            <Typography variant="body2">
+              <strong>1.</strong> The tower is assigned to a team (Towers page) — not "Unassigned".
+            </Typography>
+            <Typography variant="body2">
+              <strong>2.</strong> The visit was started from the team leader's or a crew member's own
+              login (they tap the tower, then <strong>Start visit</strong>) — not created directly by
+              an admin. This is what links a visit to a team; it's the most common reason a report
+              comes back empty.
+            </Typography>
+            <Typography variant="body2">
+              <strong>3.</strong> At least one position on that visit has a Direction set or a photo
+              uploaded — an untouched position is correctly left out, not an error.
+            </Typography>
+            <Typography variant="body2">
+              <strong>4.</strong> The date range below actually covers when the work was recorded.
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Full walkthrough: Help page → For Admins → 7. Reports → "How to build the final report".
+            </Typography>
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
 
       <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_, v) => handleModeChange(v)} sx={{ mb: 2 }}>
         <ToggleButton value="tower">By tower</ToggleButton>
