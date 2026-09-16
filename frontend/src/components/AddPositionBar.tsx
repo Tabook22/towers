@@ -3,6 +3,11 @@ import { Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/mate
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlineRounded';
 import type { ChoiceLists, Position } from '../api/types';
 
+// Display-only hint — S1/S2 stay the actual stored values (position codes, the 12-slot identity,
+// and every existing report already key off them), this just shows which physical string each one
+// conventionally is so a leader doesn't have to guess or check a separate field.
+const STRING_LABELS: Record<string, string> = { S1: 'S1 — Outer', S2: 'S2 — Inner' };
+
 interface Props {
   /** All 12 canonical positions for this visit (they always exist server-side — see BUILD_PROMPT's
    * fixed ID scheme). Only the ones in `hiddenIds` are offered here; everything else is already on
@@ -101,11 +106,11 @@ export function AddPositionBar({ positions, hiddenIds, lists, onAdd }: Props) {
           value={stringVal}
           onChange={(e) => setStringVal(e.target.value)}
           disabled={!phase}
-          sx={{ minWidth: 110 }}
+          sx={{ minWidth: 150 }}
         >
           {[...new Set(hidden.filter((p) => p.ohl === ohl && p.phase === phase).map((p) => p.string))].map((v) => (
             <MenuItem key={v} value={v}>
-              {v}
+              {STRING_LABELS[v] || v}
             </MenuItem>
           ))}
         </TextField>
