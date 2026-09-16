@@ -53,7 +53,10 @@ export function AddPositionBar({ positions, hiddenIds, lists, onAdd }: Props) {
           size="small"
           label="Tower type"
           value={mountType}
-          onChange={(e) => setMountType(e.target.value)}
+          onChange={(e) => {
+            setMountType(e.target.value);
+            if (e.target.value === 'Suspension') setDirection('');
+          }}
           sx={{ minWidth: 130 }}
         >
           <MenuItem value="">—</MenuItem>
@@ -120,6 +123,8 @@ export function AddPositionBar({ positions, hiddenIds, lists, onAdd }: Props) {
           label="Direction"
           value={direction}
           onChange={(e) => setDirection(e.target.value)}
+          disabled={mountType === 'Suspension'}
+          helperText={mountType === 'Suspension' ? 'Not needed for Suspension' : undefined}
           sx={{ minWidth: 110 }}
         >
           <MenuItem value="">—</MenuItem>
