@@ -122,6 +122,10 @@ export function HelpPage() {
             in proper numeric order — 1, 2, 3 … 10, 11 … 108, 109 — instead of alphabetical order, which used to put
             "-11" before "-2".
           </Typography>
+          <Typography component="li" variant="body2">
+            The Image Archive's "Inspection photos" are now grouped as an expandable tree — Team →
+            Year/Month → Line → Tower → Insulator — instead of one flat filtered list.
+          </Typography>
         </Stack>
 
         <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
@@ -583,6 +587,12 @@ function AdminGuide() {
           photo with a location shows a clickable <strong>Location</strong> chip that opens it in
           Google Maps. Deleting a photo removes the file and its thumbnail — this can&apos;t be
           undone.
+        </Step>
+        <Step n={3} title='The "Inspection photos" section below it — grouped, not flat.'>
+          Every official checklist photo (from the inspection form itself), organized as an
+          expandable tree: <strong>Team → Year/Month → Line → Tower → Insulator</strong>. Use the
+          Team / Year / Month / Day / Tower filters above it to narrow the tree down first, then
+          expand into the one you need.
         </Step>
       </Section>
 

@@ -697,7 +697,7 @@ export function useDashboardSummary(area?: string) {
 }
 
 // ---------- Archive ----------
-export function useArchive(filters: { year?: number; month?: number; day?: number; tower_id?: number }) {
+export function useArchive(filters: { year?: number; month?: number; day?: number; tower_id?: number; team_id?: number }) {
   return useQuery({
     queryKey: ['archive', filters],
     queryFn: async () => (await apiClient.get<ImageRow[]>('/api/archive', { params: filters })).data,

@@ -5,13 +5,13 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Image, Position, Tower, User, UserRole, Visit
-from app.schemas import ImageOut
+from app.models import Image, Position, Team, Tower, User, UserRole, Visit
+from app.schemas import ArchiveImageOut, ImageOut
 
 router = APIRouter(prefix="/api/archive", tags=["archive"])
 
 
-@router.get("", response_model=list[ImageOut])
+@router.get("", response_model=list[ArchiveImageOut])
 def browse_archive(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -19,6 +19,7 @@ def browse_archive(
     month: int | None = None,
     day: int | None = None,
     tower_id: int | None = None,
+    team_id: int | None = None,
     image_type: str | None = None,
     only_uploaded: bool = True,
     skip: int = 0,
@@ -33,7 +34,10 @@ def browse_archive(
         .join(Position, Image.position_id == Position.id)
         .join(Visit, Position.visit_id == Visit.id)
         .join(Tower, Visit.tower_id == Tower.id)
-        .options(joinedload(Image.position))
+        .options(
+            joinedload(Image.position).joinedload(Position.visit).joinedload(Visit.tower),
+            joinedload(Image.position).joinedload(Position.visit).joinedload(Visit.team),
+        )
     )
     if user.role == UserRole.TEAM_LEADER.value:
         # Their own team's mission photos only — this endpoint spans every visit, so without this
@@ -43,6 +47,8 @@ def browse_archive(
         q = q.filter(Image.file_path.isnot(None))
     if tower_id:
         q = q.filter(Tower.id == tower_id)
+    if team_id:
+        q = q.filter(Visit.team_id == team_id)
     if image_type:
         q = q.filter(Image.image_type == image_type)
 
@@ -60,4 +66,26 @@ def browse_archive(
         return True
 
     filtered = [i for i in images if matches(i)]
-    return filtered[skip : skip + limit]
+    page = filtered[skip : skip + limit]
+
+    out: list[ArchiveImageOut] = []
+    for img in page:
+        pos = img.position
+        visit = pos.visit
+        tower = visit.tower
+        team: Team | None = visit.team
+        data = ImageOut.model_validate(img).model_dump()
+        data.update(
+            team_id=team.id if team else None,
+            team_name=team.name if team else None,
+            tower_pk=tower.id,
+            tower_code=tower.tower_id,
+            area=tower.area,
+            position_code=pos.position_code,
+            ohl=pos.ohl,
+            phase=pos.phase,
+            string=pos.string,
+            direction=pos.direction,
+        )
+        out.append(ArchiveImageOut(**data))
+    return out

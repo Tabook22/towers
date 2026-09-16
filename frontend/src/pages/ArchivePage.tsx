@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -18,11 +21,16 @@ import {
   Chip,
   Paper,
 } from '@mui/material';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import FolderIcon from '@mui/icons-material/FolderRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import UploadFileIcon from '@mui/icons-material/UploadFileRounded';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineRounded';
 import PlaceRoundedIcon from '@mui/icons-material/PlaceRounded';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import RouteRoundedIcon from '@mui/icons-material/RouteRounded';
+import CellTowerRoundedIcon from '@mui/icons-material/CellTowerRounded';
+import BoltRoundedIcon from '@mui/icons-material/BoltRounded';
 import {
   useArchive,
   useDeleteTeamArchiveImage,
@@ -80,11 +88,116 @@ function Thumb({
   );
 }
 
+const monthName = (m: number) =>
+  new Date(2000, m - 1, 1).toLocaleDateString(undefined, { month: 'long' });
+const naturalCompare = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
+
+interface PositionGroup {
+  key: string;
+  ohl: string;
+  phase: string;
+  string: string;
+  direction: string | null;
+  images: ImageRow[];
+}
+interface TowerGroup {
+  key: string;
+  towerCode: string;
+  positions: PositionGroup[];
+}
+interface LineGroup {
+  key: string;
+  area: string;
+  towers: TowerGroup[];
+}
+interface MonthGroup {
+  key: string;
+  year: number;
+  month: number;
+  lines: LineGroup[];
+}
+interface TeamGroup {
+  key: string;
+  teamName: string;
+  months: MonthGroup[];
+}
+
+/** Team → Year/Month → Line (Tower.area) → Tower → Insulator (position) — the exact grouping an
+ * admin browsing the archive actually thinks in, built client-side from the already-filtered,
+ * already-team/tower-scoped list the API returns (see routers/archive.browse_archive). */
+function buildArchiveTree(images: ImageRow[]): TeamGroup[] {
+  const teams = new Map<string, TeamGroup>();
+  for (const img of images) {
+    const teamKey = img.team_name || 'Unassigned (no team)';
+    let team = teams.get(teamKey);
+    if (!team) {
+      team = { key: teamKey, teamName: teamKey, months: [] };
+      teams.set(teamKey, team);
+    }
+
+    const d = img.capture_date ? new Date(`${img.capture_date}T00:00:00`) : null;
+    const year = d ? d.getFullYear() : 0;
+    const month = d ? d.getMonth() + 1 : 0;
+    const monthKey = `${year}-${month}`;
+    let monthGroup = team.months.find((m) => m.key === monthKey);
+    if (!monthGroup) {
+      monthGroup = { key: monthKey, year, month, lines: [] };
+      team.months.push(monthGroup);
+    }
+
+    const areaKey = img.area || 'No line set';
+    let line = monthGroup.lines.find((l) => l.key === areaKey);
+    if (!line) {
+      line = { key: areaKey, area: areaKey, towers: [] };
+      monthGroup.lines.push(line);
+    }
+
+    const towerCode = img.tower_code || 'Unknown tower';
+    let tower = line.towers.find((t) => t.key === towerCode);
+    if (!tower) {
+      tower = { key: towerCode, towerCode, positions: [] };
+      line.towers.push(tower);
+    }
+
+    const posKey = img.position_code || `${img.ohl}-${img.phase}-${img.string}`;
+    let pos = tower.positions.find((p) => p.key === posKey);
+    if (!pos) {
+      pos = {
+        key: posKey,
+        ohl: img.ohl || '',
+        phase: img.phase || '',
+        string: img.string || '',
+        direction: img.direction ?? null,
+        images: [],
+      };
+      tower.positions.push(pos);
+    }
+    pos.images.push(img);
+  }
+
+  const out = Array.from(teams.values());
+  out.sort((a, b) => a.teamName.localeCompare(b.teamName));
+  for (const team of out) {
+    team.months.sort((a, b) => b.year - a.year || b.month - a.month);
+    for (const m of team.months) {
+      m.lines.sort((a, b) => a.area.localeCompare(b.area));
+      for (const l of m.lines) {
+        l.towers.sort((a, b) => naturalCompare(a.towerCode, b.towerCode));
+        for (const t of l.towers) {
+          t.positions.sort((a, b) => naturalCompare(a.key, b.key));
+        }
+      }
+    }
+  }
+  return out;
+}
+
 export function ArchivePage() {
   const [year, setYear] = useState<string>('');
   const [month, setMonth] = useState<string>('');
   const [day, setDay] = useState<string>('');
   const [towerId, setTowerId] = useState<string>('');
+  const [archiveTeamId, setArchiveTeamId] = useState<string>('');
   const { data: towers } = useTowers({ include_inactive: true });
 
   const { data: images, isLoading } = useArchive({
@@ -92,7 +205,9 @@ export function ArchivePage() {
     month: month ? Number(month) : undefined,
     day: day ? Number(day) : undefined,
     tower_id: towerId ? Number(towerId) : undefined,
+    team_id: archiveTeamId ? Number(archiveTeamId) : undefined,
   });
+  const archiveTree = useMemo(() => buildArchiveTree(images || []), [images]);
 
   // Which image's original/annotated version is currently enlarged, if any.
   const [lightbox, setLightbox] = useState<{ image: ImageRow; variant: 'original' | 'annotated' } | null>(null);
@@ -130,7 +245,8 @@ export function ArchivePage() {
           Image Archive
         </Typography>
         <Typography color="text.secondary">
-          Every upload is auto-filed under year / month / day / tower — browse the archive here.
+          Inspection photos are grouped by team, then year/month, then line, then tower, then
+          insulator — browse the archive here.
         </Typography>
       </Box>
 
@@ -287,7 +403,22 @@ export function ArchivePage() {
 
       <Card>
         <CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+            Inspection photos
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Grouped by team, then year/month, then line, then tower, then insulator — expand down
+            to the one you need. Use the filters to narrow it down first.
+          </Typography>
           <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap' }}>
+            <TextField select size="small" label="Team" value={archiveTeamId} onChange={(e) => setArchiveTeamId(e.target.value)} sx={{ minWidth: 180 }}>
+              <MenuItem value="">All teams</MenuItem>
+              {teams?.map((t) => (
+                <MenuItem key={t.id} value={t.id}>
+                  {t.name}
+                </MenuItem>
+              ))}
+            </TextField>
             <TextField select size="small" label="Year" value={year} onChange={(e) => setYear(e.target.value)} sx={{ minWidth: 120 }}>
               <MenuItem value="">Any</MenuItem>
               {years.map((y) => (
@@ -333,43 +464,111 @@ export function ArchivePage() {
       )}
 
       <Stack spacing={1.5}>
-        {images?.map((img) => (
-          <Paper key={img.id} variant="outlined" sx={{ p: 2 }}>
-            <Stack direction="row" spacing={2.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-              <Stack direction="row" spacing={1.5}>
-                <Thumb
-                  label="Original"
-                  thumbUrl={mediaUrl(`/api/images/${img.id}/thumbnail`, img.uploaded_at)}
-                  onClick={() => setLightbox({ image: img, variant: 'original' })}
-                />
-                {img.annotated_path && (
-                  <Thumb
-                    label="Annotated"
-                    thumbUrl={mediaUrl(`/api/images/${img.id}/annotation/thumbnail`, img.annotated_uploaded_at)}
-                    onClick={() => setLightbox({ image: img, variant: 'annotated' })}
-                  />
-                )}
+        {archiveTree.map((team) => (
+          <Accordion key={team.key} defaultExpanded={archiveTree.length === 1}>
+            <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <GroupsRoundedIcon fontSize="small" color="primary" />
+                <Typography sx={{ fontWeight: 700 }}>{team.teamName}</Typography>
               </Stack>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Stack spacing={1.5}>
+                {team.months.map((m) => (
+                  <Accordion key={m.key} variant="outlined" disableGutters>
+                    <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+                      <Typography sx={{ fontWeight: 600 }}>
+                        {m.year ? `${monthName(m.month)} ${m.year}` : 'Unknown date'}
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <Stack spacing={1.5}>
+                        {m.lines.map((line) => (
+                          <Accordion key={line.key} variant="outlined" disableGutters>
+                            <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+                              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                <RouteRoundedIcon fontSize="small" color="action" />
+                                <Typography sx={{ fontWeight: 600 }}>{line.area}</Typography>
+                              </Stack>
+                            </AccordionSummary>
+                            <AccordionDetails>
+                              <Stack spacing={1.5}>
+                                {line.towers.map((tower) => (
+                                  <Accordion key={tower.key} variant="outlined" disableGutters>
+                                    <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+                                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                        <CellTowerRoundedIcon fontSize="small" color="action" />
+                                        <Typography sx={{ fontWeight: 600 }}>{tower.towerCode}</Typography>
+                                      </Stack>
+                                    </AccordionSummary>
+                                    <AccordionDetails>
+                                      <Stack spacing={2} divider={<Box sx={{ borderBottom: 1, borderColor: 'divider' }} />}>
+                                        {tower.positions.map((pos) => (
+                                          <Box key={pos.key}>
+                                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
+                                              <BoltRoundedIcon fontSize="small" color="action" />
+                                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                                {pos.ohl} {pos.phase} {pos.string}
+                                                {pos.direction ? ` — ${pos.direction}` : ''}
+                                              </Typography>
+                                            </Stack>
+                                            <Stack spacing={1.5}>
+                                              {pos.images.map((img) => (
+                                                <Paper key={img.id} variant="outlined" sx={{ p: 2 }}>
+                                                  <Stack direction="row" spacing={2.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                                                    <Stack direction="row" spacing={1.5}>
+                                                      <Thumb
+                                                        label="Original"
+                                                        thumbUrl={mediaUrl(`/api/images/${img.id}/thumbnail`, img.uploaded_at)}
+                                                        onClick={() => setLightbox({ image: img, variant: 'original' })}
+                                                      />
+                                                      {img.annotated_path && (
+                                                        <Thumb
+                                                          label="Annotated"
+                                                          thumbUrl={mediaUrl(`/api/images/${img.id}/annotation/thumbnail`, img.annotated_uploaded_at)}
+                                                          onClick={() => setLightbox({ image: img, variant: 'annotated' })}
+                                                        />
+                                                      )}
+                                                    </Stack>
 
-              <Box sx={{ flex: 1, minWidth: 220 }}>
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5, flexWrap: 'wrap' }}>
-                  <Chip size="small" label={img.image_type} />
-                  <EvidenceChip status={img.evidence_status} />
-                  {img.annotated_path && (
-                    <Chip size="small" icon={<EditRoundedIcon fontSize="small" />} label="Annotated" variant="outlined" color="primary" />
-                  )}
-                  {img.sequence > 1 && <Chip size="small" label={`extra #${img.sequence}`} variant="outlined" />}
-                </Stack>
-                <Typography variant="body2" sx={{ wordBreak: 'break-all', fontWeight: 600 }}>
-                  {img.image_code}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                  {img.capture_date} {img.capture_time?.slice(0, 5)}
-                  {img.original_filename ? ` · ${img.original_filename}` : ''}
-                </Typography>
-              </Box>
-            </Stack>
-          </Paper>
+                                                    <Box sx={{ flex: 1, minWidth: 220 }}>
+                                                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5, flexWrap: 'wrap' }}>
+                                                        <Chip size="small" label={img.image_type} />
+                                                        <EvidenceChip status={img.evidence_status} />
+                                                        {img.annotated_path && (
+                                                          <Chip size="small" icon={<EditRoundedIcon fontSize="small" />} label="Annotated" variant="outlined" color="primary" />
+                                                        )}
+                                                        {img.sequence > 1 && <Chip size="small" label={`extra #${img.sequence}`} variant="outlined" />}
+                                                      </Stack>
+                                                      <Typography variant="body2" sx={{ wordBreak: 'break-all', fontWeight: 600 }}>
+                                                        {img.image_code}
+                                                      </Typography>
+                                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                                        {img.capture_date} {img.capture_time?.slice(0, 5)}
+                                                        {img.original_filename ? ` · ${img.original_filename}` : ''}
+                                                      </Typography>
+                                                    </Box>
+                                                  </Stack>
+                                                </Paper>
+                                              ))}
+                                            </Stack>
+                                          </Box>
+                                        ))}
+                                      </Stack>
+                                    </AccordionDetails>
+                                  </Accordion>
+                                ))}
+                              </Stack>
+                            </AccordionDetails>
+                          </Accordion>
+                        ))}
+                      </Stack>
+                    </AccordionDetails>
+                  </Accordion>
+                ))}
+              </Stack>
+            </AccordionDetails>
+          </Accordion>
         ))}
       </Stack>
 

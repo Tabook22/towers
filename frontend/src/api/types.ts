@@ -59,6 +59,20 @@ export interface ImageRow {
   annotated_path: string | null;
   annotated_thumbnail_path: string | null;
   annotated_uploaded_at: string | null;
+  // Team/Tower/Position context — only the Image Archive page's browse endpoint fills these in, so
+  // it can group by team, then year/month, then line (area), then tower, then insulator (position).
+  // Optional: a plain Position's own `images` array (VisitDetail, offline queue placeholders, etc.)
+  // doesn't carry any of this — only /api/archive's response does.
+  team_id?: number | null;
+  team_name?: string | null;
+  tower_pk?: number;
+  tower_code?: string;
+  area?: string | null;
+  position_code?: string | null;
+  ohl?: string;
+  phase?: string;
+  string?: string;
+  direction?: string | null;
 }
 
 export interface Position {

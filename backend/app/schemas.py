@@ -263,6 +263,23 @@ class ImageOut(BaseModel):
     annotated_uploaded_at: dt.datetime | None = None
 
 
+class ArchiveImageOut(ImageOut):
+    """ImageOut plus the Team/Tower/Position context needed to group the Image Archive page by
+    team, then year/month, then line (Tower.area), then tower, then insulator (position) — nothing
+    else needs this extra context, so it's kept off the shared ImageOut every other screen uses."""
+
+    team_id: int | None = None
+    team_name: str | None = None
+    tower_pk: int
+    tower_code: str
+    area: str | None = None
+    position_code: str | None = None
+    ohl: str
+    phase: str
+    string: str
+    direction: str | None = None
+
+
 # ---------- Position ----------
 class PositionUpdate(BaseModel):
     direction: str | None = None
