@@ -107,6 +107,58 @@ export function HelpPage() {
 
       {tab === 1 && (
       <>
+      <Paper variant="outlined" sx={{ p: 2.5, mb: -1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+          How to inspect a tower — the full path, start to finish
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Short answer: planning a mission first is the recommended way to organize a night, but it's
+          not a hard requirement — you can also open any tower already assigned to your team and start
+          inspecting it directly, any time. Here's the complete sequence either way:
+        </Typography>
+        <Step n={1} title="Sign in with your own login.">
+          Not the admin's — the visit only counts as your team's work if you (or a crew member) start
+          it yourselves. See section 1 below for GPS tracking, which starts automatically from here.
+        </Step>
+        <Step n={2} title="(Recommended, not required) Plan tonight's mission.">
+          Pick which of your team's towers you intend to visit tonight — this feeds the smart
+          "Next towers tonight" ordering and gives dispatch visibility, but doesn't create any
+          inspection yet, and you're free to skip it and go straight to step 3 for a tower that's
+          already assigned to you. See section 2 below.
+        </Step>
+        <Step n={3} title="Open that specific tower.">
+          From "Next towers tonight" (ranked by distance — recommended), the Job map, or the Towers
+          list — any of these work. The tower needs to already be assigned to your team; if it isn't,
+          an admin assigns it, or picking it in your mission plan auto-assigns it.
+        </Step>
+        <Step n={4} title='Tap "Start" (or "Open" to resume one already begun).'>
+          This single tap creates the inspection visit and opens the inspection form together —
+          there's no separate "select for inspection" step beyond this.
+        </Step>
+        <Step n={5} title="Fill in the visit header, then each insulator position that has real data.">
+          Inspector name, weather, camera settings first; then, per string, OHL / Phase / String /
+          Direction, screening result, severity, and thermal readings if applicable. See section 4
+          below for the full field list.
+        </Step>
+        <Step n={6} title="Upload the required evidence photos for each position you recorded.">
+          Tracked live by the "Images pending" count and the completion % banner at the top of the
+          visit — it won't reach 100% until every required photo is in.
+        </Step>
+        <Step n={7} title="It saves as you go — no separate save button to remember.">
+          Update your status on the queue (On my way → On site → Done) as you progress so dispatch and
+          the rest of your team can see it.
+        </Step>
+        <Step n={8} title="GPS tracking needs nothing extra from you.">
+          It records automatically in the background the whole time you're signed in with location
+          on — that's what builds your team's GPS trail for the night.
+        </Step>
+        <Alert severity="info">
+          Once at least one position has a Direction set or a photo, that tower's work is visible to
+          your team's reports — see "For Admins" → 7. Reports if you ever need to generate one
+          yourself from your own team page.
+        </Alert>
+      </Paper>
+
       <Section
         title="1. Signing in and GPS tracking"
         subtitle="What happens the moment you log in"

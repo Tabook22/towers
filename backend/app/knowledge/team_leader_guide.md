@@ -81,9 +81,11 @@ This is the real, verified sequence — not a guess:
 2. **Allow location** if prompted (a green "Allow GPS tracking" button appears at the top; tap it,
    then tap Allow on the OS popup). After that, tracking runs by itself, posting a position roughly
    every 10 seconds while the app is open in the foreground.
-3. **Plan tonight (once, at the start of the outing)** — on the Dashboard, the **Mission plan**
-   card: name it (optional), pick towers from the pool (search, or "Add all"), set the order,
-   tap **Save mission plan**. This does not start any inspection.
+3. **Plan tonight (recommended, not required)** — on the Dashboard, the **Mission plan** card:
+   name it (optional), pick towers from the pool (search, or "Add all"), set the order, tap
+   **Save mission plan**. This organizes the night and feeds the "Next towers tonight" ordering
+   below, but doesn't start any inspection or gate the next step — a tower already assigned to
+   the team can be opened and started directly, with or without a saved mission plan.
 4. **Work the queue — the actual daily driver** — open **Our team** in the left nav (this links
    straight to the leader's own team page). The **"Next towers tonight"** card ranks assigned,
    still-open towers by GPS distance and the mission plan order:
