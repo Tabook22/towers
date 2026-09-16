@@ -38,8 +38,8 @@ def _seed(db: Session):
 
     db.add_all(
         [
-            Position(visit_id=visit_a.id, ohl="OHL1", phase="R", string="S1", direction="EN", installed=True),
-            Position(visit_id=visit_b.id, ohl="OHL1", phase="Y", string="S1", direction="EN", installed=True),
+            Position(visit_id=visit_a.id, ohl="OHL1", phase="R", string="S1", direction="Ashoor", installed=True),
+            Position(visit_id=visit_b.id, ohl="OHL1", phase="Y", string="S1", direction="Ashoor", installed=True),
         ]
     )
     db.commit()

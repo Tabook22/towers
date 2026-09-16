@@ -337,7 +337,7 @@ export function PositionPanel({
 
           {!position.direction && (
             <Typography variant="caption" color="warning.main">
-              Set the Direction (EN/ES/WN/WS) to generate this position's image IDs and enable uploads.
+              Set the Direction to generate this position's image IDs and enable uploads.
             </Typography>
           )}
 

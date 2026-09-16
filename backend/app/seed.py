@@ -10,7 +10,18 @@ import datetime as dt
 
 from app.database import Base, SessionLocal, engine
 from app.migrations import add_missing_columns, rebuild_images_table_for_multi_image_support
-from app.models import IMAGE_TYPE_CHOICES, OHL_CHOICES, PHASE_CHOICES, STRING_CHOICES, Image, Position, Tower, User, Visit
+from app.models import (
+    DIRECTION_CHOICES,
+    IMAGE_TYPE_CHOICES,
+    OHL_CHOICES,
+    PHASE_CHOICES,
+    STRING_CHOICES,
+    Image,
+    Position,
+    Tower,
+    User,
+    Visit,
+)
 from app.security import hash_password
 from app.services.codes import refresh_position_codes
 
@@ -81,12 +92,11 @@ def run():
             db.add(visit)
             db.flush()
 
-            directions_cycle = ["EN", "ES", "WN", "WS"]
             i = 0
             for ohl in OHL_CHOICES:
                 for phase in PHASE_CHOICES:
                     for string in STRING_CHOICES:
-                        direction = directions_cycle[i % 4]
+                        direction = DIRECTION_CHOICES[i % len(DIRECTION_CHOICES)]
                         i += 1
                         screening = "Not inspected"
                         pos = Position(

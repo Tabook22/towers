@@ -55,7 +55,7 @@ def test_fresh_visit_has_12_positions_all_not_inspected(db):
 def test_normal_screening_does_not_require_close_images(db):
     visit = make_visit(db)
     pos = visit.positions[0]
-    pos.direction = "EN"
+    pos.direction = "Ashoor"
     pos.screening_result = "Normal"
     db.flush()
     refresh_position_codes(pos)
@@ -71,7 +71,7 @@ def test_normal_screening_does_not_require_close_images(db):
 def test_hotspot_position_counts_and_visit_status(db):
     visit = make_visit(db)
     pos = visit.positions[0]
-    pos.direction = "EN"
+    pos.direction = "Ashoor"
     pos.screening_result = "Hotspot detected"
     pos.hotspot = "Yes"
     db.flush()
