@@ -37,7 +37,7 @@ import type { ReportTemplate } from '../api/types';
 import { VisitStatusChip } from '../components/Badges';
 import { TeamActivityReport } from '../components/TeamActivityReport';
 import { FieldExecutionPlanForm } from '../components/FieldExecutionPlanForm';
-import { OetcGroupedReportForm } from '../components/OetcGroupedReportForm';
+import { OfficialReportForm } from '../components/OfficialReportForm';
 import { useAuth } from '../auth/AuthContext';
 
 // One kind's upload/replace/remove/download-starter controls — used twice below (Word, PDF form)
@@ -168,52 +168,34 @@ export function ReportsPage() {
           Reports
         </Typography>
         <Typography color="text.secondary">
-          Per-tower inspection reports and the Dufar-area overall summary, generated from live data.
+          Two kinds of report: what a team has done so far (for your own tracking), and the official
+          customer-format report (for one team, one area, or the whole project).
         </Typography>
       </Box>
 
+      {canManageProjectPlans && (
+        <Card>
+          <CardContent>
+            <OfficialReportForm />
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent>
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-            Custom report templates
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Upload your own template — your logo, brand colors, fonts, and layout, exactly as you design it —
-            and matching reports get generated from it. Download a starter template below for a working
-            example with the right placeholder tags already in place; restyle it without touching those tags,
-            then upload it back here.
-          </Typography>
-
-          <Stack spacing={2.5} divider={<Divider />}>
-            <TemplateSlot
-              kind="docx"
-              label="Word template"
-              accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              description={
-                'A Word (.docx) mail-merge template — full layout freedom, and it supports a repeating table row ' +
-                'per position automatically.'
-              }
-              template={templates?.docx}
-              loading={templatesLoading}
-            />
-            <TemplateSlot
-              kind="pdf"
-              label="PDF template"
-              accept=".pdf,application/pdf"
-              description={
-                'A fillable PDF form — design the page and place named form fields (in Acrobat, LibreOffice, or ' +
-                'a similar PDF form editor); since a PDF form can’t repeat rows the way Word can, the starter ' +
-                'gives one fixed field per position slot (1–12) instead of a loop.'
-              }
-              template={templates?.pdf}
-              loading={templatesLoading}
-            />
-          </Stack>
+          <TeamActivityReport />
         </CardContent>
       </Card>
 
       <Card>
         <CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+            Overall summary (PDF)
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            A quick internal snapshot across all towers, optionally filtered by area — not the
+            customer-format report above.
+          </Typography>
           <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
             <TextField
               select
@@ -244,20 +226,6 @@ export function ReportsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent>
-          <TeamActivityReport />
-        </CardContent>
-      </Card>
-
-      {canManageProjectPlans && (
-        <Card>
-          <CardContent>
-            <OetcGroupedReportForm />
-          </CardContent>
-        </Card>
-      )}
-
       {canManageProjectPlans && (
         <Card>
           <CardContent>
@@ -266,6 +234,54 @@ export function ReportsPage() {
         </Card>
       )}
 
+      <Card>
+        <CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+            Custom report templates
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Advanced: upload your own template — your logo, brand colors, fonts, and layout, exactly
+            as you design it — and matching reports get generated from it, as an extra download
+            alongside the per-tower reports below. Not needed for the official customer report above,
+            which already uses the customer's own fixed template. Download a starter template for a
+            working example with the right placeholder tags already in place.
+          </Typography>
+
+          <Stack spacing={2.5} divider={<Divider />}>
+            <TemplateSlot
+              kind="docx"
+              label="Word template"
+              accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              description={
+                'A Word (.docx) mail-merge template — full layout freedom, and it supports a repeating table row ' +
+                'per position automatically.'
+              }
+              template={templates?.docx}
+              loading={templatesLoading}
+            />
+            <TemplateSlot
+              kind="pdf"
+              label="PDF template"
+              accept=".pdf,application/pdf"
+              description={
+                'A fillable PDF form — design the page and place named form fields (in Acrobat, LibreOffice, or ' +
+                'a similar PDF form editor); since a PDF form can’t repeat rows the way Word can, the starter ' +
+                'gives one fixed field per position slot (1–12) instead of a loop.'
+              }
+              template={templates?.pdf}
+              loading={templatesLoading}
+            />
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+        Per-tower reports
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: -2 }}>
+        A one-off PDF or Word download for a single tower's latest visit — not the official
+        customer-format report above.
+      </Typography>
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>

@@ -9,25 +9,37 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import LayersRoundedIcon from '@mui/icons-material/LayersRounded';
+import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import TextField from '@mui/material/TextField';
-import { useAreas, useChoiceLists, useGenerateOetcAreaReport, useGenerateOetcConsolidatedReport } from '../api/hooks';
+import {
+  useAreas,
+  useChoiceLists,
+  useGenerateOetcAreaReport,
+  useGenerateOetcConsolidatedReport,
+  useGenerateOetcReport,
+  useTeamJobMap,
+  useTeams,
+} from '../api/hooks';
 
-type Mode = 'area' | 'consolidated';
+type Mode = 'team' | 'area' | 'consolidated';
 
-/** Same official "Transmission Line Insulator Thermal Inspection Report" template as the single-team
- * one on each team's own page — this one bundles more than one team's campaign into a single .docx:
- * either every team currently working one area, or (Consolidated) every team in every area at once.
- * Sections stay in Area → Team → Mission order; each team's own section is rendered completely
- * unchanged, so the customer's official page design is never touched — see
- * backend services/oetc_grouped_report.py. */
-export function OetcGroupedReportForm() {
+/** The one place to generate the customer's own official "Transmission Line Insulator Thermal
+ * Inspection Report" — the exact template they handed us, filled in from real Position/Visit data,
+ * never restyled. Three scopes cover everything an admin asks for: one team's own campaign (with an
+ * optional single tower within it, for "just this one tower"), every team working one area, or the
+ * whole project at once ("the general final report"). Same rendering path either way — see backend
+ * services/oetc_report.py and oetc_grouped_report.py. */
+export function OfficialReportForm() {
+  const { data: teams } = useTeams();
   const { data: areas } = useAreas();
   const { data: lists } = useChoiceLists();
+  const generateTeam = useGenerateOetcReport();
   const generateArea = useGenerateOetcAreaReport();
   const generateConsolidated = useGenerateOetcConsolidatedReport();
 
-  const [mode, setMode] = useState<Mode>('area');
+  const [mode, setMode] = useState<Mode>('team');
+  const [teamId, setTeamId] = useState('');
+  const [towerId, setTowerId] = useState('');
   const [area, setArea] = useState('');
   const [reportNumber, setReportNumber] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -42,8 +54,21 @@ export function OetcGroupedReportForm() {
   const [approvalDate, setApprovalDate] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const generating = generateArea.isPending || generateConsolidated.isPending;
-  const requiredFilled = reportNumber.trim() && startDate && endDate && (mode === 'consolidated' || area);
+  const { data: jobMap } = useTeamJobMap(mode === 'team' && teamId ? Number(teamId) : undefined);
+
+  const generating = generateTeam.isPending || generateArea.isPending || generateConsolidated.isPending;
+  const requiredFilled =
+    reportNumber.trim() &&
+    startDate &&
+    endDate &&
+    (mode === 'consolidated' || (mode === 'area' && area) || (mode === 'team' && teamId));
+
+  const handleModeChange = (next: Mode | null) => {
+    if (!next) return;
+    setMode(next);
+    setTowerId('');
+    setError(null);
+  };
 
   const handleGenerate = () => {
     setError(null);
@@ -64,42 +89,105 @@ export function OetcGroupedReportForm() {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(detail || 'Could not generate the report.');
     };
-    if (mode === 'area') {
+    if (mode === 'team') {
+      generateTeam.mutate(
+        { ...shared, team_id: Number(teamId), tower_id: towerId ? Number(towerId) : null },
+        { onError },
+      );
+    } else if (mode === 'area') {
       generateArea.mutate({ ...shared, area }, { onError });
     } else {
       generateConsolidated.mutate(shared, { onError });
     }
   };
 
+  const buttonLabel = generating
+    ? 'Generating…'
+    : mode === 'team'
+      ? towerId
+        ? 'Generate tower report'
+        : 'Generate team report'
+      : mode === 'area'
+        ? 'Generate area report'
+        : 'Generate final report';
+
   return (
     <Box>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 0.5 }}>
-        <LayersRoundedIcon color="action" fontSize="small" />
+        <DescriptionRoundedIcon color="action" fontSize="small" />
         <Typography variant="h6" sx={{ fontWeight: 700 }}>
-          Grouped official report — by area
+          Official report for the customer
         </Typography>
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        The same official template as a single team's report on its own page — this bundles every team's
-        campaign into one file: pick one area for just that area's teams, or "Consolidated" for every area,
-        every team, every mission at once. Each team keeps its own unmodified section, in Area → Team → Mission
-        order, so the customer's page design is never touched.
+        Fills the customer's own "Transmission Line Insulator Thermal Inspection Report" template with
+        real inspection data — the page design is never changed. Pick what this report should cover:
+        one team's own work (optionally just one tower of theirs), every team in one area, or
+        everything at once as the general final report.
       </Typography>
 
       <ToggleButtonGroup
         exclusive
         size="small"
         value={mode}
-        onChange={(_, v) => v && setMode(v)}
+        onChange={(_, v) => handleModeChange(v)}
         sx={{ mb: 2 }}
       >
-        <ToggleButton value="area">By area</ToggleButton>
-        <ToggleButton value="consolidated">Consolidated (every area)</ToggleButton>
+        <ToggleButton value="team">One team</ToggleButton>
+        <ToggleButton value="area">One area</ToggleButton>
+        <ToggleButton value="consolidated">Final report (everything)</ToggleButton>
       </ToggleButtonGroup>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
 
       <Stack spacing={2}>
+        {mode === 'team' && (
+          <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', rowGap: 2 }}>
+            <TextField
+              select
+              size="small"
+              label="Team"
+              value={teamId}
+              onChange={(e) => {
+                setTeamId(e.target.value);
+                setTowerId('');
+              }}
+              sx={{ minWidth: 220 }}
+            >
+              <MenuItem value="">
+                <em>Select a team</em>
+              </MenuItem>
+              {teams?.map((t) => (
+                <MenuItem key={t.id} value={t.id}>
+                  {t.name}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              size="small"
+              label="Tower"
+              value={towerId}
+              onChange={(e) => setTowerId(e.target.value)}
+              disabled={!teamId}
+              sx={{ minWidth: 220 }}
+              helperText="Leave as 'All towers' for that team's whole campaign"
+            >
+              <MenuItem value="">
+                <em>All towers (whole team campaign)</em>
+              </MenuItem>
+              {(jobMap?.towers || []).map((t) => (
+                <MenuItem key={t.id} value={t.id}>
+                  {t.tower_id}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+        )}
         {mode === 'area' && (
           <TextField select size="small" label="Area" value={area} onChange={(e) => setArea(e.target.value)} sx={{ maxWidth: 320 }}>
             <MenuItem value="">
@@ -112,12 +200,23 @@ export function OetcGroupedReportForm() {
             ))}
           </TextField>
         )}
+        {mode === 'consolidated' && (
+          <Alert severity="info" sx={{ maxWidth: 560 }}>
+            Covers every area, every team, every mission — in Area → Team → Mission order, each
+            team's own section unchanged. This is the one to hand the customer as the overall project
+            report.
+          </Alert>
+        )}
 
         <TextField
           size="small"
-          label="Base report number"
+          label="Report number"
           placeholder="e.g. OETC-DFRTRM-IR-2026-01"
-          helperText="Each team's section gets its own number derived from this (e.g. -ASHOOR-SAADA-TEAM1) so it stays traceable per team."
+          helperText={
+            mode === 'team'
+              ? 'Must be unique — used as the file name too.'
+              : 'Each team\'s section gets its own number derived from this (e.g. -ASHOOR-SAADA-TEAM1) so it stays traceable per team.'
+          }
           value={reportNumber}
           onChange={(e) => setReportNumber(e.target.value)}
           sx={{ maxWidth: 420 }}
@@ -184,7 +283,7 @@ export function OetcGroupedReportForm() {
           onChange={(e) => setAdditionalComments(e.target.value)}
         />
 
-        <Typography variant="subtitle2">Approval — applied to every team's section</Typography>
+        <Typography variant="subtitle2">Approval — applied to every section in the file</Typography>
         <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', rowGap: 2 }}>
           <TextField size="small" label="Prepared by" value={preparedBy} onChange={(e) => setPreparedBy(e.target.value)} />
           <TextField size="small" label="Reviewed by" value={reviewedBy} onChange={(e) => setReviewedBy(e.target.value)} />
@@ -201,7 +300,7 @@ export function OetcGroupedReportForm() {
 
         <Box>
           <Button variant="contained" disabled={!requiredFilled || generating} onClick={handleGenerate}>
-            {generating ? 'Generating…' : mode === 'area' ? 'Generate area report' : 'Generate consolidated report'}
+            {buttonLabel}
           </Button>
         </Box>
       </Stack>

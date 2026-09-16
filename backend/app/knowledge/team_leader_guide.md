@@ -292,16 +292,25 @@ photos read-only.
 
 ## B7. Reports
 
-- **Overall report** (Dashboard) — PDF across all towers, optionally filtered by area.
-- **Generate official report** (a team's own page) — a formatted report over a chosen date range;
-  leave Tower on "All towers" for that team's whole campaign, or pick one tower for a
-  single-tower report — same customer template either way.
+- **Official report for the customer** (Reports page, top card, admin/reviewer) — the customer's own
+  template, filled in with real data, page design never touched. Three scopes: **One team** (that
+  team's whole campaign, or pick one tower from the Tower dropdown for a single-tower report),
+  **One area** (every team working that area, one file), or **Final report (everything)** — every
+  area, every team, every mission, the one to hand the customer as the overall project report. A
+  team leader reaches the "One team" version for just their own team via **Generate official
+  report** on their own team page.
+- **Team activity report** (Reports page) — not the customer template; an internal view of what
+  each team has actually done, grouped team → day → tower → position, plus a filterable Excel
+  download. This is the answer to "what did team X do so far".
+- **Overall summary** (Dashboard / Reports page) — a quick internal PDF snapshot across all towers,
+  optionally filtered by area.
 - **Per-visit PDF** — from any individual inspection visit.
-- **Custom Word/PDF templates** (Reports page) — upload your own branded `.docx` or a fillable
-  PDF form once; it becomes the active template of that kind (Word and PDF are tracked
+- **Custom Word/PDF templates** (Reports page, advanced) — upload your own branded `.docx` or a
+  fillable PDF form once; it becomes the active template of that kind (Word and PDF are tracked
   separately, so both can be active at once) and every per-visit report offers it as an extra
-  download option alongside the built-in fixed layout. A starter template can be downloaded from
-  the same page as a working example to customize.
+  download option alongside the built-in fixed layout. Not needed for the official customer report
+  above, which already has its own fixed template. A starter template can be downloaded from the
+  same page as a working example to customize.
 
 ## B8. Accounts & security
 

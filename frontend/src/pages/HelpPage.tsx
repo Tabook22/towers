@@ -490,18 +490,29 @@ function AdminGuide() {
       </Section>
 
       <Section title="7. Reports">
-        <Step n={1} title="Overall report (Dashboard).">
-          PDF across all towers, optionally filtered by area.
+        <Step n={1} title="Official report for the customer (Reports page, top card).">
+          The customer's own template, filled in with real data — never restyled. Choose a scope:
+          <strong> One team</strong> (that team's whole campaign, or pick one tower from the Tower
+          dropdown for just that tower), <strong>One area</strong> (every team working that area, one
+          file), or <strong>Final report (everything)</strong> — every area, every team, every
+          mission, the one to hand the customer as the overall project report. A team leader can also
+          reach the "One team" version for just their own team from <strong>Generate official
+          report</strong> on their own team page.
         </Step>
-        <Step n={2} title="Generate official report (a team's own page).">
-          A formatted report over a chosen date range — either that team's whole campaign, or a
-          single particular tower, by picking it from the Tower dropdown in the dialog.
+        <Step n={2} title="Team activity report (Reports page).">
+          Not the customer template — an internal view of what each team has actually done, grouped
+          team → day → tower → position, with a filterable Excel download. This is the quick answer
+          to "what did team X do so far".
         </Step>
-        <Step n={3} title="Custom Word/PDF templates (Reports page).">
+        <Step n={3} title="Overall summary (Dashboard / Reports page).">
+          A quick internal PDF snapshot across all towers, optionally filtered by area.
+        </Step>
+        <Step n={4} title="Custom Word/PDF templates (Reports page, advanced).">
           Upload your own branded <code>.docx</code> or a fillable PDF form once — it becomes the
           active template of that kind (Word and PDF are tracked separately, so both can be active
           at once), and every visit offers it as an extra download alongside the built-in fixed
-          layout. Download the starter template from the same page as a working example.
+          layout. Not needed for the official customer report above, which already has its own fixed
+          template. Download the starter template from the same page as a working example.
         </Step>
       </Section>
 
