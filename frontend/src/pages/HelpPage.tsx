@@ -98,6 +98,66 @@ export function HelpPage() {
 
       <HelpChatWidget />
 
+      <Section title="What's new" subtitle="Recent changes to the app — read this if something looks different" defaultExpanded>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 1 }}>
+          Reports (mainly admins)
+        </Typography>
+        <Stack component="ul" spacing={0.5} sx={{ mt: 0.5, mb: 2, pl: 3 }}>
+          <Typography component="li" variant="body2">
+            The official report now has <strong>four</strong> scopes instead of two: <strong>By tower</strong>,{' '}
+            <strong>By team</strong>, <strong>By line</strong> (a whole transmission line, e.g. Ashoor-Saada — every
+            team on it combined into one file), and <strong>Overall</strong> (everything). Find them all as buttons in
+            Section 1 of the Reports page.
+          </Typography>
+          <Typography component="li" variant="body2">
+            "By tower" only needs the tower — the team is worked out automatically, no need to know who it's assigned to.
+          </Typography>
+          <Typography component="li" variant="body2">
+            If a report ever comes back "No visits found" or empty, Section 1 now has a "Getting 'No visits found'?
+            Check this first" box right above the form — see also the "How to build the final report" walkthrough
+            further down this page (For Admins → 7. Reports).
+          </Typography>
+          <Typography component="li" variant="body2">
+            Every tower list in the app (Mission plan, Dashboard, Job map, Next towers, the towers export) now sorts
+            in proper numeric order — 1, 2, 3 … 10, 11 … 108, 109 — instead of alphabetical order, which used to put
+            "-11" before "-2".
+          </Typography>
+        </Stack>
+
+        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+          Inspecting a tower (team leaders &amp; crew)
+        </Typography>
+        <Stack component="ul" spacing={0.5} sx={{ mt: 0.5, mb: 2, pl: 3 }}>
+          <Typography component="li" variant="body2">
+            The Add-position row has a new <strong>Tower type</strong> field (Suspension / Tension / Gantry) —
+            it's the first field, before OHL, so it's set the moment you create the position.
+          </Typography>
+          <Typography component="li" variant="body2">
+            When Tower type is <strong>Suspension</strong>, Direction is automatically greyed out — a suspension
+            position runs straight through, so there's no direction to record for it. Tension and Gantry still let
+            you pick one.
+          </Typography>
+          <Typography component="li" variant="body2">
+            Direction's list of values changed to line/segment names — <strong>Ashoor, Saada, Shaoon, Ittin,
+            Thumrait</strong> — instead of the old compass codes.
+          </Typography>
+          <Typography component="li" variant="body2">
+            The String field now shows <strong>"S1 — Outer"</strong> / <strong>"S2 — Inner"</strong> so it's clear
+            which physical string each one is, right in the picker.
+          </Typography>
+        </Stack>
+
+        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+          General
+        </Typography>
+        <Stack component="ul" spacing={0.5} sx={{ mt: 0.5, pl: 3 }}>
+          <Typography component="li" variant="body2">
+            If the app is updated while you have it open, a small "Reload" prompt now appears automatically —
+            tap it to pick up the latest version instead of working on a stale page.
+          </Typography>
+        </Stack>
+      </Section>
+
       <Tabs value={tab} onChange={(_e, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tab label="For Admins" />
         <Tab label="For Team Leaders & Crew" />
@@ -136,9 +196,9 @@ export function HelpPage() {
           there's no separate "select for inspection" step beyond this.
         </Step>
         <Step n={5} title="Fill in the visit header, then each insulator position that has real data.">
-          Inspector name, weather, camera settings first; then, per string, OHL / Phase / String /
-          Direction, screening result, severity, and thermal readings if applicable. See section 4
-          below for the full field list.
+          Inspector name, weather, camera settings first; then, per string, Tower type, OHL, Phase,
+          String, Direction, screening result, severity, and thermal readings if applicable. See
+          section 4 below for the full field list.
         </Step>
         <Step n={6} title="Upload the required evidence photos for each position you recorded.">
           Tracked live by the "Images pending" count and the completion % banner at the top of the
@@ -251,15 +311,26 @@ export function HelpPage() {
           Inspector name, weather, camera/thermal settings — whatever your site requires.
         </Step>
         <Step n={2} title='Add each insulator string with "Add position".'>
-          Pick OHL / Phase / String / Direction, then record the screening result for it. A
-          position only needs to be added once you actually have data for it — you don&apos;t
-          have to pre-create all 12 up front.
+          Pick, in order: <strong>Tower type</strong> (Suspension / Tension / Gantry — Direction
+          greys out automatically for Suspension, since it doesn't need one), <strong>OHL</strong>,{' '}
+          <strong>Phase</strong>, <strong>String</strong> (shown as "S1 — Outer" / "S2 — Inner" so
+          it's clear which physical string each one is), and <strong>Direction</strong> if
+          applicable (a line/segment name — Ashoor, Saada, Shaoon, Ittin, or Thumrait). Then record
+          the screening result for it. A position only needs to be added once you actually have
+          data for it — you don&apos;t have to pre-create all 12 up front.
         </Step>
-        <Step n={3} title="Upload evidence photos per position.">
+        <Step n={3} title='Fill the "Insulator record (official report)" panel if it applies.'>
+          Further down each added position: Manufacturer, Year installed, Insulator type, Tower
+          type (same field as above — editable here too if you need to correct it), GS side (only
+          if Tension), String count (Single/Double), Inner/Outer (only if that slot has two
+          strings), Pollution condition, Thermal indications, and Visual indications. Only needed
+          for a position that's actually going into the customer's official report.
+        </Step>
+        <Step n={4} title="Upload evidence photos per position.">
           The <strong>Images pending</strong> count on your Dashboard tracks exactly this — it
           won&apos;t clear to zero until every required photo is in.
         </Step>
-        <Step n={4} title="Watch the completion % and Evidence banner at the top of the visit.">
+        <Step n={5} title="Watch the completion % and Evidence banner at the top of the visit.">
           It tells you live how much is left before this tower can be marked "Ready for review".
         </Step>
       </Section>

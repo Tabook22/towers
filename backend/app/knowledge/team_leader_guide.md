@@ -97,9 +97,16 @@ This is the real, verified sequence — not a guess:
    - Progress buttons as the visit proceeds: **On my way → On site → Done**, or **Skip** with a
      typed reason (posts to the Tonight feed automatically).
 5. **Do the inspection** inside the visit: fill the header (inspector, weather, camera/thermal
-   settings), add each position with **Add position** (OHL/Phase/String/Direction) and its
-   screening result, upload evidence photos per position. Watch the completion % and the
-   Evidence banner — it tells you live what's left before "Ready for review".
+   settings), then add each position with **Add position** — pick, in order: **Tower type**
+   (Suspension / Tension / Gantry; Direction greys out automatically for Suspension, since it
+   doesn't need one), **OHL**, **Phase**, **String** (shown as "S1 — Outer" / "S2 — Inner"), and
+   **Direction** if applicable (a line/segment name: Ashoor, Saada, Shaoon, Ittin, or Thumrait) —
+   then its screening result, upload evidence photos per position. Further down each added
+   position, the "Insulator record (official report)" panel has more optional fields (Manufacturer,
+   Insulator type, GS side, String count, Inner/Outer, Pollution condition, Thermal/Visual
+   indications) — only needed for a position that's actually going into the customer's official
+   report. Watch the completion % and the Evidence banner — it tells you live what's left before
+   "Ready for review".
 6. **Repeat** down the queue. Dashboard KPIs, Mission history, and the Job map update live as
    towers are finished.
 7. **End of outing**: open **Handover** on Our team, review what's open, tap **End outing** to
