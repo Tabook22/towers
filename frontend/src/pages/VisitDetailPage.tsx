@@ -134,10 +134,13 @@ export function VisitDetailPage() {
     visit.positions.filter((p) => !isPositionActive(p) && !addedIds.has(p.id)).map((p) => p.id),
   );
 
-  const handleAddPosition = (position: Position, direction: string) => {
+  const handleAddPosition = (position: Position, direction: string, mountType: string) => {
     setAddedIds((prev) => new Set(prev).add(position.id));
-    if (direction) {
-      updatePosition.mutate({ id: position.id, payload: { direction } });
+    const payload: Partial<Position> = {};
+    if (direction) payload.direction = direction;
+    if (mountType) payload.mount_type = mountType;
+    if (Object.keys(payload).length > 0) {
+      updatePosition.mutate({ id: position.id, payload });
     }
   };
 

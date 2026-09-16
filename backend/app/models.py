@@ -213,7 +213,7 @@ IMAGE_TYPE_CHOICES = ["TH Full", "TH Close", "RGB Full", "RGB Close"]
 # Insulator Thermal Inspection Report" template (services/oetc_report.py) asks for each of these
 # per finding; nothing else in the app needed them before that template existed. ----------
 INSULATOR_TYPE_CHOICES = ["Composite", "Porcelain"]
-MOUNT_TYPE_CHOICES = ["Suspension", "Tension"]
+MOUNT_TYPE_CHOICES = ["Suspension", "Tension", "Gantry"]
 STRING_COUNT_CHOICES = ["Single", "Double"]
 POLLUTION_CONDITION_CHOICES = ["Light", "Medium", "Heavy", "Severe"]
 THERMAL_INDICATION_CHOICES = ["Hotspot", "Dry band", "Discharge track"]
@@ -275,7 +275,9 @@ class Position(Base):
     manufacturer: Mapped[str | None] = mapped_column(String(120), nullable=True)
     year_installed: Mapped[int | None] = mapped_column(Integer, nullable=True)
     insulator_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # Composite / Porcelain
-    mount_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # Suspension / Tension
+    # Suspension / Tension / Gantry — "Gantry" is app-only (not a checkbox on the customer's fixed
+    # official template, so it shows neither box ticked there; captured anyway for internal record).
+    mount_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     gs_side: Mapped[str | None] = mapped_column(String(40), nullable=True)  # which side, only if Tension
     string_count: Mapped[str | None] = mapped_column(String(10), nullable=True)  # Single / Double
     pollution_condition: Mapped[str | None] = mapped_column(String(10), nullable=True)

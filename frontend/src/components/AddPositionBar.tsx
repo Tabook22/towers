@@ -10,10 +10,11 @@ interface Props {
   positions: Position[];
   hiddenIds: Set<number>;
   lists: ChoiceLists;
-  onAdd: (position: Position, direction: string) => void;
+  onAdd: (position: Position, direction: string, mountType: string) => void;
 }
 
 export function AddPositionBar({ positions, hiddenIds, lists, onAdd }: Props) {
+  const [mountType, setMountType] = useState('');
   const [ohl, setOhl] = useState('');
   const [phase, setPhase] = useState('');
   const [stringVal, setStringVal] = useState('');
@@ -23,6 +24,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, onAdd }: Props) {
   const match = hidden.find((p) => p.ohl === ohl && p.phase === phase && p.string === stringVal);
 
   const reset = () => {
+    setMountType('');
     setOhl('');
     setPhase('');
     setStringVal('');
@@ -41,6 +43,21 @@ export function AddPositionBar({ positions, hiddenIds, lists, onAdd }: Props) {
     <Paper variant="outlined" sx={{ p: 2 }}>
       <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Typography sx={{ fontWeight: 700 }}>Add position</Typography>
+        <TextField
+          select
+          size="small"
+          label="Tower type"
+          value={mountType}
+          onChange={(e) => setMountType(e.target.value)}
+          sx={{ minWidth: 130 }}
+        >
+          <MenuItem value="">—</MenuItem>
+          {lists.mount_type.map((m) => (
+            <MenuItem key={m} value={m}>
+              {m}
+            </MenuItem>
+          ))}
+        </TextField>
         <TextField
           select
           size="small"
@@ -113,7 +130,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, onAdd }: Props) {
           disabled={!match}
           onClick={() => {
             if (!match) return;
-            onAdd(match, direction);
+            onAdd(match, direction, mountType);
             reset();
           }}
         >

@@ -391,7 +391,7 @@ export function PositionPanel({
                 <TextField
                   select
                   size="small"
-                  label="Mount"
+                  label="Tower type"
                   fullWidth
                   value={position.mount_type || ''}
                   onChange={(e) => onUpdate({ mount_type: e.target.value || null })}
