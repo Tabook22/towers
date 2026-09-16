@@ -118,8 +118,8 @@ This is the real, verified sequence — not a guess:
   end up in the same place).
 - **Visit detail** (`/visits/:id`) — the actual inspection form: header, positions, photos,
   evidence tracking, **Delete visit**, **Download tower report (PDF)**.
-- **Reports** — per-tower PDF, whole-team official report (date range), and the Dashboard's
-  Overall report (optionally filtered by area).
+- **Reports** — per-tower PDF, official report (date range, either the whole team's campaign or
+  one particular tower), and the Dashboard's Overall report (optionally filtered by area).
 - **Help & guides** (`/help`) — the step-by-step guide this assistant lives on, reachable from
   the "Help me" button in the top bar on every screen.
 
@@ -293,8 +293,9 @@ photos read-only.
 ## B7. Reports
 
 - **Overall report** (Dashboard) — PDF across all towers, optionally filtered by area.
-- **Generate official report** (a team's own page) — a formatted report for that team over a
-  chosen date range.
+- **Generate official report** (a team's own page) — a formatted report over a chosen date range;
+  leave Tower on "All towers" for that team's whole campaign, or pick one tower for a
+  single-tower report — same customer template either way.
 - **Per-visit PDF** — from any individual inspection visit.
 - **Custom Word/PDF templates** (Reports page) — upload your own branded `.docx` or a fillable
   PDF form once; it becomes the active template of that kind (Word and PDF are tracked

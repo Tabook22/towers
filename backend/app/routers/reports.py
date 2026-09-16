@@ -211,10 +211,11 @@ def oetc_line_report(
     user: User = Depends(get_current_user),
 ):
     """The official customer-format report (see services/oetc_report.py) — a team's whole line
-    campaign over a date range, rendered straight into the customer's own template. Admin/reviewer
-    can generate for any team; a team_leader only for their own, same boundary as every other
-    team-scoped report in this app; a team_member (whose whole workspace is their own assigned
-    missions, not team-wide reporting) is refused outright."""
+    campaign over a date range by default, or (when payload.tower_id is set) just that one
+    particular tower's visits, rendered straight into the customer's own template either way.
+    Admin/reviewer can generate for any team; a team_leader only for their own, same boundary as
+    every other team-scoped report in this app; a team_member (whose whole workspace is their own
+    assigned missions, not team-wide reporting) is refused outright."""
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
     if user.role == UserRole.TEAM_LEADER.value and user.team_id != payload.team_id:
@@ -226,23 +227,31 @@ def oetc_line_report(
     if db.query(LineInspectionReport).filter(LineInspectionReport.report_number == payload.report_number).first():
         raise HTTPException(status_code=400, detail=f"Report number '{payload.report_number}' already used")
 
-    visits = (
-        db.query(Visit)
-        .options(joinedload(Visit.positions).joinedload(Position.images), joinedload(Visit.tower))
-        .filter(
-            Visit.team_id == payload.team_id,
-            Visit.inspection_date >= payload.start_date,
-            Visit.inspection_date <= payload.end_date,
-        )
-        .all()
-    )
-    if not visits:
-        raise HTTPException(status_code=400, detail="No visits found for this team in that date range")
+    tower = None
+    if payload.tower_id is not None:
+        tower = db.get(Tower, payload.tower_id)
+        if not tower:
+            raise HTTPException(status_code=404, detail="Tower not found")
 
-    docx_bytes = render_oetc_line_report_docx(team, visits, payload)
+    visits_query = db.query(Visit).options(
+        joinedload(Visit.positions).joinedload(Position.images), joinedload(Visit.tower)
+    ).filter(
+        Visit.team_id == payload.team_id,
+        Visit.inspection_date >= payload.start_date,
+        Visit.inspection_date <= payload.end_date,
+    )
+    if tower is not None:
+        visits_query = visits_query.filter(Visit.tower_id == tower.id)
+    visits = visits_query.all()
+    if not visits:
+        scope = f"tower {tower.tower_id}" if tower else "this team"
+        raise HTTPException(status_code=400, detail=f"No visits found for {scope} in that date range")
+
+    docx_bytes = render_oetc_line_report_docx(team, visits, payload, tower=tower)
 
     record = LineInspectionReport(
         team_id=team.id,
+        tower_id=tower.id if tower else None,
         start_date=payload.start_date,
         end_date=payload.end_date,
         report_number=payload.report_number,
@@ -362,7 +371,9 @@ def oetc_line_report_history(
     """Past generated reports — for tracing/reprinting; see LineInspectionReport for what's kept."""
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
-    q = db.query(LineInspectionReport).options(joinedload(LineInspectionReport.team))
+    q = db.query(LineInspectionReport).options(
+        joinedload(LineInspectionReport.team), joinedload(LineInspectionReport.tower)
+    )
     if user.role == UserRole.TEAM_LEADER.value:
         q = q.filter(LineInspectionReport.team_id == user.team_id) if user.team_id else q.filter(False)
     elif team_id:
@@ -372,5 +383,6 @@ def oetc_line_report_history(
     for r in rows:
         item = LineInspectionReportOut.model_validate(r)
         item.team_name = r.team.name if r.team else None
+        item.tower_name = r.tower.tower_id if r.tower else None
         out.append(item)
     return out

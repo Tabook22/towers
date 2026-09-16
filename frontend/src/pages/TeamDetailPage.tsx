@@ -410,6 +410,7 @@ export function TeamDetailPage() {
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [reportForm, setReportForm] = useState({
+    tower_id: '',
     start_date: rangeStart,
     end_date: rangeEnd,
     report_number: '',
@@ -423,7 +424,7 @@ export function TeamDetailPage() {
     approval_date: today,
   });
   const openReportDialog = () => {
-    setReportForm((f) => ({ ...f, start_date: rangeStart, end_date: rangeEnd }));
+    setReportForm((f) => ({ ...f, tower_id: '', start_date: rangeStart, end_date: rangeEnd }));
     setReportError(null);
     setReportDialogOpen(true);
   };
@@ -432,6 +433,7 @@ export function TeamDetailPage() {
     generateOetcReport.mutate(
       {
         team_id: id,
+        tower_id: reportForm.tower_id ? Number(reportForm.tower_id) : null,
         start_date: reportForm.start_date,
         end_date: reportForm.end_date,
         report_number: reportForm.report_number.trim(),
@@ -2824,6 +2826,22 @@ export function TeamDetailPage() {
               template — every position with real data in this date range becomes a finding.
             </Typography>
             {reportError && <Alert severity="error">{reportError}</Alert>}
+            <TextField
+              select
+              label="Tower"
+              value={reportForm.tower_id}
+              onChange={(e) => setReportForm((f) => ({ ...f, tower_id: e.target.value }))}
+              helperText="Leave as 'All towers' for the whole team's campaign, or pick one tower for a single-tower report."
+            >
+              <MenuItem value="">
+                <em>All towers (full team campaign)</em>
+              </MenuItem>
+              {(jobMap?.towers || []).map((t) => (
+                <MenuItem key={t.id} value={String(t.id)}>
+                  {t.tower_id}
+                </MenuItem>
+              ))}
+            </TextField>
             <TextField
               label="Report number"
               placeholder="e.g. OETC-DFRTRM-IR-2026-01"

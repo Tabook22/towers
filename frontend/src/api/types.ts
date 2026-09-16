@@ -186,6 +186,9 @@ export interface ChoiceLists {
 // template) — see backend services/oetc_report.py. ----------
 export interface LineInspectionReportRequest {
   team_id: number;
+  // Omit (or null) for the team's whole campaign ("full towers"); set to scope the report to one
+  // particular tower's visits only, still within start_date/end_date.
+  tower_id?: number | null;
   start_date: string;
   end_date: string;
   report_number: string;
@@ -236,6 +239,8 @@ export interface LineInspectionReportOut {
   id: number;
   team_id: number;
   team_name: string | null;
+  tower_id: number | null;
+  tower_name: string | null;
   start_date: string;
   end_date: string;
   report_number: string;

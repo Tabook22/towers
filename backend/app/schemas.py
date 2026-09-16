@@ -1150,6 +1150,9 @@ class FieldExecutionPlanRequest(BaseModel):
 # field data (report number, sign-off) or is the engineer's own judgment call at report time. ----------
 class LineInspectionReportRequest(BaseModel):
     team_id: int
+    # None = the team's whole campaign ("full towers"); set to scope the report to one particular
+    # tower's visits only, still within start_date/end_date.
+    tower_id: int | None = None
     start_date: dt.date
     end_date: dt.date
     report_number: str = Field(min_length=1, max_length=80)
@@ -1225,6 +1228,8 @@ class LineInspectionReportOut(BaseModel):
     id: int
     team_id: int
     team_name: str | None = None
+    tower_id: int | None = None
+    tower_name: str | None = None
     start_date: dt.date
     end_date: dt.date
     report_number: str

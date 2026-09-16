@@ -5,12 +5,15 @@ field and every "circle the right option" mark with a Jinja-driven checkbox stat
 its layout, wording, or styling in any other way (see the build script used to make it for exactly
 which spots were templatized — same convention as services/field_execution_plan.py's bundled asset).
 
-One report covers a team's whole line campaign over a date range — the template's own shape (one
-Line ID/date/report number, a repeating "Inspection findings" block per insulator, a "Thermal
-Inspection Measurements" table with one row per reading) is built for exactly that, not a single
-tower's single visit. Every raw reading comes straight from Position/Visit data; the report number
-and the engineer's sign-off/assessment (LineInspectionReportRequest) exist only at report time and
-are persisted on LineInspectionReport so a past report can be traced back to later.
+One report covers a team's whole line campaign over a date range by default — the template's own
+shape (one Line ID/date/report number, a repeating "Inspection findings" block per insulator, a
+"Thermal Inspection Measurements" table with one row per reading) handles any number of towers'
+worth of findings equally well. Passing `tower` narrows it to that one tower's visits only ("for a
+particular tower", as opposed to "full towers") — same template, same rendering, just a filtered
+`visits` list and a line_section that names the tower instead of the team's whole mission range.
+Every raw reading comes straight from Position/Visit data; the report number and the engineer's
+sign-off/assessment (LineInspectionReportRequest) exist only at report time and are persisted on
+LineInspectionReport so a past report can be traced back to later.
 
 A "finding" is only generated for a Position that actually has activity — Direction set or a real
 image — same bar team_activity_report.py uses; an untouched 12-slot placeholder is noise here too.
@@ -21,7 +24,7 @@ import datetime as dt
 import io
 
 from app.config import BASE_DIR
-from app.models import Position, Team, Visit
+from app.models import Position, Team, Tower, Visit
 from app.schemas import LineInspectionReportRequest
 from app.services.docx_reports import _inline_image, _pick_image
 from app.services.team_activity_report import _position_has_activity, _position_sort_key
@@ -66,7 +69,9 @@ def _measurement_context(seq: int, visit: Visit, pos: Position) -> dict:
     }
 
 
-def build_oetc_line_report_context(tpl, team: Team, visits: list[Visit], payload: LineInspectionReportRequest) -> dict:
+def build_oetc_line_report_context(
+    tpl, team: Team, visits: list[Visit], payload: LineInspectionReportRequest, tower: Tower | None = None
+) -> dict:
     visits = sorted(visits, key=lambda v: (v.inspection_date or dt.date.min, v.mission_seq or 0))
 
     findings: list[dict] = []
@@ -89,7 +94,9 @@ def build_oetc_line_report_context(tpl, team: Team, visits: list[Visit], payload
             measurements.append(_measurement_context(seq, v, pos))
 
     voltage_level = next((v.tower.voltage for v in visits if v.tower and v.tower.voltage), "")
-    line_section = " to ".join(filter(None, [team.mission_from, team.mission_to]))
+    # A single-tower report names that tower directly rather than the team's whole mission range,
+    # since "1 to 70" would be misleading when only one of those towers is actually in this report.
+    line_section = tower.tower_id if tower else " to ".join(filter(None, [team.mission_from, team.mission_to]))
     is_day = True
     if equip and equip.start_time:
         is_day = equip.start_time.hour < 18  # crude but reasonable: before 18:00 counts as daylight
@@ -132,12 +139,14 @@ def build_oetc_line_report_context(tpl, team: Team, visits: list[Visit], payload
     }
 
 
-def render_oetc_line_report_docx(team: Team, visits: list[Visit], payload: LineInspectionReportRequest) -> bytes:
+def render_oetc_line_report_docx(
+    team: Team, visits: list[Visit], payload: LineInspectionReportRequest, tower: Tower | None = None
+) -> bytes:
     from docxtpl import DocxTemplate
     from jinja2 import Environment
 
     tpl = DocxTemplate(str(TEMPLATE_PATH))
-    context = build_oetc_line_report_context(tpl, team, visits, payload)
+    context = build_oetc_line_report_context(tpl, team, visits, payload, tower=tower)
     jinja_env = Environment(finalize=lambda v: "" if v is None else v)
     tpl.render(context, jinja_env=jinja_env)
     buf = io.BytesIO()

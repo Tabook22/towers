@@ -389,6 +389,9 @@ class LineInspectionReport(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
+    # Set only when this report was scoped to one particular tower rather than the team's whole
+    # campaign in the date range — None means "full towers" (every tower the team touched).
+    tower_id: Mapped[int | None] = mapped_column(ForeignKey("towers.id"), nullable=True, index=True)
     start_date: Mapped[dt.date] = mapped_column(Date)
     end_date: Mapped[dt.date] = mapped_column(Date)
     report_number: Mapped[str] = mapped_column(String(80))
@@ -407,6 +410,7 @@ class LineInspectionReport(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
 
     team: Mapped["Team"] = relationship()
+    tower: Mapped["Tower | None"] = relationship()
 
 
 class LocationPing(Base):

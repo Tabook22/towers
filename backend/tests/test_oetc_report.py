@@ -1,0 +1,136 @@
+"""Official ("OETC") report generation: a team's whole campaign by default, or one particular
+tower's visits only when tower_id is set on the request — see routers/reports.oetc_line_report and
+services/oetc_report.build_oetc_line_report_context."""
+import datetime as dt
+
+import pytest
+from fastapi import HTTPException
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+
+from app.database import Base
+from app.models import LineInspectionReport, Position, Team, Tower, User, Visit
+from app.routers.reports import oetc_line_report
+from app.schemas import LineInspectionReportRequest
+from app.services.oetc_report import build_oetc_line_report_context
+
+
+def _engine():
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    return engine
+
+
+def _seed(db: Session):
+    team = Team(name="Alpha")
+    tower_a = Tower(tower_id="T-1", voltage="132")
+    tower_b = Tower(tower_id="T-2", voltage="132")
+    db.add_all([team, tower_a, tower_b])
+    db.flush()
+
+    visit_a = Visit(tower_id=tower_a.id, team_id=team.id, inspection_date=dt.date(2026, 9, 1))
+    visit_b = Visit(tower_id=tower_b.id, team_id=team.id, inspection_date=dt.date(2026, 9, 2))
+    db.add_all([visit_a, visit_b])
+    db.flush()
+
+    db.add_all(
+        [
+            Position(visit_id=visit_a.id, ohl="OHL1", phase="R", string="S1", direction="EN", installed=True),
+            Position(visit_id=visit_b.id, ohl="OHL1", phase="Y", string="S1", direction="EN", installed=True),
+        ]
+    )
+    db.commit()
+    return team, tower_a, tower_b
+
+
+def test_tower_id_scopes_visits_to_that_tower_only():
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, tower_b = _seed(db)
+        admin = User(username="admin", role="admin", hashed_password="x")
+        db.add(admin)
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            team_id=team.id,
+            tower_id=tower_a.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="TEST-0001",
+        )
+        response = oetc_line_report(payload=payload, db=db, user=admin)
+        assert response.status_code == 200
+        assert response.body  # a real .docx was rendered, not empty
+
+        record = db.query(LineInspectionReport).one()
+        assert record.tower_id == tower_a.id
+
+
+def test_no_visits_for_that_tower_in_range_is_a_clear_400():
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, tower_b = _seed(db)
+        admin = User(username="admin", role="admin", hashed_password="x")
+        db.add(admin)
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            team_id=team.id,
+            tower_id=tower_a.id,
+            start_date=dt.date(2026, 9, 2),
+            end_date=dt.date(2026, 9, 2),  # only tower_b was visited that day
+            report_number="TEST-0002",
+        )
+        with pytest.raises(HTTPException) as exc:
+            oetc_line_report(payload=payload, db=db, user=admin)
+        assert exc.value.status_code == 400
+        assert "T-1" in exc.value.detail
+
+
+def test_omitting_tower_id_covers_the_whole_team_as_before():
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, tower_b = _seed(db)
+        admin = User(username="admin", role="admin", hashed_password="x")
+        db.add(admin)
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            team_id=team.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="TEST-0003",
+        )
+        response = oetc_line_report(payload=payload, db=db, user=admin)
+        assert response.status_code == 200
+
+        record = db.query(LineInspectionReport).filter_by(report_number="TEST-0003").one()
+        assert record.tower_id is None
+
+
+def test_single_tower_context_names_the_tower_in_line_section_instead_of_the_mission_range():
+    from docxtpl import DocxTemplate
+
+    from app.services.oetc_report import TEMPLATE_PATH
+
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, tower_b = _seed(db)
+        team.mission_from = "1"
+        team.mission_to = "70"
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            team_id=team.id,
+            tower_id=tower_a.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="TEST-0004",
+        )
+        visits = [v for v in db.query(Visit).all() if v.tower_id == tower_a.id]
+        tpl = DocxTemplate(str(TEMPLATE_PATH))
+        context = build_oetc_line_report_context(tpl, team, visits, payload, tower=tower_a)
+        assert context["line_section"] == "T-1"
+
+        context_whole_team = build_oetc_line_report_context(tpl, team, db.query(Visit).all(), payload)
+        assert context_whole_team["line_section"] == "1 to 70"

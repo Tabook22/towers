@@ -297,9 +297,10 @@ export function HelpPage() {
           Open any tower and use <strong>Download tower report (PDF)</strong> from its inspection
           visit page.
         </Step>
-        <Step n={2} title="Whole-team official report.">
+        <Step n={2} title="Official report — one tower or the whole team.">
           On Our team, use <strong>Generate official report</strong> for a formatted report across
-          a date range.
+          a date range — leave Tower on "All towers" for the whole team's campaign, or pick one
+          tower for a single-tower report, both in the customer's own template.
         </Step>
         <Step n={3} title='Overall report (all towers/areas).'>
           The <strong>Overall report</strong> button on the Dashboard, optionally filtered by
@@ -493,7 +494,8 @@ function AdminGuide() {
           PDF across all towers, optionally filtered by area.
         </Step>
         <Step n={2} title="Generate official report (a team's own page).">
-          A formatted report for that team over a chosen date range.
+          A formatted report over a chosen date range — either that team's whole campaign, or a
+          single particular tower, by picking it from the Tower dropdown in the dialog.
         </Step>
         <Step n={3} title="Custom Word/PDF templates (Reports page).">
           Upload your own branded <code>.docx</code> or a fillable PDF form once — it becomes the
