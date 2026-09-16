@@ -423,7 +423,27 @@ function AdminGuide() {
         </Step>
       </Section>
 
-      <Section title="3. Creating teams and team leaders" subtitle="Teams page">
+      <Section title="3. Team photo uploads" subtitle="Image Archive page">
+        <Typography variant="body2" color="text.secondary">
+          A separate section on the Image Archive page for general photos not tied to one
+          specific tower inspection — site conditions, equipment, handovers. Only an admin or
+          reviewer can upload or delete here; a team leader/member sees their own team&apos;s
+          photos read-only.
+        </Typography>
+        <Step n={1} title="Upload images.">
+          Pick a team (required), choose one or more image files, optionally add a caption
+          (applied to the whole batch). Date and GPS location are read automatically from each
+          photo&apos;s own EXIF data when present — no location shown if the photo has neither.
+        </Step>
+        <Step n={2} title="Browse and manage.">
+          Filter by Team / Year / Month / Day, independent of the tower-based archive below it. A
+          photo with a location shows a clickable <strong>Location</strong> chip that opens it in
+          Google Maps. Deleting a photo removes the file and its thumbnail — this can&apos;t be
+          undone.
+        </Step>
+      </Section>
+
+      <Section title="4. Creating teams and team leaders" subtitle="Teams page">
         <Step n={1} title="Team leaders table.">
           Every team-leader login, whether or not it&apos;s linked to a team yet (shown as
           "Unassigned" if not). Editing one can reset their password (leave it blank to keep the
@@ -439,7 +459,7 @@ function AdminGuide() {
         </Step>
       </Section>
 
-      <Section title="4. Team members">
+      <Section title="5. Team members">
         <Typography variant="body2" color="text.secondary">
           Either the team leader (from their own Our team page) or an admin (visiting that same
           team&apos;s page) can add a member: full name, mobile, job type (Drone Operator,
@@ -449,7 +469,7 @@ function AdminGuide() {
         </Typography>
       </Section>
 
-      <Section title="5. Monitoring everything">
+      <Section title="6. Monitoring everything">
         <Step n={1} title="Field Tracker.">
           The live, all-teams map: every crew's GPS position, breadcrumb trails, and towers.{' '}
           <strong>New mission</strong> starts a clean tracking session on the map (nothing is ever
@@ -468,7 +488,7 @@ function AdminGuide() {
         </Step>
       </Section>
 
-      <Section title="6. Reports">
+      <Section title="7. Reports">
         <Step n={1} title="Overall report (Dashboard).">
           PDF across all towers, optionally filtered by area.
         </Step>
@@ -483,7 +503,7 @@ function AdminGuide() {
         </Step>
       </Section>
 
-      <Section title="7. Accounts & security">
+      <Section title="8. Accounts & security">
         <Typography variant="body2" color="text.secondary">
           Every login can change their own password from the avatar menu, top right. Deleting a
           login that already has real recorded work deactivates it instead, so historical data
@@ -493,7 +513,7 @@ function AdminGuide() {
         </Typography>
       </Section>
 
-      <Section title="8. Optional add-ons">
+      <Section title="9. Optional add-ons">
         <Step n={1} title="Help chat assistant.">
           This very chat needs an Anthropic API key in the server&apos;s configuration to answer
           questions — without one it replies with a clear "not set up yet" message instead of

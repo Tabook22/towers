@@ -24,6 +24,7 @@ from app.routers import (
     positions,
     report_templates,
     reports,
+    team_archive,
     teams,
     towers,
     tracking,
@@ -67,6 +68,7 @@ app.include_router(teams.router)
 app.include_router(channel.router)
 app.include_router(claims.router)
 app.include_router(help_chat.router)
+app.include_router(team_archive.router)
 
 
 @app.get("/api/health")

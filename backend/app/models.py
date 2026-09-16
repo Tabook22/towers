@@ -623,6 +623,32 @@ class TeamChannelMessage(Base):
     author: Mapped["User | None"] = relationship(foreign_keys=[created_by])
 
 
+class TeamArchiveImage(Base):
+    """A photo an admin uploads straight into a team's own archive — not tied to any specific
+    tower/visit/position, unlike Image (inspection evidence). Auto-filed under the Image Archive
+    page's Team view by capture date (from EXIF when the photo has it, else the upload date), with
+    GPS location pulled from EXIF the same best-effort way as everywhere else in this app."""
+
+    __tablename__ = "team_archive_images"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
+    capture_date: Mapped[dt.date] = mapped_column(Date, index=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    caption: Mapped[str | None] = mapped_column(Text, nullable=True)
+    file_path: Mapped[str] = mapped_column(String(500))
+    thumbnail_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    original_filename: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    uploaded_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+    team: Mapped["Team"] = relationship()
+    uploader: Mapped["User | None"] = relationship(foreign_keys=[uploaded_by])
+
+
 class TeamOutingPlan(Base):
     """Towers the team leader picked for one field night — set before leaving for site."""
 

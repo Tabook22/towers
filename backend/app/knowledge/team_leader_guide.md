@@ -235,7 +235,24 @@ phone from that login):
 - Click a tower's own row to open its detail page (edit details, see its inspection visits,
   start one manually).
 
-## B3. Creating teams and team leaders (Teams page)
+## B3. Team photo uploads (Image Archive page)
+
+A separate "Team photo uploads" section on the Image Archive page, for general photos that
+aren't tied to one specific tower inspection — site conditions, equipment, handovers. Only an
+admin or reviewer can upload or delete here; a team leader/member can view their own team's
+photos read-only.
+
+- **Upload images**: pick a team (required), choose one or more image files, optionally add a
+  caption (applied to the whole batch). Date and GPS location are read automatically from each
+  photo's own EXIF data when present; if a photo has neither, it's simply filed under today's
+  date with no location shown.
+- Browse with the Team / Year / Month / Day filters — independent of the tower-based archive
+  below it, since these photos have no tower.
+- A photo with a location shows a **Location** chip that opens the exact spot in Google Maps.
+- Deleting a photo removes both the file and its thumbnail from the server — this cannot be
+  undone.
+
+## B4. Creating teams and team leaders (Teams page)
 
 - **Team leaders** table — every team-leader login, independent of whether it's linked to a team
   yet ("Unassigned" if not). **Add team leader**: full name, mobile, address, username, password.
@@ -249,7 +266,7 @@ phone from that login):
 - A team leader's login only ever sees their own team's data — this is enforced server-side, not
   just hidden in the UI, so it can't be worked around from the leader's own account.
 
-## B4. Team members
+## B5. Team members
 
 - Either the team leader (from their own **Our team** page) or an admin (visiting that same team's
   page) can add a team member login: full name, mobile, job type (Drone Operator, Photographer,
@@ -257,7 +274,7 @@ phone from that login):
 - A team_member login's whole app is scoped to the missions assigned to them — no dashboard,
   towers catalog, archive, or reports; they see and act on their own work only.
 
-## B5. Monitoring everything
+## B6. Monitoring everything
 
 - **Field Tracker** (admin/reviewer only) — the live, all-teams map: every crew's GPS position,
   breadcrumb trails, and the towers on the map. **New mission** closes the current tracking
@@ -273,7 +290,7 @@ phone from that login):
   any of it directly (reassign a visit, change a mission's status, delete a mistaken visit) without
   needing the team leader to do it.
 
-## B6. Reports
+## B7. Reports
 
 - **Overall report** (Dashboard) — PDF across all towers, optionally filtered by area.
 - **Generate official report** (a team's own page) — a formatted report for that team over a
@@ -285,7 +302,7 @@ phone from that login):
   download option alongside the built-in fixed layout. A starter template can be downloaded from
   the same page as a working example to customize.
 
-## B7. Accounts & security
+## B8. Accounts & security
 
 - Every login can change their own password (avatar menu, top right → Change password).
 - Deleting a login that already has real recorded work deactivates it instead of deleting it, so
@@ -293,7 +310,7 @@ phone from that login):
 - **Reviewer** is a second admin-equivalent role for most day-to-day screens — intended as a
   second set of eyes (e.g. QA), not a lesser role.
 
-## B8. Optional add-ons an admin may want to set up
+## B9. Optional add-ons an admin may want to set up
 
 - **Help chat assistant** (this very chat) needs an Anthropic API key in the server's
   configuration to actually answer questions — without one it replies with a clear "not set up
@@ -303,7 +320,7 @@ phone from that login):
   Actions as a direct-install `.apk` (no Play Store account needed); ask whoever manages the
   repository for the current download link.
 
-## B9. Answering style for admin questions
+## B10. Answering style for admin questions
 
 - Lead with the recommended order (B1) when the question is about getting started or "what do I
   do first".

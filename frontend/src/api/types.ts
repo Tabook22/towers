@@ -804,6 +804,23 @@ export interface TeamDayProgress {
   notes: TeamDailyLog[];
 }
 
+export interface TeamArchiveImage {
+  id: number;
+  team_id: number;
+  team_name: string | null;
+  capture_date: string;
+  latitude: number | null;
+  longitude: number | null;
+  caption: string | null;
+  content_type: string | null;
+  original_filename: string | null;
+  file_size: number | null;
+  has_thumbnail: boolean;
+  uploaded_by: number | null;
+  uploaded_by_name: string | null;
+  uploaded_at: string;
+}
+
 export interface HelpChatTurn {
   role: 'user' | 'assistant';
   content: string;

@@ -29,6 +29,7 @@ import type {
   TeamDailyLog,
   TeamDayProgress,
   HelpChatTurn,
+  TeamArchiveImage,
   OutingPlan,
   OutingPlanSummary,
   HandoverPack,
@@ -700,6 +701,38 @@ export function useArchive(filters: { year?: number; month?: number; day?: numbe
   return useQuery({
     queryKey: ['archive', filters],
     queryFn: async () => (await apiClient.get<ImageRow[]>('/api/archive', { params: filters })).data,
+  });
+}
+
+// ---------- Team archive images (general photos an admin uploads straight to a team's own
+// archive — not tied to any tower/visit, unlike the per-position evidence above). ----------
+export function useTeamArchiveImages(filters: { team_id?: number; year?: number; month?: number; day?: number }) {
+  return useQuery({
+    queryKey: ['team-archive-images', filters],
+    queryFn: async () => (await apiClient.get<TeamArchiveImage[]>('/api/archive/team-images', { params: filters })).data,
+  });
+}
+
+export function useUploadTeamArchiveImages(teamId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ files, caption }: { files: File[]; caption?: string }) => {
+      const form = new FormData();
+      files.forEach((f) => form.append('files', f, f.name));
+      if (caption) form.set('caption', caption);
+      return (
+        await apiClient.post<TeamArchiveImage[]>(`/api/teams/${teamId}/archive-images`, form, { timeout: 180_000 })
+      ).data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['team-archive-images'] }),
+  });
+}
+
+export function useDeleteTeamArchiveImage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => apiClient.delete(`/api/archive/team-images/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['team-archive-images'] }),
   });
 }
 

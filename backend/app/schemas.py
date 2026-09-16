@@ -1236,6 +1236,24 @@ class LineInspectionReportOut(BaseModel):
     created_at: dt.datetime
 
 
+class TeamArchiveImageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    team_id: int
+    team_name: str | None = None
+    capture_date: dt.date
+    latitude: float | None = None
+    longitude: float | None = None
+    caption: str | None = None
+    content_type: str | None = None
+    original_filename: str | None = None
+    file_size: int | None = None
+    has_thumbnail: bool = False
+    uploaded_by: int | None = None
+    uploaded_by_name: str | None = None
+    uploaded_at: dt.datetime
+
+
 class HelpChatTurn(BaseModel):
     role: str  # "user" | "assistant"
     content: str

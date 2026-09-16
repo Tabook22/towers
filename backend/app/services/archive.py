@@ -85,6 +85,22 @@ def tower_photo_relative_path(tower_id: str, ext: str) -> str:
     return f"{slugify_tower_id(tower_id)}{ext}"
 
 
+def team_archive_relative_path(team_id: int, capture_date: dt.date, image_code: str, ext: str) -> str:
+    """storage/images/team_archive/team-{id}/{year}/{month}/{day}/{code}.ext — general photos an
+    admin uploads straight to a team's archive, filed the same year/month/day way as inspection
+    evidence but keyed by team id (not a tower slug) since there's no tower involved."""
+    return "/".join(
+        [
+            "team_archive",
+            f"team-{team_id}",
+            f"{capture_date.year:04d}",
+            f"{capture_date.month:02d}",
+            f"{capture_date.day:02d}",
+            f"{image_code}{ext}",
+        ]
+    )
+
+
 def extract_exif_gps_datetime(raw_bytes: bytes) -> dict:
     """Best-effort EXIF extraction: returns {latitude, longitude, capture_date, capture_time} or {}."""
     result: dict = {}
