@@ -54,6 +54,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    // localStorage is shared across every tab of this origin, but each tab's own React state is
+    // only set once at mount — sign in as someone else in another tab (or this one, in a second
+    // window) and this tab keeps rendering UI for the account it started with, while every request
+    // it sends now carries the new account's token, since apiClient reads localStorage fresh each
+    // time. That mismatch is exactly what an admin hit: a tab still showing "Add team leader"
+    // (isAdmin baked in from the old session) submitted with a team_leader token underneath, and
+    // got that role's 403 back. The `storage` event fires in every OTHER tab when localStorage
+    // changes, so re-reading here keeps this tab's identity in sync instead of silently stale.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'iip_token' || e.key === 'iip_user') setUser(readStoredUser());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
