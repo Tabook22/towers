@@ -373,14 +373,18 @@ export function HelpPage() {
         <Stack spacing={2} divider={<Divider flexItem />}>
           <Box>
             <Typography sx={{ fontWeight: 700 }}>
-              Why does a tower still say "Not inspected yet" in Mission plan?
+              Why does a tower say "Not inspected yet" — and how do I clear it?
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              That list intentionally shows every tower assigned to your team with its real
-              status, so you can see what&apos;s left to plan for. It&apos;s different from{' '}
-              <strong>Towers needing attention</strong> further down the Dashboard, which only
-              shows towers with an actual open visit right now — a tower drops off that one
-              automatically once it&apos;s finished, or stays off it until you actually start it.
+            <Typography variant="body2" color="text.secondary" component="div">
+              It's a live status, not a setting — there's nothing to dismiss or remove by hand. It
+              simply means no one has started a visit for that tower yet: 🔴 Not inspected yet → 🟠
+              In progress (once someone taps Start) → 🟢 Inspected (once it's finished). It clears
+              itself automatically the moment the work actually happens. This list deliberately
+              shows every tower assigned to your team, whether or not it's checked for tonight's
+              mission — checking a tower for tonight and its inspection status are two separate
+              things. It's different from <strong>Towers needing attention</strong> further down the
+              Dashboard, which only shows towers with an actual open visit right now — a tower drops
+              off that one automatically once it&apos;s finished, or stays off it until started.
             </Typography>
           </Box>
           <Box>

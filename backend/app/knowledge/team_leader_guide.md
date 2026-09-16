@@ -132,9 +132,14 @@ Admin-only screens a team leader does not see: Field Tracker (all-teams live map
 
 These look similar but answer different questions:
 
-- **Mission plan's tower pool** shows every tower assigned to the team, tagged with its real
-  status (Inspected / In progress / **Not inspected yet**) — deliberately including towers with
-  no visit yet, so the leader can see what's available to plan for tonight.
+- **Mission plan's tower pool** shows every tower assigned to the team, tagged with its real,
+  live inspection status — Inspected (green) / In progress (amber) / **Not inspected yet** (red).
+  This is not a setting and there is nothing to dismiss or remove by hand: it's read directly from
+  whether a Visit exists for that tower yet, and it updates itself the moment someone taps Start
+  (→ In progress) and finishes the inspection (→ Inspected). The list deliberately includes every
+  assigned tower regardless of whether it's checked for tonight's mission — being checked for
+  tonight and its inspection status are two independent things, so a tower can be picked for
+  tonight and still correctly show "Not inspected yet" until the work actually happens.
 - **Towers needing attention** (further down the Dashboard) only shows towers with an actually
   **open** mission right now (`mission_status` = planned or in_progress). A tower with no visit
   at all, or one that's Completed, automatically drops off this list — no manual removal needed.
