@@ -788,10 +788,10 @@ class VisitPhoto(Base):
 
 class AppSetting(Base):
     """Singleton row (always id=1) holding the admin-controlled branding shown on the welcome splash
-    screen (see components/SplashScreen.tsx) — title, header/subtitle copy, and the two company
-    logos. Read by any signed-in user (the splash is what renders it); writes are gated behind the
-    "manage_settings" permission (see deps.PERMISSIONS) so a restricted admin sub-account only gets
-    this knob if a super admin explicitly grants it."""
+    screen (see components/SplashScreen.tsx) — title, header/subtitle copy, the two company logos,
+    and a hero photo (e.g. a tower shot) banner. Read by any signed-in user (the splash is what
+    renders it); writes are gated behind the "manage_settings" permission (see deps.PERMISSIONS) so
+    a restricted admin sub-account only gets this knob if a super admin explicitly grants it."""
 
     __tablename__ = "app_settings"
 
@@ -803,4 +803,7 @@ class AppSetting(Base):
     # storage directory doesn't strand old rows. Null = fall back to the built-in placeholder asset.
     oetc_logo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sky_green_line_logo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # A wide banner photo shown across the top of the splash (e.g. a tower/field shot) — purely
+    # decorative, so null just means "don't show a banner" rather than falling back to a placeholder.
+    hero_image_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

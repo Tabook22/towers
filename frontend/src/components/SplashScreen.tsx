@@ -32,6 +32,7 @@ export function SplashScreen() {
   const skyGreenLogoSrc = branding?.sky_green_line_logo_url
     ? mediaUrl(branding.sky_green_line_logo_url)
     : '/branding/sky-green-line.png';
+  const heroImageSrc = branding?.hero_image_url ? mediaUrl(branding.hero_image_url) : null;
 
   const dismiss = () => {
     try {
@@ -51,6 +52,21 @@ export function SplashScreen() {
 
   return (
     <Dialog open={open} onClose={dismiss} maxWidth="sm" fullWidth>
+      {heroImageSrc && (
+        <Box
+          component="img"
+          src={heroImageSrc}
+          alt=""
+          sx={{
+            width: '100%',
+            height: { xs: 140, sm: 180 },
+            objectFit: 'cover',
+            display: 'block',
+            borderTopLeftRadius: 'inherit',
+            borderTopRightRadius: 'inherit',
+          }}
+        />
+      )}
       <Box sx={{ p: { xs: 2.5, sm: 4 } }}>
         <Stack direction="row" spacing={3} sx={{ alignItems: 'center', justifyContent: 'center', mb: 2 }}>
           <Box component="img" src={oetcLogoSrc} alt="Oman Electricity Transmission Company" sx={{ height: 56, objectFit: 'contain' }} />

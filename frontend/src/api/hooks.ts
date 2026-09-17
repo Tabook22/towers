@@ -1158,6 +1158,7 @@ export function useUpdateBrandingSettings() {
       splash_subtitle?: string;
       oetc_logo?: File;
       sky_green_line_logo?: File;
+      hero_image?: File;
     }) => {
       const form = new FormData();
       if (payload.app_title !== undefined) form.append('app_title', payload.app_title);
@@ -1165,6 +1166,7 @@ export function useUpdateBrandingSettings() {
       if (payload.splash_subtitle !== undefined) form.append('splash_subtitle', payload.splash_subtitle);
       if (payload.oetc_logo) form.append('oetc_logo', payload.oetc_logo);
       if (payload.sky_green_line_logo) form.append('sky_green_line_logo', payload.sky_green_line_logo);
+      if (payload.hero_image) form.append('hero_image', payload.hero_image);
       return (await apiClient.put<BrandingSettings>('/api/settings/branding', form)).data;
     },
     onSuccess: (data) => {

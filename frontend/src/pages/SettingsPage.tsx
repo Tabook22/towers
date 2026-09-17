@@ -46,9 +46,11 @@ function BrandingSection() {
   const [subtitle, setSubtitle] = useState('');
   const [oetcLogo, setOetcLogo] = useState<File | null>(null);
   const [skyLogo, setSkyLogo] = useState<File | null>(null);
+  const [heroImage, setHeroImage] = useState<File | null>(null);
   const [saved, setSaved] = useState(false);
   const oetcInputRef = useRef<HTMLInputElement>(null);
   const skyInputRef = useRef<HTMLInputElement>(null);
+  const heroInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!branding) return;
@@ -63,6 +65,7 @@ function BrandingSection() {
     : branding?.sky_green_line_logo_url
       ? mediaUrl(branding.sky_green_line_logo_url)
       : null;
+  const heroPreview = heroImage ? URL.createObjectURL(heroImage) : branding?.hero_image_url ? mediaUrl(branding.hero_image_url) : null;
 
   const handleSave = () => {
     setSaved(false);
@@ -73,12 +76,14 @@ function BrandingSection() {
         splash_subtitle: subtitle,
         oetc_logo: oetcLogo || undefined,
         sky_green_line_logo: skyLogo || undefined,
+        hero_image: heroImage || undefined,
       },
       {
         onSuccess: () => {
           setSaved(true);
           setOetcLogo(null);
           setSkyLogo(null);
+          setHeroImage(null);
         },
       },
     );
@@ -92,7 +97,7 @@ function BrandingSection() {
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Controls what admins and team leaders see on the one-time welcome screen when they open the app —
-          the app title, the greeting text, and both company logos.
+          the app title, the greeting text, both company logos, and a banner photo across the top.
         </Typography>
 
         {saved && (
@@ -101,6 +106,44 @@ function BrandingSection() {
           </Alert>
         )}
         {update.isError && <Alert severity="error" sx={{ mb: 2 }}>Could not save branding.</Alert>}
+
+        <Stack spacing={1} sx={{ mb: 3 }}>
+          <Typography variant="subtitle2">Splash banner photo</Typography>
+          <Box
+            sx={{
+              width: '100%',
+              height: 160,
+              borderRadius: 2,
+              bgcolor: 'action.hover',
+              backgroundImage: heroPreview ? `url(${heroPreview})` : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
+            {!heroPreview && (
+              <Typography variant="body2" color="text.secondary">
+                No banner set — a plain icon is shown instead
+              </Typography>
+            )}
+          </Box>
+          <input
+            ref={heroInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            hidden
+            onChange={(e) => setHeroImage(e.target.files?.[0] || null)}
+          />
+          <Box>
+            <Button size="small" startIcon={<CloudUploadIcon />} onClick={() => heroInputRef.current?.click()}>
+              {heroImage ? heroImage.name : 'Upload banner photo'}
+            </Button>
+          </Box>
+        </Stack>
 
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, sm: 6 }}>

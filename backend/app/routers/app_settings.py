@@ -17,9 +17,10 @@ from app.schemas import BrandingOut
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
-_LOGO_FIELDS = {
+_IMAGE_FIELDS = {
     "oetc": "oetc_logo_filename",
     "sky-green-line": "sky_green_line_logo_filename",
+    "hero": "hero_image_filename",
 }
 
 
@@ -33,18 +34,23 @@ def _get_or_create(db: Session) -> AppSetting:
     return row
 
 
+def _image_url(which: str, filename: str | None, updated_at) -> str | None:
+    if not filename:
+        return None
+    return f"/api/settings/branding/image/{which}?v={updated_at.timestamp():.0f}"
+
+
 def _to_out(row: AppSetting) -> BrandingOut:
     return BrandingOut(
         app_title=row.app_title,
         splash_header=row.splash_header,
         splash_subtitle=row.splash_subtitle,
-        oetc_logo_url=f"/api/settings/branding/logo/oetc?v={row.updated_at.timestamp():.0f}" if row.oetc_logo_filename else None,
-        sky_green_line_logo_url=(
-            f"/api/settings/branding/logo/sky-green-line?v={row.updated_at.timestamp():.0f}"
-            if row.sky_green_line_logo_filename
-            else None
+        oetc_logo_url=_image_url("oetc", row.oetc_logo_filename, row.updated_at),
+        sky_green_line_logo_url=_image_url("sky-green-line", row.sky_green_line_logo_filename, row.updated_at),
+        hero_image_url=_image_url("hero", row.hero_image_filename, row.updated_at),
+        configured=bool(
+            row.app_title or row.splash_header or row.oetc_logo_filename or row.sky_green_line_logo_filename or row.hero_image_filename
         ),
-        configured=bool(row.app_title or row.splash_header or row.oetc_logo_filename or row.sky_green_line_logo_filename),
     )
 
 
@@ -62,12 +68,17 @@ def update_branding(
     splash_subtitle: str | None = Form(default=None),
     oetc_logo: UploadFile | None = File(default=None),
     sky_green_line_logo: UploadFile | None = File(default=None),
+    hero_image: UploadFile | None = File(default=None),
 ):
     row = _get_or_create(db)
     row.app_title = app_title or None
     row.splash_header = splash_header or None
     row.splash_subtitle = splash_subtitle or None
-    for upload, field in ((oetc_logo, "oetc_logo_filename"), (sky_green_line_logo, "sky_green_line_logo_filename")):
+    for upload, field in (
+        (oetc_logo, "oetc_logo_filename"),
+        (sky_green_line_logo, "sky_green_line_logo_filename"),
+        (hero_image, "hero_image_filename"),
+    ):
         if upload is None or not upload.filename:
             continue
         if upload.content_type not in ("image/png", "image/jpeg", "image/webp", "image/svg+xml"):
@@ -87,16 +98,16 @@ def update_branding(
     return _to_out(row)
 
 
-@router.get("/branding/logo/{which}")
-def get_branding_logo(which: str, db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
-    field = _LOGO_FIELDS.get(which)
+@router.get("/branding/image/{which}")
+def get_branding_image(which: str, db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
+    field = _IMAGE_FIELDS.get(which)
     if not field:
-        raise HTTPException(status_code=404, detail="Unknown logo")
+        raise HTTPException(status_code=404, detail="Unknown image")
     row = _get_or_create(db)
     filename = getattr(row, field)
     if not filename:
-        raise HTTPException(status_code=404, detail="No logo uploaded")
+        raise HTTPException(status_code=404, detail="No image uploaded")
     path = settings.branding_dir / filename
     if not path.exists():
-        raise HTTPException(status_code=404, detail="Logo file missing")
+        raise HTTPException(status_code=404, detail="Image file missing")
     return FileResponse(path)

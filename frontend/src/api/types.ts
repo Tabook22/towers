@@ -463,6 +463,7 @@ export interface BrandingSettings {
   splash_subtitle: string | null;
   oetc_logo_url: string | null;
   sky_green_line_logo_url: string | null;
+  hero_image_url: string | null;
   configured: boolean;
 }
 

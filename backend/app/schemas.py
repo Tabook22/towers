@@ -1344,6 +1344,9 @@ class BrandingOut(BaseModel):
     # else None — the frontend falls back to its own bundled placeholder in that case.
     oetc_logo_url: str | None = None
     sky_green_line_logo_url: str | None = None
+    # Same idea, but no placeholder fallback — a banner photo across the top of the splash is purely
+    # optional, so None just means "don't show one".
+    hero_image_url: str | None = None
     # Only true once an admin has explicitly saved settings — lets the splash screen keep showing
     # its own sensible defaults (rather than blanks) until then.
     configured: bool = False
