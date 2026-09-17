@@ -74,10 +74,25 @@ class User(Base):
     # Logger, Data Entry, Analyst) — a team_member's role on the crew, for display/filtering only,
     # not RBAC (that's `role` above). Meaningless for other roles.
     job_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # Only meaningful for role == "admin". True = the original/full kind, unrestricted (every admin
+    # that existed before this column was added is backfilled to True — see
+    # migrations.backfill_super_admin_flag). False = a restricted admin account another super admin
+    # created on purpose, whose actual powers come from `permissions_csv` below instead of the blanket
+    # role check every admin-gated route used to do. Never meaningful for any other role.
+    is_super_admin: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    # Comma-separated subset of deps.PERMISSIONS (e.g. "manage_towers,generate_reports") — only read
+    # when role == "admin" and is_super_admin is False. See models.py module docstring... actually see
+    # deps.has_permission() for how this is consumed; use the `permissions` property below, not this
+    # column, everywhere else.
+    permissions_csv: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Teams also has a `created_by -> users.id` FK, so the join column has to be spelled out
     # explicitly here — otherwise SQLAlchemy can't tell which of the two FKs this relationship means.
     team: Mapped["Team | None"] = relationship(back_populates="users", foreign_keys=[team_id])
+
+    @property
+    def permissions(self) -> list[str]:
+        return [p for p in (self.permissions_csv or "").split(",") if p]
 
 
 class Area(Base):
@@ -769,3 +784,23 @@ class VisitPhoto(Base):
 
     visit: Mapped["Visit"] = relationship(back_populates="photos")
     position: Mapped["Position | None"] = relationship()
+
+
+class AppSetting(Base):
+    """Singleton row (always id=1) holding the admin-controlled branding shown on the welcome splash
+    screen (see components/SplashScreen.tsx) — title, header/subtitle copy, and the two company
+    logos. Read by any signed-in user (the splash is what renders it); writes are gated behind the
+    "manage_settings" permission (see deps.PERMISSIONS) so a restricted admin sub-account only gets
+    this knob if a super admin explicitly grants it."""
+
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    app_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    splash_header: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    splash_subtitle: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # Filenames only (relative to settings.branding_dir) — never a full path or URL, so moving the
+    # storage directory doesn't strand old rows. Null = fall back to the built-in placeholder asset.
+    oetc_logo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sky_green_line_logo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

@@ -11,6 +11,17 @@ from app.security import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
+# The only permissions a restricted (non-super) admin sub-account can be granted — see
+# User.is_super_admin / User.permissions_csv and require_permission() below. A full ("super") admin
+# always has all of these implicitly and is never limited by this list.
+PERMISSIONS: tuple[str, ...] = (
+    "manage_towers",
+    "manage_teams",
+    "manage_users",
+    "generate_reports",
+    "manage_settings",
+)
+
 
 def get_current_user(
     token: str | None = Depends(oauth2_scheme),
@@ -58,6 +69,33 @@ def require_role(*roles: str):
         if user.role not in roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
         return user
+
+    return checker
+
+
+def has_permission(user: User, perm: str) -> bool:
+    """True for a full ("super") admin unconditionally; for a restricted admin, only if `perm` is
+    in their granted set. Meaningless (always False) for any non-admin role — those are gated by
+    their own role checks elsewhere, never by this."""
+    if user.role != UserRole.ADMIN.value:
+        return False
+    if user.is_super_admin:
+        return True
+    return perm in user.permissions
+
+
+def require_permission(perm: str, *extra_roles: str):
+    """Like require_role(ADMIN, *extra_roles), except an admin account also needs `perm` granted
+    unless it's a full ("super") admin. `extra_roles` (e.g. reviewer) pass through unconditionally,
+    same as they always have with require_role — this dependency only ever narrows what a
+    *restricted* admin sub-account can do, it never widens anyone else's access."""
+
+    def checker(user: User = Depends(get_current_user)) -> User:
+        if user.role in extra_roles:
+            return user
+        if has_permission(user, perm):
+            return user
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
 
     return checker
 

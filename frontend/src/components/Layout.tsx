@@ -35,6 +35,7 @@ import MyLocationIcon from '@mui/icons-material/MyLocationRounded';
 import InsightsIcon from '@mui/icons-material/InsightsRounded';
 import LocationDisabledIcon from '@mui/icons-material/LocationDisabledRounded';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutlineRounded';
+import SettingsIcon from '@mui/icons-material/SettingsRounded';
 
 import LockResetIcon from '@mui/icons-material/LockResetRounded';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -282,6 +283,7 @@ export function Layout({ children }: { children: ReactNode }) {
               { label: 'Team Progress', to: '/team-progress', icon: <InsightsIcon /> },
             ]
           : []),
+        ...(user?.role === 'admin' ? [{ label: 'Settings', to: '/settings', icon: <SettingsIcon /> }] : []),
       ];
 
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);

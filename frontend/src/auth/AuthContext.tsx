@@ -8,6 +8,8 @@ interface AuthUser {
   role: string;
   full_name: string | null;
   team_id: number | null;
+  is_super_admin: boolean;
+  permissions: string[];
 }
 
 interface AuthContextValue {
@@ -37,7 +39,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!token) return;
     if (user?.id && user.team_id) return;
     void apiClient
-      .get<{ id: number; username: string; role: string; full_name: string | null; team_id: number | null }>('/api/auth/me')
+      .get<{
+        id: number;
+        username: string;
+        role: string;
+        full_name: string | null;
+        team_id: number | null;
+        is_super_admin: boolean;
+        permissions: string[];
+      }>('/api/auth/me')
       .then(({ data }) => {
         const u: AuthUser = {
           id: data.id,
@@ -45,6 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: data.role,
           full_name: data.full_name,
           team_id: data.team_id ?? null,
+          is_super_admin: data.is_super_admin,
+          permissions: data.permissions,
         };
         localStorage.setItem('iip_user', JSON.stringify(u));
         setUser(u);
@@ -82,6 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: data.role,
           full_name: data.full_name,
           team_id: data.team_id ?? null,
+          is_super_admin: data.is_super_admin,
+          permissions: data.permissions,
         };
         localStorage.setItem('iip_user', JSON.stringify(u));
         setUser(u);

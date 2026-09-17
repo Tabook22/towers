@@ -6,6 +6,7 @@ import { isQueued } from '../offline/types';
 import type {
   AdminUser,
   Area,
+  BrandingSettings,
   ChannelKind,
   ChannelMessage,
   ChoiceLists,
@@ -1093,7 +1094,20 @@ export function useUpdateUser() {
     }: {
       id: number;
       payload: Partial<
-        Pick<AdminUser, 'team_id' | 'role' | 'is_active' | 'full_name' | 'email' | 'mobile' | 'address' | 'notes' | 'job_type'>
+        Pick<
+          AdminUser,
+          | 'team_id'
+          | 'role'
+          | 'is_active'
+          | 'full_name'
+          | 'email'
+          | 'mobile'
+          | 'address'
+          | 'notes'
+          | 'job_type'
+          | 'is_super_admin'
+          | 'permissions'
+        >
       > & { password?: string };
     }) => (await apiClient.patch<AdminUser>(`/api/auth/users/${id}`, payload)).data,
     onSuccess: () => {
@@ -1116,10 +1130,45 @@ export function useCreateUser() {
       job_type?: string;
       role: string;
       team_id?: number | null;
+      is_super_admin?: boolean;
+      permissions?: string[];
     }) => (await apiClient.post<AdminUser>('/api/auth/users', payload)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['teams'] });
+    },
+  });
+}
+
+// ---------- Branding (admin-controlled splash-screen logos/title — see routers/app_settings.py) ----------
+export function useBrandingSettings(enabled = true) {
+  return useQuery({
+    queryKey: ['branding'],
+    queryFn: async () => (await apiClient.get<BrandingSettings>('/api/settings/branding')).data,
+    enabled,
+  });
+}
+
+export function useUpdateBrandingSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      app_title?: string;
+      splash_header?: string;
+      splash_subtitle?: string;
+      oetc_logo?: File;
+      sky_green_line_logo?: File;
+    }) => {
+      const form = new FormData();
+      if (payload.app_title !== undefined) form.append('app_title', payload.app_title);
+      if (payload.splash_header !== undefined) form.append('splash_header', payload.splash_header);
+      if (payload.splash_subtitle !== undefined) form.append('splash_subtitle', payload.splash_subtitle);
+      if (payload.oetc_logo) form.append('oetc_logo', payload.oetc_logo);
+      if (payload.sky_green_line_logo) form.append('sky_green_line_logo', payload.sky_green_line_logo);
+      return (await apiClient.put<BrandingSettings>('/api/settings/branding', form)).data;
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(['branding'], data);
     },
   });
 }

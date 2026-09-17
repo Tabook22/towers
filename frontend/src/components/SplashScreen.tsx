@@ -5,7 +5,8 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import LocalFireDepartmentRoundedIcon from '@mui/icons-material/LocalFireDepartmentRounded';
 import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded';
 import { useAuth } from '../auth/AuthContext';
-import { useDashboardSummary } from '../api/hooks';
+import { useBrandingSettings, useDashboardSummary } from '../api/hooks';
+import { mediaUrl } from '../api/client';
 
 // Shown once per browser session (not every page navigation) — cleared on a fresh sign-in via
 // AuthContext's logout, so the next person to use this device/tab sees it again too.
@@ -26,6 +27,11 @@ export function SplashScreen() {
   }, [eligible]);
 
   const { data } = useDashboardSummary(undefined, open);
+  const { data: branding } = useBrandingSettings(open);
+  const oetcLogoSrc = branding?.oetc_logo_url ? mediaUrl(branding.oetc_logo_url) : '/branding/oetc.png';
+  const skyGreenLogoSrc = branding?.sky_green_line_logo_url
+    ? mediaUrl(branding.sky_green_line_logo_url)
+    : '/branding/sky-green-line.png';
 
   const dismiss = () => {
     try {
@@ -47,10 +53,20 @@ export function SplashScreen() {
     <Dialog open={open} onClose={dismiss} maxWidth="sm" fullWidth>
       <Box sx={{ p: { xs: 2.5, sm: 4 } }}>
         <Stack direction="row" spacing={3} sx={{ alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-          <Box component="img" src="/branding/oetc.png" alt="Oman Electricity Transmission Company" sx={{ height: 56, objectFit: 'contain' }} />
+          <Box component="img" src={oetcLogoSrc} alt="Oman Electricity Transmission Company" sx={{ height: 56, objectFit: 'contain' }} />
           <Divider orientation="vertical" flexItem />
-          <Box component="img" src="/branding/sky-green-line.png" alt="Sky Green Line" sx={{ height: 56, objectFit: 'contain' }} />
+          <Box component="img" src={skyGreenLogoSrc} alt="Sky Green Line" sx={{ height: 56, objectFit: 'contain' }} />
         </Stack>
+
+        {branding?.app_title && (
+          <Typography
+            variant="overline"
+            color="text.secondary"
+            sx={{ display: 'block', textAlign: 'center', letterSpacing: 1.5, fontWeight: 700, mb: 1 }}
+          >
+            {branding.app_title}
+          </Typography>
+        )}
 
         <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center', mb: 3 }}>
           <Box
@@ -69,10 +85,10 @@ export function SplashScreen() {
             <CellTowerRoundedIcon sx={{ fontSize: 46 }} />
           </Box>
           <Typography variant="h5" sx={{ fontWeight: 800 }}>
-            Welcome back, {user?.full_name || user?.username}
+            {branding?.splash_header || `Welcome back, ${user?.full_name || user?.username}`}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            132 kV OHL Field Inspections — Dufar Area &amp; beyond
+            {branding?.splash_subtitle || '132 kV OHL Field Inspections — Dufar Area & beyond'}
           </Typography>
         </Stack>
 

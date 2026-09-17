@@ -12,6 +12,7 @@ from app.migrations import (
     rebuild_images_table_for_multi_image_support,
 )
 from app.routers import (
+    app_settings,
     archive,
     areas,
     auth,
@@ -53,6 +54,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(app_settings.router)
 app.include_router(areas.router)
 app.include_router(towers.router)
 app.include_router(visits.router)

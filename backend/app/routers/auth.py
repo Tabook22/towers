@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import effective_team_id, get_current_user
+from app.deps import PERMISSIONS, effective_team_id, get_current_user, has_permission
 from app.models import LocationPing, Team, User, UserRole, Visit
 from app.schemas import ChangePasswordRequest, Token, UserCreate, UserOut, UserUpdate
 from app.security import create_access_token, hash_password, verify_password
@@ -29,6 +29,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         username=user.username,
         full_name=user.full_name,
         team_id=team_id,
+        is_super_admin=user.is_super_admin,
+        permissions=user.permissions,
     )
 
 
@@ -55,12 +57,22 @@ def change_password(
 
 def _require_can_manage(payload_role: str, payload_team_id: int | None, actor: User) -> None:
     """Who's allowed to create/edit which accounts:
-    - admin: anyone, any role, any team.
+    - a full ("super") admin: anyone, any role, any team — including creating other admin accounts,
+      restricted or not.
+    - a restricted admin (role=admin, is_super_admin=False): only with the "manage_users"
+      permission, and only for non-admin roles — a restricted admin can never create or edit
+      another admin account, which would otherwise be a privilege-escalation path.
     - team_leader: only team_member accounts, only on their own team — they can grow their own
       roster but can't create another leader, an admin, or reach into a different team.
     - anyone else (team_member included): nothing here — see change_password for their one piece
       of self-service."""
     if actor.role == UserRole.ADMIN.value:
+        if actor.is_super_admin:
+            return
+        if payload_role == UserRole.ADMIN.value:
+            raise HTTPException(status_code=403, detail="Only a full admin can create or edit admin accounts")
+        if not has_permission(actor, "manage_users"):
+            raise HTTPException(status_code=403, detail="Not enough permissions")
         return
     if actor.role == UserRole.TEAM_LEADER.value:
         if payload_role != UserRole.TEAM_MEMBER.value:
@@ -69,6 +81,20 @@ def _require_can_manage(payload_role: str, payload_team_id: int | None, actor: U
             raise HTTPException(status_code=403, detail="You can only add members to your own team")
         return
     raise HTTPException(status_code=403, detail="Not enough permissions")
+
+
+def _clean_permissions(role: str, is_super_admin: bool, permissions: list[str]) -> tuple[bool, str | None]:
+    """Normalizes is_super_admin/permissions for storage: meaningless combinations (any non-admin
+    role, or a super admin) are collapsed to the harmless default rather than trusted verbatim from
+    the payload, and every permission name is checked against the fixed PERMISSIONS list."""
+    if role != UserRole.ADMIN.value:
+        return True, None
+    if is_super_admin:
+        return True, None
+    unknown = [p for p in permissions if p not in PERMISSIONS]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown permission(s): {', '.join(unknown)}")
+    return False, ",".join(permissions) if permissions else None
 
 
 @router.post("/users", response_model=UserOut, status_code=201)
@@ -80,6 +106,7 @@ def create_user(
     _require_can_manage(payload.role, payload.team_id, actor)
     if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status_code=400, detail="Username already taken")
+    is_super_admin, permissions_csv = _clean_permissions(payload.role, payload.is_super_admin, payload.permissions)
     user = User(
         username=payload.username,
         email=payload.email,
@@ -91,6 +118,8 @@ def create_user(
         hashed_password=hash_password(payload.password),
         role=payload.role,
         team_id=payload.team_id,
+        is_super_admin=is_super_admin,
+        permissions_csv=permissions_csv,
     )
     db.add(user)
     db.commit()
@@ -125,7 +154,17 @@ def update_user(
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if actor.role != UserRole.ADMIN.value:
+    if actor.role == UserRole.ADMIN.value and not actor.is_super_admin:
+        # A restricted admin needs "manage_users" to touch anyone, and can never edit an admin
+        # account (their own included) — same escalation concern as _require_can_manage's create path.
+        if user.role == UserRole.ADMIN.value:
+            raise HTTPException(status_code=403, detail="Only a full admin can edit admin accounts")
+        if not has_permission(actor, "manage_users"):
+            raise HTTPException(status_code=403, detail="Not enough permissions")
+        payload = UserUpdate(
+            **payload.model_dump(exclude_unset=True, exclude={"is_super_admin", "permissions"}),
+        )
+    elif actor.role != UserRole.ADMIN.value:
         if actor.role != UserRole.TEAM_LEADER.value:
             raise HTTPException(status_code=403, detail="Not enough permissions")
         if user.role != UserRole.TEAM_MEMBER.value or user.team_id != actor.team_id:
@@ -133,12 +172,23 @@ def update_user(
         # A leader growing/editing their roster can't use this route to escalate a member's role or
         # move them to another team — only the fields a roster edit actually needs.
         payload = UserUpdate(
-            **payload.model_dump(exclude_unset=True, exclude={"role", "team_id"}),
+            **payload.model_dump(exclude_unset=True, exclude={"role", "team_id", "is_super_admin", "permissions"}),
         )
     data = payload.model_dump(exclude_unset=True)
     new_password = data.pop("password", None)
+    is_super_admin = data.pop("is_super_admin", None)
+    permissions = data.pop("permissions", None)
     for k, v in data.items():
         setattr(user, k, v)
+    if is_super_admin is not None or permissions is not None:
+        target_role = data.get("role", user.role)
+        resolved_super, resolved_csv = _clean_permissions(
+            target_role,
+            user.is_super_admin if is_super_admin is None else is_super_admin,
+            user.permissions if permissions is None else permissions,
+        )
+        user.is_super_admin = resolved_super
+        user.permissions_csv = resolved_csv
     if new_password:
         user.hashed_password = hash_password(new_password)
     db.commit()
@@ -168,11 +218,14 @@ def delete_user(
         raise HTTPException(status_code=400, detail="You can't delete your own account")
     if user.role == UserRole.ADMIN.value:
         raise HTTPException(status_code=400, detail="Admin accounts can't be deleted here")
-    if actor.role != UserRole.ADMIN.value:
-        if actor.role != UserRole.TEAM_LEADER.value:
+    if actor.role == UserRole.ADMIN.value:
+        if not actor.is_super_admin and not has_permission(actor, "manage_users"):
             raise HTTPException(status_code=403, detail="Not enough permissions")
+    elif actor.role == UserRole.TEAM_LEADER.value:
         if user.role != UserRole.TEAM_MEMBER.value or user.team_id != actor.team_id:
             raise HTTPException(status_code=403, detail="You can only manage your own team's members")
+    else:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
 
     has_mission_history = db.query(Visit).filter(Visit.assigned_member_id == user.id).first() is not None
     if has_mission_history:

@@ -36,6 +36,8 @@ class Token(BaseModel):
     username: str
     full_name: str | None = None
     team_id: int | None = None
+    is_super_admin: bool = True
+    permissions: list[str] = Field(default_factory=list)
 
 
 class UserCreate(BaseModel):
@@ -49,6 +51,11 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=6)
     role: str = "inspector"
     team_id: int | None = None  # set together with role="team_leader"/"team_member" to create-and-link in one step
+    # Only meaningful for role="admin" — see models.User.is_super_admin/permissions_csv. Ignored
+    # (forced to True/[]) for every other role. Only an existing super admin can even reach the
+    # branch of the router that honors these (see routers/auth.py's _require_can_manage).
+    is_super_admin: bool = True
+    permissions: list[str] = Field(default_factory=list)
 
 
 class UserOut(BaseModel):
@@ -64,6 +71,8 @@ class UserOut(BaseModel):
     role: str
     is_active: bool
     team_id: int | None = None
+    is_super_admin: bool = True
+    permissions: list[str] = Field(default_factory=list)
 
 
 class UserUpdate(BaseModel):
@@ -76,6 +85,8 @@ class UserUpdate(BaseModel):
     role: str | None = None
     is_active: bool | None = None
     team_id: int | None = None
+    is_super_admin: bool | None = None
+    permissions: list[str] | None = None
     # Lets an admin/team_leader reset someone's password for them (e.g. they're locked out) —
     # separate from the self-service change-password flow. Handled specially in the router (hashed
     # into hashed_password), never applied via the generic setattr loop.
@@ -1323,3 +1334,22 @@ class HelpChatRequest(BaseModel):
 
 class HelpChatResponse(BaseModel):
     reply: str
+
+
+class BrandingOut(BaseModel):
+    app_title: str | None = None
+    splash_header: str | None = None
+    splash_subtitle: str | None = None
+    # Absolute API paths (e.g. "/api/settings/branding/logo/oetc") when a logo has been uploaded,
+    # else None — the frontend falls back to its own bundled placeholder in that case.
+    oetc_logo_url: str | None = None
+    sky_green_line_logo_url: str | None = None
+    # Only true once an admin has explicitly saved settings — lets the splash screen keep showing
+    # its own sensible defaults (rather than blanks) until then.
+    configured: bool = False
+
+
+class BrandingUpdate(BaseModel):
+    app_title: str | None = None
+    splash_header: str | None = None
+    splash_subtitle: str | None = None

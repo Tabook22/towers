@@ -28,7 +28,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.deps import effective_team_id, get_current_user, require_role, require_team_read, require_team_scope
+from app.deps import effective_team_id, get_current_user, require_permission, require_team_read, require_team_scope
 from app.models import LineInspectionReport, LocationPing, Position, Team, TeamDailyLog, TeamDailyLogFile, TeamMember, TeamOutingPlan, TeamOutingTower, Tower, TrackingMission, User, UserRole, Visit
 from app.routers.visits import _load_visit, attach_rollup, create_visit_row, delete_visit_completely
 from app.services.channel import post_assignment_event
@@ -306,7 +306,7 @@ def list_teams(
 def create_team(
     payload: TeamCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
+    user: User = Depends(require_permission("manage_teams", UserRole.REVIEWER.value)),
 ):
     if db.query(Team).filter(Team.name.ilike(payload.name)).first():
         raise HTTPException(status_code=400, detail=f"A team named '{payload.name}' already exists")
@@ -353,7 +353,7 @@ def update_team(
 def delete_team(
     team_id: int,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission("manage_teams", UserRole.REVIEWER.value)),
 ):
     """Deleting a team is total, by design: every mission it ever ran (its Visits — positions,
     images, photos, all of it, files on disk included), every team-leader/team-member LOGIN linked

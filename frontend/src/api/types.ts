@@ -298,6 +298,8 @@ export interface LoginResponse {
   username: string;
   full_name: string | null;
   team_id: number | null;
+  is_super_admin: boolean;
+  permissions: string[];
 }
 
 export interface ReportTemplate {
@@ -440,6 +442,28 @@ export interface AdminUser {
   role: string;
   is_active: boolean;
   team_id: number | null;
+  is_super_admin: boolean;
+  permissions: string[];
+}
+
+export const ADMIN_PERMISSIONS = ['manage_towers', 'manage_teams', 'manage_users', 'generate_reports', 'manage_settings'] as const;
+export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
+
+export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
+  manage_towers: 'Add / edit towers & areas',
+  manage_teams: 'Create / delete teams',
+  manage_users: 'Create / edit team leaders & members',
+  generate_reports: 'Generate official reports',
+  manage_settings: 'Manage branding & splash screen',
+};
+
+export interface BrandingSettings {
+  app_title: string | null;
+  splash_header: string | null;
+  splash_subtitle: string | null;
+  oetc_logo_url: string | null;
+  sky_green_line_logo_url: string | null;
+  configured: boolean;
 }
 
 export interface TeamMember {

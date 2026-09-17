@@ -20,6 +20,7 @@ import { TeamProgressPage } from './pages/TeamProgressPage';
 import { TeamsPage } from './pages/TeamsPage';
 import { TeamDetailPage } from './pages/TeamDetailPage';
 import { HelpPage } from './pages/HelpPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -140,6 +141,14 @@ function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
         element={
           <ProtectedLayout>
             <HelpPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedLayout>
+            <SettingsPage />
           </ProtectedLayout>
         }
       />
