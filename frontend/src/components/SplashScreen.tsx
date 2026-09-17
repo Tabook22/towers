@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, Button, Chip, Dialog, Grid, Stack, Typography } from '@mui/material';
+import { Box, Button, Chip, Dialog, Divider, Grid, Stack, Typography } from '@mui/material';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import LocalFireDepartmentRoundedIcon from '@mui/icons-material/LocalFireDepartmentRounded';
 import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded';
@@ -92,11 +92,15 @@ export function SplashScreen() {
         }}
       />
       <Box sx={{ p: { xs: 2.5, sm: 4 } }}>
-        <Stack spacing={0.5} sx={{ alignItems: 'center', textAlign: 'center', mb: 2 }}>
+        <Stack spacing={0.25} sx={{ alignItems: 'center', textAlign: 'center', mb: 2 }}>
           <Box component="img" src={oetcLogoSrc} alt="Oman Electricity Transmission Company" sx={{ height: 110, objectFit: 'contain' }} />
-          <Typography variant="h6" sx={{ fontWeight: 800, color: '#1a7a4c', mt: 1 }}>
-            Oman Electricity Transmission Company S.A.O.C
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1a7a4c', mt: 1 }} dir="rtl">
+            الشركة العُمانية لنقل الكهرباء ش.م.ع.م
           </Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1a7a4c' }}>
+            OMAN ELECTRICITY TRANSMISSION COMPANY S.A.O.C
+          </Typography>
+          <Divider sx={{ width: '70%', my: 1 }} />
           <Typography variant="body2" sx={{ fontWeight: 700, color: '#c1272d' }} dir="rtl">
             إحدى شركات مجموعة نماء
           </Typography>
