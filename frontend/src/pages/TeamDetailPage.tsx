@@ -125,6 +125,7 @@ import { MissionHistoryCard, missionDateLabel } from '../components/MissionHisto
 import { HandoverPackCard } from '../components/HandoverPackCard';
 import { ClaimTowerDialog } from '../components/ClaimTowerDialog';
 import { KpiTile } from '../components/KpiTile';
+import { StepBadge } from '../components/StepBadge';
 import { extractTowerNumber, numberedDotIcon, towerNumbersById } from '../components/towerMapPins';
 import type { AdminUser, LiveTeamMember, NextTowerStop, NightClaimStatus, TrackingMission } from '../api/types';
 
@@ -136,8 +137,12 @@ const MISSION_STATUS_COLORS: Record<string, 'default' | 'info' | 'success'> = {
 
 // A named, collapsible block with an icon and a one-line "what is this for" description — this
 // page has a lot of ground to cover (roster, missions, tracking, maps) so each block reads as a
-// clearly labeled, collapsible section instead of a wall of look-alike cards.
+// clearly labeled, collapsible section instead of a wall of look-alike cards. An optional `step`
+// numbers this section's place in the team leader's actual daily routine (see
+// backend/app/knowledge/team_leader_guide.md §3) — left off for sections that are occasional
+// setup/admin, not part of the nightly loop.
 function TeamSection({
+  step,
   icon,
   title,
   description,
@@ -145,6 +150,7 @@ function TeamSection({
   action,
   children,
 }: {
+  step?: number;
   icon: ReactNode;
   title: string;
   description: string;
@@ -157,6 +163,7 @@ function TeamSection({
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, width: '100%', pr: 1 }}>
           <Stack direction="row" spacing={1.5}>
+            {step != null && <StepBadge n={step} />}
             <Box sx={{ color: 'primary.main', display: 'flex', mt: 0.5 }}>{icon}</Box>
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
@@ -835,6 +842,7 @@ export function TeamDetailPage() {
 
       {totals && (
         <TeamSection
+          step={1}
           icon={<InsightsRoundedIcon />}
           title="At a glance"
           description="Live counts for this team — towers, screened positions, hotspots, roster size, and the daily target."
@@ -880,6 +888,7 @@ export function TeamDetailPage() {
       )}
 
       <TeamSection
+        step={2}
         icon={<MyLocationIcon />}
         title="Site map"
         description={
@@ -1000,6 +1009,7 @@ export function TeamDetailPage() {
         {/* Mission info — inline-editable, same pattern as the Visit header */}
         <Grid size={{ xs: 12, md: 6 }}>
           <TeamSection
+            step={3}
             icon={<AssignmentRoundedIcon />}
             title="Mission"
             description="This team's standing mission brief — leader contact, scope, and schedule. Click any field and it saves when you click away."
@@ -1241,6 +1251,7 @@ export function TeamDetailPage() {
         {(isAdmin || isTeamLeader) && (
           <Grid size={{ xs: 12, md: isAdmin ? 6 : 12 }}>
             <TeamSection
+              step={4}
               icon={<GroupsRoundedIcon />}
               title="Team members"
               description="Each member has their own login — they'll only ever see the missions you assign to them, never each other's or your details."
@@ -1424,272 +1435,8 @@ export function TeamDetailPage() {
         )}
       </Grid>
 
-      {/* This team's own GPS track, stays, and km — never another crew's. History lets them
-          reopen any previous field night so they can continue from where they stopped. */}
-      <TeamSection
-        icon={<RouteIcon />}
-        title="Your track & towers"
-        description="Every login on this team sees the same GPS history. Open a previous night to follow the path that was already recorded."
-        action={
-          <TextField
-              select
-              size="small"
-              label="History"
-              value={effectiveTrackKey}
-              onChange={(e) => {
-                setTrackKey(e.target.value);
-                setTrackStayIdx(null);
-              }}
-              sx={{ minWidth: 260 }}
-              helperText="Every saved outing stays here"
-            >
-              {shift?.field_date && (
-                <MenuItem value={`night:${shift.field_date}`}>Tonight ({shift.field_date})</MenuItem>
-              )}
-              {(fieldHistory || [])
-                .filter((m) => missionSelectKey(m) !== `night:${shift?.field_date || ''}`)
-                .map((m) => (
-                  <MenuItem key={missionSelectKey(m)} value={missionSelectKey(m)}>
-                    {m.label}
-                    {m.ping_count ? ` · ${m.ping_count} pts` : ''}
-                  </MenuItem>
-                ))}
-            </TextField>
-        }
-      >
-          {recap ? (
-            <>
-              <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <KpiTile label="Distance so far" value={`${recap.distance_km} km`} icon={<RouteIcon />} color="#1565c0" />
-                </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <KpiTile label="Time on the clock" value={`${recap.minutes_tracked} min`} icon={<TimerIcon />} />
-                </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <KpiTile label="Towers this outing" value={recap.towers_visited} icon={<CellTowerIcon />} color="#2e7d32" />
-                </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <KpiTile
-                    label="Avg stay / travel"
-                    value={`${recap.avg_minutes_per_tower} / ${recap.avg_travel_minutes} min`}
-                    icon={<DirectionsWalkIcon />}
-                    color="#ef6c00"
-                  />
-                </Grid>
-              </Grid>
-              {recap.vs_previous && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  vs previous night: {recap.vs_previous.towers_delta >= 0 ? '+' : ''}
-                  {recap.vs_previous.towers_delta} towers, {recap.vs_previous.distance_km_delta >= 0 ? '+' : ''}
-                  {recap.vs_previous.distance_km_delta} km, avg stay {recap.vs_previous.avg_minutes_per_tower_delta >= 0 ? '+' : ''}
-                  {recap.vs_previous.avg_minutes_per_tower_delta} min
-                </Typography>
-              )}
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                Started {formatTime(recap.started_at)} at {recap.start_latitude.toFixed(5)}, {recap.start_longitude.toFixed(5)}
-                {' · '}
-                Now / ended {formatTime(recap.ended_at)} at {recap.end_latitude.toFixed(5)}, {recap.end_longitude.toFixed(5)}
-              </Typography>
-              {recap.path.length > 0 && (
-                <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)', mb: 2 }}>
-                  {/* Plain div, not MUI Box — react-leaflet only reads the height on first mount, so
-                      the resizable height has to live on a wrapper it doesn't control (same fix as
-                      the Job map below / TowersOverviewMap). Expanded uses vh so "enlarge" reads as
-                      most of the screen. */}
-                  <div
-                    style={{
-                      position: 'relative',
-                      height: trackMapExpanded ? '68vh' : 360,
-                      width: '100%',
-                      transition: 'height 0.2s ease',
-                    }}
-                  >
-                  <MapContainer
-                    center={[recap.start_latitude, recap.start_longitude]}
-                    zoom={13}
-                    style={{ height: '100%', width: '100%' }}
-                    scrollWheelZoom
-                  >
-                    <TileLayer
-                      attribution={TILE_LAYERS[trackMapLayer].attribution}
-                      url={TILE_LAYERS[trackMapLayer].url}
-                      maxZoom={TILE_LAYERS[trackMapLayer].maxZoom}
-                    />
-                    <TrackMapBridge mapRef={trackMapRef} />
-                    <FitTrack
-                      positions={recap.path.map((p) => [p.latitude, p.longitude] as [number, number])}
-                      resetKey={`${effectiveTrackKey}-${recap.path.length}`}
-                    />
-                    {splitTrailSegments(recap.path).map((pts, i) => (
-                      <Polyline key={i} positions={pts} pathOptions={{ color: '#2e7d32', weight: 4, opacity: 0.85 }} />
-                    ))}
-                    {points.map((m) => (
-                      <Marker key={`live-${m.user_id}`} position={[m.latitude, m.longitude]} icon={dotIcon(m.is_stale ? '#90a4ae' : '#2e7d32')}>
-                        <LeafletTooltip direction="top" offset={[0, -10]} opacity={1} permanent>
-                          {m.full_name || m.username}
-                        </LeafletTooltip>
-                      </Marker>
-                    ))}
-                    {trackStay && trackStay.latitude != null && trackStay.longitude != null && (
-                      <Marker
-                        position={[trackStay.latitude, trackStay.longitude]}
-                        icon={towerSquareIcon(trackStay.tower_id)}
-                        zIndexOffset={2500}
-                        eventHandlers={{ add: (e) => (e.target as L.Marker).openPopup() }}
-                      >
-                        <Popup autoPan={false}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{trackStay.tower_id}</Typography>
-                          <Typography variant="caption" sx={{ display: 'block' }}>
-                            {formatTime(trackStay.arrived_at)} – {formatTime(trackStay.departed_at)} · stayed {trackStay.minutes} min
-                          </Typography>
-                          <Typography variant="caption" sx={{ display: 'block' }}>
-                            {trackNextStay
-                              ? `Then moved to ${trackNextStay.tower_id} (${Math.max(0, Math.round((isoMs(trackNextStay.arrived_at) - isoMs(trackStay.departed_at)) / 60000))} min travel)`
-                              : 'Last tower in this outing'}
-                          </Typography>
-                        </Popup>
-                      </Marker>
-                    )}
-                  </MapContainer>
-                  <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    <Tooltip title={trackMapLayer === 'street' ? 'Switch to satellite view' : 'Switch to street map'}>
-                      <IconButton
-                        size="small"
-                        onClick={() => setTrackMapLayer((v) => (v === 'street' ? 'satellite' : 'street'))}
-                        sx={{ bgcolor: 'background.paper', boxShadow: 2, '&:hover': { bgcolor: 'background.paper' } }}
-                      >
-                        {trackMapLayer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={trackMapExpanded ? 'Shrink map' : 'Enlarge map'}>
-                      <IconButton
-                        size="small"
-                        onClick={() => setTrackMapExpanded((v) => !v)}
-                        sx={{ bgcolor: 'background.paper', boxShadow: 2, '&:hover': { bgcolor: 'background.paper' } }}
-                      >
-                        {trackMapExpanded ? <CloseFullscreenIcon fontSize="small" /> : <OpenInFullIcon fontSize="small" />}
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                  </div>
-                </Box>
-              )}
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                Towers visited this outing — click a row to find it on the map
-              </Typography>
-              <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Tower</TableCell>
-                      <TableCell>Travel from previous</TableCell>
-                      <TableCell>Arrived</TableCell>
-                      <TableCell>Left</TableCell>
-                      <TableCell align="right">Minutes</TableCell>
-                      <TableCell>Inspection</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {recap.stays.map((stay, i) => (
-                      <TableRow
-                        key={`${stay.tower_pk}-${i}`}
-                        hover
-                        selected={i === trackStayIdx}
-                        sx={{ cursor: stay.latitude != null ? 'pointer' : 'default' }}
-                        onClick={() => {
-                          setTrackStayIdx(i);
-                          if (stay.latitude != null && stay.longitude != null) {
-                            trackMapRef.current?.flyTo([stay.latitude, stay.longitude], 17, { duration: 0.75 });
-                          }
-                        }}
-                      >
-                        <TableCell sx={{ fontWeight: 700 }}>
-                          {stay.tower_id}
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            {stay.area || ''}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          {stay.travel_from_prev_minutes == null
-                            ? 'Start'
-                            : `${stay.travel_from_prev_minutes} min${stay.travel_from_prev_km != null ? ` · ${stay.travel_from_prev_km} km` : ''}`}
-                        </TableCell>
-                        <TableCell>{formatTime(stay.arrived_at)}</TableCell>
-                        <TableCell>{formatTime(stay.departed_at)}</TableCell>
-                        <TableCell align="right">{stay.minutes}</TableCell>
-                        <TableCell>
-                          {stay.visit_id ? (
-                            <Button size="small" onClick={(e) => { e.stopPropagation(); navigate(`/visits/${stay.visit_id}`); }}>
-                              {stay.visit_status || 'open'}
-                            </Button>
-                          ) : (
-                            <Typography variant="caption" color="text.secondary">GPS only</Typography>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {recap.stays.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6} align="center">
-                          No tower stays in this outing yet (GPS did not sit within 80 m of a tower).
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </>
-          ) : (
-            <Alert severity="info">
-              No GPS track for this period yet. Open the app in the field with location on — the path,
-              kilometres, and tower stays will appear here.
-            </Alert>
-          )}
-
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-            All inspections recorded for this team
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Every tower this crew has opened a visit for — so next outing you can finish what you started.
-            {jobMap && jobMap.total > 0 ? ` Job map: ${jobMap.completed} of ${jobMap.total} assigned towers completed.` : ''}
-          </Typography>
-          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 280 }}>
-            <Table size="small" stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <TableCell>#</TableCell>
-                  <TableCell>Tower</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="center">Done</TableCell>
-                  <TableCell align="center">Hotspots</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(missions || []).map((m) => (
-                  <TableRow key={m.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/visits/${m.id}`)}>
-                    <TableCell>{m.mission_seq}</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>{m.tower?.tower_id}</TableCell>
-                    <TableCell>{m.inspection_date}</TableCell>
-                    <TableCell>
-                      <Chip size="small" label={String(m.mission_status).replace('_', ' ')} color={MISSION_STATUS_COLORS[m.mission_status] || 'default'} />
-                    </TableCell>
-                    <TableCell align="center">{m.rollup?.completion_pct ?? 0}%</TableCell>
-                    <TableCell align="center">{m.rollup?.hotspots ?? 0}</TableCell>
-                  </TableRow>
-                ))}
-                {(!missions || missions.length === 0) && (
-                  <TableRow>
-                    <TableCell colSpan={6} align="center">No inspection visits recorded yet.</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-      </TeamSection>
-
       <MissionHistoryCard
+        step={5}
         teamId={id}
         canEdit={canManage}
         selectedDate={effectiveMissionDate}
@@ -1710,6 +1457,7 @@ export function TeamDetailPage() {
       )}
 
       <OutingPlanCard
+        step={6}
         teamId={id}
         fieldDate={effectiveMissionDate}
         assignedTowers={jobMap?.towers || []}
@@ -1718,6 +1466,7 @@ export function TeamDetailPage() {
       />
 
       <NextTowersCard
+        step={7}
         plan={nextPlan}
         loading={nextPlanLoading}
         canStart={canRecord && !createMission.isPending}
@@ -1737,27 +1486,11 @@ export function TeamDetailPage() {
       />
 
       <NightChannel
+        step={8}
         teamId={id}
         fieldDate={shift?.field_date}
         towers={(jobMap?.towers || []).map((t) => ({ id: t.id, tower_id: t.tower_id }))}
         onTower={(towerPk, visitId) => {
-          if (visitId) {
-            navigate(`/visits/${visitId}`);
-            return;
-          }
-          const t = jobMap?.towers.find((x) => x.id === towerPk);
-          if (t) {
-            focusJobMapTower(t);
-            showRouteToTower(t);
-          }
-        }}
-      />
-
-      <HandoverPackCard
-        teamId={id}
-        fieldDate={shift?.field_date}
-        canManage={canManage}
-        onShowTower={(towerPk, visitId) => {
           if (visitId) {
             navigate(`/visits/${visitId}`);
             return;
@@ -1775,6 +1508,7 @@ export function TeamDetailPage() {
           leader (or field crew planning the next drone flight) see the whole job at a glance, and
           measure progress against the whole thing, not just against what's been started. */}
       <TeamSection
+        step={9}
         icon={<MapIcon />}
         title="Job map"
         description={`Every tower assigned to this team${jobMap?.sector ? ` (${jobMap.sector})` : ''} — not just the ones already visited — so the field crew can see the whole job and where to fly next.`}
@@ -2074,6 +1808,7 @@ export function TeamDetailPage() {
           full inspection workflow — positions, images, screening, photos, reports — since that's
           what actually running the mission means. */}
       <TeamSection
+        step={10}
         icon={<FactCheckIcon />}
         title="Missions"
         description="Each mission is a tower visit assigned to this team, with a planned start/end time. Click one to open it and run the inspection — positions, images, screening, photos, all in the same place."
@@ -2283,8 +2018,275 @@ export function TeamDetailPage() {
           )}
       </TeamSection>
 
+      {/* This team's own GPS track, stays, and km — never another crew's. History lets them
+          reopen any previous field night so they can continue from where they stopped. */}
+      <TeamSection
+        step={11}
+        icon={<RouteIcon />}
+        title="Your track & towers"
+        description="Every login on this team sees the same GPS history. Open a previous night to follow the path that was already recorded."
+        action={
+          <TextField
+              select
+              size="small"
+              label="History"
+              value={effectiveTrackKey}
+              onChange={(e) => {
+                setTrackKey(e.target.value);
+                setTrackStayIdx(null);
+              }}
+              sx={{ minWidth: 260 }}
+              helperText="Every saved outing stays here"
+            >
+              {shift?.field_date && (
+                <MenuItem value={`night:${shift.field_date}`}>Tonight ({shift.field_date})</MenuItem>
+              )}
+              {(fieldHistory || [])
+                .filter((m) => missionSelectKey(m) !== `night:${shift?.field_date || ''}`)
+                .map((m) => (
+                  <MenuItem key={missionSelectKey(m)} value={missionSelectKey(m)}>
+                    {m.label}
+                    {m.ping_count ? ` · ${m.ping_count} pts` : ''}
+                  </MenuItem>
+                ))}
+            </TextField>
+        }
+      >
+          {recap ? (
+            <>
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <KpiTile label="Distance so far" value={`${recap.distance_km} km`} icon={<RouteIcon />} color="#1565c0" />
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <KpiTile label="Time on the clock" value={`${recap.minutes_tracked} min`} icon={<TimerIcon />} />
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <KpiTile label="Towers this outing" value={recap.towers_visited} icon={<CellTowerIcon />} color="#2e7d32" />
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <KpiTile
+                    label="Avg stay / travel"
+                    value={`${recap.avg_minutes_per_tower} / ${recap.avg_travel_minutes} min`}
+                    icon={<DirectionsWalkIcon />}
+                    color="#ef6c00"
+                  />
+                </Grid>
+              </Grid>
+              {recap.vs_previous && (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  vs previous night: {recap.vs_previous.towers_delta >= 0 ? '+' : ''}
+                  {recap.vs_previous.towers_delta} towers, {recap.vs_previous.distance_km_delta >= 0 ? '+' : ''}
+                  {recap.vs_previous.distance_km_delta} km, avg stay {recap.vs_previous.avg_minutes_per_tower_delta >= 0 ? '+' : ''}
+                  {recap.vs_previous.avg_minutes_per_tower_delta} min
+                </Typography>
+              )}
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                Started {formatTime(recap.started_at)} at {recap.start_latitude.toFixed(5)}, {recap.start_longitude.toFixed(5)}
+                {' · '}
+                Now / ended {formatTime(recap.ended_at)} at {recap.end_latitude.toFixed(5)}, {recap.end_longitude.toFixed(5)}
+              </Typography>
+              {recap.path.length > 0 && (
+                <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)', mb: 2 }}>
+                  {/* Plain div, not MUI Box — react-leaflet only reads the height on first mount, so
+                      the resizable height has to live on a wrapper it doesn't control (same fix as
+                      the Job map below / TowersOverviewMap). Expanded uses vh so "enlarge" reads as
+                      most of the screen. */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      height: trackMapExpanded ? '68vh' : 360,
+                      width: '100%',
+                      transition: 'height 0.2s ease',
+                    }}
+                  >
+                  <MapContainer
+                    center={[recap.start_latitude, recap.start_longitude]}
+                    zoom={13}
+                    style={{ height: '100%', width: '100%' }}
+                    scrollWheelZoom
+                  >
+                    <TileLayer
+                      attribution={TILE_LAYERS[trackMapLayer].attribution}
+                      url={TILE_LAYERS[trackMapLayer].url}
+                      maxZoom={TILE_LAYERS[trackMapLayer].maxZoom}
+                    />
+                    <TrackMapBridge mapRef={trackMapRef} />
+                    <FitTrack
+                      positions={recap.path.map((p) => [p.latitude, p.longitude] as [number, number])}
+                      resetKey={`${effectiveTrackKey}-${recap.path.length}`}
+                    />
+                    {splitTrailSegments(recap.path).map((pts, i) => (
+                      <Polyline key={i} positions={pts} pathOptions={{ color: '#2e7d32', weight: 4, opacity: 0.85 }} />
+                    ))}
+                    {points.map((m) => (
+                      <Marker key={`live-${m.user_id}`} position={[m.latitude, m.longitude]} icon={dotIcon(m.is_stale ? '#90a4ae' : '#2e7d32')}>
+                        <LeafletTooltip direction="top" offset={[0, -10]} opacity={1} permanent>
+                          {m.full_name || m.username}
+                        </LeafletTooltip>
+                      </Marker>
+                    ))}
+                    {trackStay && trackStay.latitude != null && trackStay.longitude != null && (
+                      <Marker
+                        position={[trackStay.latitude, trackStay.longitude]}
+                        icon={towerSquareIcon(trackStay.tower_id)}
+                        zIndexOffset={2500}
+                        eventHandlers={{ add: (e) => (e.target as L.Marker).openPopup() }}
+                      >
+                        <Popup autoPan={false}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{trackStay.tower_id}</Typography>
+                          <Typography variant="caption" sx={{ display: 'block' }}>
+                            {formatTime(trackStay.arrived_at)} – {formatTime(trackStay.departed_at)} · stayed {trackStay.minutes} min
+                          </Typography>
+                          <Typography variant="caption" sx={{ display: 'block' }}>
+                            {trackNextStay
+                              ? `Then moved to ${trackNextStay.tower_id} (${Math.max(0, Math.round((isoMs(trackNextStay.arrived_at) - isoMs(trackStay.departed_at)) / 60000))} min travel)`
+                              : 'Last tower in this outing'}
+                          </Typography>
+                        </Popup>
+                      </Marker>
+                    )}
+                  </MapContainer>
+                  <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    <Tooltip title={trackMapLayer === 'street' ? 'Switch to satellite view' : 'Switch to street map'}>
+                      <IconButton
+                        size="small"
+                        onClick={() => setTrackMapLayer((v) => (v === 'street' ? 'satellite' : 'street'))}
+                        sx={{ bgcolor: 'background.paper', boxShadow: 2, '&:hover': { bgcolor: 'background.paper' } }}
+                      >
+                        {trackMapLayer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={trackMapExpanded ? 'Shrink map' : 'Enlarge map'}>
+                      <IconButton
+                        size="small"
+                        onClick={() => setTrackMapExpanded((v) => !v)}
+                        sx={{ bgcolor: 'background.paper', boxShadow: 2, '&:hover': { bgcolor: 'background.paper' } }}
+                      >
+                        {trackMapExpanded ? <CloseFullscreenIcon fontSize="small" /> : <OpenInFullIcon fontSize="small" />}
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                  </div>
+                </Box>
+              )}
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                Towers visited this outing — click a row to find it on the map
+              </Typography>
+              <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Tower</TableCell>
+                      <TableCell>Travel from previous</TableCell>
+                      <TableCell>Arrived</TableCell>
+                      <TableCell>Left</TableCell>
+                      <TableCell align="right">Minutes</TableCell>
+                      <TableCell>Inspection</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {recap.stays.map((stay, i) => (
+                      <TableRow
+                        key={`${stay.tower_pk}-${i}`}
+                        hover
+                        selected={i === trackStayIdx}
+                        sx={{ cursor: stay.latitude != null ? 'pointer' : 'default' }}
+                        onClick={() => {
+                          setTrackStayIdx(i);
+                          if (stay.latitude != null && stay.longitude != null) {
+                            trackMapRef.current?.flyTo([stay.latitude, stay.longitude], 17, { duration: 0.75 });
+                          }
+                        }}
+                      >
+                        <TableCell sx={{ fontWeight: 700 }}>
+                          {stay.tower_id}
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            {stay.area || ''}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {stay.travel_from_prev_minutes == null
+                            ? 'Start'
+                            : `${stay.travel_from_prev_minutes} min${stay.travel_from_prev_km != null ? ` · ${stay.travel_from_prev_km} km` : ''}`}
+                        </TableCell>
+                        <TableCell>{formatTime(stay.arrived_at)}</TableCell>
+                        <TableCell>{formatTime(stay.departed_at)}</TableCell>
+                        <TableCell align="right">{stay.minutes}</TableCell>
+                        <TableCell>
+                          {stay.visit_id ? (
+                            <Button size="small" onClick={(e) => { e.stopPropagation(); navigate(`/visits/${stay.visit_id}`); }}>
+                              {stay.visit_status || 'open'}
+                            </Button>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">GPS only</Typography>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {recap.stays.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} align="center">
+                          No tower stays in this outing yet (GPS did not sit within 80 m of a tower).
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          ) : (
+            <Alert severity="info">
+              No GPS track for this period yet. Open the app in the field with location on — the path,
+              kilometres, and tower stays will appear here.
+            </Alert>
+          )}
+
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+            All inspections recorded for this team
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Every tower this crew has opened a visit for — so next outing you can finish what you started.
+            {jobMap && jobMap.total > 0 ? ` Job map: ${jobMap.completed} of ${jobMap.total} assigned towers completed.` : ''}
+          </Typography>
+          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 280 }}>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>#</TableCell>
+                  <TableCell>Tower</TableCell>
+                  <TableCell>Date</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell align="center">Done</TableCell>
+                  <TableCell align="center">Hotspots</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(missions || []).map((m) => (
+                  <TableRow key={m.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/visits/${m.id}`)}>
+                    <TableCell>{m.mission_seq}</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>{m.tower?.tower_id}</TableCell>
+                    <TableCell>{m.inspection_date}</TableCell>
+                    <TableCell>
+                      <Chip size="small" label={String(m.mission_status).replace('_', ' ')} color={MISSION_STATUS_COLORS[m.mission_status] || 'default'} />
+                    </TableCell>
+                    <TableCell align="center">{m.rollup?.completion_pct ?? 0}%</TableCell>
+                    <TableCell align="center">{m.rollup?.hotspots ?? 0}</TableCell>
+                  </TableRow>
+                ))}
+                {(!missions || missions.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">No inspection visits recorded yet.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+      </TeamSection>
+
       {/* Day-by-day progress + notes log */}
       <TeamSection
+        step={12}
         icon={<EventNoteRoundedIcon />}
         title="Daily progress log"
         description="GPS path is recorded automatically when the crew signs in. Notes, voice, and files can still be added below."
@@ -2779,6 +2781,25 @@ export function TeamDetailPage() {
             )}
           </Stack>
       </TeamSection>
+
+      <HandoverPackCard
+        step={13}
+        teamId={id}
+        fieldDate={shift?.field_date}
+        canManage={canManage}
+        onShowTower={(towerPk, visitId) => {
+          if (visitId) {
+            navigate(`/visits/${visitId}`);
+            return;
+          }
+          const t = jobMap?.towers.find((x) => x.id === towerPk);
+          if (t) {
+            focusJobMapTower(t);
+            showRouteToTower(t);
+          }
+        }}
+      />
+
 
       <input
         type="file"

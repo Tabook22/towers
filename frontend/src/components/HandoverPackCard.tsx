@@ -31,6 +31,7 @@ import AssignmentReturnRoundedIcon from '@mui/icons-material/AssignmentReturnRou
 import { mediaUrl } from '../api/client';
 import { useContinueLastNight, useEndOuting, useTeamHandover } from '../api/hooks';
 import type { HandoverPack, HandoverTower, HandoverTowerStatus } from '../api/types';
+import { StepBadge } from './StepBadge';
 
 const STATUS_COLOR: Record<HandoverTowerStatus, 'success' | 'warning' | 'info' | 'default'> = {
   completed: 'success',
@@ -74,12 +75,14 @@ export function HandoverPackCard({
   canManage,
   compact,
   onShowTower,
+  step,
 }: {
   teamId: number;
   fieldDate?: string;
   canManage?: boolean;
   compact?: boolean;
   onShowTower?: (towerPk: number, visitId: number | null) => void;
+  step?: number;
 }) {
   const { data: pack, isLoading, error } = useTeamHandover(teamId, fieldDate);
   const endOuting = useEndOuting(teamId);
@@ -119,6 +122,7 @@ export function HandoverPackCard({
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, width: '100%', pr: 1 }}>
           <Stack direction="row" spacing={1.5}>
+            {step != null && <StepBadge n={step} />}
             <AssignmentReturnRoundedIcon color="primary" sx={{ mt: 0.5 }} />
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>

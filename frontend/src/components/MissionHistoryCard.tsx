@@ -30,6 +30,7 @@ import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import { useDeleteOutingPlan, useOutingPlans } from '../api/hooks';
 import type { OutingPlanSummary } from '../api/types';
+import { StepBadge } from './StepBadge';
 
 type SortKey = 'field_date' | 'name' | 'tower_count';
 
@@ -57,11 +58,13 @@ export function MissionHistoryCard({
   canEdit,
   selectedDate,
   onSelectDate,
+  step,
 }: {
   teamId: number;
   canEdit: boolean;
   selectedDate?: string;
   onSelectDate: (fieldDate: string) => void;
+  step?: number;
 }) {
   const { data: plans, isLoading } = useOutingPlans(teamId);
   const del = useDeleteOutingPlan(teamId);
@@ -99,6 +102,7 @@ export function MissionHistoryCard({
     <Accordion defaultExpanded disableGutters>
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+          {step != null && <StepBadge n={step} />}
           <HistoryRoundedIcon color="primary" />
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>

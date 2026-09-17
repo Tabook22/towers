@@ -27,6 +27,7 @@ import { useAuth } from '../auth/AuthContext';
 import { requestBrowserLocation } from '../hooks/useFieldTracking';
 import { VoiceNoteControls, VoiceNotePlayer } from './VoiceNoteControls';
 import { matchingMessages, type OpsFilter } from '../utils/opsEvents';
+import { StepBadge } from './StepBadge';
 
 const KIND_CHIPS: { kind: ChannelKind; label: string; color: 'default' | 'warning' | 'error' | 'info' }[] = [
   { kind: 'access', label: 'Access', color: 'warning' },
@@ -149,6 +150,7 @@ export function NightChannel({
   compact,
   kindFilter,
   onTower,
+  step,
 }: {
   teamId: number;
   fieldDate?: string;
@@ -156,6 +158,7 @@ export function NightChannel({
   compact?: boolean;
   kindFilter?: OpsFilter;
   onTower?: (towerId: number, visitId: number | null) => void;
+  step?: number;
 }) {
   const { user } = useAuth();
   const here = useHere();
@@ -193,6 +196,7 @@ export function NightChannel({
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, width: '100%', pr: 1 }}>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+            {step != null && <StepBadge n={step} />}
             <ForumRoundedIcon color="primary" />
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>

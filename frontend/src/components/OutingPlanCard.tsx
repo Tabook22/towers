@@ -22,6 +22,7 @@ import MapRoundedIcon from '@mui/icons-material/MapRounded';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
 import { useOutingPlan, useSaveOutingPlan } from '../api/hooks';
 import type { TeamJobMapTower, Tower } from '../api/types';
+import { StepBadge } from './StepBadge';
 
 // t.status is the tower's INSPECTION progress this team has made on it (has a Visit been started
 // yet?) — nothing to do with whether it's assigned to the team or picked for tonight's mission.
@@ -56,6 +57,7 @@ export function OutingPlanCard({
   assignedTowers,
   catalogTowers,
   canEdit,
+  step,
 }: {
   teamId: number;
   fieldDate?: string;
@@ -65,6 +67,7 @@ export function OutingPlanCard({
   // saving the plan (see save_outing_plan), so a leader doesn't need a separate claim step first.
   catalogTowers?: Tower[];
   canEdit: boolean;
+  step?: number;
 }) {
   const { data: plan, isLoading } = useOutingPlan(teamId, fieldDate);
   const save = useSaveOutingPlan(teamId);
@@ -151,6 +154,7 @@ export function OutingPlanCard({
     <Accordion defaultExpanded disableGutters>
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1, width: '100%', pr: 1 }}>
+          {step != null && <StepBadge n={step} />}
           <MapRoundedIcon color="primary" />
           <Box sx={{ flex: 1, minWidth: 200 }}>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>

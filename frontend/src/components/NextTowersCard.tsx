@@ -25,6 +25,7 @@ import FlagIcon from '@mui/icons-material/FlagRounded';
 import PlaceIcon from '@mui/icons-material/PlaceRounded';
 import { Link as RouterLink } from 'react-router-dom';
 import type { NextTowerStop, NextTowersPlan, NightClaimStatus } from '../api/types';
+import { StepBadge } from './StepBadge';
 
 function hoursLabel(minutes: number, stillNight: boolean): string {
   const h = minutes / 60;
@@ -52,6 +53,7 @@ export function NextTowersCard({
   onClaim,
   onStatus,
   compact,
+  step,
 }: {
   plan: NextTowersPlan | undefined;
   loading?: boolean;
@@ -64,6 +66,7 @@ export function NextTowersCard({
   onClaim?: (stop: NextTowerStop, assignedUserId?: number) => void;
   onStatus?: (stop: NextTowerStop, status: NightClaimStatus, skipReason?: string) => void;
   compact?: boolean;
+  step?: number;
 }) {
   if (loading && !plan) return <LinearProgress />;
   if (!plan) return null;
@@ -84,6 +87,7 @@ export function NextTowersCard({
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap', width: '100%', pr: 1 }}>
           <Stack direction="row" spacing={1.5}>
+            {step != null && <StepBadge n={step} />}
             <NavigationIcon color="primary" sx={{ mt: 0.5 }} />
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
