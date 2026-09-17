@@ -89,6 +89,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout: () => {
         localStorage.removeItem('iip_token');
         localStorage.removeItem('iip_user');
+        // So the next sign-in in this same tab (a shared device, a different admin) sees the
+        // welcome splash again instead of it staying dismissed from the previous person's session.
+        sessionStorage.removeItem('iip_splash_shown');
         setUser(null);
       },
     }),

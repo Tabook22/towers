@@ -731,11 +731,12 @@ export function useClearAnnotation(visitId: number) {
 }
 
 // ---------- Dashboard ----------
-export function useDashboardSummary(area?: string) {
+export function useDashboardSummary(area?: string, enabled = true) {
   return useQuery({
     queryKey: ['dashboard', area],
     queryFn: async () => (await apiClient.get<DashboardSummary>('/api/dashboard/summary', { params: { area } })).data,
     refetchInterval: 30000,
+    enabled,
   });
 }
 

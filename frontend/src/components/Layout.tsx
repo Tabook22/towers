@@ -43,6 +43,7 @@ import { useTracking } from '../hooks/useFieldTracking';
 import { useChangePassword } from '../api/hooks';
 import { useOffline } from '../offline/OfflineProvider';
 import { OfflineBanner, OfflineChip } from '../offline/OfflineStatus';
+import { SplashScreen } from './SplashScreen';
 
 const drawerWidth = 232;
 
@@ -393,6 +394,7 @@ export function Layout({ children }: { children: ReactNode }) {
         {children}
       </Box>
       <ChangePasswordDialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)} />
+      <SplashScreen />
     </Box>
   );
 }
