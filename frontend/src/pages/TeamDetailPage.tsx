@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   CircularProgress,
   Dialog,
@@ -66,6 +67,11 @@ import SubtitlesIcon from '@mui/icons-material/SubtitlesRounded';
 import AttachFileIcon from '@mui/icons-material/AttachFileRounded';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFileRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
+import AssignmentRoundedIcon from '@mui/icons-material/AssignmentRounded';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
 import {
   useAddTeamNote,
   useAddTeamNoteFiles,
@@ -127,6 +133,49 @@ const MISSION_STATUS_COLORS: Record<string, 'default' | 'info' | 'success'> = {
   in_progress: 'info',
   completed: 'success',
 };
+
+// A named, collapsible block with an icon and a one-line "what is this for" description — this
+// page has a lot of ground to cover (roster, missions, tracking, maps) so each block reads as a
+// clearly labeled, collapsible section instead of a wall of look-alike cards.
+function TeamSection({
+  icon,
+  title,
+  description,
+  defaultExpanded = true,
+  action,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  defaultExpanded?: boolean;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Accordion defaultExpanded={defaultExpanded} disableGutters>
+      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, width: '100%', pr: 1 }}>
+          <Stack direction="row" spacing={1.5}>
+            <Box sx={{ color: 'primary.main', display: 'flex', mt: 0.5 }}>{icon}</Box>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {description}
+              </Typography>
+            </Box>
+          </Stack>
+          {action && (
+            <Box onClick={(e) => e.stopPropagation()}>{action}</Box>
+          )}
+        </Stack>
+      </AccordionSummary>
+      <AccordionDetails>{children}</AccordionDetails>
+    </Accordion>
+  );
+}
 
 const STATUS_COLORS: Record<string, 'success' | 'warning' | 'default'> = {
   active: 'success',
@@ -785,64 +834,67 @@ export function TeamDetailPage() {
       </Stack>
 
       {totals && (
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 6, sm: 2.4 }}>
-            <KpiTile
-              label={`Towers (${rangeStart} → ${rangeEnd})`}
-              value={
-                team.daily_target ? (
-                  <Stack direction="row" spacing={0.75} sx={{ alignItems: 'baseline' }}>
-                    <span>{totals.towers}</span>
-                    <Typography variant="caption" color="text.secondary">
-                      / ~{team.daily_target * (progress?.length || 0)} planned
-                    </Typography>
-                  </Stack>
-                ) : (
-                  totals.towers
-                )
-              }
-              icon={<CellTowerIcon />}
-            />
+        <TeamSection
+          icon={<InsightsRoundedIcon />}
+          title="At a glance"
+          description="Live counts for this team — towers, screened positions, hotspots, roster size, and the daily target."
+        >
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 6, sm: 2.4 }}>
+              <KpiTile
+                label={`Towers (${rangeStart} → ${rangeEnd})`}
+                value={
+                  team.daily_target ? (
+                    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'baseline' }}>
+                      <span>{totals.towers}</span>
+                      <Typography variant="caption" color="text.secondary">
+                        / ~{team.daily_target * (progress?.length || 0)} planned
+                      </Typography>
+                    </Stack>
+                  ) : (
+                    totals.towers
+                  )
+                }
+                icon={<CellTowerIcon />}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 2.4 }}>
+              <KpiTile label="Positions screened" value={totals.screened} icon={<FactCheckIcon />} color="#3a6f84" />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 2.4 }}>
+              <KpiTile label="Hotspots found" value={totals.hotspots} icon={<LocalFireDepartmentIcon />} color="#d32f2f" />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 2.4 }}>
+              <KpiTile label="Roster size" value={team.members.length} icon={<PersonAddIcon />} color="#6d4c41" />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 2.4 }}>
+              <KpiTile
+                label="Daily target (working plan)"
+                value={team.daily_target ? `${team.daily_target}/day` : 'Not set'}
+                icon={<FlagRoundedIcon />}
+                color="#8a6d00"
+              />
+            </Grid>
           </Grid>
-          <Grid size={{ xs: 6, sm: 2.4 }}>
-            <KpiTile label="Positions screened" value={totals.screened} icon={<FactCheckIcon />} color="#3a6f84" />
-          </Grid>
-          <Grid size={{ xs: 6, sm: 2.4 }}>
-            <KpiTile label="Hotspots found" value={totals.hotspots} icon={<LocalFireDepartmentIcon />} color="#d32f2f" />
-          </Grid>
-          <Grid size={{ xs: 6, sm: 2.4 }}>
-            <KpiTile label="Roster size" value={team.members.length} icon={<PersonAddIcon />} color="#6d4c41" />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 2.4 }}>
-            <KpiTile
-              label="Daily target (working plan)"
-              value={team.daily_target ? `${team.daily_target}/day` : 'Not set'}
-              icon={<FlagRoundedIcon />}
-              color="#8a6d00"
-            />
-          </Grid>
-        </Grid>
+        </TeamSection>
       )}
 
-      <Card>
-        <CardContent>
-          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Site map
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {canManage
-                  ? 'Green pin: click to assign to this team. Red pin: click to unassign (so another team can take an unfinished tower). Admin can also click a red pin from another team to give it to this team.'
-                  : "Every registered tower (number + Tower ID), live GPS, and the crew's recorded track."}
-              </Typography>
-            </Box>
-            {canManage && (
+      <TeamSection
+        icon={<MyLocationIcon />}
+        title="Site map"
+        description={
+          canManage
+            ? 'Green pin: click to assign to this team. Red pin: click to unassign (so another team can take an unfinished tower). Admin can also click a red pin from another team to give it to this team.'
+            : "Every registered tower (number + Tower ID), live GPS, and the crew's recorded track."
+        }
+      >
+          {canManage && (
+            <Stack direction="row" sx={{ justifyContent: 'flex-end', mb: 1.5 }}>
               <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setClaimError(null); setClaimOpen(true); }}>
                 Add tower
               </Button>
-            )}
-          </Stack>
+            </Stack>
+          )}
           {canManage && (jobMap?.towers || []).length > 0 && (
             <Stack direction="row" spacing={1} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
               {(jobMap?.towers || []).map((t) => (
@@ -924,8 +976,7 @@ export function TeamDetailPage() {
                 : undefined
             }
           />
-        </CardContent>
-      </Card>
+      </TeamSection>
       <ClaimTowerDialog
         open={claimOpen}
         onClose={() => setClaimOpen(false)}
@@ -945,14 +996,14 @@ export function TeamDetailPage() {
         }}
       />
 
-      <Grid container spacing={2}>
+      <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
         {/* Mission info — inline-editable, same pattern as the Visit header */}
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }}>
-                Mission
-              </Typography>
+          <TeamSection
+            icon={<AssignmentRoundedIcon />}
+            title="Mission"
+            description="This team's standing mission brief — leader contact, scope, and schedule. Click any field and it saves when you click away."
+          >
               <Stack spacing={2}>
                 <Grid container spacing={2}>
                   <Grid size={6}>
@@ -1052,22 +1103,17 @@ export function TeamDetailPage() {
                   placeholder="Standing notes about this team (not day-specific — see the daily log below for that)"
                 />
               </Stack>
-            </CardContent>
-          </Card>
+          </TeamSection>
         </Grid>
 
         {/* Linked logins (admin only — the endpoint that lists all users is admin-gated) */}
         {isAdmin && (
           <Grid size={{ xs: 12, md: 6 }}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }}>
-                  Linked logins
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                  The account(s) whose device pings and visits count toward this team's tracking &amp; progress —
-                  usually just the leader's phone.
-                </Typography>
+            <TeamSection
+              icon={<LinkIcon />}
+              title="Linked logins"
+              description="The account(s) whose device pings and visits count toward this team's tracking & progress — usually just the leader's phone."
+            >
                 <Stack spacing={1} sx={{ mb: 2 }}>
                   {linkedUsers.map((u) => (
                     <Stack key={u.id} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -1186,8 +1232,7 @@ export function TeamDetailPage() {
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
                   Password needs at least 6 characters.
                 </Typography>
-              </CardContent>
-            </Card>
+            </TeamSection>
           </Grid>
         )}
 
@@ -1195,15 +1240,11 @@ export function TeamDetailPage() {
             admin); their whole app is scoped to just the missions assigned to them below. */}
         {(isAdmin || isTeamLeader) && (
           <Grid size={{ xs: 12, md: isAdmin ? 6 : 12 }}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }}>
-                  Team members
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                  Each member has their own login — they'll only ever see the missions you assign to
-                  them, never each other's or your details.
-                </Typography>
+            <TeamSection
+              icon={<GroupsRoundedIcon />}
+              title="Team members"
+              description="Each member has their own login — they'll only ever see the missions you assign to them, never each other's or your details."
+            >
                 <Stack spacing={1} sx={{ mb: 2 }}>
                   {teamMemberLogins.map((u) => (
                     <Stack key={u.id} direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1378,27 +1419,19 @@ export function TeamDetailPage() {
                   Password needs at least 6 characters — the member can change it themselves anytime once
                   signed in.
                 </Typography>
-              </CardContent>
-            </Card>
+            </TeamSection>
           </Grid>
         )}
       </Grid>
 
       {/* This team's own GPS track, stays, and km — never another crew's. History lets them
           reopen any previous field night so they can continue from where they stopped. */}
-      <Card>
-        <CardContent>
-          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Your track &amp; towers
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Every login on this team sees the same GPS history. Open a previous night to follow
-                the path that was already recorded.
-              </Typography>
-            </Box>
-            <TextField
+      <TeamSection
+        icon={<RouteIcon />}
+        title="Your track & towers"
+        description="Every login on this team sees the same GPS history. Open a previous night to follow the path that was already recorded."
+        action={
+          <TextField
               select
               size="small"
               label="History"
@@ -1422,8 +1455,8 @@ export function TeamDetailPage() {
                   </MenuItem>
                 ))}
             </TextField>
-          </Stack>
-
+        }
+      >
           {recap ? (
             <>
               <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -1654,8 +1687,7 @@ export function TeamDetailPage() {
               </TableBody>
             </Table>
           </TableContainer>
-        </CardContent>
-      </Card>
+      </TeamSection>
 
       <MissionHistoryCard
         teamId={id}
@@ -1742,28 +1774,21 @@ export function TeamDetailPage() {
           Towers page → select → "Assign to team"), not just the missions it already has. Lets a
           leader (or field crew planning the next drone flight) see the whole job at a glance, and
           measure progress against the whole thing, not just against what's been started. */}
-      <Card>
-        <CardContent>
-          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Job map
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Every tower assigned to this team{jobMap?.sector ? ` (${jobMap.sector})` : ''} — not just the ones
-                already visited — so the field crew can see the whole job and where to fly next.
-              </Typography>
-            </Box>
-            {jobMap && jobMap.total > 0 && (
-              <Stack direction="row" spacing={1}>
-                <Chip size="small" label={`${jobMap.total} total`} />
-                <Chip size="small" color="success" label={`${jobMap.completed} completed`} />
-                <Chip size="small" color="info" label={`${jobMap.in_progress} in progress`} />
-                <Chip size="small" variant="outlined" label={`${jobMap.pending} not started`} />
-              </Stack>
-            )}
-          </Stack>
-
+      <TeamSection
+        icon={<MapIcon />}
+        title="Job map"
+        description={`Every tower assigned to this team${jobMap?.sector ? ` (${jobMap.sector})` : ''} — not just the ones already visited — so the field crew can see the whole job and where to fly next.`}
+        action={
+          jobMap && jobMap.total > 0 && (
+            <Stack direction="row" spacing={1}>
+              <Chip size="small" label={`${jobMap.total} total`} />
+              <Chip size="small" color="success" label={`${jobMap.completed} completed`} />
+              <Chip size="small" color="info" label={`${jobMap.in_progress} in progress`} />
+              <Chip size="small" variant="outlined" label={`${jobMap.pending} not started`} />
+            </Stack>
+          )
+        }
+      >
           {jobMap && jobMap.total > 0 && (
             <LinearProgress
               variant="determinate"
@@ -2042,24 +2067,17 @@ export function TeamDetailPage() {
               </div>
             </Box>
           )}
-        </CardContent>
-      </Card>
+      </TeamSection>
 
       {/* Missions — a mission IS a visit (Visit.team_id/mission_seq set), not a separate record.
           "Mission 1, 2, 3..." are this team's Visits in order; opening one goes straight to the
           full inspection workflow — positions, images, screening, photos, reports — since that's
           what actually running the mission means. */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-            Missions
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Each mission is a tower visit assigned to this team, with a planned start/end time.
-            Click one to open it and run the inspection — positions, images, screening, photos, all
-            in the same place.
-          </Typography>
-
+      <TeamSection
+        icon={<FactCheckIcon />}
+        title="Missions"
+        description="Each mission is a tower visit assigned to this team, with a planned start/end time. Click one to open it and run the inspection — positions, images, screening, photos, all in the same place."
+      >
           <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
             <Table size="small">
               <TableHead>
@@ -2263,42 +2281,34 @@ export function TeamDetailPage() {
             </Button>
           </Stack>
           )}
-        </CardContent>
-      </Card>
+      </TeamSection>
 
       {/* Day-by-day progress + notes log */}
-      <Card>
-        <CardContent>
-          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Daily progress log
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                GPS path is recorded automatically when the crew signs in. Notes, voice, and files can
-                still be added below.
-              </Typography>
-            </Box>
-            <Stack direction="row" spacing={1.5}>
-              <TextField
-                label="From"
-                type="date"
-                size="small"
-                value={rangeStart}
-                onChange={(e) => setRangeStart(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-              <TextField
-                label="To"
-                type="date"
-                size="small"
-                value={rangeEnd}
-                onChange={(e) => setRangeEnd(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-            </Stack>
+      <TeamSection
+        icon={<EventNoteRoundedIcon />}
+        title="Daily progress log"
+        description="GPS path is recorded automatically when the crew signs in. Notes, voice, and files can still be added below."
+        action={
+          <Stack direction="row" spacing={1.5}>
+            <TextField
+              label="From"
+              type="date"
+              size="small"
+              value={rangeStart}
+              onChange={(e) => setRangeStart(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField
+              label="To"
+              type="date"
+              size="small"
+              value={rangeEnd}
+              onChange={(e) => setRangeEnd(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
           </Stack>
-
+        }
+      >
           <input
             type="file"
             hidden
@@ -2768,8 +2778,7 @@ export function TeamDetailPage() {
               <Alert severity="info">No days in this range yet.</Alert>
             )}
           </Stack>
-        </CardContent>
-      </Card>
+      </TeamSection>
 
       <input
         type="file"

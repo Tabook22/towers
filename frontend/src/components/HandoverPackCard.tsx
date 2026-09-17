@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   Dialog,
   DialogActions,
@@ -22,9 +23,11 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import FlagIcon from '@mui/icons-material/FlagRounded';
 import PlaceIcon from '@mui/icons-material/PlaceRounded';
 import DirectionsIcon from '@mui/icons-material/DirectionsRounded';
+import AssignmentReturnRoundedIcon from '@mui/icons-material/AssignmentReturnRounded';
 import { mediaUrl } from '../api/client';
 import { useContinueLastNight, useEndOuting, useTeamHandover } from '../api/hooks';
 import type { HandoverPack, HandoverTower, HandoverTowerStatus } from '../api/types';
@@ -111,35 +114,40 @@ export function HandoverPackCard({
   };
 
   return (
-    <Card>
-      <CardContent>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Handover
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Close tonight and leave the next crew a start point — unfinished towers, skips, hotspots, and notes.
-            </Typography>
-          </Box>
-          {canManage && (
-            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-              {pack && pack.previous_remaining > 0 && (
-                <Button
-                  variant="outlined"
-                  onClick={() => handleContinue(false)}
-                  disabled={continueNight.isPending}
-                >
-                  Continue last night · {pack.previous_remaining}
-                </Button>
-              )}
-              <Button variant="contained" onClick={() => setEndOpen(true)} disabled={endOuting.isPending}>
-                End outing
-              </Button>
-            </Stack>
-          )}
+    <>
+    <Accordion defaultExpanded disableGutters>
+      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, width: '100%', pr: 1 }}>
+          <Stack direction="row" spacing={1.5}>
+            <AssignmentReturnRoundedIcon color="primary" sx={{ mt: 0.5 }} />
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Handover
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Close tonight and leave the next crew a start point — unfinished towers, skips, hotspots, and notes.
+              </Typography>
+            </Box>
+          </Stack>
         </Stack>
-
+      </AccordionSummary>
+      <AccordionDetails>
+        {canManage && (
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, justifyContent: 'flex-end', mb: 1.5 }}>
+            {pack && pack.previous_remaining > 0 && (
+              <Button
+                variant="outlined"
+                onClick={() => handleContinue(false)}
+                disabled={continueNight.isPending}
+              >
+                Continue last night · {pack.previous_remaining}
+              </Button>
+            )}
+            <Button variant="contained" onClick={() => setEndOpen(true)} disabled={endOuting.isPending}>
+              End outing
+            </Button>
+          </Stack>
+        )}
         {isLoading && <LinearProgress sx={{ mb: 1 }} />}
         {error && <Alert severity="error">Could not load the handover pack.</Alert>}
         {actionError && (
@@ -339,7 +347,8 @@ export function HandoverPackCard({
             )}
           </>
         )}
-      </CardContent>
+      </AccordionDetails>
+    </Accordion>
 
       <Dialog open={endOpen} onClose={() => setEndOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>End tonight&apos;s outing</DialogTitle>
@@ -365,6 +374,6 @@ export function HandoverPackCard({
           </Button>
         </DialogActions>
       </Dialog>
-    </Card>
+    </>
   );
 }

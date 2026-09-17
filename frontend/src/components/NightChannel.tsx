@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Card,
@@ -13,6 +16,8 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
 import SendIcon from '@mui/icons-material/SendRounded';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCameraRounded';
 import { mediaUrl } from '../api/client';
@@ -184,19 +189,24 @@ export function NightChannel({
   };
 
   return (
-    <Card>
-      <CardContent>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Tonight
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Shared with dispatch. Tagged to the nearest tower when GPS is on.
-            </Typography>
-          </Box>
+    <Accordion defaultExpanded disableGutters>
+      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, width: '100%', pr: 1 }}>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+            <ForumRoundedIcon color="primary" />
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Tonight
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Shared with dispatch. Tagged to the nearest tower when GPS is on.
+              </Typography>
+            </Box>
+          </Stack>
           <Chip size="small" label={`${data?.length || 0} messages`} variant="outlined" />
         </Stack>
+      </AccordionSummary>
+      <AccordionDetails>
         {isLoading && <LinearProgress sx={{ mb: 1 }} />}
         <Box
           ref={listRef}
@@ -321,8 +331,8 @@ export function NightChannel({
             }}
           />
         </Stack>
-      </CardContent>
-    </Card>
+      </AccordionDetails>
+    </Accordion>
   );
 }
 

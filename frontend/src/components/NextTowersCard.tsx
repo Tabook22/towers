@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   LinearProgress,
   MenuItem,
@@ -18,6 +19,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import NavigationIcon from '@mui/icons-material/NavigationRounded';
 import FlagIcon from '@mui/icons-material/FlagRounded';
 import PlaceIcon from '@mui/icons-material/PlaceRounded';
@@ -78,22 +80,25 @@ export function NextTowersCard({
   };
 
   return (
-    <Card>
-      <CardContent>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Next towers tonight
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {plan.headline}
-            </Typography>
-            {onClaim && (
-              <Typography variant="caption" color="text.secondary">
-                Claim a tower so the other car doesn&apos;t drive there too. Skip posts to Tonight.
+    <Accordion defaultExpanded disableGutters>
+      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap', width: '100%', pr: 1 }}>
+          <Stack direction="row" spacing={1.5}>
+            <NavigationIcon color="primary" sx={{ mt: 0.5 }} />
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Next towers tonight
               </Typography>
-            )}
-          </Box>
+              <Typography variant="body2" color="text.secondary">
+                {plan.headline}
+              </Typography>
+              {onClaim && (
+                <Typography variant="caption" color="text.secondary">
+                  Claim a tower so the other car doesn&apos;t drive there too. Skip posts to Tonight.
+                </Typography>
+              )}
+            </Box>
+          </Stack>
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
             <Chip size="small" icon={<PlaceIcon />} label={hoursLabel(plan.minutes_left, plan.still_night)} variant="outlined" />
             {plan.daily_target != null && (
@@ -107,6 +112,8 @@ export function NextTowersCard({
             <Chip size="small" label={`${plan.remaining_assigned} still open`} />
           </Stack>
         </Stack>
+      </AccordionSummary>
+      <AccordionDetails>
 
         {plan.remaining_assigned === 0 && (
           <Alert severity="success">No assigned towers left open for this team.</Alert>
@@ -205,8 +212,8 @@ export function NextTowersCard({
             (about {plan.dwell_minutes} min on each tower plus driving).
           </Typography>
         )}
-      </CardContent>
-    </Card>
+      </AccordionDetails>
+    </Accordion>
   );
 }
 
