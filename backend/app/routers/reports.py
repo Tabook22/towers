@@ -43,6 +43,33 @@ from app.utils import natural_sort_key
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 
+def _resolve_tower_team(db: Session, tower: Tower, start_date: dt.date, end_date: dt.date) -> int | None:
+    """Which team a "by tower" report/preview should use when the caller didn't say — the tower's
+    current catalog assignment (Tower.assigned_team_id) is only a hint, never a hard requirement,
+    because a tower can be reassigned to another team, or unassigned entirely, after the inspection
+    that should still be reportable actually happened. Falls back to whichever team's visit on this
+    tower in the date range is most recent; only reports "no team" when neither the catalog nor any
+    visit in range has one."""
+    visit_teams = (
+        db.query(Visit.team_id, Visit.inspection_date)
+        .filter(
+            Visit.tower_id == tower.id,
+            Visit.team_id.isnot(None),
+            Visit.inspection_date.isnot(None),
+            Visit.inspection_date >= start_date,
+            Visit.inspection_date <= end_date,
+        )
+        .order_by(Visit.inspection_date.desc(), Visit.id.desc())
+        .all()
+    )
+    distinct_teams = {team_id for team_id, _ in visit_teams}
+    if not distinct_teams:
+        return tower.assigned_team_id
+    if tower.assigned_team_id in distinct_teams:
+        return tower.assigned_team_id
+    return visit_teams[0][0]  # most recent visit's team
+
+
 def _load_visit(db: Session, visit_id: int) -> Visit:
     visit = (
         db.query(Visit)
@@ -235,7 +262,7 @@ def oetc_report_preview(
         tower = db.get(Tower, tower_id) if tower_id is not None else None
         resolved_team_id = team_id
         if resolved_team_id is None and tower is not None:
-            resolved_team_id = tower.assigned_team_id
+            resolved_team_id = _resolve_tower_team(db, tower, start_date, end_date)
         if resolved_team_id is not None:
             q = db.query(Visit).options(
                 joinedload(Visit.positions).joinedload(Position.images)
@@ -288,11 +315,12 @@ def oetc_line_report(
     """The official customer-format report (see services/oetc_report.py) — a team's whole line
     campaign over a date range by default, or (when payload.tower_id is set) just that one
     particular tower's visits, rendered straight into the customer's own template either way.
-    "Report by tower" gives tower_id alone (team_id left unset) — resolved below from the tower's
-    current assignment, so the caller only needs to know the tower, not which team owns it.
-    Admin/reviewer can generate for any team; a team_leader only for their own, same boundary as
-    every other team-scoped report in this app; a team_member (whose whole workspace is their own
-    assigned missions, not team-wide reporting) is refused outright."""
+    "Report by tower" gives tower_id alone (team_id left unset) — resolved below via
+    _resolve_tower_team, so the caller only needs to know the tower, not which team owns it, and a
+    tower that was reassigned or unassigned after the inspection still resolves to whichever team
+    actually did the work. Admin/reviewer can generate for any team; a team_leader only for their
+    own, same boundary as every other team-scoped report in this app; a team_member (whose whole
+    workspace is their own assigned missions, not team-wide reporting) is refused outright."""
     tower = None
     if payload.tower_id is not None:
         tower = db.get(Tower, payload.tower_id)
@@ -301,9 +329,14 @@ def oetc_line_report(
 
     team_id = payload.team_id
     if team_id is None:
-        if tower.assigned_team_id is None:
-            raise HTTPException(status_code=400, detail=f"{tower.tower_id} isn't assigned to a team yet")
-        team_id = tower.assigned_team_id
+        if tower is None:
+            raise HTTPException(status_code=400, detail="team_id or tower_id is required")
+        team_id = _resolve_tower_team(db, tower, payload.start_date, payload.end_date)
+        if team_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{tower.tower_id} isn't assigned to a team, and no visit in that date range has one either",
+            )
 
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")

@@ -156,6 +156,40 @@ def test_tower_id_alone_without_a_team_assignment_is_a_clear_400():
         assert "T-3" in exc.value.detail
 
 
+def test_tower_id_alone_resolves_the_team_from_the_visit_when_the_tower_itself_is_unassigned():
+    """The real-world bug this guards: a crew finishes inspecting a tower, but the tower's catalog
+    assignment was since changed or cleared (or was never set — the visit can exist without a
+    formal "assign to team" step). "Report by tower" must still find it via the visit's own
+    team_id instead of hard-requiring Tower.assigned_team_id."""
+    engine = _engine()
+    with Session(engine) as db:
+        team = Team(name="Alpha")
+        unassigned = Tower(tower_id="T-9", voltage="132")  # never assigned in the catalog
+        db.add_all([team, unassigned])
+        db.flush()
+        visit = Visit(tower_id=unassigned.id, team_id=team.id, inspection_date=dt.date(2026, 9, 5), mission_status="completed")
+        db.add(visit)
+        db.flush()
+        db.add(Position(visit_id=visit.id, ohl="OHL1", phase="R", string="S1", direction="Ashoor", installed=True))
+        db.commit()
+        admin = User(username="admin", role="admin", hashed_password="x")
+        db.add(admin)
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            tower_id=unassigned.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="TEST-0009",
+        )
+        response = oetc_line_report(payload=payload, db=db, user=admin)
+        assert response.status_code == 200
+
+        record = db.query(LineInspectionReport).filter_by(report_number="TEST-0009").one()
+        assert record.team_id == team.id
+        assert record.tower_id == unassigned.id
+
+
 def test_tower_id_alone_still_enforces_the_team_leader_boundary():
     engine = _engine()
     with Session(engine) as db:

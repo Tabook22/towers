@@ -81,6 +81,32 @@ def test_preview_by_tower_alone_resolves_the_team_and_scopes_down():
         assert result.hotspot_count == 1
 
 
+def test_preview_by_tower_resolves_the_team_from_the_visit_when_the_tower_is_unassigned():
+    """Matches the real bug report: a tower with no (or a stale) catalog assignment, but a real
+    visit — the preview must find it via the visit's own team, not just Tower.assigned_team_id."""
+    engine = _engine()
+    with Session(engine) as db:
+        team = Team(name="Alpha")
+        unassigned = Tower(tower_id="T-9", area="Ashoor-Saada")
+        db.add_all([team, unassigned])
+        db.flush()
+        visit = Visit(tower_id=unassigned.id, team_id=team.id, inspection_date=dt.date(2026, 9, 5), mission_status="completed")
+        db.add(visit)
+        db.flush()
+        db.add(Position(visit_id=visit.id, ohl="OHL1", phase="R", string="S1", direction="Ashoor"))
+        db.commit()
+        admin = User(username="admin", role="admin", hashed_password="x")
+        db.add(admin)
+        db.commit()
+
+        result = oetc_report_preview(
+            start_date=dt.date(2026, 9, 1), end_date=dt.date(2026, 9, 30), tower_id=unassigned.id, db=db, user=admin,
+        )
+        assert result.ok is True
+        assert result.visit_count == 1
+        assert result.position_count == 1
+
+
 def test_preview_by_line_matches_area_scope():
     engine = _engine()
     with Session(engine) as db:
