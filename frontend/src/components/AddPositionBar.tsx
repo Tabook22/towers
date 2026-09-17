@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlineRounded';
 import type { ChoiceLists, Position } from '../api/types';
+import { deriveDirectionFromArea } from '../utils/direction';
 
 // Display-only hint — S1/S2 stay the actual stored values (position codes, the 12-slot identity,
 // and every existing report already key off them), this just shows which physical string each one
@@ -15,10 +16,13 @@ interface Props {
   positions: Position[];
   hiddenIds: Set<number>;
   lists: ChoiceLists;
+  /** The tower's own line/area name — used only to auto-fill Direction the moment Tower type is
+   * set to Suspension (see utils/direction.ts). */
+  towerArea?: string | null;
   onAdd: (position: Position, direction: string, mountType: string) => void;
 }
 
-export function AddPositionBar({ positions, hiddenIds, lists, onAdd }: Props) {
+export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd }: Props) {
   const [mountType, setMountType] = useState('');
   const [ohl, setOhl] = useState('');
   const [phase, setPhase] = useState('');
@@ -54,8 +58,14 @@ export function AddPositionBar({ positions, hiddenIds, lists, onAdd }: Props) {
           label="Tower type"
           value={mountType}
           onChange={(e) => {
-            setMountType(e.target.value);
-            if (e.target.value === 'Suspension') setDirection('');
+            const value = e.target.value;
+            setMountType(value);
+            // Suspension runs straight through — no direction to record. Auto-fill it from the
+            // tower's own line so the position still gets a valid image code, but keep whatever
+            // the leader already picked if they'd already chosen one.
+            if (value === 'Suspension') {
+              setDirection((d) => d || deriveDirectionFromArea(towerArea, lists.direction) || '');
+            }
           }}
           sx={{ minWidth: 130 }}
         >

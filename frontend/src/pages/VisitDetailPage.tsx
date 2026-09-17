@@ -506,7 +506,13 @@ export function VisitDetailPage() {
           Inspection positions
         </Typography>
         <Stack spacing={1.5}>
-          <AddPositionBar positions={visit.positions} hiddenIds={hiddenIds} lists={lists} onAdd={handleAddPosition} />
+          <AddPositionBar
+            positions={visit.positions}
+            hiddenIds={hiddenIds}
+            lists={lists}
+            towerArea={visit.tower?.area}
+            onAdd={handleAddPosition}
+          />
           {visiblePositions.length === 0 && (
             <Alert severity="info">
               No positions added yet — use "Add position" above to start recording an insulator string.
@@ -517,6 +523,7 @@ export function VisitDetailPage() {
               key={p.id}
               position={p}
               lists={lists}
+              towerArea={visit.tower?.area}
               defaultExpanded
               onUpdate={(payload) => updatePosition.mutate({ id: p.id, payload })}
               onUploadImage={(imageId, file, meta) =>

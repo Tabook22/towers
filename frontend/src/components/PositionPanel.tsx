@@ -25,6 +25,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SubtitlesRoundedIcon from '@mui/icons-material/SubtitlesRounded';
 import { mediaUrl } from '../api/client';
 import type { ChoiceLists, ImageRow, Position } from '../api/types';
+import { deriveDirectionFromArea } from '../utils/direction';
 import { HotspotChip, ScreeningChip, SeverityChip } from './Badges';
 import { ImageSlotCard } from './ImageSlotCard';
 import { VoiceNoteControls, VoiceNotePlayer } from './VoiceNoteControls';
@@ -32,6 +33,9 @@ import { VoiceNoteControls, VoiceNotePlayer } from './VoiceNoteControls';
 interface Props {
   position: Position;
   lists: ChoiceLists;
+  /** The tower's own line/area name (e.g. "Ashoor-Saada") — used only to auto-fill Direction the
+   * moment Tower type is set to Suspension (see utils/direction.ts). */
+  towerArea?: string | null;
   onUpdate: (payload: Partial<Position>) => void;
   onUploadImage: (imageId: number, file: File, meta: Record<string, unknown>) => void;
   onUpdateImage: (imageId: number, payload: Partial<ImageRow>) => void;
@@ -61,6 +65,7 @@ interface Props {
 export function PositionPanel({
   position,
   lists,
+  towerArea,
   onUpdate,
   onUploadImage,
   onUpdateImage,
@@ -207,6 +212,8 @@ export function PositionPanel({
                 fullWidth
                 value={position.direction || ''}
                 onChange={(e) => onUpdate({ direction: e.target.value })}
+                disabled={position.mount_type === 'Suspension'}
+                helperText={position.mount_type === 'Suspension' ? 'Not needed for Suspension' : undefined}
               >
                 {lists.direction.map((d) => (
                   <MenuItem key={d} value={d}>
@@ -455,7 +462,18 @@ export function PositionPanel({
                   label="Tower type"
                   fullWidth
                   value={position.mount_type || ''}
-                  onChange={(e) => onUpdate({ mount_type: e.target.value || null })}
+                  onChange={(e) => {
+                    const mountType = e.target.value || null;
+                    const payload: Partial<Position> = { mount_type: mountType };
+                    // Suspension runs straight through — no direction to record. Auto-fill it from
+                    // the tower's own line so evidence/image codes still generate, but never
+                    // overwrite a direction the user already picked.
+                    if (mountType === 'Suspension' && !position.direction) {
+                      const derived = deriveDirectionFromArea(towerArea, lists.direction);
+                      if (derived) payload.direction = derived;
+                    }
+                    onUpdate(payload);
+                  }}
                 >
                   <MenuItem value="">
                     <em>Not set</em>
