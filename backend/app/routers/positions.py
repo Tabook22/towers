@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import datetime as dt
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 
+from app.config import settings
 from app.database import get_db
 from app.deps import check_visit_team_access, get_current_user
 from app.models import IMAGE_TYPE_CHOICES, Image, Position, User, Visit
 from app.routers.images import apply_upload
+from app.routers.teams import ACCEPTED_AUDIO_TYPES
 from app.schemas import ImageOut, PositionOut, PositionUpdate
+from app.services.archive import file_extension, save_upload
 from app.services.codes import refresh_position_codes
 from app.services.id_gen import image_code as compute_image_code
+from app.services.transcribe import transcribe_audio
 
 router = APIRouter(prefix="/api/positions", tags=["positions"])
 
@@ -84,3 +91,105 @@ async def add_extra_image(
     db.commit()
     db.refresh(img)
     return img
+
+
+@router.post("/{position_id}/voice", response_model=PositionOut)
+async def add_voice_note(
+    position_id: int,
+    file: UploadFile = File(...),
+    duration_seconds: float | None = Form(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Records this exact insulator's voice note — always tied to this position_id, never to the
+    visit as a whole. Re-recording replaces the previous audio and clears its transcript; it
+    never touches inspector_notes or any other position's recording."""
+    pos = _load_position(db, position_id, user)
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if content_type not in ACCEPTED_AUDIO_TYPES:
+        raise HTTPException(status_code=400, detail=f"Unsupported audio type: {file.content_type}")
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty recording")
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    if len(raw) > max_bytes:
+        raise HTTPException(status_code=400, detail="Recording is too large")
+
+    old_path = pos.voice_note_path
+    ext = file_extension(file.filename, content_type)
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%f")
+    rel_path = f"{position_id}/{stamp}{ext}"
+    save_upload(raw, rel_path, base_dir=settings.voice_notes_dir)
+
+    pos.voice_note_path = rel_path
+    pos.voice_note_content_type = content_type
+    pos.voice_note_original_filename = file.filename
+    pos.voice_note_duration_seconds = duration_seconds
+    pos.voice_note_transcript = None
+    db.commit()
+    db.refresh(pos)
+
+    if old_path:
+        try:
+            (settings.voice_notes_dir / old_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+    return pos
+
+
+@router.get("/{position_id}/voice/audio")
+def get_voice_note_audio(position_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    pos = _load_position(db, position_id, user)
+    if not pos.voice_note_path:
+        raise HTTPException(status_code=404, detail="No voice note recorded for this insulator")
+    path = settings.voice_notes_dir / pos.voice_note_path
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Audio file missing")
+    return FileResponse(
+        path,
+        media_type=pos.voice_note_content_type or "application/octet-stream",
+        filename=pos.voice_note_original_filename or path.name,
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@router.post("/{position_id}/voice/transcribe", response_model=PositionOut)
+def transcribe_voice_note(position_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Converts this position's own recording to text — never another position's audio. The
+    transcript is stored separately from inspector_notes so a typed note is never overwritten."""
+    pos = _load_position(db, position_id, user)
+    if not pos.voice_note_path:
+        raise HTTPException(status_code=404, detail="No voice note recorded for this insulator")
+    path = settings.voice_notes_dir / pos.voice_note_path
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Audio file missing")
+    raw = path.read_bytes()
+    text, err = transcribe_audio(
+        raw,
+        pos.voice_note_original_filename or path.name,
+        pos.voice_note_content_type or "application/octet-stream",
+    )
+    if err or not text:
+        raise HTTPException(status_code=502, detail=err or "Could not convert this recording to text")
+    pos.voice_note_transcript = text
+    db.commit()
+    db.refresh(pos)
+    return pos
+
+
+@router.delete("/{position_id}/voice", response_model=PositionOut)
+def delete_voice_note(position_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    pos = _load_position(db, position_id, user)
+    if pos.voice_note_path:
+        try:
+            (settings.voice_notes_dir / pos.voice_note_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+    pos.voice_note_path = None
+    pos.voice_note_content_type = None
+    pos.voice_note_original_filename = None
+    pos.voice_note_duration_seconds = None
+    pos.voice_note_transcript = None
+    db.commit()
+    db.refresh(pos)
+    return pos

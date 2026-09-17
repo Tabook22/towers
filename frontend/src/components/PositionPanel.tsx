@@ -22,9 +22,12 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMoreRounded';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternateRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import SubtitlesRoundedIcon from '@mui/icons-material/SubtitlesRounded';
+import { mediaUrl } from '../api/client';
 import type { ChoiceLists, ImageRow, Position } from '../api/types';
 import { HotspotChip, ScreeningChip, SeverityChip } from './Badges';
 import { ImageSlotCard } from './ImageSlotCard';
+import { VoiceNoteControls, VoiceNotePlayer } from './VoiceNoteControls';
 
 interface Props {
   position: Position;
@@ -46,6 +49,13 @@ interface Props {
   /** Only supplied for a position that was just added this session and still has no data — lets the
    * user back out of an add-by-mistake. Nothing to un-save server-side since nothing was committed. */
   onRemove?: () => void;
+  /** This position's own voice note — recording again replaces it; see backend
+   * routers/positions.py's /voice endpoints for why it can never land on another position. */
+  onRecordVoiceNote: (blob: Blob, durationSeconds: number) => void;
+  onTranscribeVoiceNote: () => void;
+  onDeleteVoiceNote: () => void;
+  voiceNoteSaving?: boolean;
+  voiceNoteTranscribing?: boolean;
 }
 
 export function PositionPanel({
@@ -63,6 +73,11 @@ export function PositionPanel({
   annotationSaving,
   defaultExpanded,
   onRemove,
+  onRecordVoiceNote,
+  onTranscribeVoiceNote,
+  onDeleteVoiceNote,
+  voiceNoteSaving,
+  voiceNoteTranscribing,
 }: Props) {
   const pendingCount = position.images.filter((i) => i.evidence_status === 'PENDING CAPTURE' || i.evidence_status === 'RECAPTURE REQUIRED').length;
   const [selectedType, setSelectedType] = useState<string>(lists.image_type[0]);
@@ -334,6 +349,52 @@ export function PositionPanel({
               />
             </Grid>
           </Grid>
+
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+              Voice note
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+              Recorded for this insulator only — S1/S2, Inner/Outer, whichever this position is, never
+              mixed with any other one on this tower.
+            </Typography>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <VoiceNoteControls
+                saving={voiceNoteSaving}
+                onRecorded={(blob, duration) => onRecordVoiceNote(blob, duration)}
+              />
+              {position.voice_note_path && (
+                <Box sx={{ flex: 1, minWidth: 240 }}>
+                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+                    <VoiceNotePlayer
+                      src={mediaUrl(`/api/positions/${position.id}/voice/audio`)}
+                      duration={position.voice_note_duration_seconds}
+                    />
+                    <Tooltip title="Delete this recording">
+                      <IconButton size="small" onClick={onDeleteVoiceNote}>
+                        <CloseRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                  {position.voice_note_transcript ? (
+                    <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>
+                      {position.voice_note_transcript}
+                    </Typography>
+                  ) : (
+                    <Button
+                      size="small"
+                      startIcon={<SubtitlesRoundedIcon />}
+                      onClick={onTranscribeVoiceNote}
+                      disabled={voiceNoteTranscribing}
+                      sx={{ mt: 0.5 }}
+                    >
+                      {voiceNoteTranscribing ? 'Converting…' : 'Convert to text'}
+                    </Button>
+                  )}
+                </Box>
+              )}
+            </Stack>
+          </Box>
 
           {!position.direction && (
             <Typography variant="caption" color="warning.main">

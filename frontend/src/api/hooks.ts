@@ -560,6 +560,48 @@ export function useMakePrimaryImage(visitId: number) {
   });
 }
 
+// This insulator's own voice note — recording, transcribing, or deleting always targets this one
+// position_id, never the visit as a whole (see backend routers/positions.py). Not yet part of the
+// offline outbox that photo/position-field edits use, so a recording needs a live connection to
+// save — the blob stays in the recorder's own state on failure, so retrying doesn't mean recording
+// again.
+export function useAddPositionVoiceNote(visitId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ positionId, file, durationSeconds }: { positionId: number; file: Blob; durationSeconds?: number }) => {
+      const form = new FormData();
+      const ext = file.type.includes('mp4') ? 'm4a' : file.type.includes('mpeg') ? 'mp3' : 'webm';
+      form.set('file', file, `voice-note.${ext}`);
+      if (durationSeconds != null) form.set('duration_seconds', String(durationSeconds));
+      return (
+        await apiClient.post<Position>(`/api/positions/${positionId}/voice`, form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 120_000,
+        })
+      ).data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['visit', visitId] }),
+  });
+}
+
+export function useTranscribePositionVoiceNote(visitId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (positionId: number) =>
+      (await apiClient.post<Position>(`/api/positions/${positionId}/voice/transcribe`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['visit', visitId] }),
+  });
+}
+
+export function useDeletePositionVoiceNote(visitId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (positionId: number) =>
+      (await apiClient.delete<Position>(`/api/positions/${positionId}/voice`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['visit', visitId] }),
+  });
+}
+
 export function useAddExtraImage(visitId: number) {
   const qc = useQueryClient();
   return useMutation({

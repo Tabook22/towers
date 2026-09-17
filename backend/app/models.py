@@ -270,6 +270,16 @@ class Position(Base):
     confidence: Mapped[str | None] = mapped_column(String(20), nullable=True)
     inspector_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # One voice recording per position — always this exact insulator, never shared across
+    # positions or the visit as a whole (see routers/positions.py). Re-recording replaces it;
+    # transcribing fills voice_note_transcript without touching inspector_notes, so a typed note
+    # is never silently overwritten.
+    voice_note_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    voice_note_content_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    voice_note_original_filename: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    voice_note_duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    voice_note_transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # ---------- Insulator record fields for the OETC report template — all optional, all purely
     # descriptive (none feed position/image code generation). ----------
     manufacturer: Mapped[str | None] = mapped_column(String(120), nullable=True)

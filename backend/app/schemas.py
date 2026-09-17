@@ -423,6 +423,11 @@ class PositionOut(BaseModel):
     thermal_indication: str | None = None
     visual_indications: str | None = None
     position_code: str | None
+    voice_note_path: str | None = None
+    voice_note_content_type: str | None = None
+    voice_note_original_filename: str | None = None
+    voice_note_duration_seconds: float | None = None
+    voice_note_transcript: str | None = None
     images: list[ImageOut] = []
 
     @property

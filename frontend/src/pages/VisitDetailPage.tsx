@@ -21,13 +21,16 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import {
   useAddExtraImage,
+  useAddPositionVoiceNote,
   useChoiceLists,
   useClearImageFile,
   useDeleteImage,
+  useDeletePositionVoiceNote,
   useDeleteVisit,
   useMakePrimaryImage,
   useRetypeImage,
   useSaveAnnotation,
+  useTranscribePositionVoiceNote,
   useUpdateImage,
   useUpdatePosition,
   useUpdateVisit,
@@ -79,6 +82,9 @@ export function VisitDetailPage() {
   const retypeImage = useRetypeImage(id);
   const makePrimaryImage = useMakePrimaryImage(id);
   const deleteVisit = useDeleteVisit();
+  const addVoiceNote = useAddPositionVoiceNote(id);
+  const transcribeVoiceNote = useTranscribePositionVoiceNote(id);
+  const deleteVoiceNote = useDeletePositionVoiceNote(id);
 
   const [headerDraft, setHeaderDraft] = useState<Record<string, unknown> | null>(null);
   // Positions manually revealed this session via "Add position" but that don't have real data yet —
@@ -125,10 +131,13 @@ export function VisitDetailPage() {
 
   // All 12 canonical (OHL, phase, string) slots always exist server-side (the fixed ID scheme
   // depends on it — see BUILD_PROMPT), but a slot only counts as "real" once it has actual data:
-  // a direction set, a screening result recorded, or an uploaded photo. Everything else stays
-  // hidden until the inspector explicitly adds it below.
+  // a direction set, a screening result recorded, an uploaded photo, or a voice note recorded for
+  // it. Everything else stays hidden until the inspector explicitly adds it below.
   const isPositionActive = (p: Position) =>
-    !!p.direction || p.screening_result !== 'Not inspected' || p.images.some((img) => !!img.file_path);
+    !!p.direction ||
+    p.screening_result !== 'Not inspected' ||
+    p.images.some((img) => !!img.file_path) ||
+    !!p.voice_note_path;
   const visiblePositions = visit.positions.filter((p) => isPositionActive(p) || addedIds.has(p.id));
   const hiddenIds = new Set(
     visit.positions.filter((p) => !isPositionActive(p) && !addedIds.has(p.id)).map((p) => p.id),
@@ -541,6 +550,13 @@ export function VisitDetailPage() {
               onMakePrimaryImage={(imageId) => makePrimaryImage.mutate(imageId)}
               annotationSaving={saveAnnotation.isPending}
               onRemove={addedIds.has(p.id) && !isPositionActive(p) ? () => handleRemovePosition(p.id) : undefined}
+              onRecordVoiceNote={(blob, durationSeconds) =>
+                addVoiceNote.mutate({ positionId: p.id, file: blob, durationSeconds })
+              }
+              onTranscribeVoiceNote={() => transcribeVoiceNote.mutate(p.id)}
+              onDeleteVoiceNote={() => deleteVoiceNote.mutate(p.id)}
+              voiceNoteSaving={addVoiceNote.isPending && addVoiceNote.variables?.positionId === p.id}
+              voiceNoteTranscribing={transcribeVoiceNote.isPending && transcribeVoiceNote.variables === p.id}
             />
           ))}
         </Stack>

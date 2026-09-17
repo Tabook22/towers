@@ -106,6 +106,13 @@ export interface Position {
   thermal_indication: string | null;
   visual_indications: string | null; // comma-joined subset of ChoiceLists.visual_indication
   position_code: string | null;
+  // One voice recording for this exact insulator — never shared with another position. Recording
+  // again replaces it; transcribing fills voice_note_transcript without touching inspector_notes.
+  voice_note_path: string | null;
+  voice_note_content_type: string | null;
+  voice_note_original_filename: string | null;
+  voice_note_duration_seconds: number | null;
+  voice_note_transcript: string | null;
   images: ImageRow[];
 }
 
