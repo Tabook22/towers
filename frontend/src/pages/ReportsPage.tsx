@@ -1,10 +1,11 @@
 import { useRef, useState, type ReactNode } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   Divider,
   MenuItem,
@@ -20,6 +21,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import UploadFileIcon from '@mui/icons-material/UploadFileRounded';
@@ -40,36 +42,44 @@ import { FieldExecutionPlanForm } from '../components/FieldExecutionPlanForm';
 import { OfficialReportForm } from '../components/OfficialReportForm';
 import { useAuth } from '../auth/AuthContext';
 
-// A numbered section with a one-line "use this when" callout right at the top, so each card on this
-// page answers "what is this for and when do I use it" before anything else — the page has several
-// different report types and that was the actual point of confusion, not any one form being hard to
-// fill in.
+// A numbered, collapsible section with a one-line "use this when" callout right at the top, so each
+// one on this page answers "what is this for and when do I use it" before anything else — the page
+// has several different report types and that was the actual point of confusion, not any one form
+// being hard to fill in. Collapsible because with six of these the page got long: closed by default
+// except the one you almost always want (Section 1), so scanning down to the one you need doesn't
+// mean scrolling past five open forms first.
 function ReportSection({
   number,
   title,
   useWhen,
+  defaultExpanded,
   children,
 }: {
   number: number;
   title: string;
   useWhen: string;
+  defaultExpanded?: boolean;
   children: ReactNode;
 }) {
   return (
-    <Card>
-      <CardContent>
-        <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 1 }}>
-          Section {number}
-        </Typography>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
-          {title}
-        </Typography>
+    <Accordion defaultExpanded={defaultExpanded} disableGutters>
+      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+        <Box>
+          <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 1 }}>
+            Section {number}
+          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            {title}
+          </Typography>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails>
         <Alert severity="info" icon={false} sx={{ mb: 2 }}>
           <strong>Use this when:</strong> {useWhen}
         </Alert>
         {children}
-      </CardContent>
-    </Card>
+      </AccordionDetails>
+    </Accordion>
   );
 }
 
@@ -211,6 +221,7 @@ export function ReportsPage() {
           number={1}
           title="Official report for the customer"
           useWhen='you need the customer-format document — by tower, by team, by transmission line, or the overall final report covering everything. This is almost always the one you want.'
+          defaultExpanded
         >
           <OfficialReportForm />
         </ReportSection>
@@ -300,98 +311,94 @@ export function ReportsPage() {
         </Stack>
       </ReportSection>
 
-      <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 1 }}>
-        Section 6
-      </Typography>
-      <Typography variant="h6" sx={{ fontWeight: 700, mt: -1 }}>
-        Per-tower reports
-      </Typography>
-      <Alert severity="info" icon={false} sx={{ mt: -1 }}>
-        <strong>Use this when:</strong> you want a one-off PDF or Word download for a single tower's
-        latest visit only — not the official customer report in Section 1.
-      </Alert>
-      <TableContainer component={Paper} variant="outlined">
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Tower</TableCell>
-              <TableCell>Area</TableCell>
-              <TableCell>Latest visit</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell align="right">Report</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {data?.rows.map((row) => (
-              <TableRow key={row.tower.id} hover>
-                <TableCell sx={{ fontWeight: 700 }}>{row.tower.tower_id}</TableCell>
-                <TableCell>{row.tower.area || '-'}</TableCell>
-                <TableCell>{row.latest_visit?.inspection_date || '-'}</TableCell>
-                <TableCell>
-                  <VisitStatusChip status={row.rollup?.visit_status} />
-                </TableCell>
-                <TableCell align="right">
-                  {row.latest_visit ? (
-                    <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-                      <Button
-                        size="small"
-                        startIcon={<PictureAsPdfIcon fontSize="small" />}
-                        component="a"
-                        href={mediaUrl(`/api/reports/visits/${row.latest_visit.id}.pdf`)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        PDF
-                      </Button>
-                      <Tooltip title={templates?.docx ? '' : 'Upload a Word template above first'}>
-                        <span>
-                          <Button
-                            size="small"
-                            startIcon={<DescriptionRoundedIcon fontSize="small" />}
-                            component="a"
-                            href={mediaUrl(`/api/reports/visits/${row.latest_visit.id}.docx`)}
-                            target="_blank"
-                            rel="noreferrer"
-                            disabled={!templates?.docx}
-                          >
-                            Word
-                          </Button>
-                        </span>
-                      </Tooltip>
-                      <Tooltip title={templates?.pdf ? '' : 'Upload a PDF template above first'}>
-                        <span>
-                          <Button
-                            size="small"
-                            startIcon={<PictureAsPdfIcon fontSize="small" />}
-                            component="a"
-                            href={mediaUrl(`/api/reports/visits/${row.latest_visit.id}/custom.pdf`)}
-                            target="_blank"
-                            rel="noreferrer"
-                            disabled={!templates?.pdf}
-                          >
-                            PDF (custom)
-                          </Button>
-                        </span>
-                      </Tooltip>
-                    </Stack>
-                  ) : (
-                    <Typography variant="caption" color="text.secondary">
-                      No visit yet
-                    </Typography>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-            {!isLoading && data?.rows.length === 0 && (
+      <ReportSection
+        number={6}
+        title="Per-tower reports"
+        useWhen="you want a one-off PDF or Word download for a single tower's latest visit only — not the official customer report in Section 1."
+      >
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={5} align="center">
-                  No towers yet — add one from the Towers page.
-                </TableCell>
+                <TableCell>Tower</TableCell>
+                <TableCell>Area</TableCell>
+                <TableCell>Latest visit</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell align="right">Report</TableCell>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {data?.rows.map((row) => (
+                <TableRow key={row.tower.id} hover>
+                  <TableCell sx={{ fontWeight: 700 }}>{row.tower.tower_id}</TableCell>
+                  <TableCell>{row.tower.area || '-'}</TableCell>
+                  <TableCell>{row.latest_visit?.inspection_date || '-'}</TableCell>
+                  <TableCell>
+                    <VisitStatusChip status={row.rollup?.visit_status} />
+                  </TableCell>
+                  <TableCell align="right">
+                    {row.latest_visit ? (
+                      <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+                        <Button
+                          size="small"
+                          startIcon={<PictureAsPdfIcon fontSize="small" />}
+                          component="a"
+                          href={mediaUrl(`/api/reports/visits/${row.latest_visit.id}.pdf`)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          PDF
+                        </Button>
+                        <Tooltip title={templates?.docx ? '' : 'Upload a Word template above first'}>
+                          <span>
+                            <Button
+                              size="small"
+                              startIcon={<DescriptionRoundedIcon fontSize="small" />}
+                              component="a"
+                              href={mediaUrl(`/api/reports/visits/${row.latest_visit.id}.docx`)}
+                              target="_blank"
+                              rel="noreferrer"
+                              disabled={!templates?.docx}
+                            >
+                              Word
+                            </Button>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title={templates?.pdf ? '' : 'Upload a PDF template above first'}>
+                          <span>
+                            <Button
+                              size="small"
+                              startIcon={<PictureAsPdfIcon fontSize="small" />}
+                              component="a"
+                              href={mediaUrl(`/api/reports/visits/${row.latest_visit.id}/custom.pdf`)}
+                              target="_blank"
+                              rel="noreferrer"
+                              disabled={!templates?.pdf}
+                            >
+                              PDF (custom)
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      </Stack>
+                    ) : (
+                      <Typography variant="caption" color="text.secondary">
+                        No visit yet
+                      </Typography>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {!isLoading && data?.rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} align="center">
+                    No towers yet — add one from the Towers page.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </ReportSection>
     </Stack>
   );
 }
