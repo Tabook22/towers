@@ -347,7 +347,11 @@ not covering the actual work dates, or step 2 (the visit's team link) — check 
   Tower.area field; in this app a "line" and an "area" are the same thing), or **Overall (final
   report)** — every line, every team, every tower together. This last one is almost always the
   report to hand the customer as the final project report. A team leader reaches the "By team"
-  version for just their own team via **Generate official report** on their own team page.
+  version for just their own team via **Generate official report** on their own team page. Below
+  the form, a **Report history** panel lists every report generated so far (report number, scope,
+  date range, when) with a one-click re-download — check there before generating again if unsure
+  whether something's already been sent, and note that redownloading never re-inserts a row or
+  re-triggers the report-number-uniqueness check, so it can be clicked as many times as needed.
 - **Section 2 — Team activity report** — not the customer template; an internal view of what each
   team has actually done, grouped team → day → tower → position, plus a filterable Excel download.
   This is the answer to "what did team X do so far".

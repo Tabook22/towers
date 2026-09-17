@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.database import Base
 from app.models import LineInspectionReport, Position, Team, Tower, User, Visit
-from app.routers.reports import oetc_line_report
+from app.routers.reports import oetc_line_report, redownload_oetc_line_report
 from app.schemas import LineInspectionReportRequest
 from app.services.oetc_report import build_oetc_line_report_context
 
@@ -215,3 +215,90 @@ def test_single_tower_context_names_the_tower_in_line_section_instead_of_the_mis
 
         context_whole_team = build_oetc_line_report_context(tpl, team, db.query(Visit).all(), payload)
         assert context_whole_team["line_section"] == "1 to 70"
+
+
+def test_redownload_reproduces_the_same_report_without_touching_the_uniqueness_check():
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, tower_b = _seed(db)
+        admin = User(username="admin", role="admin", hashed_password="x")
+        db.add(admin)
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            team_id=team.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="REDOWNLOAD-0001",
+            prepared_by="Ahmed",
+        )
+        oetc_line_report(payload=payload, db=db, user=admin)
+        record = db.query(LineInspectionReport).filter_by(report_number="REDOWNLOAD-0001").one()
+
+        # Calling redownload twice must not fail on "report number already used" — it never inserts
+        # a new row, just re-renders from the one that's already there.
+        response1 = redownload_oetc_line_report(report_id=record.id, db=db, user=admin)
+        response2 = redownload_oetc_line_report(report_id=record.id, db=db, user=admin)
+        assert response1.status_code == 200
+        assert response2.status_code == 200
+        assert response1.body and response2.body
+        assert db.query(LineInspectionReport).count() == 1  # still just the one row
+
+
+def test_redownload_is_blocked_for_a_team_leader_on_a_different_team():
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, tower_b = _seed(db)
+        other_team = Team(name="Bravo")
+        db.add(other_team)
+        db.commit()
+        admin = User(username="admin", role="admin", hashed_password="x")
+        leader = User(username="lead-bravo", role="team_leader", team_id=other_team.id, hashed_password="x")
+        db.add_all([admin, leader])
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            team_id=team.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="REDOWNLOAD-0002",
+        )
+        oetc_line_report(payload=payload, db=db, user=admin)
+        record = db.query(LineInspectionReport).filter_by(report_number="REDOWNLOAD-0002").one()
+
+        with pytest.raises(HTTPException) as exc:
+            redownload_oetc_line_report(report_id=record.id, db=db, user=leader)
+        assert exc.value.status_code == 403
+
+
+def test_grouped_reports_persist_the_sign_off_fields_for_later_redownload():
+    from app.routers.reports import _persist_blocks
+
+    class FakeBlock:
+        def __init__(self, team, visits, report_number):
+            self.team = team
+            self.visits = visits
+            self.report_number = report_number
+
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, tower_b = _seed(db)
+        admin = User(username="admin", role="admin", hashed_password="x")
+        db.add(admin)
+        db.commit()
+
+        visits = db.query(Visit).all()
+        block = FakeBlock(team, visits, "GROUPED-0001")
+        payload = LineInspectionReportRequest(
+            team_id=team.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="GROUPED-BASE",
+            overall_condition="Acceptable",
+            prepared_by="Ahmed",
+        )
+        _persist_blocks(db, [block], admin, payload)
+
+        record = db.query(LineInspectionReport).filter_by(report_number="GROUPED-0001").one()
+        assert record.overall_condition == "Acceptable"
+        assert record.prepared_by == "Ahmed"

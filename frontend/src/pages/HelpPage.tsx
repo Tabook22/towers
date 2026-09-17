@@ -113,6 +113,11 @@ export function HelpPage() {
             "By tower" only needs the tower — the team is worked out automatically, no need to know who it's assigned to.
           </Typography>
           <Typography component="li" variant="body2">
+            Section 1 now has a <strong>Report history</strong> panel — every report ever generated, with a
+            one-click re-download, so you can check what's already been sent to the customer without redoing the
+            form or risking a report number that's already taken.
+          </Typography>
+          <Typography component="li" variant="body2">
             If a report ever comes back "No visits found" or empty, Section 1 now has a "Getting 'No visits found'?
             Check this first" box right above the form — see also the "How to build the final report" walkthrough
             further down this page (For Admins → 7. Reports).
@@ -686,7 +691,10 @@ function AdminGuide() {
           <strong>Overall (final report)</strong> — every line, every team, every tower together. This
           last one is almost always what to hand the customer as the final project report. A team
           leader can also reach the "By team" version for just their own team from{' '}
-          <strong>Generate official report</strong> on their own team page.
+          <strong>Generate official report</strong> on their own team page. Below the form, a{' '}
+          <strong>Report history</strong> panel lists every report generated so far with a
+          one-click re-download — check there before generating again if you're not sure whether
+          something was already sent.
         </Step>
         <Step n={7} title="Team activity report (Reports page, Section 2).">
           Not the customer template — an internal view of what each team has actually done, grouped

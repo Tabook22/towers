@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import TextField from '@mui/material/TextField';
 import {
   useAreas,
@@ -25,6 +26,7 @@ import {
   useTeams,
   useTowers,
 } from '../api/hooks';
+import { ReportHistoryTable } from './ReportHistoryTable';
 
 type Mode = 'tower' | 'team' | 'line' | 'overall';
 
@@ -358,6 +360,22 @@ export function OfficialReportForm() {
           </Button>
         </Box>
       </Stack>
+
+      <Accordion variant="outlined" sx={{ mt: 3 }} disableGutters>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <HistoryRoundedIcon fontSize="small" color="action" />
+            <Typography variant="subtitle2">Report history — see what's already been generated</Typography>
+          </Stack>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Typography variant="body2" color="text.secondary">
+            Every report generated above, with a one-click re-download — no need to redo the form
+            or risk reusing a report number that's already taken.
+          </Typography>
+          <ReportHistoryTable />
+        </AccordionDetails>
+      </Accordion>
     </Box>
   );
 }

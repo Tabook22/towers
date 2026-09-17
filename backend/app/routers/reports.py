@@ -285,9 +285,12 @@ def oetc_line_report(
     )
 
 
-def _persist_blocks(db: Session, blocks, user: User) -> None:
+def _persist_blocks(db: Session, blocks, user: User, payload) -> None:
     """One LineInspectionReport row per team-section in a grouped report — same traceability the
-    single-team endpoint above gives, just one row per section instead of one for the whole file."""
+    single-team endpoint above gives, just one row per section instead of one for the whole file.
+    The sign-off/condition fields are shared across every section of one grouped report (there's
+    only one set of them on the request), so each row gets the same copy — needed so re-downloading
+    any one section later reproduces it exactly, not just with the team/dates/number right."""
     for b in blocks:
         dates = [v.inspection_date for v in b.visits if v.inspection_date]
         db.add(
@@ -296,6 +299,14 @@ def _persist_blocks(db: Session, blocks, user: User) -> None:
                 start_date=min(dates) if dates else dt.date.today(),
                 end_date=max(dates) if dates else dt.date.today(),
                 report_number=b.report_number,
+                overall_condition=payload.overall_condition,
+                probable_cause=payload.probable_cause,
+                corrective_action=payload.corrective_action,
+                additional_comments=payload.additional_comments,
+                prepared_by=payload.prepared_by,
+                reviewed_by=payload.reviewed_by,
+                approved_by=payload.approved_by,
+                approval_date=payload.approval_date,
                 created_by=user.id,
             )
         )
@@ -328,7 +339,7 @@ def oetc_area_report(
         )
 
     docx_bytes, blocks = render_area_report(db, payload)
-    _persist_blocks(db, blocks, user)
+    _persist_blocks(db, blocks, user, payload)
 
     safe_number = payload.report_number.replace("/", "-")
     return Response(
@@ -361,7 +372,7 @@ def oetc_consolidated_report(
         )
 
     docx_bytes, blocks = render_consolidated_report(db, payload)
-    _persist_blocks(db, blocks, user)
+    _persist_blocks(db, blocks, user, payload)
 
     safe_number = payload.report_number.replace("/", "-")
     return Response(
@@ -395,3 +406,69 @@ def oetc_line_report_history(
         item.tower_name = r.tower.tower_id if r.tower else None
         out.append(item)
     return out
+
+
+@router.get("/oetc-line-report/{report_id}/redownload")
+def redownload_oetc_line_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Re-renders a past report exactly as it was, from the LineInspectionReport row's own saved
+    scope/dates/sign-off — no new row is created (unlike the generate endpoints above), so this
+    never trips the report-number-uniqueness check and can be called as often as needed. For a row
+    that came from a grouped (area/consolidated) report, this reproduces just that one team's
+    section, in the same template, since that's the unit a LineInspectionReport row actually
+    represents — not the original combined multi-team file."""
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if user.role == UserRole.TEAM_MEMBER.value:
+        raise HTTPException(status_code=403, detail="Not available for team-member accounts")
+    if user.role == UserRole.TEAM_LEADER.value and user.team_id != record.team_id:
+        raise HTTPException(status_code=403, detail="You don't have access to this team")
+
+    team = db.get(Team, record.team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    tower = db.get(Tower, record.tower_id) if record.tower_id else None
+
+    visits_query = db.query(Visit).options(
+        joinedload(Visit.positions).joinedload(Position.images), joinedload(Visit.tower)
+    ).filter(
+        Visit.team_id == team.id,
+        Visit.inspection_date >= record.start_date,
+        Visit.inspection_date <= record.end_date,
+    )
+    if tower is not None:
+        visits_query = visits_query.filter(Visit.tower_id == tower.id)
+    visits = visits_query.all()
+    if not visits:
+        raise HTTPException(
+            status_code=400,
+            detail="No visits found for this report's original scope anymore — the underlying data may have changed since it was generated",
+        )
+
+    payload = LineInspectionReportRequest(
+        team_id=team.id,
+        tower_id=tower.id if tower else None,
+        start_date=record.start_date,
+        end_date=record.end_date,
+        report_number=record.report_number,
+        overall_condition=record.overall_condition,
+        probable_cause=record.probable_cause,
+        corrective_action=record.corrective_action,
+        additional_comments=record.additional_comments,
+        prepared_by=record.prepared_by,
+        reviewed_by=record.reviewed_by,
+        approved_by=record.approved_by,
+        approval_date=record.approval_date,
+    )
+    docx_bytes = render_oetc_line_report_docx(team, visits, payload, tower=tower)
+
+    safe_number = record.report_number.replace("/", "-")
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{safe_number}.docx"'},
+    )
