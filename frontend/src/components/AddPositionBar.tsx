@@ -49,7 +49,15 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd }
   }
 
   return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
+    <Paper
+      elevation={4}
+      sx={{
+        p: 2,
+        bgcolor: '#e8f5e9',
+        border: '1px solid',
+        borderColor: 'success.light',
+      }}
+    >
       <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Typography sx={{ fontWeight: 700 }}>Add position</Typography>
         <TextField
