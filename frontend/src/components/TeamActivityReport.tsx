@@ -25,9 +25,10 @@ import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import EventRoundedIcon from '@mui/icons-material/EventRounded';
 import BoltRoundedIcon from '@mui/icons-material/BoltRounded';
 import { useTeamActivityReport, useTeams } from '../api/hooks';
-import { API_BASE_URL } from '../api/client';
+import { API_BASE_URL, mediaUrl } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import type { TeamActivityPosition } from '../api/types';
+import { ImageLightbox } from './ImageLightbox';
+import type { TeamActivityImage, TeamActivityPosition } from '../api/types';
 
 const evidenceColor = (status: string): 'success' | 'warning' | 'default' | 'error' => {
   if (status === 'COMPLETE') return 'success';
@@ -36,7 +37,7 @@ const evidenceColor = (status: string): 'success' | 'warning' | 'default' | 'err
   return 'default';
 };
 
-function PositionRow({ pos }: { pos: TeamActivityPosition }) {
+function PositionRow({ pos, onImageClick }: { pos: TeamActivityPosition; onImageClick: (img: TeamActivityImage) => void }) {
   return (
     <TableRow>
       <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>
@@ -60,8 +61,10 @@ function PositionRow({ pos }: { pos: TeamActivityPosition }) {
               size="small"
               color={evidenceColor(img.evidence_status)}
               variant="outlined"
+              clickable
+              onClick={() => onImageClick(img)}
               label={`${img.image_code || img.image_type}${img.annotated ? ' ✓' : ''}`}
-              title={`${img.image_type} — captured ${img.capture_date || '?'}`}
+              title={`${img.image_type} — captured ${img.capture_date || '?'} — click to view`}
             />
           ))}
         </Stack>
@@ -82,6 +85,7 @@ export function TeamActivityReport() {
   const [teamId, setTeamId] = useState<string>('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [lightboxImage, setLightboxImage] = useState<TeamActivityImage | null>(null);
 
   const { data, isLoading, isError } = useTeamActivityReport({
     teamId: teamId ? Number(teamId) : undefined,
@@ -235,7 +239,7 @@ export function TeamActivityReport() {
                               </TableHead>
                               <TableBody>
                                 {tower.positions.map((pos) => (
-                                  <PositionRow key={pos.id} pos={pos} />
+                                  <PositionRow key={pos.id} pos={pos} onImageClick={setLightboxImage} />
                                 ))}
                               </TableBody>
                             </Table>
@@ -250,6 +254,16 @@ export function TeamActivityReport() {
           </Accordion>
         ))}
       </Stack>
+
+      {lightboxImage && (
+        <ImageLightbox
+          open
+          onClose={() => setLightboxImage(null)}
+          title={lightboxImage.image_code || lightboxImage.image_type}
+          subtitle={`${lightboxImage.image_type}${lightboxImage.capture_date ? ` — captured ${lightboxImage.capture_date}` : ''}`}
+          imageUrl={mediaUrl(`/api/images/${lightboxImage.id}/file`, lightboxImage.uploaded_at)}
+        />
+      )}
     </Box>
   );
 }
