@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Checkbox,
   Chip,
   IconButton,
@@ -15,7 +16,9 @@ import {
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpwardRounded';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownwardRounded';
 import CheckCircleIcon from '@mui/icons-material/CheckCircleRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import HourglassBottomIcon from '@mui/icons-material/HourglassBottomRounded';
+import MapRoundedIcon from '@mui/icons-material/MapRounded';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
 import { useOutingPlan, useSaveOutingPlan } from '../api/hooks';
 import type { TeamJobMapTower, Tower } from '../api/types';
@@ -145,10 +148,11 @@ export function OutingPlanCard({
   const title = name.trim() || plan?.name || "Tonight's mission";
 
   return (
-    <Card>
-      <CardContent>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>
-          <Box>
+    <Accordion defaultExpanded disableGutters>
+      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1, width: '100%', pr: 1 }}>
+          <MapRoundedIcon color="primary" />
+          <Box sx={{ flex: 1, minWidth: 200 }}>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               Mission plan
             </Typography>
@@ -167,7 +171,8 @@ export function OutingPlanCard({
             }
           />
         </Stack>
-
+      </AccordionSummary>
+      <AccordionDetails>
         {pool.length === 0 && (
           <Alert severity="info">
             {catalogTowers
@@ -345,7 +350,7 @@ export function OutingPlanCard({
             )}
           </>
         )}
-      </CardContent>
-    </Card>
+      </AccordionDetails>
+    </Accordion>
   );
 }

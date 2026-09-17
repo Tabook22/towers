@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
-  Card,
-  CardContent,
   Dialog,
   DialogActions,
   DialogContent,
@@ -25,6 +26,8 @@ import {
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import { useDeleteOutingPlan, useOutingPlans } from '../api/hooks';
 import type { OutingPlanSummary } from '../api/types';
 
@@ -92,9 +95,11 @@ export function MissionHistoryCard({
   };
 
   return (
-    <Card>
-      <CardContent>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
+    <>
+    <Accordion defaultExpanded disableGutters>
+      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+          <HistoryRoundedIcon color="primary" />
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               Mission history
@@ -103,7 +108,11 @@ export function MissionHistoryCard({
               Every mission this team has planned. Pick one below to review or edit, or add a new one.
             </Typography>
           </Box>
-          {canEdit && (
+        </Stack>
+      </AccordionSummary>
+      <AccordionDetails>
+        {canEdit && (
+          <Stack direction="row" sx={{ justifyContent: 'flex-end', mb: 1.5 }}>
             <Button
               size="small"
               variant="outlined"
@@ -115,8 +124,8 @@ export function MissionHistoryCard({
             >
               Add mission
             </Button>
-          )}
-        </Stack>
+          </Stack>
+        )}
         {isLoading && <LinearProgress sx={{ mb: 1 }} />}
         <TableContainer sx={{ maxHeight: 320 }}>
           <Table size="small" stickyHeader>
@@ -190,7 +199,8 @@ export function MissionHistoryCard({
             </TableBody>
           </Table>
         </TableContainer>
-      </CardContent>
+      </AccordionDetails>
+    </Accordion>
 
       <Dialog open={addOpen} onClose={() => setAddOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Add a mission</DialogTitle>
@@ -256,6 +266,6 @@ export function MissionHistoryCard({
           </Button>
         </DialogActions>
       </Dialog>
-    </Card>
+    </>
   );
 }
