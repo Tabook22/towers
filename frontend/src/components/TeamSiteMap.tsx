@@ -6,11 +6,12 @@ import OpenInFullIcon from '@mui/icons-material/OpenInFullRounded';
 import CloseIcon from '@mui/icons-material/CloseRounded';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
 import MapIcon from '@mui/icons-material/MapRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import 'leaflet/dist/leaflet.css';
 import { TILE_LAYERS, type MapLayer } from './MapPicker';
 import { splitTrailSegments } from '../utils/gpsTrail';
 import type { LiveTeamMember, TeamJobMapTower, TrailPoint, UserTrail } from '../api/types';
-import { ASSIGNED_TOWER_COLOR, FREE_TOWER_COLOR, assignmentPinIcon, extractTowerNumber, numberedDotIcon, towerNumbersById } from './towerMapPins';
+import { FREE_TOWER_COLOR, assignmentPinIcon, colorForTeam, extractTowerNumber, numberedDotIcon, teamsPresent, towerNumbersById } from './towerMapPins';
 
 const TOWER_COLORS: Record<string, string> = {
   completed: '#2e7d32',
@@ -110,6 +111,7 @@ export function TeamSiteMap({
     longitude: number | null;
     assigned_team_id: number | null;
     assigned_team_name: string | null;
+    latest_visit_mission_status?: string | null;
   }[];
   onFreeTowerClick?: (towerId: number) => void;
   onCatalogTowerClick?: (tower: {
@@ -238,7 +240,15 @@ export function TeamSiteMap({
         {showCatalog || canClaim ? (
           <>
             <Chip size="small" label="Free" sx={{ bgcolor: FREE_TOWER_COLOR, color: '#fff' }} />
-            <Chip size="small" label="Assigned (team name on pin)" sx={{ bgcolor: ASSIGNED_TOWER_COLOR, color: '#fff' }} />
+            {teamsPresent(catalogPts).map((t) => (
+              <Chip key={t.id} size="small" label={t.name} sx={{ bgcolor: colorForTeam(t.id), color: '#fff' }} />
+            ))}
+            <Chip
+              size="small"
+              icon={<CheckRoundedIcon sx={{ color: '#fff !important', fontSize: 14 }} />}
+              label="Inspection completed"
+              sx={{ bgcolor: '#2e7d32', color: '#fff' }}
+            />
           </>
         ) : (
           <>
@@ -269,14 +279,17 @@ export function TeamSiteMap({
             {showCatalog
               ? catalogPts.map((t) => {
                   const free = t.assigned_team_id == null;
+                  const completed = t.latest_visit_mission_status === 'completed';
                   return (
                     <Marker
                       key={`cat-${t.id}`}
                       position={[t.latitude as number, t.longitude as number]}
                       icon={assignmentPinIcon({
                         towerId: t.tower_id,
+                        teamId: t.assigned_team_id,
                         teamName: t.assigned_team_name,
                         mapNumber: mapNumbers.get(t.id),
+                        completed,
                       })}
                       interactive
                       bubblingMouseEvents={false}
@@ -304,6 +317,12 @@ export function TeamSiteMap({
                         {free
                           ? 'Free — click to assign to this team'
                           : `Assigned to ${t.assigned_team_name || 'a team'} — click to unassign`}
+                        {completed && (
+                          <>
+                            <br />
+                            ✓ Inspection completed
+                          </>
+                        )}
                       </LeafletTooltip>
                     </Marker>
                   );
@@ -481,14 +500,17 @@ export function TeamSiteMap({
             {showCatalog
               ? catalogPts.map((t) => {
                   const free = t.assigned_team_id == null;
+                  const completed = t.latest_visit_mission_status === 'completed';
                   return (
                     <Marker
                       key={`p-cat-${t.id}`}
                       position={[t.latitude as number, t.longitude as number]}
                       icon={assignmentPinIcon({
                         towerId: t.tower_id,
+                        teamId: t.assigned_team_id,
                         teamName: t.assigned_team_name,
                         mapNumber: mapNumbers.get(t.id),
+                        completed,
                       })}
                       interactive
                       bubblingMouseEvents={false}
@@ -516,6 +538,12 @@ export function TeamSiteMap({
                         {free
                           ? 'Free — click to assign to this team'
                           : `Assigned to ${t.assigned_team_name || 'a team'} — click to unassign`}
+                        {completed && (
+                          <>
+                            <br />
+                            ✓ Inspection completed
+                          </>
+                        )}
                       </LeafletTooltip>
                     </Marker>
                   );

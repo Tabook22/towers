@@ -165,6 +165,10 @@ class TowerOut(TowerBase):
 
 class TowerWithStats(TowerOut):
     latest_visit_status: str | None = None
+    # The assignment lifecycle state (planned/in_progress/completed) of the latest visit — distinct
+    # from latest_visit_status above (which is the evidence/screening rollup) — used by the tower
+    # map pins to show a "fully inspected" check badge regardless of team color.
+    latest_visit_mission_status: str | None = None
     latest_visit_date: dt.date | None = None
     visit_count: int = 0
     open_hotspots: int = 0

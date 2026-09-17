@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapContainer, Marker, TileLayer, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Box, IconButton, Tooltip, Typography } from '@mui/material';
+import { Box, Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import OpenInFullIcon from '@mui/icons-material/OpenInFullRounded';
 import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreenRounded';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
 import MapIcon from '@mui/icons-material/MapRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import 'leaflet/dist/leaflet.css';
 import type { DashboardTowerRow } from '../api/types';
 import { useNavigate } from 'react-router-dom';
 import { TILE_LAYERS, type MapLayer } from './MapPicker';
-import { assignmentPinIcon, towerNumbersById } from './towerMapPins';
+import { assignmentPinIcon, colorForTeam, FREE_TOWER_COLOR, teamsPresent, towerNumbersById } from './towerMapPins';
+
+function isCompleted(row: DashboardTowerRow): boolean {
+  return row.latest_visit?.mission_status === 'completed' || row.tower.latest_visit_mission_status === 'completed';
+}
 
 function MapRefBridge({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
   const map = useMap();
@@ -88,8 +93,23 @@ export function TowersOverviewMap({
     );
   }
 
+  const legendTeams = teamsPresent(points.map((r) => r.tower));
+
   return (
-    <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)' }}>
+    <Box>
+      <Stack direction="row" spacing={0.75} sx={{ mb: 1, flexWrap: 'wrap' }}>
+        <Chip size="small" label="Free" sx={{ bgcolor: FREE_TOWER_COLOR, color: '#fff' }} />
+        {legendTeams.map((t) => (
+          <Chip key={t.id} size="small" label={t.name} sx={{ bgcolor: colorForTeam(t.id), color: '#fff' }} />
+        ))}
+        <Chip
+          size="small"
+          icon={<CheckRoundedIcon sx={{ color: '#fff !important', fontSize: 14 }} />}
+          label="Inspection completed"
+          sx={{ bgcolor: '#2e7d32', color: '#fff' }}
+        />
+      </Stack>
+      <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)' }}>
       {/* Plain div, not MUI Box — see MapPicker.tsx for why the resizable height can't live on
           MapContainer's own `style` prop (react-leaflet only applies it on first render). */}
       <div style={{ position: 'relative', height: currentHeight, width: '100%', transition: 'height 0.2s ease' }}>
@@ -103,14 +123,17 @@ export function TowersOverviewMap({
           <FitToPoints positions={points.map((row) => [row.tower.latitude as number, row.tower.longitude as number])} />
           {points.map((row) => {
             const free = row.tower.assigned_team_id == null;
+            const completed = isCompleted(row);
             return (
               <Marker
                 key={row.tower.id}
                 position={[row.tower.latitude as number, row.tower.longitude as number]}
                 icon={assignmentPinIcon({
                   towerId: row.tower.tower_id,
+                  teamId: row.tower.assigned_team_id,
                   teamName: row.tower.assigned_team_name,
                   mapNumber: mapNumbers.get(row.tower.id),
+                  completed,
                 })}
                 interactive
                 bubblingMouseEvents={false}
@@ -156,6 +179,12 @@ export function TowersOverviewMap({
                       {row.rollup.visit_status} · {row.rollup.hotspots} hotspot{row.rollup.hotspots === 1 ? '' : 's'}
                     </>
                   )}
+                  {completed && (
+                    <>
+                      <br />
+                      ✓ Inspection completed
+                    </>
+                  )}
                 </LeafletTooltip>
               </Marker>
             );
@@ -182,6 +211,7 @@ export function TowersOverviewMap({
           </Tooltip>
         </Box>
       </div>
+      </Box>
     </Box>
   );
 }

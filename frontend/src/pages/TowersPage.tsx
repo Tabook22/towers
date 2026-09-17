@@ -518,13 +518,14 @@ export function TowersPage() {
             {canEditCatalog
               ? 'Click a table row or double-click a pin to edit GPS and details. Single-click a pin to assign or unassign it.'
               : isTeamLeader
-                ? 'Green pin: assign to your team. Red pin on your tower: unassign it so another team can inspect it. You cannot edit or delete towers — that is admin only.'
+                ? 'Green pin: assign to your team. A colored pin on one of your towers: click to unassign it so another team can inspect it. You cannot edit or delete towers — that is admin only.'
                 : 'Registered towers with GPS. Catalog edits are admin only.'}
           </Typography>
           {(isTeamLeader || canEditCatalog) && (
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
               <Typography variant="caption" color="text.secondary">
-                Green = free. Red = assigned (team name on the pin). The number in the circle is the Tower ID number (Ashoor-Saada-2 → 2).
+                Each team has its own pin color (see the legend on the map below) and a ✓ marks a tower whose
+                inspection is complete. The number in the circle is the Tower ID number (Ashoor-Saada-2 → 2).
               </Typography>
               {canEditCatalog && (
                 <TextField

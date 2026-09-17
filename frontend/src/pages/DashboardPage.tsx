@@ -305,7 +305,8 @@ export function DashboardPage() {
                   )}
                   {canClaimTowers && (
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Green pin: assign to your team. Red pin: unassign so another team can take an unfinished tower.
+                      Green pin: free, click to assign to your team. Each team has its own pin color — click one of your
+                      team&apos;s towers to unassign it. A ✓ marks a tower whose inspection is complete.
                     </Typography>
                   )}
                   {claimError && (

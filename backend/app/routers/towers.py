@@ -96,6 +96,7 @@ def list_towers(
         if latest_visit:
             rollup = visit_rollup(latest_visit)
             stats.latest_visit_status = rollup["visit_status"]
+            stats.latest_visit_mission_status = latest_visit.mission_status
             stats.latest_visit_date = latest_visit.inspection_date
             stats.open_hotspots = rollup["hotspots"]
         rows.append(stats)

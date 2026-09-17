@@ -31,6 +31,10 @@ export interface Tower {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // Only present when this Tower came back from a towers-list endpoint (TowerWithStats) — the
+  // assignment lifecycle state (planned/in_progress/completed) of its latest visit, used by the
+  // map pins to show a "fully inspected" check badge. Absent elsewhere.
+  latest_visit_mission_status?: string | null;
 }
 
 export interface TowerWithStats extends Tower {
