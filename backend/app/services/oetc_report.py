@@ -26,15 +26,17 @@ import io
 from app.config import BASE_DIR
 from app.models import Position, Team, Tower, Visit
 from app.schemas import LineInspectionReportRequest
-from app.services.docx_reports import _inline_image, _pick_image
+from app.services.docx_reports import _inline_image
 from app.services.team_activity_report import _position_has_activity, _position_sort_key
 
 TEMPLATE_PATH = BASE_DIR / "app" / "templates" / "oetc_line_report.docx"
 
 
+def _find_image(pos: Position, image_type: str):
+    return next((i for i in pos.images if i.image_type == image_type and i.file_path), None)
+
+
 def _finding_context(tpl, seq: int, visit: Visit, pos: Position) -> dict:
-    visual = _pick_image(pos, "RGB Full", "RGB Close")
-    thermal = _pick_image(pos, "TH Full", "TH Close")
     return {
         "seq": seq,
         "tower_id": visit.tower.tower_id,
@@ -47,8 +49,13 @@ def _finding_context(tpl, seq: int, visit: Visit, pos: Position) -> dict:
         "tower_proximity": pos.tower_proximity,
         "manufacturer": pos.manufacturer,
         "year_installed": pos.year_installed,
-        "thermal_image": _inline_image(tpl, thermal),
-        "visual_image": _inline_image(tpl, visual),
+        # All 4 of the position's baseline evidence slots, shown independently rather than picking
+        # just one thermal + one visual — a report reviewer needs to see everything that was
+        # actually captured, not the app's own "prefer Full, fall back to Close" internal choice.
+        "thermal_full_image": _inline_image(tpl, _find_image(pos, "TH Full")),
+        "thermal_close_image": _inline_image(tpl, _find_image(pos, "TH Close")),
+        "visual_full_image": _inline_image(tpl, _find_image(pos, "RGB Full")),
+        "visual_close_image": _inline_image(tpl, _find_image(pos, "RGB Close")),
         "pollution_condition": pos.pollution_condition,
         "thermal_indication": pos.thermal_indication,
         "visual_indications": pos.visual_indications,

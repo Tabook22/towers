@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.database import Base
-from app.models import LineInspectionReport, Position, Team, Tower, User, Visit
+from app.models import Image, LineInspectionReport, Position, Team, Tower, User, Visit
 from app.routers.reports import oetc_line_report, redownload_oetc_line_report
 from app.schemas import LineInspectionReportRequest
 from app.services.oetc_report import build_oetc_line_report_context
@@ -212,6 +212,93 @@ def test_tower_id_alone_still_enforces_the_team_leader_boundary():
         with pytest.raises(HTTPException) as exc:
             oetc_line_report(payload=payload, db=db, user=leader)
         assert exc.value.status_code == 403
+
+
+def test_checkbox_glyphs_match_their_checked_state_and_all_four_images_render(tmp_path, monkeypatch):
+    """Guards the exact bug a user hit: every checkbox's *visible* glyph (☒/☐) must track its
+    w14:checked value — the template used to leave the glyph a static, always-unchecked literal
+    even though w14:checked evaluated correctly, so the report always looked empty regardless of
+    the real data. Also checks all 4 evidence images (not just one thermal + one visual pick) make
+    it into the "Image (Thermal / Visual)" section."""
+    import io
+    import re
+    import zipfile
+
+    from PIL import Image as PILImage
+
+    from app import config as config_module
+
+    monkeypatch.setattr(config_module.settings, "images_dir", tmp_path)
+
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, _tower_b = _seed(db)
+        pos = db.query(Position).join(Visit).filter(Visit.tower_id == tower_a.id).first()
+        pos.ohl = "OHL2"
+        pos.phase = "Y"
+        pos.mount_type = "Tension"
+        pos.gs_side = "Tower side"
+        pos.insulator_type = "Porcelain"
+        pos.string_count = "Double"
+        pos.tower_proximity = "Inner"
+        pos.pollution_condition = "Heavy"
+        pos.thermal_indication = "Dry band"
+
+        for name, color in [
+            ("th_full.jpg", (200, 50, 50)),
+            ("th_close.jpg", (50, 200, 50)),
+            ("rgb_full.jpg", (50, 50, 200)),
+            ("rgb_close.jpg", (200, 200, 50)),
+        ]:
+            (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+            PILImage.new("RGB", (40, 30), color=color).save(tmp_path / name, format="JPEG")
+        db.add_all(
+            [
+                Image(position_id=pos.id, image_type="TH Full", file_path="th_full.jpg"),
+                Image(position_id=pos.id, image_type="TH Close", file_path="th_close.jpg"),
+                Image(position_id=pos.id, image_type="RGB Full", file_path="rgb_full.jpg"),
+                Image(position_id=pos.id, image_type="RGB Close", file_path="rgb_close.jpg"),
+            ]
+        )
+        db.commit()
+
+        admin = User(username="admin", role="admin", hashed_password="x")
+        db.add(admin)
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            tower_id=tower_a.id,
+            team_id=team.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="TEST-0010",
+        )
+        response = oetc_line_report(payload=payload, db=db, user=admin)
+
+    with zipfile.ZipFile(io.BytesIO(response.body)) as z:
+        xml = z.read("word/document.xml").decode("utf-8")
+        media_names = [n for n in z.namelist() if n.startswith("word/media/")]
+
+    # Every checkbox's visible glyph must agree with its own w14:checked value — nowhere in the
+    # document, not just the fields this test happens to set.
+    checked_pos = 0
+    while True:
+        start = xml.find("<w:sdt>", checked_pos)
+        if start == -1:
+            break
+        end = xml.find("</w:sdt>", start) + len("</w:sdt>")
+        block = xml[start:end]
+        checked_m = re.search(r'w14:checked w14:val="(\d)"', block)
+        glyph_m = re.search(r"<w:t[^>]*>(.)</w:t>", block)
+        assert checked_m and glyph_m, f"malformed checkbox block: {block[:200]}"
+        expected_glyph = "☒" if checked_m.group(1) == "1" else "☐"
+        assert glyph_m.group(1) == expected_glyph, f"glyph/checked mismatch: {block[:300]}"
+        checked_pos = end
+
+    # All four evidence slots actually made it in, as four distinct embedded pictures.
+    assert "Thermal (Full)" in xml and "Thermal (Close)" in xml
+    assert "Visual (Full)" in xml and "Visual (Close)" in xml
+    assert len(media_names) >= 4
 
 
 def test_neither_team_nor_tower_is_rejected_by_the_schema():
