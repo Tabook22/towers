@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, Button, Chip, Dialog, Divider, Grid, Stack, Typography } from '@mui/material';
-import CellTowerRoundedIcon from '@mui/icons-material/CellTowerRounded';
+import { Box, Button, Chip, Dialog, Grid, Stack, Typography } from '@mui/material';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import LocalFireDepartmentRoundedIcon from '@mui/icons-material/LocalFireDepartmentRounded';
 import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded';
@@ -12,9 +11,11 @@ import { mediaUrl } from '../api/client';
 // AuthContext's logout, so the next person to use this device/tab sees it again too.
 const SESSION_KEY = 'iip_splash_shown';
 
-/** A one-time welcome screen for admins and team leaders when they open the app — the two company
- * logos, a quick "what's happened lately" snapshot, and a way in. Team members go straight to their
- * own missions instead (see Layout's isCrew split elsewhere) — this is deliberately not for them. */
+/** A one-time welcome screen for admins and team leaders when they open the app — the OETC lockup
+ * (logo + company name + Nama Group line) up front, the Sky Green Line logo as a small badge on the
+ * dialog's corner, a quick "what's happened lately" snapshot, and a way in. Team members go straight
+ * to their own missions instead (see Layout's isCrew split elsewhere) — this is deliberately not for
+ * them. */
 export function SplashScreen() {
   const { user } = useAuth();
   const eligible = user?.role === 'admin' || user?.role === 'team_leader';
@@ -51,7 +52,13 @@ export function SplashScreen() {
     .slice(0, 5);
 
   return (
-    <Dialog open={open} onClose={dismiss} maxWidth="sm" fullWidth>
+    <Dialog
+      open={open}
+      onClose={dismiss}
+      maxWidth="sm"
+      fullWidth
+      slotProps={{ paper: { sx: { position: 'relative', overflow: 'visible' } } }}
+    >
       {heroImageSrc && (
         <Box
           component="img"
@@ -67,11 +74,35 @@ export function SplashScreen() {
           }}
         />
       )}
+      <Box
+        component="img"
+        src={skyGreenLogoSrc}
+        alt="Sky Green Line"
+        sx={{
+          position: 'absolute',
+          bottom: -14,
+          right: -14,
+          width: 72,
+          height: 72,
+          objectFit: 'contain',
+          bgcolor: '#fff',
+          borderRadius: 2,
+          boxShadow: 3,
+          p: 0.75,
+        }}
+      />
       <Box sx={{ p: { xs: 2.5, sm: 4 } }}>
-        <Stack direction="row" spacing={3} sx={{ alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-          <Box component="img" src={oetcLogoSrc} alt="Oman Electricity Transmission Company" sx={{ height: 56, objectFit: 'contain' }} />
-          <Divider orientation="vertical" flexItem />
-          <Box component="img" src={skyGreenLogoSrc} alt="Sky Green Line" sx={{ height: 56, objectFit: 'contain' }} />
+        <Stack spacing={0.5} sx={{ alignItems: 'center', textAlign: 'center', mb: 2 }}>
+          <Box component="img" src={oetcLogoSrc} alt="Oman Electricity Transmission Company" sx={{ height: 110, objectFit: 'contain' }} />
+          <Typography variant="h6" sx={{ fontWeight: 800, color: '#1a7a4c', mt: 1 }}>
+            Oman Electricity Transmission Company S.A.O.C
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 700, color: '#c1272d' }} dir="rtl">
+            إحدى شركات مجموعة نماء
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 700, color: '#c1272d' }}>
+            Member of Nama Group
+          </Typography>
         </Stack>
 
         {branding?.app_title && (
@@ -85,21 +116,6 @@ export function SplashScreen() {
         )}
 
         <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center', mb: 3 }}>
-          <Box
-            sx={{
-              width: 84,
-              height: 84,
-              borderRadius: '50%',
-              bgcolor: 'primary.main',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              mb: 0.5,
-            }}
-          >
-            <CellTowerRoundedIcon sx={{ fontSize: 46 }} />
-          </Box>
           <Typography variant="h5" sx={{ fontWeight: 800 }}>
             {branding?.splash_header || `Welcome back, ${user?.full_name || user?.username}`}
           </Typography>
