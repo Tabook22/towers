@@ -300,6 +300,17 @@ def test_checkbox_glyphs_match_their_checked_state_and_all_four_images_render(tm
     assert "Visual (Full)" in xml and "Visual (Close)" in xml
     assert len(media_names) >= 4
 
+    # Laid out as a real 2x2 table (Thermal row, then Visual row; Full column, then Close column)
+    # rather than the 4 slots just stacked one under another in a single wide cell.
+    thermal_full_idx = xml.find("Thermal (Full)")
+    thermal_close_idx = xml.find("Thermal (Close)")
+    visual_full_idx = xml.find("Visual (Full)")
+    visual_close_idx = xml.find("Visual (Close)")
+    assert thermal_full_idx < thermal_close_idx < visual_full_idx < visual_close_idx
+    # Each of the 4 image cells spans half the row (gridSpan=2 of the section's 4 grid columns),
+    # not the whole width — i.e. two cells side by side per row, not one wide cell per image.
+    assert xml.count('<w:gridSpan w:val="2"/>') >= 4
+
 
 def test_neither_team_nor_tower_is_rejected_by_the_schema():
     with pytest.raises(Exception):
