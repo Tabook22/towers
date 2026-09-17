@@ -16,10 +16,12 @@ from app.schemas import (
     LineInspectionReportRequest,
     OetcAreaReportRequest,
     OetcConsolidatedReportRequest,
+    OetcReportPreview,
 )
 from app.services.docx_reports import render_visit_report_docx
 from app.services.field_execution_plan import render_field_execution_plan_docx
 from app.services.oetc_grouped_report import (
+    _visits_for_area,
     plan_area_report,
     plan_consolidated_report,
     plan_report_numbers,
@@ -31,6 +33,7 @@ from app.services.pdf_form_reports import render_visit_report_pdf_form
 from app.services.reports import build_overall_report, build_visit_report
 from app.services.rollup import visit_rollup
 from app.services.team_activity_report import (
+    _position_has_activity,
     build_team_activity_tree,
     build_team_activity_workbook,
     query_team_activity_visits,
@@ -202,6 +205,77 @@ def field_execution_plan_report(
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="field-execution-plan-{stamp}.docx"'},
+    )
+
+
+@router.get("/oetc-preview", response_model=OetcReportPreview)
+def oetc_report_preview(
+    start_date: dt.date,
+    end_date: dt.date,
+    team_id: int | None = None,
+    tower_id: int | None = None,
+    area: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """A live "what will this include" check for the official report form — same scope params as
+    the generate endpoints below (tower_id alone resolves its team the same way; area covers every
+    team on that line; neither given means the whole project, matching the consolidated report's
+    own scope), but read-only and no rendering, so the admin sees real numbers the moment a scope
+    and date range are picked instead of only after clicking Generate. Counts positions the exact
+    same way the real report does (_position_has_activity) so these numbers never drift from what
+    generating actually produces."""
+    if user.role == UserRole.TEAM_MEMBER.value:
+        raise HTTPException(status_code=403, detail="Not available for team-member accounts")
+
+    visits: list[Visit] = []
+    if area:
+        visits = _visits_for_area(db, area, start_date, end_date)
+    elif tower_id is not None or team_id is not None:
+        tower = db.get(Tower, tower_id) if tower_id is not None else None
+        resolved_team_id = team_id
+        if resolved_team_id is None and tower is not None:
+            resolved_team_id = tower.assigned_team_id
+        if resolved_team_id is not None:
+            q = db.query(Visit).options(
+                joinedload(Visit.positions).joinedload(Position.images)
+            ).filter(
+                Visit.team_id == resolved_team_id,
+                Visit.inspection_date.isnot(None),
+                Visit.inspection_date >= start_date,
+                Visit.inspection_date <= end_date,
+            )
+            if tower is not None:
+                q = q.filter(Visit.tower_id == tower.id)
+            visits = q.all()
+    else:
+        for a in db.query(Area).order_by(Area.name).all():
+            visits.extend(_visits_for_area(db, a.name, start_date, end_date))
+
+    if user.role == UserRole.TEAM_LEADER.value:
+        visits = [v for v in visits if v.team_id == user.team_id]
+
+    team_ids = {v.team_id for v in visits if v.team_id is not None}
+    tower_ids = {v.tower_id for v in visits}
+    position_count = 0
+    hotspot_count = 0
+    for v in visits:
+        for pos in v.positions:
+            if not _position_has_activity(pos):
+                continue
+            position_count += 1
+            if pos.hotspot == "Yes":
+                hotspot_count += 1
+
+    ok = len(visits) > 0
+    return OetcReportPreview(
+        ok=ok,
+        team_count=len(team_ids),
+        tower_count=len(tower_ids),
+        visit_count=len(visits),
+        position_count=position_count,
+        hotspot_count=hotspot_count,
+        message=None if ok else "No visits found for this scope in that date range",
     )
 
 

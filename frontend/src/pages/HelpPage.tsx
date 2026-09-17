@@ -118,6 +118,12 @@ export function HelpPage() {
             form or risking a report number that's already taken.
           </Typography>
           <Typography component="li" variant="body2">
+            As soon as you pick a scope and both dates, Section 1 now shows{' '}
+            <strong>"This will include: N towers, N teams, N insulator findings, N hotspots"</strong> — before
+            you've filled in the report number or sign-off fields, so you know right away whether there's real
+            data behind it instead of finding out after clicking Generate.
+          </Typography>
+          <Typography component="li" variant="body2">
             If a report ever comes back "No visits found" or empty, Section 1 now has a "Getting 'No visits found'?
             Check this first" box right above the form — see also the "How to build the final report" walkthrough
             further down this page (For Admins → 7. Reports).
@@ -677,9 +683,12 @@ function AdminGuide() {
         </Step>
         <Step n={5} title="Generate it: Reports → Section 1 → Official report for the customer.">
           Pick <strong>By tower</strong>, <strong>By team</strong>, <strong>By line</strong>, or{' '}
-          <strong>Overall</strong>, set a date range that actually covers when the work was recorded,
-          fill in the report number, and click Generate. If it still comes back with "No visits
-          found", re-check steps 1–2 first — that's the cause almost every time.
+          <strong>Overall</strong>, then set a date range — the moment both dates are in, a{' '}
+          <strong>"This will include: N towers, N teams, N insulator findings, N hotspots"</strong>{' '}
+          summary appears, so you already know whether there's real data before filling in the
+          report number or sign-off fields. Fill those in and click Generate. If it still comes
+          back with "No visits found", re-check steps 1–2 first — that's the cause almost every
+          time.
         </Step>
 
         <Step n={6} title="Official report for the customer (Reports page, Section 1) — the details.">

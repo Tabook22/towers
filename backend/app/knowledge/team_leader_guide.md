@@ -333,8 +333,10 @@ almost every case is steps 1–2:
 4. **Save** — this happens automatically as the crew works; nothing extra needed. GPS tracking is
    also automatic in the background whenever their app is open with location on.
 5. **Generate it**: Reports → Section 1 → Official report for the customer → pick By tower / By
-   team / By line / Overall → set a date range that actually covers when the work was recorded →
-   Generate.
+   team / By line / Overall → set a date range. The moment both dates are in, a live preview
+   appears ("This will include: N towers, N teams, N insulator findings, N hotspots") — check that
+   before filling in the report number and sign-off fields, since it already tells you whether
+   there's real data behind this scope/date range. Then fill those in and Generate.
 
 If a report still comes back "No visits found" after all of that, it's almost always the date range
 not covering the actual work dates, or step 2 (the visit's team link) — check those two first.
@@ -352,6 +354,11 @@ not covering the actual work dates, or step 2 (the visit's team link) — check 
   date range, when) with a one-click re-download — check there before generating again if unsure
   whether something's already been sent, and note that redownloading never re-inserts a row or
   re-triggers the report-number-uniqueness check, so it can be clicked as many times as needed.
+  A live preview also appears the moment a scope and both dates are picked — "This will include:
+  N towers, N teams, N insulator findings, N hotspots" (or a clear "no visits found" warning) —
+  before the report number or sign-off fields are even filled in, using the exact same
+  "counts as a finding" rule the real report does, so the numbers never drift from what generating
+  actually produces.
 - **Section 2 — Team activity report** — not the customer template; an internal view of what each
   team has actually done, grouped team → day → tower → position, plus a filterable Excel download.
   This is the answer to "what did team X do so far".

@@ -268,6 +268,17 @@ export interface LineInspectionReportOut {
   created_at: string;
 }
 
+// Live "what will this include" summary for the report form — see useOetcReportPreview.
+export interface OetcReportPreview {
+  ok: boolean;
+  team_count: number;
+  tower_count: number;
+  visit_count: number;
+  position_count: number;
+  hotspot_count: number;
+  message: string | null;
+}
+
 export interface LoginResponse {
   access_token: string;
   token_type: string;

@@ -13,9 +13,14 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
+import CellTowerRoundedIcon from '@mui/icons-material/CellTowerRounded';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
+import LocalFireDepartmentRoundedIcon from '@mui/icons-material/LocalFireDepartmentRounded';
+import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
+import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
 import {
   useAreas,
@@ -23,6 +28,7 @@ import {
   useGenerateOetcAreaReport,
   useGenerateOetcConsolidatedReport,
   useGenerateOetcReport,
+  useOetcReportPreview,
   useTeams,
   useTowers,
 } from '../api/hooks';
@@ -76,14 +82,22 @@ export function OfficialReportForm() {
   const selectedTowerOption = towerOptions.find((t) => t.id === towerId) || null;
 
   const generating = generateTeam.isPending || generateArea.isPending || generateConsolidated.isPending;
-  const requiredFilled =
-    reportNumber.trim() &&
-    startDate &&
-    endDate &&
-    (mode === 'overall' ||
-      (mode === 'team' && teamId) ||
-      (mode === 'tower' && towerId) ||
-      (mode === 'line' && area));
+  const scopeChosen =
+    mode === 'overall' || (mode === 'team' && !!teamId) || (mode === 'tower' && !!towerId) || (mode === 'line' && !!area);
+  const requiredFilled = reportNumber.trim() && startDate && endDate && scopeChosen;
+
+  // Live "what will this include" check — fires the moment a scope and both dates are picked, well
+  // before the report number/sign-off fields are filled in, so the "no visits found" surprise (the
+  // single biggest source of confusion with this form) shows up immediately instead of only after
+  // clicking Generate.
+  const preview = useOetcReportPreview({
+    team_id: mode === 'team' ? Number(teamId) : undefined,
+    tower_id: mode === 'tower' && towerId ? towerId : undefined,
+    area: mode === 'line' ? area : undefined,
+    start_date: startDate || undefined,
+    end_date: endDate || undefined,
+    enabled: Boolean(scopeChosen && startDate && endDate),
+  });
 
   const handleModeChange = (next: Mode | null) => {
     if (!next) return;
@@ -296,6 +310,58 @@ export function OfficialReportForm() {
             onChange={(e) => setEndDate(e.target.value)}
           />
         </Stack>
+
+        {scopeChosen && startDate && endDate && (
+          <Box>
+            {preview.isLoading ? (
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', color: 'text.secondary' }}>
+                <CircularProgress size={16} />
+                <Typography variant="body2">Checking what this will include…</Typography>
+              </Stack>
+            ) : preview.data && !preview.data.ok ? (
+              <Alert severity="warning">
+                {preview.data.message} — check the "Getting 'No visits found'?" box above before
+                generating.
+              </Alert>
+            ) : preview.data ? (
+              <Alert
+                severity="success"
+                icon={<VisibilityRoundedIcon fontSize="inherit" />}
+                sx={{ '& .MuiAlert-message': { width: '100%' } }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                  This will include:
+                </Typography>
+                <Stack direction="row" spacing={2.5} sx={{ flexWrap: 'wrap', rowGap: 0.5 }}>
+                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+                    <CellTowerRoundedIcon fontSize="small" />
+                    <Typography variant="body2">
+                      {preview.data.tower_count} tower{preview.data.tower_count === 1 ? '' : 's'}
+                    </Typography>
+                  </Stack>
+                  {mode !== 'tower' && (
+                    <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+                      <GroupsRoundedIcon fontSize="small" />
+                      <Typography variant="body2">
+                        {preview.data.team_count} team{preview.data.team_count === 1 ? '' : 's'}
+                      </Typography>
+                    </Stack>
+                  )}
+                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+                    <DescriptionRoundedIcon fontSize="small" />
+                    <Typography variant="body2">{preview.data.position_count} insulator findings</Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+                    <LocalFireDepartmentRoundedIcon fontSize="small" color={preview.data.hotspot_count > 0 ? 'error' : 'inherit'} />
+                    <Typography variant="body2">
+                      {preview.data.hotspot_count} hotspot{preview.data.hotspot_count === 1 ? '' : 's'}
+                    </Typography>
+                  </Stack>
+                </Stack>
+              </Alert>
+            ) : null}
+          </Box>
+        )}
 
         <TextField
           select

@@ -21,6 +21,7 @@ import type {
   TrackingMission,
   OetcAreaReportRequest,
   OetcConsolidatedReportRequest,
+  OetcReportPreview,
   Position,
   ReportTemplate,
   ReportTemplatesActive,
@@ -850,6 +851,25 @@ export function useOetcReportHistory(teamId?: number) {
     queryKey: ['oetc-report-history', teamId],
     queryFn: async () =>
       (await apiClient.get<LineInspectionReportOut[]>('/api/reports/oetc-line-report/history', { params: { team_id: teamId } })).data,
+  });
+}
+
+// Live "what will this include" check for the report form — same scope params the generate
+// endpoints take, but read-only and cheap (no rendering). `enabled` gates it on having picked
+// enough of a scope plus both dates, so it doesn't fire on every keystroke of an empty form.
+export function useOetcReportPreview(params: {
+  team_id?: number;
+  tower_id?: number;
+  area?: string;
+  start_date?: string;
+  end_date?: string;
+  enabled: boolean;
+}) {
+  const { enabled, ...query } = params;
+  return useQuery({
+    queryKey: ['oetc-report-preview', query],
+    queryFn: async () => (await apiClient.get<OetcReportPreview>('/api/reports/oetc-preview', { params: query })).data,
+    enabled,
   });
 }
 

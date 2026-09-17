@@ -1267,6 +1267,21 @@ class LineInspectionReportOut(BaseModel):
     created_at: dt.datetime
 
 
+class OetcReportPreview(BaseModel):
+    """A cheap, read-only summary of what an official report would include for a given scope/date
+    range — no rendering, nothing persisted. Lets the report form show "this will include: 3
+    towers, 14 positions, 2 hotspots" the moment a scope and date range are picked, before the
+    admin has filled in the rest of the form (report number, sign-off, etc.)."""
+
+    ok: bool
+    team_count: int
+    tower_count: int
+    visit_count: int
+    position_count: int
+    hotspot_count: int
+    message: str | None = None
+
+
 class TeamArchiveImageOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
