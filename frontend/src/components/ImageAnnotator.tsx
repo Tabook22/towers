@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  Slider,
   Stack,
   ToggleButton,
   ToggleButtonGroup,
@@ -28,7 +29,17 @@ import RestartAltIcon from '@mui/icons-material/RestartAltRounded';
 import SaveIcon from '@mui/icons-material/SaveRounded';
 import ZoomInIcon from '@mui/icons-material/ZoomInRounded';
 import ZoomOutIcon from '@mui/icons-material/ZoomOutRounded';
+import TuneIcon from '@mui/icons-material/TuneRounded';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHighRounded';
 import { ResizableDialogPaper } from './ResizableDialogPaper';
+
+const ENHANCE_MIN = 50;
+const ENHANCE_MAX = 200;
+const ENHANCE_DEFAULT = 100;
+
+function clamp(v: number, lo: number, hi: number) {
+  return Math.min(hi, Math.max(lo, v));
+}
 
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 5;
@@ -309,6 +320,20 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
   const handleZoomIn = () => setZoom((z) => Math.min(ZOOM_MAX, Math.round((z + ZOOM_STEP) * 100) / 100));
   const handleZoomOut = () => setZoom((z) => Math.max(ZOOM_MIN, Math.round((z - ZOOM_STEP) * 100) / 100));
 
+  // Brightness/contrast/saturation, as the same percentages the CSS/canvas filter functions take
+  // (100 = unchanged) — applied in drawBase() via ctx.filter, so they're baked into the exported
+  // image exactly like the drawn shapes are, and reset alongside them (open, Start over) below.
+  const [showEnhance, setShowEnhance] = useState(false);
+  const [brightness, setBrightness] = useState(ENHANCE_DEFAULT);
+  const [contrast, setContrast] = useState(ENHANCE_DEFAULT);
+  const [saturation, setSaturation] = useState(ENHANCE_DEFAULT);
+  const enhanceIsDefault = brightness === ENHANCE_DEFAULT && contrast === ENHANCE_DEFAULT && saturation === ENHANCE_DEFAULT;
+  const resetEnhance = () => {
+    setBrightness(ENHANCE_DEFAULT);
+    setContrast(ENHANCE_DEFAULT);
+    setSaturation(ENHANCE_DEFAULT);
+  };
+
   // Reset to the given base image whenever the dialog opens (or the caller hands us a new one).
   useEffect(() => {
     if (open) {
@@ -316,6 +341,8 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
       setShapes([]);
       setSelectedId(null);
       setZoom(1);
+      resetEnhance();
+      setShowEnhance(false);
       if (scrollBoxRef.current) {
         scrollBoxRef.current.scrollLeft = 0;
         scrollBoxRef.current.scrollTop = 0;
@@ -438,7 +465,12 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
   // selection UI into the exported file).
   const drawBase = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // The brightness/contrast/saturation adjustment applies only to the photo itself — reset to
+    // 'none' before the marks are stroked so a heavy contrast boost, say, doesn't also wash out or
+    // exaggerate the ink colors an inspector picked.
+    ctx.filter = enhanceIsDefault ? 'none' : `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
     ctx.drawImage(img!, 0, 0);
+    ctx.filter = 'none';
     for (const s of shapes) strokeShape(ctx, s);
   };
 
@@ -751,6 +783,56 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
     if (originalUrl) setBaseUrl(originalUrl);
     setShapes([]);
     setSelectedId(null);
+    resetEnhance();
+  };
+
+  // Auto levels: stretches the darkest/lightest 1% of pixels (by luminance) out to pure black/
+  // white, the same "auto contrast" idea most photo editors offer — computed from the ORIGINAL,
+  // unfiltered image (never the already-adjusted canvas), so hitting it twice in a row is a no-op
+  // rather than compounding. Expressed as brightness/contrast slider values (not applied directly
+  // to pixels) so it lands in the exact same adjustable, undoable control the sliders already are.
+  // Saturation is left alone — thermal palettes are already a deliberate false-color mapping, and
+  // boosting it blindly would distort how the temperature scale reads, not just how vivid it looks.
+  const handleAutoEnhance = () => {
+    if (!img) return;
+    const off = document.createElement('canvas');
+    off.width = img.naturalWidth;
+    off.height = img.naturalHeight;
+    const octx = off.getContext('2d', { willReadFrequently: true });
+    if (!octx) return;
+    octx.drawImage(img, 0, 0);
+    const { data } = octx.getImageData(0, 0, off.width, off.height);
+
+    const hist = new Array(256).fill(0);
+    for (let i = 0; i < data.length; i += 4) {
+      const lum = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+      hist[lum]++;
+    }
+    const totalPixels = off.width * off.height;
+    const clipCount = totalPixels * 0.01; // ignore the darkest/lightest 1% as outliers
+
+    let lo = 0;
+    let acc = 0;
+    while (lo < 255 && acc < clipCount) acc += hist[lo++];
+    let hi = 255;
+    acc = 0;
+    while (hi > 0 && acc < clipCount) acc += hist[hi--];
+
+    if (hi <= lo) {
+      resetEnhance();
+      return;
+    }
+
+    // Solve for the brightness(B)/contrast(C) pair whose composition — CSS applies brightness
+    // first, then contrast — reproduces the linear stretch f(v) = (v - lo) * k, k = 255/(hi-lo).
+    const k = 255 / (hi - lo);
+    const midpoint = 127.5;
+    const newContrast = 1 + (lo * k) / midpoint;
+    const newBrightness = k / newContrast;
+
+    setBrightness(Math.round(clamp(newBrightness * 100, ENHANCE_MIN, ENHANCE_MAX)));
+    setContrast(Math.round(clamp(newContrast * 100, ENHANCE_MIN, ENHANCE_MAX)));
+    setShowEnhance(true);
   };
 
   const handleToolChange = (v: Tool | null) => {
@@ -950,6 +1032,18 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
               </Tooltip>
             </Stack>
 
+            <Tooltip title="Brightness / contrast / saturation">
+              <ToggleButton
+                size="small"
+                value="enhance"
+                selected={showEnhance}
+                onChange={() => setShowEnhance((v) => !v)}
+                color={enhanceIsDefault ? 'standard' : 'primary'}
+              >
+                <TuneIcon fontSize="small" />
+              </ToggleButton>
+            </Tooltip>
+
             <Box sx={{ flexGrow: 1 }} />
 
             {selectedId && (
@@ -981,6 +1075,30 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
               </Tooltip>
             )}
           </Stack>
+
+          {showEnhance && (
+            <Stack
+              direction="row"
+              spacing={2.5}
+              sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1, px: 1.5, py: 1, borderRadius: 1.5, bgcolor: 'action.hover' }}
+            >
+              <EnhanceSlider label="Brightness" value={brightness} onChange={setBrightness} />
+              <EnhanceSlider label="Contrast" value={contrast} onChange={setContrast} />
+              <EnhanceSlider label="Saturation" value={saturation} onChange={setSaturation} />
+              <Tooltip title="Auto-stretch brightness/contrast from this photo's own histogram">
+                <Button size="small" startIcon={<AutoFixHighIcon fontSize="small" />} onClick={handleAutoEnhance}>
+                  Auto
+                </Button>
+              </Tooltip>
+              <Tooltip title="Back to the unadjusted photo (drawn marks are unaffected)">
+                <span>
+                  <Button size="small" startIcon={<RestartAltIcon fontSize="small" />} onClick={resetEnhance} disabled={enhanceIsDefault}>
+                    Reset
+                  </Button>
+                </span>
+              </Tooltip>
+            </Stack>
+          )}
 
           {loadError && <Alert severity="error">Couldn't load the image to annotate.</Alert>}
 
@@ -1075,8 +1193,10 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
             over, not the whole mark (text is deleted via Select + the delete button instead) — the size
             control also sets how big an area it erases, or a label's font size. Zoom only affects how you're
             viewing the photo here, not what gets saved — marks always export at the photo's full original
-            resolution regardless of zoom level. Saves as a separate marked-up copy; the original evidence
-            photo is never changed.
+            resolution regardless of zoom level. The tune icon opens brightness/contrast/saturation sliders
+            for a poorly-exposed shot — "Auto" stretches them from the photo's own histogram in one click,
+            and the ink colors are drawn after the adjustment so marks always look the same regardless of it.
+            Saves as a separate marked-up copy; the original evidence photo is never changed.
           </Typography>
         </Stack>
       </DialogContent>
@@ -1087,5 +1207,26 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+function EnhanceSlider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 190 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ width: 68, flexShrink: 0 }}>
+        {label}
+      </Typography>
+      <Slider
+        size="small"
+        min={ENHANCE_MIN}
+        max={ENHANCE_MAX}
+        value={value}
+        onChange={(_e, v) => onChange(v as number)}
+        sx={{ width: 100 }}
+      />
+      <Typography variant="caption" color="text.secondary" sx={{ width: 36, flexShrink: 0, textAlign: 'right' }}>
+        {value}%
+      </Typography>
+    </Stack>
   );
 }
