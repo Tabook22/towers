@@ -305,12 +305,12 @@ export function KnowledgeBasePage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.docx,.txt,.md"
+                  accept=".pdf,.docx,.txt,.md,image/*,video/*,audio/*"
                   hidden
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
                 <Button variant="outlined" onClick={() => fileInputRef.current?.click()}>
-                  {file ? file.name : 'Choose file (PDF, Word, .txt, .md)'}
+                  {file ? file.name : 'Choose file (PDF, Word, .txt, .md, image, video, or audio)'}
                 </Button>
               </>
             ) : (
@@ -374,6 +374,8 @@ export function KnowledgeBasePage() {
           contentType={previewDoc.content_type}
           extractedText={previewDoc.extracted_text}
           teamName={previewDoc.team_name}
+          hasVoice={previewDoc.has_voice}
+          voiceDurationSeconds={previewDoc.voice_duration_seconds}
         />
       )}
     </Box>

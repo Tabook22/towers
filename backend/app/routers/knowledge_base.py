@@ -29,6 +29,22 @@ _ALLOWED_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "text/plain",
     "text/markdown",
+    # Images/videos/audio can be the reference itself, not just something a report links out to —
+    # e.g. a site photo or a walkthrough clip with no accompanying write-up. No extracted_text
+    # comes out of these (services/knowledge_extract.py doesn't parse media), so they're only
+    # findable by title/description; the read-only viewer renders them directly rather than as text.
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/wav",
+    "audio/webm",
+    "audio/ogg",
 }
 
 # Same set routers/teams.py's voice-note upload accepts — whatever a browser's MediaRecorder

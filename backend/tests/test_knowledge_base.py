@@ -39,6 +39,10 @@ def _file(name="report.txt", content=b"we found a cracked insulator") -> UploadF
     return UploadFile(file=io.BytesIO(content), filename=name, headers=Headers({"content-type": "text/plain"}))
 
 
+def _media_file(name: str, content_type: str, content: bytes = b"fake-media-bytes") -> UploadFile:
+    return UploadFile(file=io.BytesIO(content), filename=name, headers=Headers({"content-type": content_type}))
+
+
 def _upload(
     db,
     user,
@@ -320,3 +324,18 @@ def test_view_inline_true_uses_inline_disposition_so_the_browser_renders_it(db):
     doc = _upload(db, admin, "x", file=_file())
     response = knowledge_base.download_document(doc.id, inline=True, db=db, user=admin)
     assert response.headers["content-disposition"].startswith("inline")
+
+
+def test_image_and_video_files_can_be_uploaded_as_documents_directly(db):
+    """A photo or a walkthrough clip can be the whole reference — not just something a report
+    links out to — so these need to be accepted as the primary file, not just rejected as an
+    unsupported type."""
+    admin = User(id=29, username="admin", role="admin", is_super_admin=True)
+    image_doc = _upload(db, admin, "Site photo", file=_media_file("crack.jpg", "image/jpeg"))
+    assert image_doc.content_type == "image/jpeg"
+
+    video_doc = _upload(db, admin, "Walkthrough clip", file=_media_file("walk.mp4", "video/mp4"))
+    assert video_doc.content_type == "video/mp4"
+
+    audio_doc = _upload(db, admin, "Briefing recording", file=_media_file("brief.mp3", "audio/mpeg"))
+    assert audio_doc.content_type == "audio/mpeg"
