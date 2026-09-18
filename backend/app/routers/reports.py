@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.database import get_db
 from app.deps import check_visit_team_access, get_current_user, require_permission
-from app.models import Area, LineInspectionReport, Position, ReportTemplate, Team, Tower, User, UserRole, Visit
+from app.models import Area, LineInspectionReport, Position, ReportTemplate, Team, Tower, User, UserRole, Visit, utcnow
 from app.schemas import (
     FieldExecutionPlanRequest,
     LineInspectionReportOut,
@@ -41,6 +43,23 @@ from app.services.team_activity_report import (
 from app.utils import natural_sort_key
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
+
+
+def _save_report_file(report_number: str, generated_at: dt.datetime, docx_bytes: bytes) -> str:
+    """Archives a generated report's actual bytes under settings.reports_dir (the "special folder"
+    every report also needs to land in, alongside its LineInspectionReport row) so a later download
+    serves back the exact file that was produced — never a live regeneration that can drift or
+    fail if the underlying Position/Visit data changes afterward. Filed under year/month so the
+    folder itself stays browsable the same way the Reports Library sorts (see
+    oetc_line_report_history) — returns a path relative to reports_dir, stored on the row."""
+    safe_number = re.sub(r"[^A-Za-z0-9._-]+", "-", report_number).strip("-") or "report"
+    subdir = settings.reports_dir / f"{generated_at.year:04d}" / f"{generated_at.month:02d}"
+    subdir.mkdir(parents=True, exist_ok=True)
+    filename = f"{safe_number}.docx"
+    if (subdir / filename).exists():
+        filename = f"{safe_number}-{uuid.uuid4().hex[:8]}.docx"
+    (subdir / filename).write_bytes(docx_bytes)
+    return f"{generated_at.year:04d}/{generated_at.month:02d}/{filename}"
 
 
 def _resolve_tower_team(db: Session, tower: Tower, start_date: dt.date, end_date: dt.date) -> int | None:
@@ -365,6 +384,7 @@ def oetc_line_report(
 
     docx_bytes = render_oetc_line_report_docx(team, visits, payload, tower=tower)
 
+    generated_at = utcnow()
     record = LineInspectionReport(
         team_id=team.id,
         tower_id=tower.id if tower else None,
@@ -380,6 +400,9 @@ def oetc_line_report(
         approved_by=payload.approved_by,
         approval_date=payload.approval_date,
         created_by=user.id,
+        created_at=generated_at,
+        line_sector=tower.line_sector if tower else None,
+        file_path=_save_report_file(payload.report_number, generated_at, docx_bytes),
     )
     db.add(record)
     db.commit()
@@ -511,8 +534,39 @@ def oetc_line_report_history(
         item = LineInspectionReportOut.model_validate(r)
         item.team_name = r.team.name if r.team else None
         item.tower_name = r.tower.tower_id if r.tower else None
+        item.has_file = bool(r.file_path)
         out.append(item)
     return out
+
+
+@router.get("/oetc-line-report/{report_id}/file")
+def download_saved_oetc_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Serves back the exact .docx archived at generation time (see _save_report_file) — the
+    Reports Library's primary download path. Only ever set for a report generated after the
+    file_path column existed; an older row (or the frontend, when has_file is false) falls back to
+    /redownload's live regeneration instead."""
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if user.role == UserRole.TEAM_MEMBER.value:
+        raise HTTPException(status_code=403, detail="Not available for team-member accounts")
+    if user.role == UserRole.TEAM_LEADER.value and user.team_id != record.team_id:
+        raise HTTPException(status_code=403, detail="You don't have access to this team")
+    if not record.file_path:
+        raise HTTPException(status_code=404, detail="No saved file for this report — use redownload instead")
+    path = settings.reports_dir / record.file_path
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Saved file missing from disk — use redownload instead")
+    safe_number = record.report_number.replace("/", "-")
+    return FileResponse(
+        path,
+        filename=f"{safe_number}.docx",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
 
 
 @router.get("/oetc-line-report/{report_id}/redownload")

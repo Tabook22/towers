@@ -277,6 +277,8 @@ export interface LineInspectionReportOut {
   approved_by: string | null;
   approval_date: string | null;
   created_at: string;
+  line_sector: string | null;
+  has_file: boolean;
 }
 
 // Live "what will this include" summary for the report form — see useOetcReportPreview.

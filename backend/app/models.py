@@ -433,6 +433,19 @@ class LineInspectionReport(Base):
     approved_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
     approval_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
 
+    # Snapshotted from Tower.line_sector at generation time, only when tower_id is set — a
+    # team-wide (tower_id is None) report can span several lines, so this stays null for those
+    # rather than picking one arbitrarily. Snapshotted (not looked up live) so the Reports
+    # Library's "Line" column/filter still reflects what the report actually covered even if the
+    # tower's line_sector is edited afterward.
+    line_sector: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
+    # The actual generated .docx, archived under settings.reports_dir so "redownload" serves back
+    # the exact file that was produced (never a live regeneration that can drift or fail if the
+    # underlying Position/Visit data later changes) — see routers/reports.py's
+    # download_saved_oetc_report. Null for a report generated before this column existed; that older
+    # redownload path (regenerate-from-current-data) still works as a fallback.
+    file_path: Mapped[str | None] = mapped_column(String(400), nullable=True)
+
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
 

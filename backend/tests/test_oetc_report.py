@@ -11,9 +11,19 @@ from sqlalchemy.orm import Session
 
 from app.database import Base
 from app.models import Image, LineInspectionReport, Position, Team, Tower, User, Visit
-from app.routers.reports import oetc_line_report, redownload_oetc_line_report
+from app.routers.reports import download_saved_oetc_report, oetc_line_report, oetc_line_report_history, redownload_oetc_line_report
 from app.schemas import LineInspectionReportRequest
 from app.services.oetc_report import build_oetc_line_report_context
+
+
+@pytest.fixture(autouse=True)
+def _isolated_reports_dir(tmp_path, monkeypatch):
+    """Every test that actually calls oetc_line_report() now also archives a real .docx to
+    settings.reports_dir (see routers/reports._save_report_file) — autoused so no test in this
+    file ever writes into the real backend/storage/reports/ folder by accident."""
+    from app import config as config_module
+
+    monkeypatch.setattr(config_module.settings, "reports_dir", tmp_path / "reports")
 
 
 def _engine():
@@ -517,3 +527,89 @@ def test_tower_proximity_is_not_derived_outside_double_tension():
 
     unset = Position(ohl="OHL1", phase="R", string="S1", mount_type="Tension", string_count=None)
     assert _derived_tower_proximity(unset) is None
+
+
+def test_generating_a_report_archives_the_file_and_snapshots_the_towers_line(tmp_path):
+    """The Reports Library needs both of these: a real file on disk (not just a DB row that can
+    only be redownloaded by regenerating from whatever the live data says now), and the tower's
+    line_sector captured at generation time so the Library can group/filter by Line even if the
+    tower's own line_sector is edited later."""
+    from app import config as config_module
+
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, _tower_b = _seed(db)
+        tower_a.line_sector = "Ittin - Thumrait"
+        admin = User(username="admin", role="admin", hashed_password="x")
+        db.add(admin)
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            tower_id=tower_a.id,
+            team_id=team.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="LIB-0001",
+        )
+        oetc_line_report(payload=payload, db=db, user=admin)
+
+        record = db.query(LineInspectionReport).filter_by(report_number="LIB-0001").one()
+        assert record.line_sector == "Ittin - Thumrait"
+        assert record.file_path is not None
+        saved_path = config_module.settings.reports_dir / record.file_path
+        assert saved_path.exists()
+        assert saved_path.read_bytes().startswith(b"PK")  # a real .docx (zip) was actually written
+
+
+def test_saved_file_download_is_scoped_the_same_as_every_other_report_endpoint():
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, _tower_b = _seed(db)
+        other_team = Team(name="Bravo")
+        db.add(other_team)
+        db.commit()
+        admin = User(username="admin", role="admin", hashed_password="x")
+        leader = User(username="lead-bravo", role="team_leader", team_id=other_team.id, hashed_password="x")
+        db.add_all([admin, leader])
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            tower_id=tower_a.id,
+            team_id=team.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="LIB-0002",
+        )
+        oetc_line_report(payload=payload, db=db, user=admin)
+        record = db.query(LineInspectionReport).filter_by(report_number="LIB-0002").one()
+
+        response = download_saved_oetc_report(report_id=record.id, db=db, user=admin)
+        assert response.path.name == f"{record.file_path.split('/')[-1]}"
+
+        with pytest.raises(HTTPException) as exc:
+            download_saved_oetc_report(report_id=record.id, db=db, user=leader)
+        assert exc.value.status_code == 403
+
+
+def test_history_reports_line_sector_and_whether_a_file_was_saved():
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, _tower_b = _seed(db)
+        tower_a.line_sector = "Ittin - Thumrait"
+        admin = User(username="admin", role="admin", hashed_password="x")
+        db.add(admin)
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            tower_id=tower_a.id,
+            team_id=team.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="LIB-0003",
+        )
+        oetc_line_report(payload=payload, db=db, user=admin)
+
+        history = oetc_line_report_history(team_id=None, db=db, user=admin)
+        row = next(r for r in history if r.report_number == "LIB-0003")
+        assert row.line_sector == "Ittin - Thumrait"
+        assert row.has_file is True

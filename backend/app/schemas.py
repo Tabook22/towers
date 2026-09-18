@@ -1295,6 +1295,8 @@ class LineInspectionReportOut(BaseModel):
     approved_by: str | None
     approval_date: dt.date | None
     created_at: dt.datetime
+    line_sector: str | None = None
+    has_file: bool = False
 
 
 class OetcReportPreview(BaseModel):

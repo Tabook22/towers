@@ -29,6 +29,7 @@ import MyLocationRoundedIcon from '@mui/icons-material/MyLocationRounded';
 import PendingActionsIcon from '@mui/icons-material/PendingActionsRounded';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
+import FolderCopyRoundedIcon from '@mui/icons-material/FolderCopyRounded';
 import { type ReactNode, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAreas, useClaimTowerForTeam, useDashboardSummary, useLiveTeams, useOutingPlan, useReleaseTower, useShiftInfo, useTeamJobMap, useTeamLive, useTeams, useTeamTrails, useTowers } from '../api/hooks';
@@ -40,6 +41,7 @@ import { OutingPlanCard } from '../components/OutingPlanCard';
 import { MissionHistoryCard, missionDateLabel } from '../components/MissionHistoryCard';
 import { useTracking } from '../hooks/useFieldTracking';
 import { VisitStatusChip } from '../components/Badges';
+import { ReportHistoryTable } from '../components/ReportHistoryTable';
 import { mediaUrl } from '../api/client';
 
 // A named, collapsible block with an icon and a one-line "what is this for" description, so a
@@ -436,6 +438,17 @@ export function DashboardPage() {
               </DashboardSection>
             </Grid>
           </Grid>
+
+          {user?.role !== 'team_member' && (
+            <DashboardSection
+              icon={<FolderCopyRoundedIcon />}
+              title="Reports Library"
+              description="Every official report generated so far — filter by year, month, line, or team, and download any of them again."
+              defaultExpanded={false}
+            >
+              <ReportHistoryTable />
+            </DashboardSection>
+          )}
         </>
       )}
     </Stack>
