@@ -3,6 +3,7 @@ import CloseIcon from '@mui/icons-material/CloseRounded';
 import DownloadIcon from '@mui/icons-material/DownloadRounded';
 import { ResizableDialogPaper } from './ResizableDialogPaper';
 import { mediaUrl } from '../api/client';
+import { RichTextWithMedia } from './RichTextWithMedia';
 
 interface Props {
   open: boolean;
@@ -18,7 +19,10 @@ interface Props {
  * content itself. Opens at 80% of the screen and can be dragged bigger/smaller via
  * ResizableDialogPaper, same convention as ImageLightbox. A real PDF renders in the browser's own
  * PDF viewer (iframe); anything else falls back to the plain text already extracted at upload
- * time, since most formats this app accepts (Word, .txt, .md) have no in-browser native viewer. */
+ * time, since most formats this app accepts (Word, .txt, .md) have no in-browser native viewer —
+ * that fallback text is run through RichTextWithMedia, so a YouTube link, an image URL, or an
+ * audio file link a report happens to mention renders as an actual player/thumbnail/link instead
+ * of sitting there as inert text. */
 export function DocumentPreviewDialog({ open, onClose, title, docId, contentType, extractedText, teamName }: Props) {
   const downloadUrl = mediaUrl(`/api/knowledge-base/${docId}/file`);
   // inline=true tells the server to send Content-Disposition: inline instead of the default
@@ -58,9 +62,7 @@ export function DocumentPreviewDialog({ open, onClose, title, docId, contentType
           <Box component="iframe" src={viewUrl} title={title} sx={{ border: 0, width: '100%', height: '100%', flex: 1 }} />
         ) : extractedText ? (
           <Box sx={{ p: 3, overflow: 'auto', flex: 1, bgcolor: 'background.default' }}>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
-              {extractedText}
-            </Typography>
+            <RichTextWithMedia text={extractedText} />
           </Box>
         ) : (
           <Box sx={{ p: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
