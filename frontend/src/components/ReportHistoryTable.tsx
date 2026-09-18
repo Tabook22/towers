@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
+  IconButton,
   MenuItem,
   Paper,
   Stack,
@@ -14,13 +14,16 @@ import {
   TableRow,
   TableSortLabel,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
+import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import { useOetcReportHistory } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { mediaUrl } from '../api/client';
 import type { LineInspectionReportOut } from '../api/types';
+import { DocxViewerDialog } from './DocxViewerDialog';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -47,6 +50,7 @@ export function ReportHistoryTable() {
   const [team, setTeam] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [viewing, setViewing] = useState<LineInspectionReportOut | null>(null);
 
   const years = useMemo(
     () => Array.from(new Set((rows || []).map((r) => new Date(r.created_at).getFullYear()))).sort((a, b) => b - a),
@@ -165,7 +169,7 @@ export function ReportHistoryTable() {
                   Generated
                 </TableSortLabel>
               </TableCell>
-              <TableCell align="right">Download</TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -183,16 +187,16 @@ export function ReportHistoryTable() {
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <Button
-                    size="small"
-                    startIcon={<DownloadRoundedIcon fontSize="small" />}
-                    component="a"
-                    href={downloadUrl(r)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Download
-                  </Button>
+                  <Tooltip title="View">
+                    <IconButton size="small" onClick={() => setViewing(r)}>
+                      <VisibilityRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Download">
+                    <IconButton size="small" component="a" href={downloadUrl(r)} target="_blank" rel="noreferrer">
+                      <DownloadRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 </TableCell>
               </TableRow>
             ))}
@@ -208,6 +212,15 @@ export function ReportHistoryTable() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {viewing && (
+        <DocxViewerDialog
+          open={!!viewing}
+          onClose={() => setViewing(null)}
+          title={viewing.report_number}
+          fileUrl={downloadUrl(viewing)}
+        />
+      )}
     </Box>
   );
 }
