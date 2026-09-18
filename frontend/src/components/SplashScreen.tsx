@@ -61,7 +61,11 @@ export function SplashScreen() {
       onClose={dismiss}
       maxWidth="sm"
       fullWidth
-      slotProps={{ paper: { sx: { position: 'relative', overflow: 'visible' } } }}
+      slotProps={{
+        paper: {
+          sx: { position: 'relative', overflow: 'visible', display: 'flex', flexDirection: 'column', maxHeight: '90vh' },
+        },
+      }}
     >
       {heroImageSrc && (
         <Box
@@ -73,6 +77,7 @@ export function SplashScreen() {
             height: { xs: 140, sm: 180 },
             objectFit: 'cover',
             display: 'block',
+            flexShrink: 0,
             borderTopLeftRadius: 'inherit',
             borderTopRightRadius: 'inherit',
           }}
@@ -95,7 +100,10 @@ export function SplashScreen() {
           p: 0.75,
         }}
       />
-      <Box sx={{ p: { xs: 2.5, sm: 4 } }}>
+      {/* Everything below the hero image scrolls as one region — there's easily more here (stats,
+          a five-row "latest work" list, a pending-evidence note) than fits in one screen, especially
+          on a shorter laptop/tablet window, so this can't just overflow off the bottom of the dialog. */}
+      <Box sx={{ p: { xs: 2.5, sm: 4 }, overflowY: 'auto', flex: 1, minHeight: 0 }}>
         {mainLogoSrc ? (
           <Stack sx={{ alignItems: 'center', mb: 2 }}>
             <Box
@@ -222,14 +230,18 @@ export function SplashScreen() {
         )}
 
         {data && data.total_images_pending > 0 && (
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 3, color: 'text.secondary' }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', color: 'text.secondary' }}>
             <PendingActionsRoundedIcon fontSize="small" />
             <Typography variant="caption">
               {data.total_images_pending} evidence image{data.total_images_pending === 1 ? '' : 's'} still pending across every tower.
             </Typography>
           </Stack>
         )}
+      </Box>
 
+      {/* Outside the scrolling region and never scrolls away — dismissing shouldn't require
+          scrolling all the way to the bottom first. */}
+      <Box sx={{ p: { xs: 2.5, sm: 4 }, pt: 1.5, flexShrink: 0, borderTop: '1px solid', borderColor: 'divider' }}>
         <Button variant="contained" fullWidth size="large" onClick={dismiss}>
           Continue to Dashboard
         </Button>
