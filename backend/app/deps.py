@@ -20,6 +20,7 @@ PERMISSIONS: tuple[str, ...] = (
     "manage_users",
     "generate_reports",
     "manage_settings",
+    "manage_knowledge_base",
 )
 
 

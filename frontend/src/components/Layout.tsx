@@ -36,6 +36,7 @@ import InsightsIcon from '@mui/icons-material/InsightsRounded';
 import LocationDisabledIcon from '@mui/icons-material/LocationDisabledRounded';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutlineRounded';
 import SettingsIcon from '@mui/icons-material/SettingsRounded';
+import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 
 import LockResetIcon from '@mui/icons-material/LockResetRounded';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -272,6 +273,10 @@ export function Layout({ children }: { children: ReactNode }) {
     ...(user?.team_id
       ? [{ label: 'Our team', to: `/teams/${user.team_id}`, icon: <GroupsIcon /> }]
       : [{ label: 'Teams', to: '/teams', icon: <GroupsIcon /> }]),
+    // A team_member's app stays deliberately narrow (their own missions) — knowledge-base
+    // management is a team_leader/admin tool; a team_member still gets its content through the
+    // chat assistant, which searches it regardless of this nav item.
+    ...(user?.role === 'team_leader' ? [{ label: 'Knowledge base', to: '/knowledge-base', icon: <MenuBookRoundedIcon /> }] : []),
   ];
   const items = isCrew
     ? crewNav
@@ -284,6 +289,7 @@ export function Layout({ children }: { children: ReactNode }) {
               { label: 'Team Progress', to: '/team-progress', icon: <InsightsIcon /> },
             ]
           : []),
+        { label: 'Knowledge base', to: '/knowledge-base', icon: <MenuBookRoundedIcon /> },
         ...(user?.role === 'admin' ? [{ label: 'Settings', to: '/settings', icon: <SettingsIcon /> }] : []),
       ];
 

@@ -44,12 +44,16 @@ _SYSTEM_PROMPT = (
     "not sure rather than guessing or inventing a screen, button, or field that isn't described.\n\n"
     "For questions about actual live data — counts, a specific tower's status, a team's progress, "
     "open hotspots — call the matching tool instead of guessing or using anything from the guide's "
-    "example numbers. The tools are already scoped to exactly what this user is allowed to see, so "
-    "call them freely; never claim to know live data you didn't just get from a tool call. If a "
-    "tool returns an error (e.g. tower not found or not accessible), say so plainly rather than "
-    "making something up.\n\n"
+    "example numbers. For anything that sounds like it might be covered by a past field report or "
+    "incident write-up (\"has this happened before\", \"what did we do last time X\"), call "
+    "search_knowledge_base — don't assume no such report exists just because you don't already "
+    "know of one. The tools are already scoped to exactly what this user is allowed to see, so "
+    "call them freely; never claim to know live data or a report's contents you didn't just get "
+    "from a tool call. If a tool returns an error or no results, say so plainly rather than making "
+    "something up.\n\n"
     "Keep answers short and step-by-step for \"how do I...\" questions, naming the exact screen and "
-    "button text. Keep data answers short too — lead with the number/fact asked for.\n\n---\n\n"
+    "button text. Keep data answers short too — lead with the number/fact asked for. When quoting a "
+    "knowledge-base excerpt, name which document it came from.\n\n---\n\n"
     + _GUIDE_TEXT
 )
 

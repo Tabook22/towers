@@ -8,6 +8,7 @@ import type {
   Area,
   BrandingSettings,
   ChannelKind,
+  KnowledgeDocument,
   ChannelMessage,
   ChoiceLists,
   DashboardSummary,
@@ -1172,6 +1173,37 @@ export function useUpdateBrandingSettings() {
     onSuccess: (data) => {
       qc.setQueryData(['branding'], data);
     },
+  });
+}
+
+// ---------- Knowledge base (field reports/incident write-ups the help chat can search) ----------
+export function useKnowledgeDocuments() {
+  return useQuery({
+    queryKey: ['knowledge-base'],
+    queryFn: async () => (await apiClient.get<KnowledgeDocument[]>('/api/knowledge-base')).data,
+  });
+}
+
+export function useUploadKnowledgeDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { title: string; description?: string; team_id?: number | null; file: File }) => {
+      const form = new FormData();
+      form.append('title', payload.title);
+      if (payload.description) form.append('description', payload.description);
+      if (payload.team_id != null) form.append('team_id', String(payload.team_id));
+      form.append('file', payload.file);
+      return (await apiClient.post<KnowledgeDocument>('/api/knowledge-base', form)).data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge-base'] }),
+  });
+}
+
+export function useDeleteKnowledgeDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => apiClient.delete(`/api/knowledge-base/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge-base'] }),
   });
 }
 

@@ -446,7 +446,14 @@ export interface AdminUser {
   permissions: string[];
 }
 
-export const ADMIN_PERMISSIONS = ['manage_towers', 'manage_teams', 'manage_users', 'generate_reports', 'manage_settings'] as const;
+export const ADMIN_PERMISSIONS = [
+  'manage_towers',
+  'manage_teams',
+  'manage_users',
+  'generate_reports',
+  'manage_settings',
+  'manage_knowledge_base',
+] as const;
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
 
 export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
@@ -455,7 +462,23 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   manage_users: 'Create / edit team leaders & members',
   generate_reports: 'Generate official reports',
   manage_settings: 'Manage branding & splash screen',
+  manage_knowledge_base: 'Manage the knowledge base',
 };
+
+export interface KnowledgeDocument {
+  id: number;
+  title: string;
+  description: string | null;
+  team_id: number | null;
+  team_name: string | null;
+  original_filename: string | null;
+  content_type: string | null;
+  file_size: number | null;
+  has_text: boolean;
+  uploaded_by: number | null;
+  uploaded_by_name: string | null;
+  uploaded_at: string;
+}
 
 export interface BrandingSettings {
   app_title: string | null;

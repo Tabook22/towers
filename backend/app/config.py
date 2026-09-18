@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     channel_dir: Path = BASE_DIR / "storage" / "channel"
     # Admin-uploaded branding assets (splash-screen logos) — see models.AppSetting.
     branding_dir: Path = BASE_DIR / "storage" / "branding"
+    # Field reports / incident write-ups / reference files for the help-chat's knowledge base
+    # search — see models.KnowledgeDocument.
+    knowledge_base_dir: Path = BASE_DIR / "storage" / "knowledge_base"
     # Optional cloud STT (Grok). Local faster-whisper on the VPS is the default when this is unset.
     xai_api_key: str | None = None
     # Local Whisper model name: tiny | base | small | medium. "small" fits an 8 GB CPU VPS.
@@ -67,5 +70,6 @@ for d in (
     settings.log_files_dir,
     settings.channel_dir,
     settings.branding_dir,
+    settings.knowledge_base_dir,
 ):
     d.mkdir(parents=True, exist_ok=True)

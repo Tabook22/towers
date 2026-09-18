@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.database import Base
-from app.models import Position, Team, Tower, User, Visit
+from app.models import KnowledgeDocument, Position, Team, Tower, User, Visit
 from app.services import chat_tools
 
 
@@ -113,3 +113,66 @@ def test_team_progress_admin_can_filter_by_name_or_get_everyone():
 
     everyone = chat_tools.team_progress(db, _admin())
     assert {t["team_name"] for t in everyone["teams"]} == {"Alpha", "Bravo"}
+
+
+def test_search_knowledge_base_finds_matching_document_by_keyword():
+    db = Session(_engine())
+    alpha, bravo, t1, t2 = _seed(db)
+    db.add(
+        KnowledgeDocument(
+            title="Cracked insulator at Ashoor-Saada-1",
+            description="What we did when we found a hairline crack",
+            team_id=alpha.id,
+            file_path="doc1.txt",
+            extracted_text="We found a cracked porcelain insulator on the top phase. Replaced it and logged a hotspot.",
+        )
+    )
+    db.commit()
+    out = chat_tools.search_knowledge_base(db, _admin(), query="cracked insulator")
+    assert len(out["results"]) == 1
+    assert out["results"][0]["title"] == "Cracked insulator at Ashoor-Saada-1"
+    assert "cracked" in out["results"][0]["excerpt"].lower()
+
+
+def test_search_knowledge_base_no_match_says_so_instead_of_guessing():
+    db = Session(_engine())
+    alpha, bravo, t1, t2 = _seed(db)
+    out = chat_tools.search_knowledge_base(db, _admin(), query="lightning strike")
+    assert out["results"] == []
+    assert "message" in out
+
+
+def test_search_knowledge_base_team_leader_cannot_see_another_teams_private_document():
+    db = Session(_engine())
+    alpha, bravo, t1, t2 = _seed(db)
+    db.add(
+        KnowledgeDocument(
+            title="Bravo-only incident report",
+            team_id=bravo.id,
+            file_path="doc2.txt",
+            extracted_text="A very specific bravo-team access road was blocked by a landslide.",
+        )
+    )
+    db.commit()
+    out = chat_tools.search_knowledge_base(db, _leader_for(alpha), query="landslide")
+    assert out["results"] == []
+
+    out_bravo = chat_tools.search_knowledge_base(db, _leader_for(bravo), query="landslide")
+    assert len(out_bravo["results"]) == 1
+
+
+def test_search_knowledge_base_team_leader_sees_company_wide_documents():
+    db = Session(_engine())
+    alpha, bravo, t1, t2 = _seed(db)
+    db.add(
+        KnowledgeDocument(
+            title="Company safety bulletin",
+            team_id=None,  # shared / company-wide
+            file_path="doc3.txt",
+            extracted_text="All crews must wear arc-flash gear near live 132kV lines.",
+        )
+    )
+    db.commit()
+    out = chat_tools.search_knowledge_base(db, _leader_for(alpha), query="arc-flash")
+    assert len(out["results"]) == 1
+    assert out["results"][0]["team"] == "Company-wide"

@@ -21,6 +21,7 @@ import { TeamsPage } from './pages/TeamsPage';
 import { TeamDetailPage } from './pages/TeamDetailPage';
 import { HelpPage } from './pages/HelpPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -149,6 +150,14 @@ function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
         element={
           <ProtectedLayout>
             <SettingsPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/knowledge-base"
+        element={
+          <ProtectedLayout>
+            <KnowledgeBasePage />
           </ProtectedLayout>
         }
       />

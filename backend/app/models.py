@@ -807,3 +807,35 @@ class AppSetting(Base):
     # decorative, so null just means "don't show a banner" rather than falling back to a placeholder.
     hero_image_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class KnowledgeDocument(Base):
+    """A field report, incident write-up, or reference file an admin/team leader has added to the
+    help-chat assistant's searchable knowledge base (see services/chat_tools.py's
+    search_knowledge_base and services/knowledge_extract.py). Deliberately not the same thing as
+    Visit/Position evidence — this is free-form organizational knowledge ("we saw a cracked
+    insulator at X, here's what we did"), not per-inspection checklist data.
+
+    `team_id` is nullable on purpose: null means company-wide/shared (visible to every team), set
+    means scoped to that one team — same visibility rule search_knowledge_base enforces for a
+    team_leader/team_member (their own team's docs plus every shared one), mirroring how the rest
+    of the app scopes team data. Only extracted_text is ever searched; the original file is kept
+    only so it can be downloaded/reviewed, never re-parsed on every search."""
+
+    __tablename__ = "knowledge_documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"), nullable=True)
+    file_path: Mapped[str] = mapped_column(String(500))  # relative to settings.knowledge_base_dir
+    original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Plain text pulled from the file at upload time (PDF/DOCX/TXT) — capped in
+    # services/knowledge_extract.py so one huge document can't blow out search/tool-call cost.
+    extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    uploaded_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+
+    team: Mapped["Team | None"] = relationship()

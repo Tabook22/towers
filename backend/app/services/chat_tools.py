@@ -11,10 +11,13 @@ ever create, edit, or delete a row.
 """
 from __future__ import annotations
 
+import re
+
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.deps import effective_team_id
-from app.models import Position, Team, Tower, User, UserRole, Visit
+from app.models import KnowledgeDocument, Position, Team, Tower, User, UserRole, Visit
 from app.services.rollup import visit_rollup
 from app.utils import natural_sort_key
 
@@ -70,6 +73,24 @@ TOOLS = [
                     "description": "Optional team name to filter to — ignored for a team leader/crew member, who always get their own team.",
                 },
             },
+        },
+    },
+    {
+        "name": "search_knowledge_base",
+        "description": (
+            "Search field reports, incident write-ups, and other reference documents the team has "
+            "uploaded — e.g. 'has a cracked insulator like this been seen before', 'what happened "
+            "the last time a team lost GPS signal'. Automatically scoped: a team leader or crew "
+            "member only searches their own team's documents plus anything shared company-wide; "
+            "an admin/reviewer searches everything. Returns short excerpts, not whole documents — "
+            "say so plainly if nothing matches rather than guessing at what a report might contain."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Keywords to search for, e.g. 'cracked insulator Ashoor-Saada'."},
+            },
+            "required": ["query"],
         },
     },
 ]
@@ -178,8 +199,64 @@ def team_progress(db: Session, user: User, team_name: str | None = None) -> dict
     return {"teams": results}
 
 
+_SNIPPET_RADIUS = 200  # characters of context on each side of the first matched keyword
+
+
+def _snippet(text: str, words: list[str]) -> str:
+    lower = text.lower()
+    pos = -1
+    for w in words:
+        pos = lower.find(w)
+        if pos != -1:
+            break
+    if pos == -1:
+        return text[: _SNIPPET_RADIUS * 2].strip()
+    start = max(0, pos - _SNIPPET_RADIUS)
+    end = min(len(text), pos + _SNIPPET_RADIUS)
+    prefix = "…" if start > 0 else ""
+    suffix = "…" if end < len(text) else ""
+    return f"{prefix}{text[start:end].strip()}{suffix}"
+
+
+def search_knowledge_base(db: Session, user: User, query: str, limit: int = 5) -> dict:
+    words = [w for w in re.findall(r"\w+", (query or "").lower()) if len(w) > 2]
+    if not words:
+        return {"error": "Give at least one real keyword to search for."}
+
+    q = db.query(KnowledgeDocument)
+    if _is_crew(user):
+        tid = effective_team_id(db, user)
+        q = q.filter(or_(KnowledgeDocument.team_id.is_(None), KnowledgeDocument.team_id == tid))
+    docs = q.all()
+
+    scored: list[tuple[int, KnowledgeDocument]] = []
+    for d in docs:
+        haystack = f"{d.title} {d.description or ''} {d.extracted_text or ''}".lower()
+        score = sum(haystack.count(w) for w in words)
+        if score > 0:
+            scored.append((score, d))
+    scored.sort(key=lambda pair: -pair[0])
+
+    if not scored:
+        return {"results": [], "message": "No matching documents found in the knowledge base."}
+
+    results = []
+    for _score, d in scored[:limit]:
+        body = d.extracted_text or d.description or ""
+        results.append(
+            {
+                "title": d.title,
+                "team": d.team.name if d.team else "Company-wide",
+                "uploaded_at": str(d.uploaded_at.date()),
+                "excerpt": _snippet(body, words) if body else None,
+            }
+        )
+    return {"results": results}
+
+
 TOOL_FUNCTIONS = {
     "dashboard_summary": dashboard_summary,
     "tower_status": tower_status,
     "team_progress": team_progress,
+    "search_knowledge_base": search_knowledge_base,
 }

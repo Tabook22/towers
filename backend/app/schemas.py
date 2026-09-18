@@ -1356,3 +1356,19 @@ class BrandingUpdate(BaseModel):
     app_title: str | None = None
     splash_header: str | None = None
     splash_subtitle: str | None = None
+
+
+class KnowledgeDocumentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    description: str | None = None
+    team_id: int | None = None
+    team_name: str | None = None
+    original_filename: str | None = None
+    content_type: str | None = None
+    file_size: int | None = None
+    has_text: bool = False
+    uploaded_by: int | None = None
+    uploaded_by_name: str | None = None
+    uploaded_at: dt.datetime

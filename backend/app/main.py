@@ -21,6 +21,7 @@ from app.routers import (
     dashboard,
     help_chat,
     images,
+    knowledge_base,
     lists,
     positions,
     report_templates,
@@ -71,6 +72,7 @@ app.include_router(channel.router)
 app.include_router(claims.router)
 app.include_router(help_chat.router)
 app.include_router(team_archive.router)
+app.include_router(knowledge_base.router)
 
 
 @app.get("/api/health")
