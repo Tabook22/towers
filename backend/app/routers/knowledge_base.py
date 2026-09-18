@@ -258,12 +258,26 @@ def get_document(doc_id: int, db: Session = Depends(get_db), user: User = Depend
 
 
 @router.get("/{doc_id}/file")
-def download_document(doc_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def download_document(
+    doc_id: int,
+    inline: bool = False,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """`inline=true` (used by DocumentPreviewDialog's PDF viewer) asks the browser to render the
+    file itself rather than save it — Starlette's FileResponse defaults to "attachment", which
+    forces a download even inside an <iframe> and is why the read-only viewer used to just
+    download a PDF instead of showing it. The actual Download button/link never passes this."""
     doc = _load_visible(db, doc_id, user)
     path = settings.knowledge_base_dir / doc.file_path
     if not path.exists():
         raise HTTPException(status_code=404, detail="File missing on disk")
-    return FileResponse(path, filename=doc.original_filename or path.name, media_type=doc.content_type)
+    return FileResponse(
+        path,
+        filename=doc.original_filename or path.name,
+        media_type=doc.content_type,
+        content_disposition_type="inline" if inline else "attachment",
+    )
 
 
 @router.get("/{doc_id}/voice")

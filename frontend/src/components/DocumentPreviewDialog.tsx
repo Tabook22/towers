@@ -20,7 +20,11 @@ interface Props {
  * PDF viewer (iframe); anything else falls back to the plain text already extracted at upload
  * time, since most formats this app accepts (Word, .txt, .md) have no in-browser native viewer. */
 export function DocumentPreviewDialog({ open, onClose, title, docId, contentType, extractedText, teamName }: Props) {
-  const fileUrl = mediaUrl(`/api/knowledge-base/${docId}/file`);
+  const downloadUrl = mediaUrl(`/api/knowledge-base/${docId}/file`);
+  // inline=true tells the server to send Content-Disposition: inline instead of the default
+  // "attachment" — without it, the browser downloads the file the instant the iframe requests it
+  // instead of rendering it, even though it never left this dialog.
+  const viewUrl = mediaUrl(`/api/knowledge-base/${docId}/file?inline=true`);
   const isPdf = contentType === 'application/pdf';
 
   return (
@@ -41,7 +45,7 @@ export function DocumentPreviewDialog({ open, onClose, title, docId, contentType
           )}
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-          <Button size="small" startIcon={<DownloadIcon />} component="a" href={fileUrl} target="_blank" rel="noreferrer">
+          <Button size="small" startIcon={<DownloadIcon />} component="a" href={downloadUrl} target="_blank" rel="noreferrer">
             Download
           </Button>
           <IconButton onClick={onClose} size="small">
@@ -51,7 +55,7 @@ export function DocumentPreviewDialog({ open, onClose, title, docId, contentType
       </DialogTitle>
       <DialogContent sx={{ p: 0, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {isPdf ? (
-          <Box component="iframe" src={fileUrl} title={title} sx={{ border: 0, width: '100%', height: '100%', flex: 1 }} />
+          <Box component="iframe" src={viewUrl} title={title} sx={{ border: 0, width: '100%', height: '100%', flex: 1 }} />
         ) : extractedText ? (
           <Box sx={{ p: 3, overflow: 'auto', flex: 1, bgcolor: 'background.default' }}>
             <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>

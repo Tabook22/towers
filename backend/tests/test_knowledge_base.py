@@ -303,3 +303,20 @@ def test_get_document_detail_includes_extracted_text_and_respects_scoping(db):
     with pytest.raises(HTTPException) as exc:
         knowledge_base.get_document(doc.id, db=db, user=leader_alpha)
     assert exc.value.status_code == 403
+
+
+def test_download_defaults_to_attachment_disposition(db):
+    admin = User(id=27, username="admin", role="admin", is_super_admin=True)
+    doc = _upload(db, admin, "x", file=_file())
+    response = knowledge_base.download_document(doc.id, db=db, user=admin)
+    assert response.headers["content-disposition"].startswith("attachment")
+
+
+def test_view_inline_true_uses_inline_disposition_so_the_browser_renders_it(db):
+    """The actual bug report: clicking "view" downloaded the PDF instead of showing it, because
+    FileResponse defaults to attachment — which a browser also honors inside an <iframe>, not just
+    for a top-level navigation. inline=true is what DocumentPreviewDialog's viewer passes."""
+    admin = User(id=28, username="admin", role="admin", is_super_admin=True)
+    doc = _upload(db, admin, "x", file=_file())
+    response = knowledge_base.download_document(doc.id, inline=True, db=db, user=admin)
+    assert response.headers["content-disposition"].startswith("inline")
