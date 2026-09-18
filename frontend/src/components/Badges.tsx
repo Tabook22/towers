@@ -56,7 +56,6 @@ export function VisitStatusChip({ status }: { status: string | null | undefined 
   const map: Record<string, string> = {
     'Ready for review': '#2e7d32',
     'Inspection incomplete': '#f57c00',
-    'Evidence incomplete': '#d32f2f',
   };
   return colorChip(status, map);
 }

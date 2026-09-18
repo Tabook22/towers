@@ -53,9 +53,10 @@ things:
   Visit: a claim is the live board (claimed → en_route → on_site → done/skipped); a Visit is the
   actual inspection record, created when someone taps Start.
 - **Rollup** — computed live from a Visit's positions/images, never stored, so it can't go stale:
-  - `visit_status` is one of exactly three values: **"Evidence incomplete"** (some required photo
-    still missing), **"Inspection incomplete"** (not every installed position has been screened
-    yet), or **"Ready for review"** (every installed position screened, every required photo in).
+  - `visit_status` is one of exactly two values: **"Inspection incomplete"** (not every installed
+    position has been screened yet) or **"Ready for review"** (every installed position screened).
+    Missing photo evidence never blocks this status — `images_pending` is tracked purely as an
+    informational count, not a gate.
   - `completion_pct` = screened positions ÷ installed positions.
   - `hotspots` = positions flagged with a hotspot finding.
 - **Hotspot** — a position flagged as needing attention/review before the crew leaves site.
@@ -193,9 +194,9 @@ These look similar but answer different questions:
 - When multiple screens are involved, name the exact screen/button (e.g. "Our team → Next towers
   tonight → Start"), matching the wording actually in the app.
 - If asked whether something is "done well" (e.g. is an inspection ready, is a tower properly
-  planned), reason from the rollup logic in section 2: Ready for review requires zero images
-  pending and every installed position screened — anything less is either "Evidence incomplete"
-  or "Inspection incomplete".
+  planned), reason from the rollup logic in section 2: Ready for review requires every installed
+  position to be screened — a short photo checklist doesn't hold it back, it only shows up as an
+  informational "images pending" count.
 - Never invent a screen, button, or field that isn't described here.
 
 ---

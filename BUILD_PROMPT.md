@@ -114,9 +114,9 @@ Recreate the `Overall Summary` sheet as a live dashboard, one row per tower/visi
 | Screened | count of Positions where Installed = Yes and Screening result not in (`Not inspected`, blank) |
 | Hotspots | count of Positions where Hotspot? = Yes |
 | Inconclusive | count of Positions where Screening result = Inconclusive |
-| Images pending | count of Images where Evidence status not in (`COMPLETE`, `NOT REQUIRED`) |
+| Images pending | count of Images where Evidence status not in (`COMPLETE`, `NOT REQUIRED`) — informational only, never blocks status |
 | Completion % | Screened / Installed (0 if Installed = 0) |
-| Visit status | `Evidence incomplete` if Images pending > 0; else `Inspection incomplete` if Screened < Installed; else `Ready for review` |
+| Visit status | `Inspection incomplete` if Screened < Installed; else `Ready for review` (a short photo checklist never holds a tower back — see 2026-09-18 change) |
 
 Show this as a top-level dashboard across **all towers in the Dufar area** (and any future areas), plus drill-down per tower/visit.
 

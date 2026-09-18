@@ -495,9 +495,9 @@ export function VisitDetailPage() {
       </Card>
 
       {pendingEvidence.length > 0 && (
-        <Alert severity="warning">
-          Evidence check: {pendingEvidence.length} image(s) still pending across this visit before it can be marked
-          "Ready for review".
+        <Alert severity="info">
+          Evidence check: {pendingEvidence.length} image(s) still pending across this visit. This is informational
+          only — it doesn't hold the visit back from "Ready for review".
         </Alert>
       )}
 

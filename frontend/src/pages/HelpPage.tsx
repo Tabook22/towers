@@ -345,8 +345,10 @@ export function HelpPage() {
           The <strong>Images pending</strong> count on your Dashboard tracks exactly this — it
           won&apos;t clear to zero until every required photo is in.
         </Step>
-        <Step n={5} title="Watch the completion % and Evidence banner at the top of the visit.">
-          It tells you live how much is left before this tower can be marked "Ready for review".
+        <Step n={5} title="Watch the completion % at the top of the visit.">
+          Once every installed position is screened, the tower is marked "Ready for review" — the
+          Images pending count keeps tracking missing photos, but it's informational only and
+          never holds the tower back.
         </Step>
       </Section>
 

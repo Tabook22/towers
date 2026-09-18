@@ -28,9 +28,10 @@ def visit_rollup(visit: Visit) -> dict:
     screened_n = len(screened)
     completion_pct = (screened_n / installed_n) if installed_n else 0.0
 
-    if images_pending > 0:
-        visit_status = "Evidence incomplete"
-    elif screened_n < installed_n:
+    # Images pending is tracked as an informational count only — a tower is never marked
+    # incomplete just because it's short of the full photo checklist. Screening result is what
+    # decides whether a visit is ready for review.
+    if screened_n < installed_n:
         visit_status = "Inspection incomplete"
     else:
         visit_status = "Ready for review"

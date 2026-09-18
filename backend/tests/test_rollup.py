@@ -47,9 +47,10 @@ def test_fresh_visit_has_12_positions_all_not_inspected(db):
     assert r["installed"] == 12  # default installed=True
     assert r["screened"] == 0  # still "Not inspected"
     assert r["hotspots"] == 0
-    # Every image slot defaults to PENDING CAPTURE, so evidence takes priority in the status,
-    # matching the workbook's IF(images_pending>0, "Evidence incomplete", ...) precedence.
-    assert r["visit_status"] == "Evidence incomplete"
+    # Every image slot defaults to PENDING CAPTURE, but a missing photo never blocks the visit
+    # status by itself — only unscreened positions do.
+    assert r["images_pending"] == 48
+    assert r["visit_status"] == "Inspection incomplete"
 
 
 def test_normal_screening_does_not_require_close_images(db):
@@ -84,8 +85,25 @@ def test_hotspot_position_counts_and_visit_status(db):
     r = visit_rollup(visit)
     assert r["hotspots"] == 1
     assert r["screened"] == 1
-    assert r["images_pending"] >= 1  # PENDING CAPTURE, no files uploaded yet
-    assert r["visit_status"] == "Evidence incomplete"
+    assert r["images_pending"] >= 1  # PENDING CAPTURE, no files uploaded yet — informational only
+    assert r["visit_status"] == "Inspection incomplete"  # 11 of 12 positions still unscreened
+
+
+def test_fully_screened_visit_is_ready_for_review_even_with_photos_missing(db):
+    """A tower is never blocked from "Ready for review" just because photo evidence is
+    short of the full checklist — only unscreened positions hold it back."""
+    visit = make_visit(db)
+    for pos in visit.positions:
+        pos.direction = "Ashoor"
+        pos.screening_result = "Normal"
+        refresh_position_codes(pos)
+    db.commit()
+    db.refresh(visit)
+
+    r = visit_rollup(visit)
+    assert r["screened"] == r["installed"] == 12
+    assert r["images_pending"] > 0
+    assert r["visit_status"] == "Ready for review"
 
 
 def test_completion_pct_is_zero_when_nothing_installed(db):
