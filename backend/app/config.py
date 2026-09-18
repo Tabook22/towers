@@ -46,7 +46,11 @@ class Settings(BaseSettings):
 
     max_upload_size_mb: int = 40
 
-    model_config = SettingsConfigDict(env_file=".env")
+    # Absolute (BASE_DIR-relative), not the bare ".env" this used to be — that resolved against
+    # the process's current working directory, which silently fails to find backend/.env whenever
+    # uvicorn is launched from the repo root (e.g. via --app-dir backend, as the local dev launch
+    # config does) instead of from inside backend/ itself.
+    model_config = SettingsConfigDict(env_file=BASE_DIR / ".env")
 
 
 settings = Settings()

@@ -15,6 +15,7 @@ import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import { useHelpChat } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import type { HelpChatTurn } from '../api/types';
+import { MarkdownLite } from './MarkdownLite';
 
 const GREETING =
   "Hi, I'm the Insulator Inspector Pro help assistant. Ask me anything about your daily routine — " +
@@ -116,9 +117,13 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
               py: 1,
             }}
           >
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {t.content}
-            </Typography>
+            {t.role === 'user' ? (
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                {t.content}
+              </Typography>
+            ) : (
+              <MarkdownLite text={t.content} />
+            )}
           </Box>
         ))}
         {chat.isPending && (
