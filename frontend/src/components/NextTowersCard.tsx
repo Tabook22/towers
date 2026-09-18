@@ -7,6 +7,11 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   LinearProgress,
   MenuItem,
   Stack,
@@ -245,12 +250,19 @@ function StopActions({
   onStatus?: (stop: NextTowerStop, status: NightClaimStatus, skipReason?: string) => void;
 }) {
   const [assignTo, setAssignTo] = useState('');
+  const [skipOpen, setSkipOpen] = useState(false);
+  const [skipReason, setSkipReason] = useState('');
   const mine = stop.mine || (currentUserId != null && stop.claimed_by_id === currentUserId);
   const taken = Boolean(stop.claim_id && stop.claim_status && !['done', 'skipped'].includes(stop.claim_status) && !mine);
-  const skip = () => {
-    const reason = window.prompt('Why skip this tower?', stop.skip_reason || 'Skipping this tower');
-    if (reason == null) return;
-    onStatus?.(stop, 'skipped', reason.trim() || 'Skipping this tower');
+  const openSkip = () => {
+    setSkipReason('');
+    setSkipOpen(true);
+  };
+  const confirmSkip = () => {
+    const reason = skipReason.trim();
+    if (!reason) return;
+    onStatus?.(stop, 'skipped', reason);
+    setSkipOpen(false);
   };
 
   return (
@@ -280,7 +292,7 @@ function StopActions({
           </Button>
         )}
         {mine && stop.claim_status && !['done', 'skipped'].includes(stop.claim_status) && (
-          <Button size="small" color="warning" disabled={busy} onClick={skip}>
+          <Button size="small" color="warning" disabled={busy} onClick={openSkip}>
             Skip
           </Button>
         )}
@@ -321,6 +333,30 @@ function StopActions({
           ))}
         </TextField>
       )}
+      <Dialog open={skipOpen} onClose={() => setSkipOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Why skip {stop.tower_id || 'this tower'}?</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            The admin sees this explanation in the crew channel, so please be specific (e.g. "Gate locked,
+            no keyholder answered" rather than "Skipping this tower").
+          </DialogContentText>
+          <TextField
+            autoFocus
+            fullWidth
+            multiline
+            minRows={2}
+            placeholder="Explain why you're skipping this tower…"
+            value={skipReason}
+            onChange={(e) => setSkipReason(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSkipOpen(false)}>Cancel</Button>
+          <Button variant="contained" color="warning" disabled={!skipReason.trim()} onClick={confirmSkip}>
+            Skip tower
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

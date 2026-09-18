@@ -212,7 +212,9 @@ def update_claim(
         if status in ("done", "skipped"):
             row.completed_at = now
         if status == "skipped":
-            reason = (data.get("skip_reason") or row.skip_reason or CHANNEL_KIND_DEFAULT_BODY["skip"]).strip()
+            reason = (data.get("skip_reason") or row.skip_reason or "").strip()
+            if not reason or reason.casefold() == CHANNEL_KIND_DEFAULT_BODY["skip"].casefold():
+                raise HTTPException(status_code=400, detail="A short explanation is required to skip a tower")
             row.skip_reason = reason
             _post_skip_channel(db, team_id, user, row.tower_pk, reason)
         if status == "claimed":
