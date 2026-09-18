@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   IconButton,
   Slider,
   Stack,
@@ -31,15 +36,36 @@ import ZoomInIcon from '@mui/icons-material/ZoomInRounded';
 import ZoomOutIcon from '@mui/icons-material/ZoomOutRounded';
 import TuneIcon from '@mui/icons-material/TuneRounded';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHighRounded';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMoreRounded';
 import { ResizableDialogPaper } from './ResizableDialogPaper';
+import {
+  applyHeavyEnhancements,
+  DEFAULT_HUE_SAT,
+  isHeavyDefault,
+  type HeavyEnhanceParams,
+  type HueBandSaturation,
+} from './imageEnhance';
+import { useSmartEnhanceImage } from '../api/hooks';
+
+type SmartStrength = 'gentle' | 'balanced' | 'strong';
 
 const ENHANCE_MIN = 50;
 const ENHANCE_MAX = 200;
 const ENHANCE_DEFAULT = 100;
+const DEFAULT_HUE_RANGE: [number, number] = [340, 40]; // wraps through 0° — the reds/oranges a "hot" palette uses
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, v));
 }
+
+const HUE_SWATCHES: Array<{ key: keyof HueBandSaturation; label: string; color: string }> = [
+  { key: 'red', label: 'Red', color: '#ff3b30' },
+  { key: 'yellow', label: 'Yellow', color: '#ffd60a' },
+  { key: 'green', label: 'Green', color: '#34c759' },
+  { key: 'cyan', label: 'Cyan', color: '#32ade6' },
+  { key: 'blue', label: 'Blue', color: '#0a84ff' },
+  { key: 'purple', label: 'Purple', color: '#af52de' },
+];
 
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 5;
@@ -276,6 +302,9 @@ interface Props {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** Which Image row this is — needed only for "Auto enhance selected insulator" to check access
+   * (see useSmartEnhanceImage); the photo bytes it processes always come from the canvas itself. */
+  imageId: number;
   /** URL to load as the drawing base — pass the existing annotated version if there is one, so
    * re-opening the tool continues on top of prior marks rather than losing them. */
   imageUrl: string;
@@ -286,7 +315,7 @@ interface Props {
   saving?: boolean;
 }
 
-export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, onSave, saving }: Props) {
+export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, originalUrl, onSave, saving }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [baseUrl, setBaseUrl] = useState(imageUrl);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
@@ -334,6 +363,132 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
     setSaturation(ENHANCE_DEFAULT);
   };
 
+  // The heavier effects (blur-based, so real per-pixel work, not a cheap ctx.filter) — recomputed
+  // only when a control is released (see the sliders' onChangeCommitted below), never on every
+  // drag tick, and cached in processedCanvasRef so drawBase's per-frame redraw (every pointer
+  // move while drawing a mark) stays a plain, cheap drawImage.
+  const [localContrast, setLocalContrast] = useState(0);
+  const [noiseReduction, setNoiseReduction] = useState(0);
+  const [sharpening, setSharpening] = useState(0);
+  const [hueSat, setHueSat] = useState<HueBandSaturation>(DEFAULT_HUE_SAT);
+  const [highlightRange, setHighlightRange] = useState(false);
+  const [hueRange, setHueRange] = useState<[number, number]>(DEFAULT_HUE_RANGE);
+  const [compareOriginal, setCompareOriginal] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const processedCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // The "Auto enhance selected insulator" result (see runSmartEnhance below), kept separate from
+  // processedCanvasRef so the two features compose instead of clobbering each other: dragging a
+  // Detail & noise slider re-derives processedCanvasRef from THIS base (falling back to the plain
+  // original when there's no smart result), rather than always starting over from the untouched
+  // photo and silently discarding whatever "Auto enhance insulator" just produced.
+  const smartBaseRef = useRef<HTMLCanvasElement | null>(null);
+  const heavyIsDefault = isHeavyDefault({ localContrast, noiseReduction, sharpening, hueSat, highlightRange, hueRange });
+  const resetHeavy = () => {
+    setLocalContrast(0);
+    setNoiseReduction(0);
+    setSharpening(0);
+    setHueSat(DEFAULT_HUE_SAT);
+    setHighlightRange(false);
+    setHueRange(DEFAULT_HUE_RANGE);
+    processedCanvasRef.current = smartBaseRef.current;
+  };
+
+  const recomputeHeavy = (overrides?: Partial<HeavyEnhanceParams>) => {
+    if (!img) return;
+    const params: HeavyEnhanceParams = { localContrast, noiseReduction, sharpening, hueSat, highlightRange, hueRange, ...overrides };
+    if (isHeavyDefault(params)) {
+      processedCanvasRef.current = smartBaseRef.current;
+      forceRedraw((n) => n + 1);
+      return;
+    }
+    setProcessing(true);
+    // A setTimeout yield so the "Processing…" state actually paints before the (synchronous,
+    // potentially few-hundred-ms) pixel work below runs and blocks the main thread.
+    window.setTimeout(() => {
+      const off = document.createElement('canvas');
+      off.width = img.naturalWidth;
+      off.height = img.naturalHeight;
+      const octx = off.getContext('2d', { willReadFrequently: true });
+      if (!octx) {
+        setProcessing(false);
+        return;
+      }
+      octx.drawImage(smartBaseRef.current ?? img, 0, 0);
+      const imageData = octx.getImageData(0, 0, off.width, off.height);
+      applyHeavyEnhancements(imageData, params);
+      octx.putImageData(imageData, 0, 0);
+      processedCanvasRef.current = off;
+      setProcessing(false);
+      forceRedraw((n) => n + 1);
+    }, 0);
+  };
+
+  // "Auto enhance selected insulator" — the user drags a box around the string first (see
+  // handlePointerDown's pickingRoi branch below), then picks a strength; the actual pixel work
+  // (bilateral filter + ROI-based auto-levels + pitch-scaled unsharp mask) runs server-side (real
+  // OpenCV, not a JS approximation — see services/smart_enhance.py) and the result replaces
+  // whatever's currently in processedCanvasRef, same slot the Detail/Individual-colors panel uses.
+  const smartEnhance = useSmartEnhanceImage();
+  const [pickingRoi, setPickingRoi] = useState(false);
+  const [roiDraft, setRoiDraft] = useState<{ start: Point; current: Point } | null>(null);
+  const [roiBox, setRoiBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [smartEstimate, setSmartEstimate] = useState<{ direction_deg: number; pitch_px: number; confidence: string } | null>(
+    null,
+  );
+  const [smartError, setSmartError] = useState<string | null>(null);
+
+  const runSmartEnhance = (strength: SmartStrength) => {
+    if (!img || !roiBox) return;
+    setSmartError(null);
+    const off = document.createElement('canvas');
+    off.width = img.naturalWidth;
+    off.height = img.naturalHeight;
+    const octx = off.getContext('2d');
+    if (!octx) return;
+    octx.drawImage(img, 0, 0);
+    off.toBlob(
+      (blob) => {
+        if (!blob) return;
+        smartEnhance.mutate(
+          { imageId, file: blob, roi: roiBox, strength },
+          {
+            onSuccess: (result) => {
+              const el = new Image();
+              el.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = el.naturalWidth;
+                canvas.height = el.naturalHeight;
+                const cctx = canvas.getContext('2d');
+                if (!cctx) return;
+                cctx.drawImage(el, 0, 0);
+                smartBaseRef.current = canvas;
+                // Re-applies whatever Detail & noise/Individual colors adjustments are already
+                // dialed in on top of this new base (a no-op, cheap fast-path if they're all still
+                // at their defaults) rather than just overwriting them.
+                recomputeHeavy();
+                setSmartEstimate({ direction_deg: result.direction_deg, pitch_px: result.pitch_px, confidence: result.confidence });
+                setRoiBox(null);
+              };
+              el.src = `data:image/jpeg;base64,${result.image_base64}`;
+            },
+            onError: (err: unknown) => {
+              const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+              setSmartError(detail || 'Could not enhance this photo — check your connection and try again.');
+            },
+          },
+        );
+      },
+      'image/jpeg',
+      0.95,
+    );
+  };
+
+  const cancelPickRoi = () => {
+    setPickingRoi(false);
+    setRoiDraft(null);
+    setRoiBox(null);
+  };
+
   // Reset to the given base image whenever the dialog opens (or the caller hands us a new one).
   useEffect(() => {
     if (open) {
@@ -342,7 +497,13 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
       setSelectedId(null);
       setZoom(1);
       resetEnhance();
+      smartBaseRef.current = null;
+      resetHeavy();
+      setCompareOriginal(false);
       setShowEnhance(false);
+      cancelPickRoi();
+      setSmartEstimate(null);
+      setSmartError(null);
       if (scrollBoxRef.current) {
         scrollBoxRef.current.scrollLeft = 0;
         scrollBoxRef.current.scrollTop = 0;
@@ -463,13 +624,20 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
   // Image + committed shapes only — no selection outline/handle, no in-progress preview. Used both
   // by redraw() (which layers those on top) and directly by handleSave (which must NOT bake the
   // selection UI into the exported file).
-  const drawBase = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+  // `forceCompare` lets handleSave always export the real edited version even if "Compare
+  // original/enhanced" happens to be checked at that moment — that toggle is a temporary peek,
+  // not a way to discard the adjustments, so saving must never depend on its current UI state.
+  const drawBase = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, forceCompare = compareOriginal) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Compare mode bypasses every adjustment (light and heavy alike) to show exactly what the
+    // camera captured — marks are still drawn on top so their placement stays visible either way.
+    const source = forceCompare ? img! : processedCanvasRef.current ?? img!;
     // The brightness/contrast/saturation adjustment applies only to the photo itself — reset to
     // 'none' before the marks are stroked so a heavy contrast boost, say, doesn't also wash out or
     // exaggerate the ink colors an inspector picked.
-    ctx.filter = enhanceIsDefault ? 'none' : `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
-    ctx.drawImage(img!, 0, 0);
+    ctx.filter =
+      forceCompare || enhanceIsDefault ? 'none' : `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
+    ctx.drawImage(source, 0, 0);
     ctx.filter = 'none';
     for (const s of shapes) strokeShape(ctx, s);
   };
@@ -531,6 +699,25 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
       ctx.beginPath();
       ctx.arc(eraseCursor.current.x, eraseCursor.current.y, eraserRadius, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.restore();
+    }
+
+    // The insulator box for "Auto enhance selected insulator" — either mid-drag (roiDraft) or
+    // finalized and awaiting a strength choice (roiBox), drawn the same way either time.
+    const activeRoi = roiDraft
+      ? {
+          x: Math.min(roiDraft.start.x, roiDraft.current.x),
+          y: Math.min(roiDraft.start.y, roiDraft.current.y),
+          w: Math.abs(roiDraft.current.x - roiDraft.start.x),
+          h: Math.abs(roiDraft.current.y - roiDraft.start.y),
+        }
+      : roiBox;
+    if (activeRoi) {
+      ctx.save();
+      ctx.strokeStyle = '#ff9f0a';
+      ctx.lineWidth = Math.max(2, baseStrokeWidth / 2);
+      ctx.setLineDash([baseStrokeWidth * 1.5, baseStrokeWidth]);
+      ctx.strokeRect(activeRoi.x, activeRoi.y, activeRoi.w, activeRoi.h);
       ctx.restore();
     }
   };
@@ -620,6 +807,14 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (pickingRoi) {
+      // Overrides whatever drawing tool happens to be selected — picking the insulator box is its
+      // own temporary mode, not a mark, and is never saved as a Shape.
+      const p = toCanvasPoint(e);
+      setRoiDraft({ start: p, current: p });
+      safeSetPointerCapture(e);
+      return;
+    }
     if (e.button === 1) {
       // Middle-mouse-button drag pans regardless of which tool is active — lets you reposition the
       // view mid-annotation (e.g. partway through drawing a shape that needs more room) without
@@ -662,6 +857,10 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (pickingRoi && roiDraft) {
+      setRoiDraft({ start: roiDraft.start, current: toCanvasPoint(e) });
+      return;
+    }
     // An active pan/move/resize interaction always wins over whatever the currently-selected tool
     // would otherwise do with this pointermove — in particular, a middle-mouse-button pan (see
     // handlePointerDown) can start while any tool is active, not just Select, and needs to keep
@@ -737,6 +936,22 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
   };
 
   const handlePointerUp = () => {
+    if (pickingRoi) {
+      if (roiDraft) {
+        const x = Math.min(roiDraft.start.x, roiDraft.current.x);
+        const y = Math.min(roiDraft.start.y, roiDraft.current.y);
+        const w = Math.abs(roiDraft.current.x - roiDraft.start.x);
+        const h = Math.abs(roiDraft.current.y - roiDraft.start.y);
+        setRoiDraft(null);
+        if (w > 20 && h > 20) {
+          setRoiBox({ x, y, w, h });
+          setPickingRoi(false);
+        }
+        // else: too small to be a real box — stay in picking mode so a stray click doesn't
+        // silently exit it; the user just drags again.
+      }
+      return;
+    }
     if (erasing.current) {
       erasing.current = false;
       return;
@@ -784,6 +999,12 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
     setShapes([]);
     setSelectedId(null);
     resetEnhance();
+    smartBaseRef.current = null;
+    resetHeavy();
+    setCompareOriginal(false);
+    cancelPickRoi();
+    setSmartEstimate(null);
+    setSmartError(null);
   };
 
   // Auto levels: stretches the darkest/lightest 1% of pixels (by luminance) out to pure black/
@@ -1032,13 +1253,37 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
               </Tooltip>
             </Stack>
 
-            <Tooltip title="Brightness / contrast / saturation">
+            <Tooltip title="Drag a box around the insulator string — analyzes just that area (direction, disc spacing, its own brightness range) instead of the whole photo">
+              <span>
+                <Button
+                  size="small"
+                  variant={pickingRoi ? 'contained' : 'outlined'}
+                  color={pickingRoi ? 'warning' : 'primary'}
+                  startIcon={<AutoFixHighIcon fontSize="small" />}
+                  disabled={smartEnhance.isPending}
+                  onClick={() => {
+                    if (pickingRoi) {
+                      cancelPickRoi();
+                      return;
+                    }
+                    setRoiBox(null);
+                    setSmartEstimate(null);
+                    setSmartError(null);
+                    setPickingRoi(true);
+                  }}
+                >
+                  {pickingRoi ? 'Drag a box…' : 'Auto enhance insulator'}
+                </Button>
+              </span>
+            </Tooltip>
+
+            <Tooltip title="Brightness / contrast / saturation / detail / color">
               <ToggleButton
                 size="small"
                 value="enhance"
                 selected={showEnhance}
                 onChange={() => setShowEnhance((v) => !v)}
-                color={enhanceIsDefault ? 'standard' : 'primary'}
+                color={enhanceIsDefault && heavyIsDefault ? 'standard' : 'primary'}
               >
                 <TuneIcon fontSize="small" />
               </ToggleButton>
@@ -1076,28 +1321,217 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
             )}
           </Stack>
 
-          {showEnhance && (
-            <Stack
-              direction="row"
-              spacing={2.5}
-              sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1, px: 1.5, py: 1, borderRadius: 1.5, bgcolor: 'action.hover' }}
-            >
-              <EnhanceSlider label="Brightness" value={brightness} onChange={setBrightness} />
-              <EnhanceSlider label="Contrast" value={contrast} onChange={setContrast} />
-              <EnhanceSlider label="Saturation" value={saturation} onChange={setSaturation} />
-              <Tooltip title="Auto-stretch brightness/contrast from this photo's own histogram">
-                <Button size="small" startIcon={<AutoFixHighIcon fontSize="small" />} onClick={handleAutoEnhance}>
-                  Auto
-                </Button>
-              </Tooltip>
-              <Tooltip title="Back to the unadjusted photo (drawn marks are unaffected)">
-                <span>
-                  <Button size="small" startIcon={<RestartAltIcon fontSize="small" />} onClick={resetEnhance} disabled={enhanceIsDefault}>
-                    Reset
-                  </Button>
-                </span>
-              </Tooltip>
+          {pickingRoi && (
+            <Alert severity="info" onClose={cancelPickRoi}>
+              Drag a box around the insulator string on the photo below.
+            </Alert>
+          )}
+
+          {roiBox && (
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center', px: 1.5, py: 1, borderRadius: 1.5, bgcolor: 'action.hover' }}>
+              <Typography variant="body2" sx={{ mr: 0.5 }}>
+                Enhance that box:
+              </Typography>
+              <Button size="small" onClick={() => runSmartEnhance('gentle')} disabled={smartEnhance.isPending}>
+                Gentle
+              </Button>
+              <Button size="small" variant="contained" onClick={() => runSmartEnhance('balanced')} disabled={smartEnhance.isPending}>
+                Balanced
+              </Button>
+              <Button size="small" onClick={() => runSmartEnhance('strong')} disabled={smartEnhance.isPending}>
+                Strong
+              </Button>
+              <Button size="small" color="inherit" onClick={cancelPickRoi} disabled={smartEnhance.isPending}>
+                Cancel
+              </Button>
+              {smartEnhance.isPending && (
+                <Typography variant="caption" color="text.secondary">
+                  Enhancing…
+                </Typography>
+              )}
             </Stack>
+          )}
+
+          {smartError && (
+            <Alert severity="error" onClose={() => setSmartError(null)}>
+              {smartError}
+            </Alert>
+          )}
+
+          {smartEstimate && (
+            <Alert severity="info" onClose={() => setSmartEstimate(null)}>
+              {smartEstimate.confidence === 'estimated'
+                ? `Estimated ${Math.round(smartEstimate.direction_deg)}° tilt from vertical, disc spacing ~${Math.round(smartEstimate.pitch_px)}px — used to scale the noise reduction and detail enhancement.`
+                : `Couldn't confidently measure disc spacing in that box, so a size-based estimate was used instead — the enhancement still ran, just less precisely tuned.`}
+            </Alert>
+          )}
+
+          {showEnhance && (
+            <Stack spacing={0.5} sx={{ borderRadius: 1.5, bgcolor: 'action.hover', overflow: 'auto', maxHeight: 320 }}>
+              <Accordion disableGutters defaultExpanded elevation={0} sx={{ bgcolor: 'transparent' }}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon fontSize="small" />}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Light &amp; contrast
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Stack direction="row" spacing={2.5} sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+                    <EnhanceSlider label="Brightness" value={brightness} onChange={setBrightness} />
+                    <EnhanceSlider label="Contrast" value={contrast} onChange={setContrast} />
+                    <EnhanceSlider label="Saturation" value={saturation} onChange={setSaturation} />
+                    <Tooltip title="Auto-stretch brightness/contrast from this photo's own histogram">
+                      <Button size="small" startIcon={<AutoFixHighIcon fontSize="small" />} onClick={handleAutoEnhance}>
+                        Auto
+                      </Button>
+                    </Tooltip>
+                    <Tooltip title="Back to the unadjusted photo (drawn marks are unaffected)">
+                      <span>
+                        <Button size="small" startIcon={<RestartAltIcon fontSize="small" />} onClick={resetEnhance} disabled={enhanceIsDefault}>
+                          Reset
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  </Stack>
+                </AccordionDetails>
+              </Accordion>
+
+              <Accordion disableGutters elevation={0} sx={{ bgcolor: 'transparent' }}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon fontSize="small" />}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Detail &amp; noise
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Stack spacing={1}>
+                    <Stack direction="row" spacing={2.5} sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+                      <EnhanceSlider
+                        label="Local contrast"
+                        value={localContrast}
+                        min={0}
+                        max={100}
+                        onChange={setLocalContrast}
+                        onCommit={(v) => recomputeHeavy({ localContrast: v })}
+                      />
+                      <EnhanceSlider
+                        label="Noise reduction"
+                        value={noiseReduction}
+                        min={0}
+                        max={100}
+                        onChange={setNoiseReduction}
+                        onCommit={(v) => recomputeHeavy({ noiseReduction: v })}
+                      />
+                      <EnhanceSlider
+                        label="Sharpening"
+                        value={sharpening}
+                        min={0}
+                        max={100}
+                        onChange={setSharpening}
+                        onCommit={(v) => recomputeHeavy({ sharpening: v })}
+                      />
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                      Use gently. Enhancement cannot recover detail that was never captured, or fix a poorly focused
+                      photo.
+                    </Typography>
+                  </Stack>
+                </AccordionDetails>
+              </Accordion>
+
+              <Accordion disableGutters elevation={0} sx={{ bgcolor: 'transparent' }}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon fontSize="small" />}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Individual colors
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Stack spacing={1}>
+                    <Typography variant="caption" color="text.secondary">
+                      0% removes a color's saturation; 100% keeps it; 200% strengthens it.
+                    </Typography>
+                    <Stack direction="row" spacing={2.5} sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+                      {HUE_SWATCHES.map(({ key, label, color }) => (
+                        <EnhanceSlider
+                          key={key}
+                          label={label}
+                          swatch={color}
+                          value={hueSat[key]}
+                          onChange={(v) => setHueSat((prev) => ({ ...prev, [key]: v }))}
+                          onCommit={(v) => {
+                            const next = { ...hueSat, [key]: v };
+                            setHueSat(next);
+                            recomputeHeavy({ hueSat: next });
+                          }}
+                        />
+                      ))}
+                    </Stack>
+                  </Stack>
+                </AccordionDetails>
+              </Accordion>
+
+              <Accordion disableGutters elevation={0} sx={{ bgcolor: 'transparent' }}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon fontSize="small" />}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Highlight color range
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Stack spacing={1.5}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={highlightRange}
+                          onChange={(e) => {
+                            const next = e.target.checked;
+                            setHighlightRange(next);
+                            recomputeHeavy({ highlightRange: next });
+                          }}
+                        />
+                      }
+                      label={<Typography variant="body2">Dim pixels outside this hue range</Typography>}
+                    />
+                    <Box
+                      sx={{
+                        height: 10,
+                        borderRadius: 1,
+                        background:
+                          'linear-gradient(to right, hsl(0,90%,55%), hsl(60,90%,55%), hsl(120,90%,55%), hsl(180,90%,55%), hsl(240,90%,55%), hsl(300,90%,55%), hsl(360,90%,55%))',
+                      }}
+                    />
+                    <Slider
+                      size="small"
+                      min={0}
+                      max={360}
+                      value={hueRange}
+                      disabled={!highlightRange}
+                      onChange={(_e, v) => setHueRange(v as [number, number])}
+                      onChangeCommitted={(_e, v) => {
+                        const next = v as [number, number];
+                        setHueRange(next);
+                        recomputeHeavy({ hueRange: next });
+                      }}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      Based on this photo's own colors, not a real temperature reading — these images have no
+                      per-pixel temperature data behind them, only the camera's own rendered palette. Isolating the
+                      reds/oranges on a typical hot palette approximates "hot vs. cool", nothing more precise.
+                    </Typography>
+                  </Stack>
+                </AccordionDetails>
+              </Accordion>
+
+              <Box sx={{ px: 2, py: 1 }}>
+                <FormControlLabel
+                  control={<Checkbox size="small" checked={compareOriginal} onChange={(e) => setCompareOriginal(e.target.checked)} />}
+                  label={<Typography variant="body2">Compare original / enhanced</Typography>}
+                />
+              </Box>
+            </Stack>
+          )}
+          {processing && (
+            <Typography variant="caption" color="text.secondary">
+              Processing…
+            </Typography>
           )}
 
           {loadError && <Alert severity="error">Couldn't load the image to annotate.</Alert>}
@@ -1162,7 +1596,7 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
                   transform: zoom !== 1 ? `scale(${zoom})` : undefined,
                   flexShrink: 0,
                   touchAction: 'none',
-                  cursor: tool === 'select' ? 'default' : tool === 'text' ? 'text' : 'crosshair',
+                  cursor: pickingRoi ? 'crosshair' : tool === 'select' ? 'default' : tool === 'text' ? 'text' : 'crosshair',
                 }}
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
@@ -1192,18 +1626,41 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
   );
 }
 
-function EnhanceSlider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+function EnhanceSlider({
+  label,
+  value,
+  onChange,
+  onCommit,
+  min = ENHANCE_MIN,
+  max = ENHANCE_MAX,
+  swatch,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  /** Fires once on release rather than every drag tick — pass this for a heavy (pixel-processing)
+   * effect; omit it for a cheap one (brightness/contrast/saturation), which can just live-update
+   * on every onChange instead. */
+  onCommit?: (v: number) => void;
+  min?: number;
+  max?: number;
+  swatch?: string;
+}) {
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 190 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ width: 68, flexShrink: 0 }}>
-        {label}
-      </Typography>
+      <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', width: 82, flexShrink: 0 }}>
+        {swatch && <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: swatch, flexShrink: 0 }} />}
+        <Typography variant="caption" color="text.secondary" noWrap>
+          {label}
+        </Typography>
+      </Stack>
       <Slider
         size="small"
-        min={ENHANCE_MIN}
-        max={ENHANCE_MAX}
+        min={min}
+        max={max}
         value={value}
         onChange={(_e, v) => onChange(v as number)}
+        onChangeCommitted={onCommit ? (_e, v) => onCommit(v as number) : undefined}
         sx={{ width: 100 }}
       />
       <Typography variant="caption" color="text.secondary" sx={{ width: 36, flexShrink: 0, textAlign: 'right' }}>

@@ -319,6 +319,7 @@ export function ImageSlotCard({
           open={annotatorOpen}
           onClose={() => setAnnotatorOpen(false)}
           title={`${image.image_type} — ${image.image_code || ''}`}
+          imageId={image.id}
           imageUrl={mediaUrl(
             image.annotated_path ? `/api/images/${image.id}/annotation` : `/api/images/${image.id}/file`,
             image.annotated_path ? image.annotated_uploaded_at : image.uploaded_at,

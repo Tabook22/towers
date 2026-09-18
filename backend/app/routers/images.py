@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import base64
 import datetime as dt
 from pathlib import Path
 
+import cv2
+import numpy as np
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
@@ -11,7 +14,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import check_visit_team_access, get_current_user
 from app.models import Image, Position, User, Visit
-from app.schemas import ImageOut, ImageRetype, ImageUpdate, PositionOut
+from app.schemas import ImageOut, ImageRetype, ImageUpdate, PositionOut, SmartEnhanceOut
 from app.services.archive import (
     ACCEPTED_IMAGE_CONTENT_TYPES,
     archive_relative_path,
@@ -21,6 +24,7 @@ from app.services.archive import (
     save_upload,
 )
 from app.services.id_gen import image_code as compute_image_code
+from app.services.smart_enhance import smart_enhance
 
 router = APIRouter(prefix="/api/images", tags=["images"])
 
@@ -500,3 +504,48 @@ def get_annotation_thumbnail(image_id: int, db: Session = Depends(get_db), user:
     if not path.exists():
         raise HTTPException(status_code=404, detail="Annotated thumbnail missing from archive")
     return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
+@router.post("/{image_id}/smart-enhance", response_model=SmartEnhanceOut)
+async def smart_enhance_image(
+    image_id: int,
+    file: UploadFile = File(...),
+    roi_x: int = Form(...),
+    roi_y: int = Form(...),
+    roi_w: int = Form(...),
+    roi_h: int = Form(...),
+    strength: str = Form(default="balanced"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """"Auto enhance selected insulator" — the caller draws a box around the insulator string in
+    the annotator and posts the ORIGINAL (unadjusted) photo plus that box; nothing is saved here,
+    the result is a preview the annotator layers under its own live brightness/contrast/saturation
+    and any drawn marks (see ImageAnnotator.tsx's recomputeHeavy). image_id is only used to check
+    the caller can actually see this image — the photo itself always comes from `file`, the same
+    "upload what's currently on the canvas" pattern save_annotation already uses."""
+    _load_image(db, image_id, user)  # access check only — the bytes to process are in `file`
+    if strength not in ("gentle", "balanced", "strong"):
+        raise HTTPException(status_code=400, detail="strength must be 'gentle', 'balanced', or 'strong'")
+    if file.content_type not in ACCEPTED_IMAGE_CONTENT_TYPES:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
+    raw = await file.read()
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    if len(raw) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"File exceeds {settings.max_upload_size_mb} MB limit")
+
+    image_bgr = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if image_bgr is None:
+        raise HTTPException(status_code=400, detail="Could not read this image")
+
+    result_bgr, direction_deg, pitch_px, confidence = smart_enhance(image_bgr, (roi_x, roi_y, roi_w, roi_h), strength)
+    ok, encoded = cv2.imencode(".jpg", result_bgr, [cv2.IMWRITE_JPEG_QUALITY, 92])
+    if not ok:
+        raise HTTPException(status_code=500, detail="Could not encode the enhanced image")
+
+    return SmartEnhanceOut(
+        image_base64=base64.b64encode(encoded.tobytes()).decode("ascii"),
+        direction_deg=direction_deg,
+        pitch_px=pitch_px,
+        confidence=confidence,
+    )

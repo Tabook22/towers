@@ -690,6 +690,46 @@ export function useClearImageFile(visitId: number) {
   });
 }
 
+export interface SmartEnhanceResult {
+  image_base64: string;
+  direction_deg: number;
+  pitch_px: number;
+  confidence: 'estimated' | 'fallback';
+}
+
+// "Auto enhance selected insulator" — preview-only (nothing is saved server-side), so unlike
+// useSaveAnnotation this has no offline outbox fallback; it needs a live connection, same as any
+// other on-demand server computation in this app.
+export function useSmartEnhanceImage() {
+  return useMutation({
+    mutationFn: async ({
+      imageId,
+      file,
+      roi,
+      strength,
+    }: {
+      imageId: number;
+      file: Blob;
+      roi: { x: number; y: number; w: number; h: number };
+      strength: 'gentle' | 'balanced' | 'strong';
+    }) => {
+      const form = new FormData();
+      form.set('file', file, 'photo.jpg');
+      form.set('roi_x', String(Math.round(roi.x)));
+      form.set('roi_y', String(Math.round(roi.y)));
+      form.set('roi_w', String(Math.round(roi.w)));
+      form.set('roi_h', String(Math.round(roi.h)));
+      form.set('strength', strength);
+      return (
+        await apiClient.post<SmartEnhanceResult>(`/api/images/${imageId}/smart-enhance`, form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 60_000,
+        })
+      ).data;
+    },
+  });
+}
+
 export function useSaveAnnotation(visitId: number) {
   const qc = useQueryClient();
   return useMutation({

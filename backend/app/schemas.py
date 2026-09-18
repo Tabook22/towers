@@ -279,6 +279,15 @@ class ImageOut(BaseModel):
     annotated_uploaded_at: dt.datetime | None = None
 
 
+class SmartEnhanceOut(BaseModel):
+    # Base64 JPEG rather than a raw binary response — this rides alongside the geometry estimate
+    # in one JSON body instead of needing a second round trip or custom multipart response.
+    image_base64: str
+    direction_deg: float
+    pitch_px: float
+    confidence: Literal["estimated", "fallback"]
+
+
 class ArchiveImageOut(ImageOut):
     """ImageOut plus the Team/Tower/Position context needed to group the Image Archive page by
     team, then year/month, then line (Tower.area), then tower, then insulator (position) — nothing
