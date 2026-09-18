@@ -1995,7 +1995,15 @@ export function useTeamFieldTrack(
 // underlying Claude API — the widget resends the whole conversation's history each turn.
 export function useHelpChat() {
   return useMutation({
-    mutationFn: async ({ message, history }: { message: string; history: HelpChatTurn[] }) =>
-      (await apiClient.post<{ reply: string }>('/api/help/chat', { message, history })).data,
+    mutationFn: async ({
+      message,
+      history,
+      useInternet,
+    }: {
+      message: string;
+      history: HelpChatTurn[];
+      useInternet?: boolean;
+    }) =>
+      (await apiClient.post<{ reply: string }>('/api/help/chat', { message, history, use_internet: !!useInternet })).data,
   });
 }

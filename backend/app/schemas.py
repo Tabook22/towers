@@ -1330,6 +1330,10 @@ class HelpChatRequest(BaseModel):
     # Prior turns of this conversation, oldest first — the API is stateless, so the frontend
     # resends them each time (see components/HelpChatWidget.tsx).
     history: list[HelpChatTurn] = []
+    # Opt-in per message, off by default — ticking the "Search the internet" box in the chat UI.
+    # The assistant otherwise only ever answers from the guide, live app data, and the knowledge
+    # base; this is the one path that leaves the app to fetch something.
+    use_internet: bool = False
 
 
 class HelpChatResponse(BaseModel):

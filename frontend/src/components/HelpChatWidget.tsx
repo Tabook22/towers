@@ -5,13 +5,17 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   CircularProgress,
+  FormControlLabel,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import PublicRoundedIcon from '@mui/icons-material/PublicRounded';
 import { useHelpChat } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import type { HelpChatTurn } from '../api/types';
@@ -41,6 +45,7 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
   const { user } = useAuth();
   const [turns, setTurns] = useState<DisplayTurn[]>([]);
   const [draft, setDraft] = useState('');
+  const [useInternet, setUseInternet] = useState(false);
   const chat = useHelpChat();
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -56,7 +61,7 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
     setTurns(next);
     setDraft('');
     chat.mutate(
-      { message, history },
+      { message, history, useInternet },
       {
         onSuccess: (data) => {
           setTurns((prev) => [...prev, { role: 'assistant', content: data.reply }]);
@@ -135,6 +140,26 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
           </Box>
         )}
       </Box>
+
+      <Tooltip title="Let the assistant also search the internet for this question — off by default, since it can't know your own towers/teams/reports anyway.">
+        <FormControlLabel
+          sx={{ mb: 0.5, ml: 0 }}
+          control={
+            <Checkbox
+              size="small"
+              checked={useInternet}
+              onChange={(e) => setUseInternet(e.target.checked)}
+              icon={<PublicRoundedIcon fontSize="small" />}
+              checkedIcon={<PublicRoundedIcon fontSize="small" color="primary" />}
+            />
+          }
+          label={
+            <Typography variant="caption" color="text.secondary">
+              Search the internet
+            </Typography>
+          }
+        />
+      </Tooltip>
 
       <Stack direction="row" spacing={1}>
         <TextField

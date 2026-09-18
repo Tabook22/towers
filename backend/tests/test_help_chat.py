@@ -95,3 +95,34 @@ def test_tool_use_round_trip_calls_the_scoped_tool_and_returns_the_final_text(mo
     assert captured["db"] is fake_db
     assert captured["user"] is fake_user
     assert captured["kwargs"] == {"area": "Ashoor-Saada"}
+
+
+def test_web_search_tool_only_added_when_use_internet_is_ticked(monkeypatch):
+    """The internet checkbox is opt-in per message — the web_search tool must not be offered to
+    the model at all unless the user explicitly ticked it for this specific question."""
+    import app.routers.help_chat as help_chat_module
+
+    monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-fake-key-for-this-test")
+
+    captured_calls = []
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured_calls.append(kwargs)
+            return _FakeResponse(content=[_FakeBlock("text", text="ok")], stop_reason="end_turn")
+
+    class FakeClient:
+        def __init__(self, api_key):
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(help_chat_module.anthropic, "Anthropic", FakeClient)
+
+    help_chat(HelpChatRequest(message="hi", use_internet=False), db=None, user=_fake_user())
+    tool_types_off = {t.get("type") for t in captured_calls[0]["tools"]}
+    assert "web_search_20250305" not in tool_types_off
+
+    help_chat(HelpChatRequest(message="hi", use_internet=True), db=None, user=_fake_user())
+    tool_types_on = {t.get("type") for t in captured_calls[1]["tools"]}
+    assert "web_search_20250305" in tool_types_on
+    assert len(captured_calls[1]["system"]) == 2  # base guide block + the internet-guardrail suffix
+    assert len(captured_calls[0]["system"]) == 1
