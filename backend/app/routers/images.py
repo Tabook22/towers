@@ -406,11 +406,15 @@ def get_image_file(image_id: int, db: Session = Depends(get_db), user: User = De
     path = settings.images_dir / img.file_path
     if not path.exists():
         raise HTTPException(status_code=404, detail="File missing from archive")
-    # The frontend cache-busts via a `?v=<uploaded_at>` query param on every URL, but "no-cache"
-    # (revalidate-before-use, not "never cache") is cheap insurance against a stale cached copy
-    # surviving a Replace-image — a client's Uploaded/RGB grid is exactly where that would bite.
+    # The frontend cache-busts via a `?v=<uploaded_at>` query param — a Replace-image bumps
+    # uploaded_at, which is a brand new URL the browser has never seen, so it can never serve a
+    # stale copy from cache. That already fully covers the "won't show an old photo" concern, which
+    # means this exact URL's bytes can never change — safe (and, for a ~1 MB original photo the
+    # annotator re-fetches on every open, worth a lot) to cache hard rather than revalidate-on-use.
     return FileResponse(
-        path, media_type=img.content_type or "application/octet-stream", headers={"Cache-Control": "no-cache"}
+        path,
+        media_type=img.content_type or "application/octet-stream",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
     )
 
 
@@ -422,7 +426,7 @@ def get_image_thumbnail(image_id: int, db: Session = Depends(get_db), user: User
     path = settings.thumbnails_dir / img.thumbnail_path
     if not path.exists():
         raise HTTPException(status_code=404, detail="Thumbnail missing")
-    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-cache"})
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @router.post("/{image_id}/annotation", response_model=ImageOut)
@@ -484,7 +488,7 @@ def get_annotation_file(image_id: int, db: Session = Depends(get_db), user: User
     path = settings.images_dir / img.annotated_path
     if not path.exists():
         raise HTTPException(status_code=404, detail="Annotated file missing from archive")
-    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-cache"})
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @router.get("/{image_id}/annotation/thumbnail")
@@ -495,4 +499,4 @@ def get_annotation_thumbnail(image_id: int, db: Session = Depends(get_db), user:
     path = settings.thumbnails_dir / img.annotated_thumbnail_path
     if not path.exists():
         raise HTTPException(status_code=404, detail="Annotated thumbnail missing from archive")
-    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-cache"})
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
