@@ -45,6 +45,9 @@ import { useAuth } from '../auth/AuthContext';
 import { mediaUrl } from '../api/client';
 import { VoiceNoteControls, VoiceNotePlayer } from '../components/VoiceNoteControls';
 import { DocumentPreviewDialog } from '../components/DocumentPreviewDialog';
+import { ResizableDialogPaper } from '../components/ResizableDialogPaper';
+import { RichTextEditor, type RichTextEditorHandle } from '../components/richtext/RichTextEditor';
+import { isRichTextEmpty, plainTextToHtml, stripInlineImageTokens, withInlineImageTokens } from '../components/richtext/htmlUtils';
 
 function formatSize(bytes: number | null): string {
   if (!bytes) return '—';
@@ -73,12 +76,13 @@ export function KnowledgeBasePage() {
   const [description, setDescription] = useState('');
   const [teamId, setTeamId] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
-  const [bodyText, setBodyText] = useState('');
+  const [bodyHtml, setBodyHtml] = useState('<p></p>');
   const [saveAs, setSaveAs] = useState<'txt' | 'pdf'>('txt');
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [voiceDuration, setVoiceDuration] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<RichTextEditorHandle>(null);
 
   const reset = () => {
     setMode('file');
@@ -86,7 +90,7 @@ export function KnowledgeBasePage() {
     setDescription('');
     setTeamId('');
     setFile(null);
-    setBodyText('');
+    setBodyHtml('<p></p>');
     setSaveAs('txt');
     setVoiceBlob(null);
     setVoiceDuration(null);
@@ -99,11 +103,11 @@ export function KnowledgeBasePage() {
     setVoiceDuration(duration);
     if (liveTranscript.trim()) {
       // The browser's own live speech-to-text already produced text — no need for a round trip.
-      setBodyText((prev) => (prev ? `${prev}\n${liveTranscript.trim()}` : liveTranscript.trim()));
+      editorRef.current?.appendParagraph(liveTranscript.trim());
       return;
     }
     transcribe.mutate(blob, {
-      onSuccess: (data) => setBodyText((prev) => (prev ? `${prev}\n${data.transcript}` : data.transcript)),
+      onSuccess: (data) => editorRef.current?.appendParagraph(data.transcript),
       onError: (err: unknown) => {
         const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
         setError(detail || 'Could not transcribe that recording — type the note instead.');
@@ -121,7 +125,7 @@ export function KnowledgeBasePage() {
       setError('Choose a file to upload.');
       return;
     }
-    if (mode === 'text' && !bodyText.trim()) {
+    if (mode === 'text' && isRichTextEmpty(bodyHtml)) {
       setError('Write, paste, or record some text first.');
       return;
     }
@@ -131,7 +135,7 @@ export function KnowledgeBasePage() {
         description: description.trim() || undefined,
         team_id: teamId ? Number(teamId) : null,
         file: mode === 'file' ? file || undefined : undefined,
-        text_content: mode === 'text' ? bodyText.trim() : undefined,
+        body_html: mode === 'text' ? stripInlineImageTokens(bodyHtml) : undefined,
         save_as: saveAs,
         voice: mode === 'text' ? voiceBlob || undefined : undefined,
         voice_duration_seconds: mode === 'text' ? voiceDuration ?? undefined : undefined,
@@ -268,14 +272,25 @@ export function KnowledgeBasePage() {
         </Table>
       </TableContainer>
 
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xs" fullWidth>
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        maxWidth={mode === 'text' ? 'md' : 'xs'}
+        fullWidth
+        PaperComponent={ResizableDialogPaper}
+        slotProps={
+          mode === 'text'
+            ? { paper: { sx: { width: 760, height: 640, maxWidth: '94vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column' } } }
+            : undefined
+        }
+      >
         <DialogTitle>Add to knowledge base</DialogTitle>
-        <Tabs value={mode} onChange={(_e, v) => setMode(v)} sx={{ px: 3, borderBottom: 1, borderColor: 'divider' }}>
+        <Tabs value={mode} onChange={(_e, v) => setMode(v)} sx={{ px: 3, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
           <Tab value="file" label="Upload file" />
           <Tab value="text" label="Write / record" />
         </Tabs>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
+        <DialogContent sx={mode === 'text' ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined}>
+          <Stack spacing={2} sx={{ mt: 1, ...(mode === 'text' ? { flex: 1, minHeight: 0 } : {}) }}>
             {error && <Alert severity="error">{error}</Alert>}
             <TextField label="Title" fullWidth autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
             <TextField
@@ -315,16 +330,8 @@ export function KnowledgeBasePage() {
               </>
             ) : (
               <>
-                <TextField
-                  label="Write or paste the report text"
-                  fullWidth
-                  multiline
-                  minRows={5}
-                  value={bodyText}
-                  onChange={(e) => setBodyText(e.target.value)}
-                  placeholder="Type here, paste from elsewhere, or record your voice below and it'll appear here to review."
-                />
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <RichTextEditor ref={editorRef} value={bodyHtml} onChange={setBodyHtml} minHeight={200} placeholder="Type here, paste from elsewhere, or record your voice below and it'll appear here to review." />
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0 }}>
                   <VoiceNoteControls saving={transcribe.isPending} onRecorded={handleRecorded} />
                   {transcribe.isPending && (
                     <Typography variant="caption" color="text.secondary">
@@ -332,7 +339,7 @@ export function KnowledgeBasePage() {
                     </Typography>
                   )}
                 </Stack>
-                <Box>
+                <Box sx={{ flexShrink: 0 }}>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                     Save as
                   </Typography>
@@ -373,6 +380,7 @@ export function KnowledgeBasePage() {
           docId={previewDoc.id}
           contentType={previewDoc.content_type}
           extractedText={previewDoc.extracted_text}
+          bodyHtml={previewDoc.body_html}
           teamName={previewDoc.team_name}
           hasVoice={previewDoc.has_voice}
           voiceDurationSeconds={previewDoc.voice_duration_seconds}
@@ -399,7 +407,7 @@ function EditDocumentDialog({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [teamId, setTeamId] = useState<string>('');
-  const [bodyText, setBodyText] = useState('');
+  const [bodyHtml, setBodyHtml] = useState('<p></p>');
   const [saveAs, setSaveAs] = useState<'txt' | 'pdf'>('txt');
   const [error, setError] = useState<string | null>(null);
   const [loadedId, setLoadedId] = useState<number | null>(null);
@@ -411,7 +419,9 @@ function EditDocumentDialog({
     setTitle(doc.title);
     setDescription(doc.description || '');
     setTeamId(doc.team_id != null ? String(doc.team_id) : '');
-    setBodyText(doc.extracted_text || '');
+    // An older composed document has no body_html at all — wrap its plain extracted_text into
+    // paragraphs so it's immediately editable in the rich editor without losing line breaks.
+    setBodyHtml(withInlineImageTokens(doc.body_html || plainTextToHtml(doc.extracted_text || '')));
     setSaveAs(doc.content_type === 'application/pdf' ? 'pdf' : 'txt');
     setError(null);
   }
@@ -428,6 +438,10 @@ function EditDocumentDialog({
       setError('Title cannot be empty.');
       return;
     }
+    if (doc.is_composed && isRichTextEmpty(bodyHtml)) {
+      setError('Text cannot be empty.');
+      return;
+    }
     update.mutate(
       {
         id: doc.id,
@@ -435,7 +449,7 @@ function EditDocumentDialog({
           title: title.trim(),
           description: description.trim(),
           ...(isAdminOrReviewer ? { team_id: teamId ? Number(teamId) : null } : {}),
-          ...(doc.is_composed ? { body_text: bodyText.trim(), save_as: saveAs } : {}),
+          ...(doc.is_composed ? { body_html: stripInlineImageTokens(bodyHtml), save_as: saveAs } : {}),
         },
       },
       {
@@ -448,16 +462,29 @@ function EditDocumentDialog({
     );
   };
 
+  const wide = !!doc?.is_composed;
+
   return (
-    <Dialog open={!!docId} onClose={handleClose} maxWidth="xs" fullWidth>
+    <Dialog
+      open={!!docId}
+      onClose={handleClose}
+      maxWidth={wide ? 'md' : 'xs'}
+      fullWidth
+      PaperComponent={ResizableDialogPaper}
+      slotProps={
+        wide
+          ? { paper: { sx: { width: 760, height: 640, maxWidth: '94vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column' } } }
+          : undefined
+      }
+    >
       <DialogTitle>Edit document</DialogTitle>
-      <DialogContent>
+      <DialogContent sx={wide ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined}>
         {!doc ? (
           <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
             Loading…
           </Typography>
         ) : (
-          <Stack spacing={2} sx={{ mt: 1 }}>
+          <Stack spacing={2} sx={{ mt: 1, ...(wide ? { flex: 1, minHeight: 0 } : {}) }}>
             {error && <Alert severity="error">{error}</Alert>}
             <TextField label="Title" fullWidth value={title} onChange={(e) => setTitle(e.target.value)} />
             <TextField
@@ -480,7 +507,7 @@ function EditDocumentDialog({
             )}
 
             {doc.has_voice && (
-              <Box>
+              <Box sx={{ flexShrink: 0 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                   Original recording
                 </Typography>
@@ -490,15 +517,8 @@ function EditDocumentDialog({
 
             {doc.is_composed ? (
               <>
-                <TextField
-                  label="Text"
-                  fullWidth
-                  multiline
-                  minRows={5}
-                  value={bodyText}
-                  onChange={(e) => setBodyText(e.target.value)}
-                />
-                <Box>
+                <RichTextEditor key={doc.id} value={bodyHtml} onChange={setBodyHtml} minHeight={200} />
+                <Box sx={{ flexShrink: 0 }}>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                     Save as
                   </Typography>

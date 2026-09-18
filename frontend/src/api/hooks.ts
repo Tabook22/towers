@@ -1192,11 +1192,12 @@ export function useUploadKnowledgeDocument() {
       title: string;
       description?: string;
       team_id?: number | null;
-      // Either a file upload, or typed/transcribed text saved as a real .txt or .pdf file server-side.
+      // A file upload, typed/transcribed plain text, or the rich-text editor's HTML — exactly one.
       file?: File;
       text_content?: string;
+      body_html?: string;
       save_as?: 'txt' | 'pdf';
-      // The original recording, kept alongside a voice-transcribed text_content — see GET .../voice.
+      // The original recording, kept alongside voice-composed text/rich content — see GET .../voice.
       voice?: Blob;
       voice_duration_seconds?: number;
     }) => {
@@ -1205,7 +1206,12 @@ export function useUploadKnowledgeDocument() {
       if (payload.description) form.append('description', payload.description);
       if (payload.team_id != null) form.append('team_id', String(payload.team_id));
       if (payload.file) form.append('file', payload.file);
-      if (payload.text_content) {
+      if (payload.body_html) {
+        form.append('body_html', payload.body_html);
+        form.append('save_as', payload.save_as || 'txt');
+        if (payload.voice) form.append('voice', payload.voice, 'recording.webm');
+        if (payload.voice_duration_seconds != null) form.append('voice_duration_seconds', String(payload.voice_duration_seconds));
+      } else if (payload.text_content) {
         form.append('text_content', payload.text_content);
         form.append('save_as', payload.save_as || 'txt');
         if (payload.voice) form.append('voice', payload.voice, 'recording.webm');
@@ -1214,6 +1220,18 @@ export function useUploadKnowledgeDocument() {
       return (await apiClient.post<KnowledgeDocument>('/api/knowledge-base', form)).data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge-base'] }),
+  });
+}
+
+// Uploads one image dropped into the knowledge-base rich-text editor — returns its URL right
+// away so the editor can insert it before the surrounding document has even been saved yet.
+export function useUploadInlineKnowledgeImage() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append('image', file);
+      return (await apiClient.post<{ url: string }>('/api/knowledge-base/inline-images', form)).data;
+    },
   });
 }
 
@@ -1233,7 +1251,14 @@ export function useUpdateKnowledgeDocument() {
       payload,
     }: {
       id: number;
-      payload: { title?: string; description?: string; team_id?: number | null; body_text?: string; save_as?: 'txt' | 'pdf' };
+      payload: {
+        title?: string;
+        description?: string;
+        team_id?: number | null;
+        body_text?: string;
+        body_html?: string;
+        save_as?: 'txt' | 'pdf';
+      };
     }) => (await apiClient.patch<KnowledgeDocument>(`/api/knowledge-base/${id}`, payload)).data,
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: ['knowledge-base'] });

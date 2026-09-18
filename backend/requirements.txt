@@ -22,3 +22,4 @@ faster-whisper==1.1.1
 requests==2.32.3
 tzdata==2026.4
 anthropic==1.6.0
+bleach==6.4.0

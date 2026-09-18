@@ -51,6 +51,7 @@ def _upload(
     team_id=None,
     file=None,
     text_content=None,
+    body_html=None,
     save_as="txt",
     voice=None,
     voice_duration_seconds=None,
@@ -67,6 +68,7 @@ def _upload(
         team_id=team_id,
         file=file,
         text_content=text_content,
+        body_html=body_html,
         save_as=save_as,
         voice=voice,
         voice_duration_seconds=voice_duration_seconds,
@@ -339,3 +341,101 @@ def test_image_and_video_files_can_be_uploaded_as_documents_directly(db):
 
     audio_doc = _upload(db, admin, "Briefing recording", file=_media_file("brief.mp3", "audio/mpeg"))
     assert audio_doc.content_type == "audio/mpeg"
+
+
+def test_rich_text_body_is_sanitized_before_it_is_ever_stored(db):
+    """The editor's toolbar could never produce a <script> tag or an onerror handler — anything
+    like that in the request is either a bug or an attempted stored-XSS, so it must never survive
+    into body_html (which gets rendered back to every other viewer as raw HTML)."""
+    admin = User(id=30, username="admin", role="admin", is_super_admin=True)
+    malicious = '<p>Site note</p><script>alert(1)</script><img src="x" onerror="alert(1)">'
+    out = _upload(db, admin, "Rich note", body_html=malicious)
+    row = db.get(KnowledgeDocument, out.id)
+    assert "<script" not in row.body_html
+    assert "onerror" not in row.body_html
+    assert "<p>Site note</p>" in row.body_html
+    assert out.is_composed is True
+
+
+def test_rich_text_body_populates_plain_text_for_search(db):
+    admin = User(id=31, username="admin", role="admin", is_super_admin=True)
+    out = _upload(db, admin, "Rich note", body_html="<p>We found a <b>unique cracked</b> insulator</p>")
+    row = db.get(KnowledgeDocument, out.id)
+    assert "unique cracked" in row.extracted_text
+    assert "<b>" not in row.extracted_text
+
+
+def test_rich_text_body_can_be_saved_as_pdf(db):
+    admin = User(id=32, username="admin", role="admin", is_super_admin=True)
+    out = _upload(db, admin, "Rich note", body_html="<p>Bold <b>text</b></p>", save_as="pdf")
+    assert out.content_type == "application/pdf"
+    row = db.get(KnowledgeDocument, out.id)
+    pdf_bytes = (knowledge_base.settings.knowledge_base_dir / row.file_path).read_bytes()
+    assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_cannot_provide_both_rich_text_and_typed_text(db):
+    admin = User(id=33, username="admin", role="admin", is_super_admin=True)
+    with pytest.raises(HTTPException) as exc:
+        _upload(db, admin, "x", text_content="plain", body_html="<p>rich</p>")
+    assert exc.value.status_code == 400
+
+
+def test_editing_a_composed_document_with_rich_text_replaces_the_plain_text_body(db):
+    admin = User(id=34, username="admin", role="admin", is_super_admin=True)
+    doc = _upload(db, admin, "Typed note", text_content="original plain text", save_as="txt")
+    assert db.get(KnowledgeDocument, doc.id).body_html is None
+
+    updated = knowledge_base.update_document(
+        doc.id, KnowledgeDocumentUpdate(body_html="<p>now <b>rich</b></p>"), db=db, user=admin
+    )
+    row = db.get(KnowledgeDocument, doc.id)
+    assert row.body_html == "<p>now <b>rich</b></p>"
+    assert "rich" in row.extracted_text
+    assert updated.has_text is True
+
+    # And editing back with plain body_text clears the stale rich HTML rather than leaving it
+    # to desync from what extracted_text/the file now say.
+    knowledge_base.update_document(doc.id, KnowledgeDocumentUpdate(body_text="back to plain"), db=db, user=admin)
+    assert db.get(KnowledgeDocument, doc.id).body_html is None
+
+
+def test_get_document_detail_includes_body_html(db):
+    admin = User(id=35, username="admin", role="admin", is_super_admin=True)
+    doc = _upload(db, admin, "Rich note", body_html="<p>hello</p>")
+    detail = knowledge_base.get_document(doc.id, db=db, user=admin)
+    assert detail.body_html == "<p>hello</p>"
+
+
+def _inline_image(name="pic.png", content_type="image/png", content=b"fake-png-bytes") -> UploadFile:
+    return UploadFile(file=io.BytesIO(content), filename=name, headers=Headers({"content-type": content_type}))
+
+
+def test_inline_image_upload_requires_manage_permission(db):
+    member = User(id=36, username="member1", role="team_member")
+    with pytest.raises(HTTPException) as exc:
+        knowledge_base.upload_inline_image(image=_inline_image(), user=member)
+    assert exc.value.status_code == 403
+
+
+def test_inline_image_upload_rejects_unsupported_type(db):
+    admin = User(id=37, username="admin", role="admin", is_super_admin=True)
+    with pytest.raises(HTTPException) as exc:
+        knowledge_base.upload_inline_image(image=_inline_image(name="doc.pdf", content_type="application/pdf"), user=admin)
+    assert exc.value.status_code == 400
+
+
+def test_inline_image_upload_and_fetch_round_trip(db):
+    admin = User(id=38, username="admin", role="admin", is_super_admin=True)
+    out = knowledge_base.upload_inline_image(image=_inline_image(content=b"real-bytes-here"), user=admin)
+    filename = out["url"].rsplit("/", 1)[-1]
+    response = knowledge_base.get_inline_image(filename, user=admin)
+    assert (knowledge_base.settings.knowledge_base_dir / "inline" / filename).read_bytes() == b"real-bytes-here"
+    assert response.path.name == filename
+
+
+def test_inline_image_fetch_rejects_path_traversal_filenames(db):
+    admin = User(id=39, username="admin", role="admin", is_super_admin=True)
+    with pytest.raises(HTTPException) as exc:
+        knowledge_base.get_inline_image("../../etc/passwd", user=admin)
+    assert exc.value.status_code == 404

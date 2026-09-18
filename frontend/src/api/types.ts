@@ -485,6 +485,7 @@ export interface KnowledgeDocument {
 
 export interface KnowledgeDocumentDetail extends KnowledgeDocument {
   extracted_text: string | null;
+  body_html: string | null;
 }
 
 export interface BrandingSettings {

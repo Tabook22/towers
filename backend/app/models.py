@@ -840,6 +840,11 @@ class KnowledgeDocument(Base):
     # Only a composed document's body can be edited later — editing an uploaded PDF/DOCX's "text"
     # would desync it from the real file content, so that path is metadata-only (title/description).
     is_composed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # Sanitized rich-text HTML from the knowledge-base editor (see services/knowledge_compose.py's
+    # sanitize_html) — only ever set for an is_composed document edited/created through the rich
+    # editor. NULL for an uploaded file, and for an older composed document that predates the rich
+    # editor (those still work: extracted_text is wrapped into plain <p> tags client-side on open).
+    body_html: Mapped[str | None] = mapped_column(Text, nullable=True)
     # When composed from a voice recording, the original audio is kept alongside the transcript —
     # same relative-path convention as Position.voice_note_path — so an admin/team leader can play
     # back what was actually said while correcting the transcript, instead of trusting STT blindly.

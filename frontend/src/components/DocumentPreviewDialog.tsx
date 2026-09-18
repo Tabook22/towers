@@ -4,6 +4,7 @@ import DownloadIcon from '@mui/icons-material/DownloadRounded';
 import { ResizableDialogPaper } from './ResizableDialogPaper';
 import { mediaUrl } from '../api/client';
 import { RichTextWithMedia } from './RichTextWithMedia';
+import { RichTextContent } from './richtext/RichTextContent';
 import { VoiceNotePlayer } from './VoiceNoteControls';
 
 interface Props {
@@ -13,6 +14,10 @@ interface Props {
   docId: number;
   contentType: string | null;
   extractedText: string | null;
+  /** Sanitized rich-text HTML from the knowledge-base editor (models.KnowledgeDocument.body_html)
+   * — when present, this is the authoritative rendering of a composed document, in place of the
+   * plain-text extractedText fallback. */
+  bodyHtml?: string | null;
   teamName?: string | null;
   /** A voice recording kept alongside a typed/transcribed document (see models.KnowledgeDocument.
    * voice_path) — separate from the main file, so it's shown above whatever the main content is. */
@@ -36,6 +41,7 @@ export function DocumentPreviewDialog({
   docId,
   contentType,
   extractedText,
+  bodyHtml,
   teamName,
   hasVoice,
   voiceDurationSeconds,
@@ -99,6 +105,10 @@ export function DocumentPreviewDialog({
         ) : isAudio ? (
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 4 }}>
             <audio src={viewUrl} controls style={{ width: '100%', maxWidth: 480 }} />
+          </Box>
+        ) : bodyHtml ? (
+          <Box sx={{ p: 3, overflow: 'auto', flex: 1, bgcolor: 'background.default' }}>
+            <RichTextContent html={bodyHtml} />
           </Box>
         ) : extractedText ? (
           <Box sx={{ p: 3, overflow: 'auto', flex: 1, bgcolor: 'background.default' }}>

@@ -5,6 +5,7 @@ re-parse the original file. See models.KnowledgeDocument for the visibility rule
 shared company-wide, set = scoped to that team)."""
 from __future__ import annotations
 
+import re
 import uuid
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from app.database import get_db
 from app.deps import effective_team_id, get_current_user, has_permission
 from app.models import KnowledgeDocument, User, UserRole
 from app.schemas import KnowledgeDocumentDetail, KnowledgeDocumentOut, KnowledgeDocumentUpdate
-from app.services.knowledge_compose import render_text_pdf
+from app.services.knowledge_compose import html_to_text, render_html_pdf, render_text_pdf, sanitize_html
 from app.services.knowledge_extract import extract_text
 from app.services.transcribe import transcribe_audio
 
@@ -119,9 +120,13 @@ def upload_document(
     # via POST .../transcribe — either way it lands here as plain text, and save_as decides what
     # kind of file it becomes in storage.
     text_content: str | None = Form(default=None),
+    # The rich-text editor's alternative to text_content — sanitized before it's ever stored (see
+    # services/knowledge_compose.sanitize_html). Takes priority over text_content when both are
+    # somehow present, since it's the richer, newer representation.
+    body_html: str | None = Form(default=None),
     save_as: str = Form(default="txt"),
-    # When text_content came from a voice recording, the original audio — kept alongside the
-    # transcript so it can be played back later (see GET .../voice), never re-transcribed.
+    # When the text/rich content came from a voice recording, the original audio — kept alongside
+    # the transcript so it can be played back later (see GET .../voice), never re-transcribed.
     voice: UploadFile | None = File(default=None),
     voice_duration_seconds: float | None = Form(default=None),
 ):
@@ -139,13 +144,22 @@ def upload_document(
     if not title:
         raise HTTPException(status_code=400, detail="A title is required")
 
-    if file is not None and (text_content or "").strip():
-        raise HTTPException(status_code=400, detail="Provide either a file or text, not both")
+    provided = sum(bool(v) for v in (file is not None, (text_content or "").strip(), (body_html or "").strip()))
+    if provided > 1:
+        raise HTTPException(status_code=400, detail="Provide only one of a file, typed text, or rich text")
 
     is_composed = False
     voice_path = voice_content_type = None
+    body_html_out = None
     if file is not None:
         stored_name, content_type, original_filename, data, extracted = _store_uploaded_file(file)
+    elif (body_html or "").strip():
+        sanitized = sanitize_html(body_html)
+        stored_name, content_type, original_filename, data, extracted = _store_composed_html(title, sanitized, save_as)
+        is_composed = True
+        body_html_out = sanitized
+        if voice is not None and voice.filename:
+            voice_path, voice_content_type = _store_voice(voice)
     elif (text_content or "").strip():
         stored_name, content_type, original_filename, data, extracted = _store_typed_text(title, text_content.strip(), save_as)
         is_composed = True
@@ -164,6 +178,7 @@ def upload_document(
         file_size=len(data),
         extracted_text=extracted or None,
         is_composed=is_composed,
+        body_html=body_html_out,
         voice_path=voice_path,
         voice_content_type=voice_content_type,
         voice_duration_seconds=voice_duration_seconds,
@@ -227,6 +242,67 @@ def _store_typed_text(title: str, text: str, save_as: str) -> tuple[str, str, st
     stored_name = f"{uuid.uuid4().hex}{ext}"
     (settings.knowledge_base_dir / stored_name).write_bytes(data)
     return stored_name, content_type, f"{title}{ext}", data, text
+
+
+def _store_composed_html(title: str, sanitized_html: str, save_as: str) -> tuple[str, str, str, bytes, str]:
+    if save_as not in ("txt", "pdf"):
+        raise HTTPException(status_code=400, detail="save_as must be 'txt' or 'pdf'")
+    plain = html_to_text(sanitized_html)
+    if not plain.strip() and "<img" not in sanitized_html:
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
+    if save_as == "pdf":
+        try:
+            data = render_html_pdf(title, sanitized_html)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not create a PDF from this content — try saving as .txt instead",
+            )
+        content_type = "application/pdf"
+    else:
+        data = plain.encode("utf-8")
+        content_type = "text/plain"
+    ext = ".pdf" if save_as == "pdf" else ".txt"
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+    (settings.knowledge_base_dir / stored_name).write_bytes(data)
+    return stored_name, content_type, f"{title}{ext}", data, plain
+
+
+_INLINE_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+_INLINE_IMAGE_NAME = re.compile(r"^[0-9a-f]{32}\.[a-z0-9]{1,5}$")
+
+
+@router.post("/inline-images")
+def upload_inline_image(image: UploadFile = File(...), user: User = Depends(get_current_user)):
+    """An image dropped into the rich-text editor while composing/editing a document — stored
+    right away (before the document itself is saved) so the editor can show it and the eventual
+    body_html can reference it by URL, same idea as any other "upload now, attach later" editor."""
+    if not _can_manage(user):
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    content_type = (image.content_type or "").split(";")[0].strip().lower()
+    if content_type not in _INLINE_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Only JPEG, PNG, GIF, or WEBP images are supported")
+    data = image.file.read()
+    if len(data) > settings.max_upload_size_mb * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"Image too large (max {settings.max_upload_size_mb} MB)")
+    ext = Path(image.filename or "").suffix.lower() or ".png"
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+    inline_dir = settings.knowledge_base_dir / "inline"
+    inline_dir.mkdir(parents=True, exist_ok=True)
+    (inline_dir / stored_name).write_bytes(data)
+    return {"url": f"/api/knowledge-base/inline-images/{stored_name}"}
+
+
+@router.get("/inline-images/{filename}")
+def get_inline_image(filename: str, user: User = Depends(get_current_user)):
+    # Filenames are always our own uuid4-hex + extension (see upload_inline_image) — reject
+    # anything else so this can't be turned into a path-traversal read of arbitrary files.
+    if not _INLINE_IMAGE_NAME.match(filename):
+        raise HTTPException(status_code=404, detail="Image not found")
+    path = settings.knowledge_base_dir / "inline" / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(path)
 
 
 @router.post("/transcribe")
@@ -319,6 +395,7 @@ def update_document(
 
     data = payload.model_dump(exclude_unset=True)
     body_text = data.pop("body_text", None)
+    body_html = data.pop("body_html", None)
     save_as = data.pop("save_as", None)
 
     if "title" in data:
@@ -334,7 +411,25 @@ def update_document(
         # rather than accepted from a leader and quietly moving a document to another team.
         doc.team_id = data["team_id"]
 
-    if body_text is not None:
+    if body_html is not None:
+        if not doc.is_composed:
+            raise HTTPException(
+                status_code=400,
+                detail="This document was uploaded as a file — delete and re-upload to change its content",
+            )
+        sanitized = sanitize_html(body_html)
+        chosen_format = save_as or ("pdf" if doc.content_type == "application/pdf" else "txt")
+        old_path = settings.knowledge_base_dir / doc.file_path
+        stored_name, content_type, original_filename, new_data, extracted = _store_composed_html(doc.title, sanitized, chosen_format)
+        if old_path.exists():
+            old_path.unlink()
+        doc.file_path = stored_name
+        doc.content_type = content_type
+        doc.original_filename = original_filename
+        doc.file_size = len(new_data)
+        doc.extracted_text = extracted
+        doc.body_html = sanitized
+    elif body_text is not None:
         if not doc.is_composed:
             raise HTTPException(
                 status_code=400,
@@ -353,6 +448,7 @@ def update_document(
         doc.original_filename = original_filename
         doc.file_size = len(new_data)
         doc.extracted_text = extracted
+        doc.body_html = None
 
     db.commit()
     db.refresh(doc)

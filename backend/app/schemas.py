@@ -1385,6 +1385,7 @@ class KnowledgeDocumentOut(BaseModel):
 
 class KnowledgeDocumentDetail(KnowledgeDocumentOut):
     extracted_text: str | None = None
+    body_html: str | None = None
 
 
 class KnowledgeDocumentUpdate(BaseModel):
@@ -1392,5 +1393,7 @@ class KnowledgeDocumentUpdate(BaseModel):
     description: str | None = None
     team_id: int | None = None
     # Only honored when the document is_composed — see routers/knowledge_base.py's update_document.
+    # body_html (from the rich-text editor) takes priority over the older plain-text body_text.
     body_text: str | None = None
+    body_html: str | None = None
     save_as: str | None = None
