@@ -9,6 +9,7 @@ import type {
   BrandingSettings,
   ChannelKind,
   KnowledgeDocument,
+  KnowledgeDocumentDetail,
   ChannelMessage,
   ChoiceLists,
   DashboardSummary,
@@ -1195,6 +1196,9 @@ export function useUploadKnowledgeDocument() {
       file?: File;
       text_content?: string;
       save_as?: 'txt' | 'pdf';
+      // The original recording, kept alongside a voice-transcribed text_content — see GET .../voice.
+      voice?: Blob;
+      voice_duration_seconds?: number;
     }) => {
       const form = new FormData();
       form.append('title', payload.title);
@@ -1204,10 +1208,37 @@ export function useUploadKnowledgeDocument() {
       if (payload.text_content) {
         form.append('text_content', payload.text_content);
         form.append('save_as', payload.save_as || 'txt');
+        if (payload.voice) form.append('voice', payload.voice, 'recording.webm');
+        if (payload.voice_duration_seconds != null) form.append('voice_duration_seconds', String(payload.voice_duration_seconds));
       }
       return (await apiClient.post<KnowledgeDocument>('/api/knowledge-base', form)).data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge-base'] }),
+  });
+}
+
+export function useKnowledgeDocumentDetail(id: number | null) {
+  return useQuery({
+    queryKey: ['knowledge-base', id],
+    queryFn: async () => (await apiClient.get<KnowledgeDocumentDetail>(`/api/knowledge-base/${id}`)).data,
+    enabled: id != null,
+  });
+}
+
+export function useUpdateKnowledgeDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: { title?: string; description?: string; team_id?: number | null; body_text?: string; save_as?: 'txt' | 'pdf' };
+    }) => (await apiClient.patch<KnowledgeDocument>(`/api/knowledge-base/${id}`, payload)).data,
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: ['knowledge-base'] });
+      qc.invalidateQueries({ queryKey: ['knowledge-base', id] });
+    },
   });
 }
 

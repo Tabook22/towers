@@ -17,7 +17,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import effective_team_id, get_current_user, has_permission
 from app.models import KnowledgeDocument, User, UserRole
-from app.schemas import KnowledgeDocumentOut
+from app.schemas import KnowledgeDocumentDetail, KnowledgeDocumentOut, KnowledgeDocumentUpdate
 from app.services.knowledge_compose import render_text_pdf
 from app.services.knowledge_extract import extract_text
 from app.services.transcribe import transcribe_audio
@@ -61,8 +61,21 @@ def _doc_out(doc: KnowledgeDocument, uploader_name: str | None = None) -> Knowle
     out = KnowledgeDocumentOut.model_validate(doc)
     out.team_name = doc.team.name if doc.team else None
     out.has_text = bool(doc.extracted_text)
+    out.has_voice = bool(doc.voice_path)
     out.uploaded_by_name = uploader_name
     return out
+
+
+def _require_modify(db: Session, doc: KnowledgeDocument, user: User) -> None:
+    """The shared gate for delete AND edit: can this user manage documents at all, and — for a
+    team leader — is this specifically one of their own team's documents (never a company-wide
+    one, never another team's, since other teams may depend on those)."""
+    if not _can_manage(user):
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    if user.role == UserRole.TEAM_LEADER.value:
+        tid = effective_team_id(db, user)
+        if doc.team_id != tid:
+            raise HTTPException(status_code=403, detail="You can only manage your own team's documents")
 
 
 @router.get("", response_model=list[KnowledgeDocumentOut])
@@ -91,6 +104,10 @@ def upload_document(
     # kind of file it becomes in storage.
     text_content: str | None = Form(default=None),
     save_as: str = Form(default="txt"),
+    # When text_content came from a voice recording, the original audio — kept alongside the
+    # transcript so it can be played back later (see GET .../voice), never re-transcribed.
+    voice: UploadFile | None = File(default=None),
+    voice_duration_seconds: float | None = Form(default=None),
 ):
     if not _can_manage(user):
         raise HTTPException(status_code=403, detail="Not enough permissions")
@@ -109,10 +126,15 @@ def upload_document(
     if file is not None and (text_content or "").strip():
         raise HTTPException(status_code=400, detail="Provide either a file or text, not both")
 
+    is_composed = False
+    voice_path = voice_content_type = None
     if file is not None:
         stored_name, content_type, original_filename, data, extracted = _store_uploaded_file(file)
     elif (text_content or "").strip():
         stored_name, content_type, original_filename, data, extracted = _store_typed_text(title, text_content.strip(), save_as)
+        is_composed = True
+        if voice is not None and voice.filename:
+            voice_path, voice_content_type = _store_voice(voice)
     else:
         raise HTTPException(status_code=400, detail="Provide a file, or some text to save")
 
@@ -125,12 +147,29 @@ def upload_document(
         content_type=content_type,
         file_size=len(data),
         extracted_text=extracted or None,
+        is_composed=is_composed,
+        voice_path=voice_path,
+        voice_content_type=voice_content_type,
+        voice_duration_seconds=voice_duration_seconds,
         uploaded_by=user.id,
     )
     db.add(doc)
     db.commit()
     db.refresh(doc)
     return _doc_out(doc, user.full_name or user.username)
+
+
+def _store_voice(voice: UploadFile) -> tuple[str | None, str | None]:
+    content_type = (voice.content_type or "").split(";")[0].strip().lower()
+    if content_type not in _ACCEPTED_AUDIO_TYPES:
+        raise HTTPException(status_code=400, detail=f"Unsupported audio type: {voice.content_type}")
+    data = voice.file.read()
+    if not data:
+        return None, None  # empty recording is a no-op, not an error — the transcript still saves
+    ext = Path(voice.filename or "").suffix or ".webm"
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+    (settings.knowledge_base_dir / stored_name).write_bytes(data)
+    return stored_name, content_type
 
 
 def _store_uploaded_file(file: UploadFile) -> tuple[str, str, str, bytes, str]:
@@ -204,6 +243,20 @@ def _load_visible(db: Session, doc_id: int, user: User) -> KnowledgeDocument:
     return doc
 
 
+@router.get("/{doc_id}", response_model=KnowledgeDocumentDetail)
+def get_document(doc_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """The full detail view (including extracted_text) — used to populate the edit dialog, so
+    editing a composed document's body doesn't need a second round trip just to see what it says."""
+    doc = _load_visible(db, doc_id, user)
+    uploader = db.get(User, doc.uploaded_by) if doc.uploaded_by else None
+    out = KnowledgeDocumentDetail.model_validate(doc)
+    out.team_name = doc.team.name if doc.team else None
+    out.has_text = bool(doc.extracted_text)
+    out.has_voice = bool(doc.voice_path)
+    out.uploaded_by_name = (uploader.full_name or uploader.username) if uploader else None
+    return out
+
+
 @router.get("/{doc_id}/file")
 def download_document(doc_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     doc = _load_visible(db, doc_id, user)
@@ -213,21 +266,82 @@ def download_document(doc_id: int, db: Session = Depends(get_db), user: User = D
     return FileResponse(path, filename=doc.original_filename or path.name, media_type=doc.content_type)
 
 
+@router.get("/{doc_id}/voice")
+def download_voice(doc_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    doc = _load_visible(db, doc_id, user)
+    if not doc.voice_path:
+        raise HTTPException(status_code=404, detail="No voice recording attached to this document")
+    path = settings.knowledge_base_dir / doc.voice_path
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Voice file missing on disk")
+    return FileResponse(path, media_type=doc.voice_content_type or "audio/webm")
+
+
+@router.patch("/{doc_id}", response_model=KnowledgeDocumentOut)
+def update_document(
+    doc_id: int,
+    payload: KnowledgeDocumentUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    doc = _load_visible(db, doc_id, user)
+    _require_modify(db, doc, user)
+
+    data = payload.model_dump(exclude_unset=True)
+    body_text = data.pop("body_text", None)
+    save_as = data.pop("save_as", None)
+
+    if "title" in data:
+        title = (data["title"] or "").strip()
+        if not title:
+            raise HTTPException(status_code=400, detail="Title cannot be empty")
+        doc.title = title
+    if "description" in data:
+        doc.description = (data["description"] or "").strip() or None
+    if "team_id" in data and user.role != UserRole.TEAM_LEADER.value:
+        # A team leader's own documents always stay filed under their own team — the same rule
+        # upload_document enforces at creation — so team_id is silently ignored for them here too,
+        # rather than accepted from a leader and quietly moving a document to another team.
+        doc.team_id = data["team_id"]
+
+    if body_text is not None:
+        if not doc.is_composed:
+            raise HTTPException(
+                status_code=400,
+                detail="This document was uploaded as a file — delete and re-upload to change its content",
+            )
+        text = body_text.strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="Text cannot be empty")
+        chosen_format = save_as or ("pdf" if doc.content_type == "application/pdf" else "txt")
+        old_path = settings.knowledge_base_dir / doc.file_path
+        stored_name, content_type, original_filename, new_data, extracted = _store_typed_text(doc.title, text, chosen_format)
+        if old_path.exists():
+            old_path.unlink()
+        doc.file_path = stored_name
+        doc.content_type = content_type
+        doc.original_filename = original_filename
+        doc.file_size = len(new_data)
+        doc.extracted_text = extracted
+
+    db.commit()
+    db.refresh(doc)
+    uploader = db.get(User, doc.uploaded_by) if doc.uploaded_by else None
+    return _doc_out(doc, (uploader.full_name or uploader.username) if uploader else None)
+
+
 @router.delete("/{doc_id}", status_code=204)
 def delete_document(doc_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     doc = _load_visible(db, doc_id, user)
-    if not _can_manage(user):
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-    if user.role == UserRole.TEAM_LEADER.value:
-        tid = effective_team_id(db, user)
-        # A leader can remove their own team's documents, but never a company-wide shared one —
-        # that's an admin call, since other teams may be relying on it too.
-        if doc.team_id != tid:
-            raise HTTPException(status_code=403, detail="You can only remove your own team's documents")
+    _require_modify(db, doc, user)
 
     path = settings.knowledge_base_dir / doc.file_path
     if path.exists():
         path.unlink()
+    if doc.voice_path:
+        voice_path = settings.knowledge_base_dir / doc.voice_path
+        if voice_path.exists():
+            voice_path.unlink()
     db.delete(doc)
     db.commit()
     return None

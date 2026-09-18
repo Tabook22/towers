@@ -15,6 +15,7 @@ from starlette.datastructures import Headers
 from app.database import Base
 from app.models import KnowledgeDocument, Team, User
 from app.routers import knowledge_base
+from app.schemas import KnowledgeDocumentUpdate
 
 
 @pytest.fixture()
@@ -38,7 +39,18 @@ def _file(name="report.txt", content=b"we found a cracked insulator") -> UploadF
     return UploadFile(file=io.BytesIO(content), filename=name, headers=Headers({"content-type": "text/plain"}))
 
 
-def _upload(db, user, title, description=None, team_id=None, file=None, text_content=None, save_as="txt"):
+def _upload(
+    db,
+    user,
+    title,
+    description=None,
+    team_id=None,
+    file=None,
+    text_content=None,
+    save_as="txt",
+    voice=None,
+    voice_duration_seconds=None,
+):
     """Wraps upload_document with every Form/File param given explicitly — calling a FastAPI
     endpoint function directly (bypassing real request dependency injection) means an omitted
     Form/File param keeps its literal `Form(...)`/`File(...)` marker object instead of resolving
@@ -52,6 +64,8 @@ def _upload(db, user, title, description=None, team_id=None, file=None, text_con
         file=file,
         text_content=text_content,
         save_as=save_as,
+        voice=voice,
+        voice_duration_seconds=voice_duration_seconds,
     )
 
 
@@ -187,3 +201,105 @@ def test_transcribe_endpoint_rejects_unsupported_audio_type(db):
     with pytest.raises(HTTPException) as exc:
         asyncio.run(knowledge_base.transcribe_for_knowledge_base(file=audio, user=leader))
     assert exc.value.status_code == 400
+
+
+def _audio(name="note.webm", content=b"fake-audio-bytes") -> UploadFile:
+    return UploadFile(file=io.BytesIO(content), filename=name, headers=Headers({"content-type": "audio/webm"}))
+
+
+def test_voice_recording_is_kept_alongside_a_composed_document(db):
+    admin = User(id=17, username="admin", role="admin", is_super_admin=True)
+    out = _upload(
+        db,
+        admin,
+        "Voice incident note",
+        text_content="We found a cracked insulator during the storm.",
+        save_as="txt",
+        voice=_audio(),
+        voice_duration_seconds=12.5,
+    )
+    assert out.has_voice is True
+    row = db.get(KnowledgeDocument, out.id)
+    assert row.voice_path is not None
+    assert (knowledge_base.settings.knowledge_base_dir / row.voice_path).read_bytes() == b"fake-audio-bytes"
+    assert row.voice_duration_seconds == 12.5
+
+
+def test_file_upload_never_gets_a_voice_attachment_even_if_one_is_sent(db):
+    admin = User(id=18, username="admin", role="admin", is_super_admin=True)
+    out = _upload(db, admin, "Uploaded report", file=_file(), voice=_audio())
+    assert out.has_voice is False
+    assert out.is_composed is False
+
+
+def test_uploaded_file_document_cannot_have_its_body_text_edited(db):
+    admin = User(id=19, username="admin", role="admin", is_super_admin=True)
+    doc = _upload(db, admin, "Uploaded report", file=_file())
+    with pytest.raises(HTTPException) as exc:
+        knowledge_base.update_document(doc.id, KnowledgeDocumentUpdate(body_text="new text"), db=db, user=admin)
+    assert exc.value.status_code == 400
+
+
+def test_composed_document_body_text_edit_rerenders_the_file(db):
+    admin = User(id=20, username="admin", role="admin", is_super_admin=True)
+    doc = _upload(db, admin, "Typed note", text_content="original text", save_as="txt")
+    old_path = knowledge_base.settings.knowledge_base_dir / db.get(KnowledgeDocument, doc.id).file_path
+
+    updated = knowledge_base.update_document(
+        doc.id, KnowledgeDocumentUpdate(body_text="corrected text"), db=db, user=admin
+    )
+    row = db.get(KnowledgeDocument, doc.id)
+    assert row.extracted_text == "corrected text"
+    assert not old_path.exists()  # old file replaced, not left orphaned
+    assert (knowledge_base.settings.knowledge_base_dir / row.file_path).read_text() == "corrected text"
+    assert updated.has_text is True
+
+
+def test_composed_document_can_switch_format_on_edit(db):
+    admin = User(id=21, username="admin", role="admin", is_super_admin=True)
+    doc = _upload(db, admin, "Typed note", text_content="original text", save_as="txt")
+    updated = knowledge_base.update_document(
+        doc.id, KnowledgeDocumentUpdate(body_text="original text", save_as="pdf"), db=db, user=admin
+    )
+    assert updated.content_type == "application/pdf"
+
+
+def test_editing_title_and_description_works_for_any_document_type(db):
+    admin = User(id=22, username="admin", role="admin", is_super_admin=True)
+    doc = _upload(db, admin, "Original title", file=_file())
+    updated = knowledge_base.update_document(
+        doc.id, KnowledgeDocumentUpdate(title="New title", description="New description"), db=db, user=admin
+    )
+    assert updated.title == "New title"
+    assert updated.description == "New description"
+
+
+def test_team_leader_can_edit_their_own_teams_document_but_not_a_shared_one(db):
+    alpha = _team(db, "Alpha")
+    leader = User(id=23, username="leader1", role="team_leader", team_id=alpha.id)
+    own_doc = _upload(db, leader, "own", file=_file())
+
+    admin = User(id=24, username="admin", role="admin", is_super_admin=True)
+    shared_doc = _upload(db, admin, "shared", file=_file())
+
+    updated = knowledge_base.update_document(own_doc.id, KnowledgeDocumentUpdate(title="Edited"), db=db, user=leader)
+    assert updated.title == "Edited"
+
+    with pytest.raises(HTTPException) as exc:
+        knowledge_base.update_document(shared_doc.id, KnowledgeDocumentUpdate(title="Hijacked"), db=db, user=leader)
+    assert exc.value.status_code == 403
+
+
+def test_get_document_detail_includes_extracted_text_and_respects_scoping(db):
+    alpha = _team(db, "Alpha")
+    bravo = _team(db, "Bravo")
+    admin = User(id=25, username="admin", role="admin", is_super_admin=True)
+    doc = _upload(db, admin, "Bravo report", team_id=bravo.id, file=_file(content=b"some unique bravo content"))
+
+    detail = knowledge_base.get_document(doc.id, db=db, user=admin)
+    assert "unique bravo content" in detail.extracted_text
+
+    leader_alpha = User(id=26, username="leader_a", role="team_leader", team_id=alpha.id)
+    with pytest.raises(HTTPException) as exc:
+        knowledge_base.get_document(doc.id, db=db, user=leader_alpha)
+    assert exc.value.status_code == 403

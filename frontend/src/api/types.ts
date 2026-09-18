@@ -475,9 +475,16 @@ export interface KnowledgeDocument {
   content_type: string | null;
   file_size: number | null;
   has_text: boolean;
+  is_composed: boolean;
+  has_voice: boolean;
+  voice_duration_seconds: number | null;
   uploaded_by: number | null;
   uploaded_by_name: string | null;
   uploaded_at: string;
+}
+
+export interface KnowledgeDocumentDetail extends KnowledgeDocument {
+  extracted_text: string | null;
 }
 
 export interface BrandingSettings {

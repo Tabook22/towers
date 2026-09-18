@@ -27,18 +27,22 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/AddRounded';
 import DeleteIcon from '@mui/icons-material/DeleteRounded';
+import EditIcon from '@mui/icons-material/EditRounded';
 import DownloadIcon from '@mui/icons-material/DownloadRounded';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
+import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import {
   useDeleteKnowledgeDocument,
+  useKnowledgeDocumentDetail,
   useKnowledgeDocuments,
   useTeams,
   useTranscribeForKnowledgeBase,
+  useUpdateKnowledgeDocument,
   useUploadKnowledgeDocument,
 } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { mediaUrl } from '../api/client';
-import { VoiceNoteControls } from '../components/VoiceNoteControls';
+import { VoiceNoteControls, VoiceNotePlayer } from '../components/VoiceNoteControls';
 
 function formatSize(bytes: number | null): string {
   if (!bytes) return '—';
@@ -69,6 +73,8 @@ export function KnowledgeBasePage() {
   const [file, setFile] = useState<File | null>(null);
   const [bodyText, setBodyText] = useState('');
   const [saveAs, setSaveAs] = useState<'txt' | 'pdf'>('txt');
+  const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
+  const [voiceDuration, setVoiceDuration] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -80,11 +86,15 @@ export function KnowledgeBasePage() {
     setFile(null);
     setBodyText('');
     setSaveAs('txt');
+    setVoiceBlob(null);
+    setVoiceDuration(null);
     setError(null);
   };
 
-  const handleRecorded = (blob: Blob, _duration: number, liveTranscript: string) => {
+  const handleRecorded = (blob: Blob, duration: number, liveTranscript: string) => {
     setError(null);
+    setVoiceBlob(blob);
+    setVoiceDuration(duration);
     if (liveTranscript.trim()) {
       // The browser's own live speech-to-text already produced text — no need for a round trip.
       setBodyText((prev) => (prev ? `${prev}\n${liveTranscript.trim()}` : liveTranscript.trim()));
@@ -121,6 +131,8 @@ export function KnowledgeBasePage() {
         file: mode === 'file' ? file || undefined : undefined,
         text_content: mode === 'text' ? bodyText.trim() : undefined,
         save_as: saveAs,
+        voice: mode === 'text' ? voiceBlob || undefined : undefined,
+        voice_duration_seconds: mode === 'text' ? voiceDuration ?? undefined : undefined,
       },
       {
         onSuccess: () => {
@@ -135,11 +147,14 @@ export function KnowledgeBasePage() {
     );
   };
 
-  const canDelete = (doc: { team_id: number | null }) => {
+  const canModify = (doc: { team_id: number | null }) => {
+    if (!canManage) return false;
     if (isAdminOrReviewer) return true;
     if (user?.role === 'team_leader') return doc.team_id === user.team_id;
     return false;
   };
+
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   return (
     <Box>
@@ -179,9 +194,16 @@ export function KnowledgeBasePage() {
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                     <DescriptionRoundedIcon fontSize="small" color="action" />
                     <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {doc.title}
-                      </Typography>
+                      <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {doc.title}
+                        </Typography>
+                        {doc.has_voice && (
+                          <Tooltip title="Has a voice recording attached">
+                            <MicRoundedIcon fontSize="inherit" color="action" />
+                          </Tooltip>
+                        )}
+                      </Stack>
                       {doc.description && (
                         <Typography variant="caption" color="text.secondary">
                           {doc.description}
@@ -202,7 +224,14 @@ export function KnowledgeBasePage() {
                       <DownloadIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  {canDelete(doc) && (
+                  {canModify(doc) && (
+                    <Tooltip title="Edit">
+                      <IconButton size="small" onClick={() => setEditingId(doc.id)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                  {canModify(doc) && (
                     <Tooltip title="Delete">
                       <IconButton size="small" onClick={() => deleteDoc.mutate(doc.id)}>
                         <DeleteIcon fontSize="small" />
@@ -314,6 +343,158 @@ export function KnowledgeBasePage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <EditDocumentDialog
+        docId={editingId}
+        isAdminOrReviewer={isAdminOrReviewer}
+        teams={teams || []}
+        onClose={() => setEditingId(null)}
+      />
     </Box>
+  );
+}
+
+function EditDocumentDialog({
+  docId,
+  isAdminOrReviewer,
+  teams,
+  onClose,
+}: {
+  docId: number | null;
+  isAdminOrReviewer: boolean;
+  teams: { id: number; name: string }[];
+  onClose: () => void;
+}) {
+  const { data: doc } = useKnowledgeDocumentDetail(docId);
+  const update = useUpdateKnowledgeDocument();
+
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [teamId, setTeamId] = useState<string>('');
+  const [bodyText, setBodyText] = useState('');
+  const [saveAs, setSaveAs] = useState<'txt' | 'pdf'>('txt');
+  const [error, setError] = useState<string | null>(null);
+  const [loadedId, setLoadedId] = useState<number | null>(null);
+
+  // Populate the form once when the detail for this doc arrives — not on every refetch, so the
+  // admin/leader's in-progress edits aren't clobbered if the query refreshes underneath them.
+  if (doc && loadedId !== doc.id) {
+    setLoadedId(doc.id);
+    setTitle(doc.title);
+    setDescription(doc.description || '');
+    setTeamId(doc.team_id != null ? String(doc.team_id) : '');
+    setBodyText(doc.extracted_text || '');
+    setSaveAs(doc.content_type === 'application/pdf' ? 'pdf' : 'txt');
+    setError(null);
+  }
+
+  const handleClose = () => {
+    setLoadedId(null);
+    onClose();
+  };
+
+  const submit = () => {
+    if (!doc) return;
+    setError(null);
+    if (!title.trim()) {
+      setError('Title cannot be empty.');
+      return;
+    }
+    update.mutate(
+      {
+        id: doc.id,
+        payload: {
+          title: title.trim(),
+          description: description.trim(),
+          ...(isAdminOrReviewer ? { team_id: teamId ? Number(teamId) : null } : {}),
+          ...(doc.is_composed ? { body_text: bodyText.trim(), save_as: saveAs } : {}),
+        },
+      },
+      {
+        onSuccess: handleClose,
+        onError: (err: unknown) => {
+          const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+          setError(detail || 'Could not save these changes.');
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog open={!!docId} onClose={handleClose} maxWidth="xs" fullWidth>
+      <DialogTitle>Edit document</DialogTitle>
+      <DialogContent>
+        {!doc ? (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+            Loading…
+          </Typography>
+        ) : (
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <TextField label="Title" fullWidth value={title} onChange={(e) => setTitle(e.target.value)} />
+            <TextField
+              label="Description (optional)"
+              fullWidth
+              multiline
+              minRows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+            {isAdminOrReviewer && (
+              <TextField select label="Team (optional)" fullWidth value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+                <MenuItem value="">Company-wide (visible to every team)</MenuItem>
+                {teams.map((t) => (
+                  <MenuItem key={t.id} value={t.id}>
+                    {t.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+
+            {doc.has_voice && (
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                  Original recording
+                </Typography>
+                <VoiceNotePlayer src={mediaUrl(`/api/knowledge-base/${doc.id}/voice`)} duration={doc.voice_duration_seconds} />
+              </Box>
+            )}
+
+            {doc.is_composed ? (
+              <>
+                <TextField
+                  label="Text"
+                  fullWidth
+                  multiline
+                  minRows={5}
+                  value={bodyText}
+                  onChange={(e) => setBodyText(e.target.value)}
+                />
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                    Save as
+                  </Typography>
+                  <ToggleButtonGroup size="small" exclusive value={saveAs} onChange={(_e, v) => v && setSaveAs(v)}>
+                    <ToggleButton value="txt">Text file (.txt)</ToggleButton>
+                    <ToggleButton value="pdf">PDF</ToggleButton>
+                  </ToggleButtonGroup>
+                </Box>
+              </>
+            ) : (
+              <Alert severity="info">
+                This was uploaded as a file — only the title, description, and team can be edited here. Delete and
+                re-upload to change its content.
+              </Alert>
+            )}
+          </Stack>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleClose}>Cancel</Button>
+        <Button variant="contained" onClick={submit} disabled={!doc || update.isPending}>
+          Save changes
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

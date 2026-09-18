@@ -1369,6 +1369,22 @@ class KnowledgeDocumentOut(BaseModel):
     content_type: str | None = None
     file_size: int | None = None
     has_text: bool = False
+    is_composed: bool = False
+    has_voice: bool = False
+    voice_duration_seconds: float | None = None
     uploaded_by: int | None = None
     uploaded_by_name: str | None = None
     uploaded_at: dt.datetime
+
+
+class KnowledgeDocumentDetail(KnowledgeDocumentOut):
+    extracted_text: str | None = None
+
+
+class KnowledgeDocumentUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    team_id: int | None = None
+    # Only honored when the document is_composed — see routers/knowledge_base.py's update_document.
+    body_text: str | None = None
+    save_as: str | None = None
