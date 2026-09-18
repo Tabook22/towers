@@ -12,8 +12,8 @@ import { mediaUrl } from '../api/client';
 const SESSION_KEY = 'iip_splash_shown';
 
 /** A one-time welcome screen for admins and team leaders when they open the app — the admin's own
- * main logo up front (nothing at all until one is uploaded in Settings > Branding — no bundled
- * placeholder graphic, since a wrong/mismatched placeholder is worse than blank space), the Sky
+ * main logo up front (a plain "Main Logo" placeholder box until one is uploaded in Settings >
+ * Branding — an obvious empty slot rather than a real-looking but wrong bundled graphic), the Sky
  * Green Line logo as a small badge on the dialog's corner, a quick "what's happened lately"
  * snapshot, and a way in. The main logo is deliberately just whatever single image the admin
  * uploads, shown at its own natural size — earlier this also redrew the company name/Nama Group
@@ -96,7 +96,7 @@ export function SplashScreen() {
         }}
       />
       <Box sx={{ p: { xs: 2.5, sm: 4 } }}>
-        {mainLogoSrc && (
+        {mainLogoSrc ? (
           <Stack sx={{ alignItems: 'center', mb: 2 }}>
             <Box
               component="img"
@@ -105,6 +105,25 @@ export function SplashScreen() {
               sx={{ maxWidth: '100%', maxHeight: 220, width: 'auto', height: 'auto', objectFit: 'contain', display: 'block' }}
             />
           </Stack>
+        ) : (
+          <Box
+            sx={{
+              width: '100%',
+              height: 160,
+              mb: 2,
+              borderRadius: 2,
+              bgcolor: 'action.hover',
+              border: '1px dashed',
+              borderColor: 'divider',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Typography variant="h5" color="text.secondary" sx={{ fontWeight: 700, fontStyle: 'italic' }}>
+              Main Logo
+            </Typography>
+          </Box>
         )}
 
         {branding?.app_title && (
