@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, Button, Chip, Dialog, Divider, Grid, Stack, Typography } from '@mui/material';
+import { Box, Button, Chip, Dialog, Grid, Stack, Typography } from '@mui/material';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import LocalFireDepartmentRoundedIcon from '@mui/icons-material/LocalFireDepartmentRounded';
 import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded';
@@ -11,11 +11,15 @@ import { mediaUrl } from '../api/client';
 // AuthContext's logout, so the next person to use this device/tab sees it again too.
 const SESSION_KEY = 'iip_splash_shown';
 
-/** A one-time welcome screen for admins and team leaders when they open the app — the OETC lockup
- * (logo + company name + Nama Group line) up front, the Sky Green Line logo as a small badge on the
- * dialog's corner, a quick "what's happened lately" snapshot, and a way in. Team members go straight
- * to their own missions instead (see Layout's isCrew split elsewhere) — this is deliberately not for
- * them. */
+/** A one-time welcome screen for admins and team leaders when they open the app — the admin's own
+ * main logo up front (nothing at all until one is uploaded in Settings > Branding — no bundled
+ * placeholder graphic, since a wrong/mismatched placeholder is worse than blank space), the Sky
+ * Green Line logo as a small badge on the dialog's corner, a quick "what's happened lately"
+ * snapshot, and a way in. The main logo is deliberately just whatever single image the admin
+ * uploads, shown at its own natural size — earlier this also redrew the company name/Nama Group
+ * text in code underneath it, which duplicated (and, sized wrong, visually broke) whatever the
+ * uploaded logo image already contained. Team members go straight to their own missions instead
+ * (see Layout's isCrew split elsewhere) — this is deliberately not for them. */
 export function SplashScreen() {
   const { user } = useAuth();
   const eligible = user?.role === 'admin' || user?.role === 'team_leader';
@@ -29,7 +33,7 @@ export function SplashScreen() {
 
   const { data } = useDashboardSummary(undefined, open);
   const { data: branding } = useBrandingSettings(open);
-  const oetcLogoSrc = branding?.oetc_logo_url ? mediaUrl(branding.oetc_logo_url) : '/branding/oetc.png';
+  const mainLogoSrc = branding?.oetc_logo_url ? mediaUrl(branding.oetc_logo_url) : null;
   const skyGreenLogoSrc = branding?.sky_green_line_logo_url
     ? mediaUrl(branding.sky_green_line_logo_url)
     : '/branding/sky-green-line.png';
@@ -92,22 +96,16 @@ export function SplashScreen() {
         }}
       />
       <Box sx={{ p: { xs: 2.5, sm: 4 } }}>
-        <Stack spacing={0.25} sx={{ alignItems: 'center', textAlign: 'center', mb: 2 }}>
-          <Box component="img" src={oetcLogoSrc} alt="Oman Electricity Transmission Company" sx={{ height: 110, objectFit: 'contain' }} />
-          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1a7a4c', mt: 1 }} dir="rtl">
-            الشركة العُمانية لنقل الكهرباء ش.م.ع.م
-          </Typography>
-          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1a7a4c' }}>
-            OMAN ELECTRICITY TRANSMISSION COMPANY S.A.O.C
-          </Typography>
-          <Divider sx={{ width: '70%', my: 1 }} />
-          <Typography variant="body2" sx={{ fontWeight: 700, color: '#c1272d' }} dir="rtl">
-            إحدى شركات مجموعة نماء
-          </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 700, color: '#c1272d' }}>
-            Member of Nama Group
-          </Typography>
-        </Stack>
+        {mainLogoSrc && (
+          <Stack sx={{ alignItems: 'center', mb: 2 }}>
+            <Box
+              component="img"
+              src={mainLogoSrc}
+              alt="Company logo"
+              sx={{ maxWidth: '100%', maxHeight: 220, width: 'auto', height: 'auto', objectFit: 'contain', display: 'block' }}
+            />
+          </Stack>
+        )}
 
         {branding?.app_title && (
           <Typography

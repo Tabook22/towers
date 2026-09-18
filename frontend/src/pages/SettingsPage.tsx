@@ -148,9 +148,14 @@ function BrandingSection() {
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, sm: 6 }}>
             <Stack spacing={1} sx={{ alignItems: 'center' }}>
-              <Typography variant="subtitle2">OETC logo</Typography>
+              <Typography variant="subtitle2">Main logo</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', mb: 0.5 }}>
+                Shown at the top of the splash screen, at its own size — nothing shows until you upload one. If you
+                want the company name/tagline text under the logo, include it in this image; nothing is drawn
+                underneath it automatically.
+              </Typography>
               <Avatar variant="rounded" src={oetcPreview || undefined} sx={{ width: 120, height: 70, bgcolor: 'action.hover' }}>
-                {!oetcPreview && 'OETC'}
+                {!oetcPreview && 'None set'}
               </Avatar>
               <input
                 ref={oetcInputRef}
