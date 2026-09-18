@@ -1180,24 +1180,6 @@ export function ImageAnnotator({ open, onClose, title, imageUrl, originalUrl, on
               !loadError && <Typography sx={{ color: 'grey.400', p: 4 }}>Loading image…</Typography>
             )}
           </Box>
-          <Typography variant="caption" color="text.secondary">
-            Use the zoom controls above to magnify small details before marking them — once zoomed in, scroll,
-            drag with the middle mouse button, or switch to Select and drag empty space to pan around the photo.
-            Draw circles, boxes, or freehand lines to point out the fault location, drag with the arrow tool to
-            point straight at something specific, or use the text tool to add a label explaining a mark (e.g.
-            "bad contact joint") — double-click a label with Select to edit or clear its wording. Switch to
-            Select to drag any mark into place. Circles/boxes/freehand get 4 corner handles to stretch width
-            and height independently (a circle dragged that way becomes an oval, to fit an elongated fault); a
-            selected arrow instead gets 3 round handles — drag the tail or head to move or rotate that end,
-            drag the middle one to bend the shaft into a curve. The eraser rubs out just the part you drag
-            over, not the whole mark (text is deleted via Select + the delete button instead) — the size
-            control also sets how big an area it erases, or a label's font size. Zoom only affects how you're
-            viewing the photo here, not what gets saved — marks always export at the photo's full original
-            resolution regardless of zoom level. The tune icon opens brightness/contrast/saturation sliders
-            for a poorly-exposed shot — "Auto" stretches them from the photo's own histogram in one click,
-            and the ink colors are drawn after the adjustment so marks always look the same regardless of it.
-            Saves as a separate marked-up copy; the original evidence photo is never changed.
-          </Typography>
         </Stack>
       </DialogContent>
       <DialogActions>
