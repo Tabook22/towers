@@ -31,6 +31,7 @@ import EditIcon from '@mui/icons-material/EditRounded';
 import DownloadIcon from '@mui/icons-material/DownloadRounded';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
+import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import {
   useDeleteKnowledgeDocument,
   useKnowledgeDocumentDetail,
@@ -43,6 +44,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { mediaUrl } from '../api/client';
 import { VoiceNoteControls, VoiceNotePlayer } from '../components/VoiceNoteControls';
+import { DocumentPreviewDialog } from '../components/DocumentPreviewDialog';
 
 function formatSize(bytes: number | null): string {
   if (!bytes) return '—';
@@ -155,6 +157,8 @@ export function KnowledgeBasePage() {
   };
 
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [previewId, setPreviewId] = useState<number | null>(null);
+  const { data: previewDoc } = useKnowledgeDocumentDetail(previewId);
 
   return (
     <Box>
@@ -191,11 +195,16 @@ export function KnowledgeBasePage() {
             {(docs || []).map((doc) => (
               <TableRow key={doc.id} hover>
                 <TableCell>
-                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ alignItems: 'center', cursor: 'pointer' }}
+                    onClick={() => setPreviewId(doc.id)}
+                  >
                     <DescriptionRoundedIcon fontSize="small" color="action" />
                     <Box>
                       <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, '&:hover': { textDecoration: 'underline' } }}>
                           {doc.title}
                         </Typography>
                         {doc.has_voice && (
@@ -219,6 +228,11 @@ export function KnowledgeBasePage() {
                 <TableCell>{new Date(doc.uploaded_at).toLocaleDateString()}</TableCell>
                 <TableCell>{formatSize(doc.file_size)}</TableCell>
                 <TableCell align="right">
+                  <Tooltip title="Read">
+                    <IconButton size="small" onClick={() => setPreviewId(doc.id)}>
+                      <VisibilityRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="Download original file">
                     <IconButton size="small" component="a" href={mediaUrl(`/api/knowledge-base/${doc.id}/file`)} target="_blank" rel="noreferrer">
                       <DownloadIcon fontSize="small" />
@@ -350,6 +364,18 @@ export function KnowledgeBasePage() {
         teams={teams || []}
         onClose={() => setEditingId(null)}
       />
+
+      {previewDoc && (
+        <DocumentPreviewDialog
+          open={previewId != null}
+          onClose={() => setPreviewId(null)}
+          title={previewDoc.title}
+          docId={previewDoc.id}
+          contentType={previewDoc.content_type}
+          extractedText={previewDoc.extracted_text}
+          teamName={previewDoc.team_name}
+        />
+      )}
     </Box>
   );
 }
