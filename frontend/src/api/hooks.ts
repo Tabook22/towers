@@ -1991,6 +1991,8 @@ export function useTeamFieldTrack(
   });
 }
 
+export type HelpChatSearchMode = 'local' | 'internet' | 'both';
+
 // The Help page's chat assistant (see components/HelpChatWidget.tsx). Stateless like the
 // underlying Claude API — the widget resends the whole conversation's history each turn.
 export function useHelpChat() {
@@ -1998,12 +2000,12 @@ export function useHelpChat() {
     mutationFn: async ({
       message,
       history,
-      useInternet,
+      searchMode,
     }: {
       message: string;
       history: HelpChatTurn[];
-      useInternet?: boolean;
+      searchMode?: HelpChatSearchMode;
     }) =>
-      (await apiClient.post<{ reply: string }>('/api/help/chat', { message, history, use_internet: !!useInternet })).data,
+      (await apiClient.post<{ reply: string }>('/api/help/chat', { message, history, search_mode: searchMode || 'local' })).data,
   });
 }

@@ -9,12 +9,12 @@ gets raw database access, only whatever those scoped functions choose to return,
 write path anywhere in this flow. See frontend/src/pages/HelpPage.tsx (HelpChatWidget) and
 components/FloatingHelpChat.tsx for where this is used.
 
-Web search (payload.use_internet) is opt-in per message via a checkbox in the chat UI, off by
-default — everything above already covers this app's own data, so leaving the internet on by
-default would just add cost/latency for no benefit most of the time, and hand the model untrusted
-web content it doesn't need. When ticked, this adds Anthropic's own server-executed web_search
-tool (the fetch/search happens on Anthropic's infrastructure, not this server) capped at a few
-uses per message.
+payload.search_mode picks what this one message can draw on — "local" (the guide + the tools
+above; the default), "internet" (only Anthropic's own server-executed web_search tool — none of
+the app's own data tools), or "both". Defaulting to "local" means leaving the internet on would
+just add cost/latency for no benefit most of the time and hand the model untrusted web content it
+doesn't need; "internet" mode exists for a genuinely external question where local tools would
+just get in the way (or be tried needlessly).
 
 Requires ANTHROPIC_API_KEY in backend/.env. Left unset, every request returns a clear 503 instead
 of crashing — same "optional external service, degrade gracefully" pattern as services/transcribe.py's
@@ -64,16 +64,22 @@ _SYSTEM_PROMPT = (
     + _GUIDE_TEXT
 )
 
-# Appended (not cached — it varies per request) only when the user has ticked "Search the
-# internet" for this message. Kept separate from _SYSTEM_PROMPT so the big cached guide block
-# stays identical, and identical, across every request regardless of this toggle.
-_INTERNET_SYSTEM_SUFFIX = (
+# Appended (not cached — it varies per request) depending on search_mode. Kept separate from
+# _SYSTEM_PROMPT so the big cached guide block stays identical across every request regardless of
+# this per-message choice.
+_BOTH_SYSTEM_SUFFIX = (
     "\n\nFor this message, a real web_search tool is also available, because the user explicitly "
-    "turned it on. Still prefer the guide and the tools above for anything about this app or this "
-    "organization's own towers/teams/reports — the web has no knowledge of those. Only reach for "
-    "web_search for genuinely external questions (general technical/engineering facts, public "
+    "chose \"Both\". Still prefer the guide and the tools above for anything about this app or "
+    "this organization's own towers/teams/reports — the web has no knowledge of those. Only reach "
+    "for web_search for genuinely external questions (general technical/engineering facts, public "
     "standards, something outside this app entirely). When you use a web result, say plainly that "
     "it came from the internet rather than from this app's own records."
+)
+_INTERNET_ONLY_SYSTEM_SUFFIX = (
+    "\n\nThe user chose \"Internet\" for this message: answer ONLY using the real web_search tool "
+    "— none of this app's own data tools are available for this message, so don't reference the "
+    "guide or claim anything about this organization's own towers/teams/reports here. Say plainly "
+    "that the answer came from the internet."
 )
 
 # Keeps each request small — a help chat rarely needs more than this much back-and-forth to
@@ -120,13 +126,18 @@ def help_chat(
 
     client = anthropic.Anthropic(api_key=key)
 
-    tools: list[dict] = list(chat_tools.TOOLS)
+    # Anthropic's own server-executed tool — the actual fetch/search runs on their infrastructure,
+    # not this backend, and max_uses caps cost/latency for one message.
+    web_search_tool = {"type": "web_search_20250305", "name": "web_search", "max_uses": 3}
     system_blocks: list[dict] = [{"type": "text", "text": _SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
-    if payload.use_internet:
-        # Anthropic's own server-executed tool — the actual fetch/search runs on their
-        # infrastructure, not this backend, and max_uses caps cost/latency for one message.
-        tools.append({"type": "web_search_20250305", "name": "web_search", "max_uses": 3})
-        system_blocks.append({"type": "text", "text": _INTERNET_SYSTEM_SUFFIX})
+    if payload.search_mode == "internet":
+        tools: list[dict] = [web_search_tool]
+        system_blocks.append({"type": "text", "text": _INTERNET_ONLY_SYSTEM_SUFFIX})
+    elif payload.search_mode == "both":
+        tools = list(chat_tools.TOOLS) + [web_search_tool]
+        system_blocks.append({"type": "text", "text": _BOTH_SYSTEM_SUFFIX})
+    else:
+        tools = list(chat_tools.TOOLS)
 
     def call_model():
         return client.messages.create(

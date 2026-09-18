@@ -97,9 +97,9 @@ def test_tool_use_round_trip_calls_the_scoped_tool_and_returns_the_final_text(mo
     assert captured["kwargs"] == {"area": "Ashoor-Saada"}
 
 
-def test_web_search_tool_only_added_when_use_internet_is_ticked(monkeypatch):
-    """The internet checkbox is opt-in per message — the web_search tool must not be offered to
-    the model at all unless the user explicitly ticked it for this specific question."""
+def test_search_mode_controls_which_tools_are_offered(monkeypatch):
+    """The three-way control is per message — local-only must never see web_search, internet-only
+    must never see the app's own data tools, and both must see everything."""
     import app.routers.help_chat as help_chat_module
 
     monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-fake-key-for-this-test")
@@ -117,12 +117,19 @@ def test_web_search_tool_only_added_when_use_internet_is_ticked(monkeypatch):
 
     monkeypatch.setattr(help_chat_module.anthropic, "Anthropic", FakeClient)
 
-    help_chat(HelpChatRequest(message="hi", use_internet=False), db=None, user=_fake_user())
-    tool_types_off = {t.get("type") for t in captured_calls[0]["tools"]}
-    assert "web_search_20250305" not in tool_types_off
-
-    help_chat(HelpChatRequest(message="hi", use_internet=True), db=None, user=_fake_user())
-    tool_types_on = {t.get("type") for t in captured_calls[1]["tools"]}
-    assert "web_search_20250305" in tool_types_on
-    assert len(captured_calls[1]["system"]) == 2  # base guide block + the internet-guardrail suffix
+    help_chat(HelpChatRequest(message="hi", search_mode="local"), db=None, user=_fake_user())
+    local_tools = captured_calls[0]["tools"]
+    assert "web_search_20250305" not in {t.get("type") for t in local_tools}
+    assert "dashboard_summary" in {t.get("name") for t in local_tools}
     assert len(captured_calls[0]["system"]) == 1
+
+    help_chat(HelpChatRequest(message="hi", search_mode="internet"), db=None, user=_fake_user())
+    internet_tools = captured_calls[1]["tools"]
+    assert {t.get("type") for t in internet_tools} == {"web_search_20250305"}
+    assert len(captured_calls[1]["system"]) == 2
+
+    help_chat(HelpChatRequest(message="hi", search_mode="both"), db=None, user=_fake_user())
+    both_tools = captured_calls[2]["tools"]
+    assert "web_search_20250305" in {t.get("type") for t in both_tools}
+    assert "dashboard_summary" in {t.get("name") for t in both_tools}
+    assert len(captured_calls[2]["system"]) == 2

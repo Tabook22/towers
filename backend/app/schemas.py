@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -1330,10 +1331,11 @@ class HelpChatRequest(BaseModel):
     # Prior turns of this conversation, oldest first — the API is stateless, so the frontend
     # resends them each time (see components/HelpChatWidget.tsx).
     history: list[HelpChatTurn] = []
-    # Opt-in per message, off by default — ticking the "Search the internet" box in the chat UI.
-    # The assistant otherwise only ever answers from the guide, live app data, and the knowledge
-    # base; this is the one path that leaves the app to fetch something.
-    use_internet: bool = False
+    # "local" (default): the guide + this app's own live-data/knowledge-base tools, no internet.
+    # "internet": only Anthropic's server-executed web_search tool, no local tools at all.
+    # "both": everything. Picked per message via a 3-way control in the chat UI (see
+    # components/HelpChatWidget.tsx) — never left to default to anything but "local".
+    search_mode: Literal["local", "internet", "both"] = "local"
 
 
 class HelpChatResponse(BaseModel):
