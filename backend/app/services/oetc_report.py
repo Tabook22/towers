@@ -36,6 +36,26 @@ def _find_image(pos: Position, image_type: str):
     return next((i for i in pos.images if i.image_type == image_type and i.file_path), None)
 
 
+def _derived_tower_proximity(pos: Position) -> str | None:
+    """A double-string Tension position's Inner/Outer field is easy to leave unset — it's a
+    separate manual dropdown, easy to forget — even though the app already labels the String
+    picker itself "S1 — Outer" / "S2 — Inner" as a fixed convention (see frontend's
+    AddPositionBar.STRING_LABELS) so the field crew never has to guess which physical string is
+    which. Falls back to that same convention here whenever tower_proximity was never explicitly
+    recorded, so the report doesn't come back blank just because that second field went unfilled.
+    A manually-recorded value always wins — the crew's own read of the actual hardware overrides
+    the naming convention, for the rare tower where a slot doesn't quite follow it."""
+    if pos.tower_proximity:
+        return pos.tower_proximity
+    if pos.mount_type != "Tension" or pos.string_count != "Double":
+        return None
+    if pos.string == "S1":
+        return "Outer"
+    if pos.string == "S2":
+        return "Inner"
+    return None
+
+
 def _finding_context(tpl, seq: int, visit: Visit, pos: Position) -> dict:
     return {
         "seq": seq,
@@ -46,7 +66,7 @@ def _finding_context(tpl, seq: int, visit: Visit, pos: Position) -> dict:
         "gs_side": pos.gs_side,
         "insulator_type": pos.insulator_type,
         "string_count": pos.string_count,
-        "tower_proximity": pos.tower_proximity,
+        "tower_proximity": _derived_tower_proximity(pos),
         "manufacturer": pos.manufacturer,
         "year_installed": pos.year_installed,
         # All 4 of the position's baseline evidence slots, shown independently rather than picking

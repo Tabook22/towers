@@ -312,6 +312,53 @@ def test_checkbox_glyphs_match_their_checked_state_and_all_four_images_render(tm
     assert xml.count('<w:gridSpan w:val="2"/>') >= 4
 
 
+def test_inner_outer_checkbox_renders_checked_from_string_alone_when_never_set_by_hand(tmp_path, monkeypatch):
+    """End-to-end version of test_tower_proximity_is_derived_from_string_when_never_recorded_by_hand
+    — a real double-string Tension position whose Inner/Outer dropdown was simply never touched
+    must still come out of the actual rendered .docx with the right box checked, not blank."""
+    import io
+    import re
+    import zipfile
+
+    from app import config as config_module
+
+    monkeypatch.setattr(config_module.settings, "images_dir", tmp_path)
+
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, _tower_b = _seed(db)
+        pos = db.query(Position).join(Visit).filter(Visit.tower_id == tower_a.id).first()
+        pos.mount_type = "Tension"
+        pos.string = "S2"
+        pos.string_count = "Double"
+        pos.tower_proximity = None  # never set by hand — should still derive to "Inner"
+        db.commit()
+
+        admin = User(username="admin", role="admin", hashed_password="x")
+        db.add(admin)
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            tower_id=tower_a.id,
+            team_id=team.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="TEST-0011",
+        )
+        response = oetc_line_report(payload=payload, db=db, user=admin)
+
+    with zipfile.ZipFile(io.BytesIO(response.body)) as z:
+        xml = z.read("word/document.xml").decode("utf-8")
+
+    inner_idx = xml.find("Inner")
+    assert inner_idx != -1
+    # The checkbox content-control immediately preceding the "Inner" label text.
+    block_start = xml.rfind("<w:sdt>", 0, inner_idx)
+    block_end = xml.find("</w:sdt>", block_start) + len("</w:sdt>")
+    block = xml[block_start:block_end]
+    assert re.search(r'w14:checked w14:val="1"', block), f"Inner checkbox not checked: {block[:300]}"
+
+
 def test_neither_team_nor_tower_is_rejected_by_the_schema():
     with pytest.raises(Exception):
         LineInspectionReportRequest(
@@ -434,3 +481,39 @@ def test_grouped_reports_persist_the_sign_off_fields_for_later_redownload():
         record = db.query(LineInspectionReport).filter_by(report_number="GROUPED-0001").one()
         assert record.overall_condition == "Acceptable"
         assert record.prepared_by == "Ahmed"
+
+
+def test_tower_proximity_is_derived_from_string_when_never_recorded_by_hand():
+    """The Inner/Outer field is a separate, easy-to-forget dropdown — the app already labels the
+    String picker itself "S1 — Outer" / "S2 — Inner" as a fixed convention (see frontend's
+    AddPositionBar.STRING_LABELS) precisely so the crew never has to guess, so the report should
+    fall back to that same convention rather than showing a blank checkbox just because the second
+    field went unfilled. Only meaningful for a double-string Tension position — the only place two
+    physical strings actually share one slot."""
+    from app.services.oetc_report import _derived_tower_proximity
+
+    outer = Position(ohl="OHL1", phase="R", string="S1", mount_type="Tension", string_count="Double")
+    assert _derived_tower_proximity(outer) == "Outer"
+
+    inner = Position(ohl="OHL1", phase="R", string="S2", mount_type="Tension", string_count="Double")
+    assert _derived_tower_proximity(inner) == "Inner"
+
+
+def test_tower_proximity_manual_value_always_wins_over_the_derived_one():
+    from app.services.oetc_report import _derived_tower_proximity
+
+    pos = Position(ohl="OHL1", phase="R", string="S1", mount_type="Tension", string_count="Double", tower_proximity="Inner")
+    assert _derived_tower_proximity(pos) == "Inner"  # the crew's own read of the hardware, not S1's usual "Outer"
+
+
+def test_tower_proximity_is_not_derived_outside_double_tension():
+    from app.services.oetc_report import _derived_tower_proximity
+
+    suspension = Position(ohl="OHL1", phase="R", string="S1", mount_type="Suspension", string_count="Double")
+    assert _derived_tower_proximity(suspension) is None
+
+    single = Position(ohl="OHL1", phase="R", string="S1", mount_type="Tension", string_count="Single")
+    assert _derived_tower_proximity(single) is None
+
+    unset = Position(ohl="OHL1", phase="R", string="S1", mount_type="Tension", string_count=None)
+    assert _derived_tower_proximity(unset) is None
