@@ -1187,15 +1187,40 @@ export function useKnowledgeDocuments() {
 export function useUploadKnowledgeDocument() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { title: string; description?: string; team_id?: number | null; file: File }) => {
+    mutationFn: async (payload: {
+      title: string;
+      description?: string;
+      team_id?: number | null;
+      // Either a file upload, or typed/transcribed text saved as a real .txt or .pdf file server-side.
+      file?: File;
+      text_content?: string;
+      save_as?: 'txt' | 'pdf';
+    }) => {
       const form = new FormData();
       form.append('title', payload.title);
       if (payload.description) form.append('description', payload.description);
       if (payload.team_id != null) form.append('team_id', String(payload.team_id));
-      form.append('file', payload.file);
+      if (payload.file) form.append('file', payload.file);
+      if (payload.text_content) {
+        form.append('text_content', payload.text_content);
+        form.append('save_as', payload.save_as || 'txt');
+      }
       return (await apiClient.post<KnowledgeDocument>('/api/knowledge-base', form)).data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge-base'] }),
+  });
+}
+
+// Turns a voice recording into text for the "record instead of typing" option in the upload
+// dialog — the transcript comes back for the admin/team leader to review/edit before it's
+// actually saved as a document (a separate useUploadKnowledgeDocument call).
+export function useTranscribeForKnowledgeBase() {
+  return useMutation({
+    mutationFn: async (blob: Blob) => {
+      const form = new FormData();
+      form.append('file', blob, 'recording.webm');
+      return (await apiClient.post<{ transcript: string }>('/api/knowledge-base/transcribe', form)).data;
+    },
   });
 }
 

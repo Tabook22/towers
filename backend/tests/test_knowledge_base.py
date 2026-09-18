@@ -1,7 +1,9 @@
 """Who can add/remove knowledge-base documents (and who can only search them) — see
 routers/knowledge_base.py. A team leader can only ever file something under their own team
 (never company-wide, never another team's, regardless of what the request asks for); a team
-member can't upload at all; a restricted admin needs the "manage_knowledge_base" permission."""
+member can't upload at all; a restricted admin needs the "manage_knowledge_base" permission.
+Also covers the typed-text/PDF and voice-transcription-to-text upload paths added alongside the
+original file upload."""
 import io
 
 import pytest
@@ -36,19 +38,29 @@ def _file(name="report.txt", content=b"we found a cracked insulator") -> UploadF
     return UploadFile(file=io.BytesIO(content), filename=name, headers=Headers({"content-type": "text/plain"}))
 
 
+def _upload(db, user, title, description=None, team_id=None, file=None, text_content=None, save_as="txt"):
+    """Wraps upload_document with every Form/File param given explicitly — calling a FastAPI
+    endpoint function directly (bypassing real request dependency injection) means an omitted
+    Form/File param keeps its literal `Form(...)`/`File(...)` marker object instead of resolving
+    to the value a real request would give it."""
+    return knowledge_base.upload_document(
+        db=db,
+        user=user,
+        title=title,
+        description=description,
+        team_id=team_id,
+        file=file,
+        text_content=text_content,
+        save_as=save_as,
+    )
+
+
 def test_team_leader_upload_is_always_scoped_to_their_own_team_regardless_of_request(db):
     alpha = _team(db, "Alpha")
     bravo = _team(db, "Bravo")
     leader = User(id=1, username="leader1", role="team_leader", team_id=alpha.id)
 
-    out = knowledge_base.upload_document(
-        db=db,
-        user=leader,
-        title="Cracked insulator report",
-        description=None,
-        team_id=bravo.id,  # attempted — must be ignored
-        file=_file(),
-    )
+    out = _upload(db, leader, "Cracked insulator report", team_id=bravo.id, file=_file())  # attempted — must be ignored
     assert out.team_id == alpha.id
 
 
@@ -56,20 +68,20 @@ def test_team_member_cannot_upload(db):
     alpha = _team(db, "Alpha")
     member = User(id=2, username="member1", role="team_member", team_id=alpha.id)
     with pytest.raises(HTTPException) as exc:
-        knowledge_base.upload_document(db=db, user=member, title="x", description=None, team_id=None, file=_file())
+        _upload(db, member, "x", file=_file())
     assert exc.value.status_code == 403
 
 
 def test_restricted_admin_without_permission_cannot_upload(db):
     admin = User(id=3, username="ltd_admin", role="admin", is_super_admin=False, permissions_csv="manage_towers")
     with pytest.raises(HTTPException) as exc:
-        knowledge_base.upload_document(db=db, user=admin, title="x", description=None, team_id=None, file=_file())
+        _upload(db, admin, "x", file=_file())
     assert exc.value.status_code == 403
 
 
 def test_restricted_admin_with_permission_can_upload_company_wide(db):
     admin = User(id=4, username="kb_admin", role="admin", is_super_admin=False, permissions_csv="manage_knowledge_base")
-    out = knowledge_base.upload_document(db=db, user=admin, title="Safety bulletin", description=None, team_id=None, file=_file())
+    out = _upload(db, admin, "Safety bulletin", file=_file())
     assert out.team_id is None
     assert out.team_name is None
 
@@ -77,16 +89,14 @@ def test_restricted_admin_with_permission_can_upload_company_wide(db):
 def test_super_admin_can_upload_to_any_team(db):
     alpha = _team(db, "Alpha")
     admin = User(id=5, username="admin", role="admin", is_super_admin=True)
-    out = knowledge_base.upload_document(db=db, user=admin, title="x", description=None, team_id=alpha.id, file=_file())
+    out = _upload(db, admin, "x", team_id=alpha.id, file=_file())
     assert out.team_id == alpha.id
     assert out.team_name == "Alpha"
 
 
 def test_uploaded_document_has_extracted_text_and_is_findable(db):
     admin = User(id=6, username="admin", role="admin", is_super_admin=True)
-    out = knowledge_base.upload_document(
-        db=db, user=admin, title="x", description=None, team_id=None, file=_file(content=b"a very unique phrase here")
-    )
+    out = _upload(db, admin, "x", file=_file(content=b"a very unique phrase here"))
     assert out.has_text is True
     row = db.get(KnowledgeDocument, out.id)
     assert "unique phrase" in row.extracted_text
@@ -95,10 +105,10 @@ def test_uploaded_document_has_extracted_text_and_is_findable(db):
 def test_team_leader_can_delete_their_own_teams_document_but_not_a_shared_one(db):
     alpha = _team(db, "Alpha")
     leader = User(id=7, username="leader1", role="team_leader", team_id=alpha.id)
-    own_doc = knowledge_base.upload_document(db=db, user=leader, title="own", description=None, team_id=None, file=_file())
+    own_doc = _upload(db, leader, "own", file=_file())
 
     admin = User(id=8, username="admin", role="admin", is_super_admin=True)
-    shared_doc = knowledge_base.upload_document(db=db, user=admin, title="shared", description=None, team_id=None, file=_file())
+    shared_doc = _upload(db, admin, "shared", file=_file())
 
     knowledge_base.delete_document(own_doc.id, db=db, user=leader)
     assert db.get(KnowledgeDocument, own_doc.id) is None
@@ -113,9 +123,9 @@ def test_list_documents_scoping_matches_search_scoping(db):
     alpha = _team(db, "Alpha")
     bravo = _team(db, "Bravo")
     admin = User(id=9, username="admin", role="admin", is_super_admin=True)
-    knowledge_base.upload_document(db=db, user=admin, title="alpha-only", description=None, team_id=alpha.id, file=_file())
-    knowledge_base.upload_document(db=db, user=admin, title="bravo-only", description=None, team_id=bravo.id, file=_file())
-    knowledge_base.upload_document(db=db, user=admin, title="shared", description=None, team_id=None, file=_file())
+    _upload(db, admin, "alpha-only", team_id=alpha.id, file=_file())
+    _upload(db, admin, "bravo-only", team_id=bravo.id, file=_file())
+    _upload(db, admin, "shared", file=_file())
 
     leader_alpha = User(id=10, username="leader_a", role="team_leader", team_id=alpha.id)
     titles = {d.title for d in knowledge_base.list_documents(db=db, user=leader_alpha)}
@@ -123,3 +133,57 @@ def test_list_documents_scoping_matches_search_scoping(db):
 
     titles_admin = {d.title for d in knowledge_base.list_documents(db=db, user=admin)}
     assert titles_admin == {"alpha-only", "bravo-only", "shared"}
+
+
+def test_typed_text_is_saved_as_a_real_txt_file(db):
+    admin = User(id=11, username="admin", role="admin", is_super_admin=True)
+    out = _upload(db, admin, "Typed policy note", text_content="Always wear arc-flash gear.", save_as="txt")
+    assert out.content_type == "text/plain"
+    row = db.get(KnowledgeDocument, out.id)
+    assert row.extracted_text == "Always wear arc-flash gear."
+    assert (knowledge_base.settings.knowledge_base_dir / row.file_path).read_text() == "Always wear arc-flash gear."
+
+
+def test_typed_text_is_saved_as_a_real_pdf_file(db):
+    admin = User(id=12, username="admin", role="admin", is_super_admin=True)
+    out = _upload(db, admin, "Typed policy note", text_content="Always wear arc-flash gear.", save_as="pdf")
+    assert out.content_type == "application/pdf"
+    row = db.get(KnowledgeDocument, out.id)
+    pdf_bytes = (knowledge_base.settings.knowledge_base_dir / row.file_path).read_bytes()
+    assert pdf_bytes.startswith(b"%PDF")
+    # The raw text is kept as-is for search even though the stored file is now a PDF.
+    assert row.extracted_text == "Always wear arc-flash gear."
+
+
+def test_cannot_provide_both_a_file_and_typed_text(db):
+    admin = User(id=13, username="admin", role="admin", is_super_admin=True)
+    with pytest.raises(HTTPException) as exc:
+        _upload(db, admin, "x", file=_file(), text_content="some text")
+    assert exc.value.status_code == 400
+
+
+def test_must_provide_either_a_file_or_text(db):
+    admin = User(id=14, username="admin", role="admin", is_super_admin=True)
+    with pytest.raises(HTTPException) as exc:
+        _upload(db, admin, "x")
+    assert exc.value.status_code == 400
+
+
+def test_transcribe_endpoint_requires_manage_permission(db):
+    import asyncio
+
+    member = User(id=15, username="member1", role="team_member")
+    audio = UploadFile(file=io.BytesIO(b"fake-audio"), filename="note.webm", headers=Headers({"content-type": "audio/webm"}))
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(knowledge_base.transcribe_for_knowledge_base(file=audio, user=member))
+    assert exc.value.status_code == 403
+
+
+def test_transcribe_endpoint_rejects_unsupported_audio_type(db):
+    import asyncio
+
+    leader = User(id=16, username="leader1", role="team_leader", team_id=1)
+    audio = UploadFile(file=io.BytesIO(b"fake"), filename="note.xyz", headers=Headers({"content-type": "application/octet-stream"}))
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(knowledge_base.transcribe_for_knowledge_base(file=audio, user=leader))
+    assert exc.value.status_code == 400

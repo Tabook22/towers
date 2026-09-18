@@ -17,7 +17,11 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tab,
+  Tabs,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -25,9 +29,16 @@ import AddIcon from '@mui/icons-material/AddRounded';
 import DeleteIcon from '@mui/icons-material/DeleteRounded';
 import DownloadIcon from '@mui/icons-material/DownloadRounded';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
-import { useDeleteKnowledgeDocument, useKnowledgeDocuments, useTeams, useUploadKnowledgeDocument } from '../api/hooks';
+import {
+  useDeleteKnowledgeDocument,
+  useKnowledgeDocuments,
+  useTeams,
+  useTranscribeForKnowledgeBase,
+  useUploadKnowledgeDocument,
+} from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { mediaUrl } from '../api/client';
+import { VoiceNoteControls } from '../components/VoiceNoteControls';
 
 function formatSize(bytes: number | null): string {
   if (!bytes) return '—';
@@ -42,6 +53,7 @@ export function KnowledgeBasePage() {
   const { data: teams } = useTeams();
   const upload = useUploadKnowledgeDocument();
   const deleteDoc = useDeleteKnowledgeDocument();
+  const transcribe = useTranscribeForKnowledgeBase();
 
   const canManage =
     user?.role === 'reviewer' ||
@@ -50,25 +62,55 @@ export function KnowledgeBasePage() {
   const isAdminOrReviewer = user?.role === 'admin' || user?.role === 'reviewer';
 
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<'file' | 'text'>('file');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [teamId, setTeamId] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
+  const [bodyText, setBodyText] = useState('');
+  const [saveAs, setSaveAs] = useState<'txt' | 'pdf'>('txt');
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
+    setMode('file');
     setTitle('');
     setDescription('');
     setTeamId('');
     setFile(null);
+    setBodyText('');
+    setSaveAs('txt');
     setError(null);
+  };
+
+  const handleRecorded = (blob: Blob, _duration: number, liveTranscript: string) => {
+    setError(null);
+    if (liveTranscript.trim()) {
+      // The browser's own live speech-to-text already produced text — no need for a round trip.
+      setBodyText((prev) => (prev ? `${prev}\n${liveTranscript.trim()}` : liveTranscript.trim()));
+      return;
+    }
+    transcribe.mutate(blob, {
+      onSuccess: (data) => setBodyText((prev) => (prev ? `${prev}\n${data.transcript}` : data.transcript)),
+      onError: (err: unknown) => {
+        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+        setError(detail || 'Could not transcribe that recording — type the note instead.');
+      },
+    });
   };
 
   const submit = () => {
     setError(null);
-    if (!title.trim() || !file) {
-      setError('A title and a file are both required.');
+    if (!title.trim()) {
+      setError('A title is required.');
+      return;
+    }
+    if (mode === 'file' && !file) {
+      setError('Choose a file to upload.');
+      return;
+    }
+    if (mode === 'text' && !bodyText.trim()) {
+      setError('Write, paste, or record some text first.');
       return;
     }
     upload.mutate(
@@ -76,7 +118,9 @@ export function KnowledgeBasePage() {
         title: title.trim(),
         description: description.trim() || undefined,
         team_id: teamId ? Number(teamId) : null,
-        file,
+        file: mode === 'file' ? file || undefined : undefined,
+        text_content: mode === 'text' ? bodyText.trim() : undefined,
+        save_as: saveAs,
       },
       {
         onSuccess: () => {
@@ -85,7 +129,7 @@ export function KnowledgeBasePage() {
         },
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setError(detail || 'Could not upload this document.');
+          setError(detail || 'Could not save this document.');
         },
       },
     );
@@ -111,7 +155,7 @@ export function KnowledgeBasePage() {
         </Box>
         {canManage && (
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>
-            Upload document
+            Add document
           </Button>
         )}
       </Stack>
@@ -182,7 +226,11 @@ export function KnowledgeBasePage() {
       </TableContainer>
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Upload document</DialogTitle>
+        <DialogTitle>Add to knowledge base</DialogTitle>
+        <Tabs value={mode} onChange={(_e, v) => setMode(v)} sx={{ px: 3, borderBottom: 1, borderColor: 'divider' }}>
+          <Tab value="file" label="Upload file" />
+          <Tab value="text" label="Write / record" />
+        </Tabs>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {error && <Alert severity="error">{error}</Alert>}
@@ -208,16 +256,61 @@ export function KnowledgeBasePage() {
             {user?.role === 'team_leader' && (
               <Alert severity="info">This will be filed under your own team only.</Alert>
             )}
-            <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt,.md" hidden onChange={(e) => setFile(e.target.files?.[0] || null)} />
-            <Button variant="outlined" onClick={() => fileInputRef.current?.click()}>
-              {file ? file.name : 'Choose file (PDF, Word, .txt, .md)'}
-            </Button>
+
+            {mode === 'file' ? (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.docx,.txt,.md"
+                  hidden
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                />
+                <Button variant="outlined" onClick={() => fileInputRef.current?.click()}>
+                  {file ? file.name : 'Choose file (PDF, Word, .txt, .md)'}
+                </Button>
+              </>
+            ) : (
+              <>
+                <TextField
+                  label="Write or paste the report text"
+                  fullWidth
+                  multiline
+                  minRows={5}
+                  value={bodyText}
+                  onChange={(e) => setBodyText(e.target.value)}
+                  placeholder="Type here, paste from elsewhere, or record your voice below and it'll appear here to review."
+                />
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <VoiceNoteControls saving={transcribe.isPending} onRecorded={handleRecorded} />
+                  {transcribe.isPending && (
+                    <Typography variant="caption" color="text.secondary">
+                      Transcribing…
+                    </Typography>
+                  )}
+                </Stack>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                    Save as
+                  </Typography>
+                  <ToggleButtonGroup
+                    size="small"
+                    exclusive
+                    value={saveAs}
+                    onChange={(_e, v) => v && setSaveAs(v)}
+                  >
+                    <ToggleButton value="txt">Text file (.txt)</ToggleButton>
+                    <ToggleButton value="pdf">PDF</ToggleButton>
+                  </ToggleButtonGroup>
+                </Box>
+              </>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={submit} disabled={upload.isPending}>
-            Upload
+            Save
           </Button>
         </DialogActions>
       </Dialog>

@@ -18,7 +18,9 @@ from app.database import get_db
 from app.deps import effective_team_id, get_current_user, has_permission
 from app.models import KnowledgeDocument, User, UserRole
 from app.schemas import KnowledgeDocumentOut
+from app.services.knowledge_compose import render_text_pdf
 from app.services.knowledge_extract import extract_text
+from app.services.transcribe import transcribe_audio
 
 router = APIRouter(prefix="/api/knowledge-base", tags=["knowledge-base"])
 
@@ -27,6 +29,20 @@ _ALLOWED_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "text/plain",
     "text/markdown",
+}
+
+# Same set routers/teams.py's voice-note upload accepts — whatever a browser's MediaRecorder
+# actually produces varies by device/browser, so this stays permissive on container format.
+_ACCEPTED_AUDIO_TYPES = {
+    "audio/webm",
+    "audio/ogg",
+    "audio/mp4",
+    "audio/mpeg",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/aac",
+    "audio/x-m4a",
+    "video/webm",
 }
 
 
@@ -69,7 +85,12 @@ def upload_document(
     title: str = Form(...),
     description: str | None = Form(default=None),
     team_id: int | None = Form(default=None),
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(default=None),
+    # The alternative to `file`: typed/pasted text, or a voice recording already turned into text
+    # via POST .../transcribe — either way it lands here as plain text, and save_as decides what
+    # kind of file it becomes in storage.
+    text_content: str | None = Form(default=None),
+    save_as: str = Form(default="txt"),
 ):
     if not _can_manage(user):
         raise HTTPException(status_code=403, detail="Not enough permissions")
@@ -81,31 +102,27 @@ def upload_document(
         if not team_id:
             raise HTTPException(status_code=400, detail="You're not linked to a team yet")
 
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No file given")
-    if file.content_type not in _ALLOWED_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail="Only PDF, Word (.docx), .txt, or .md files are supported for the knowledge base",
-        )
+    title = title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="A title is required")
 
-    ext = Path(file.filename).suffix or ""
-    stored_name = f"{uuid.uuid4().hex}{ext}"
-    dest = settings.knowledge_base_dir / stored_name
-    data = file.file.read()
-    if len(data) > settings.max_upload_size_mb * 1024 * 1024:
-        raise HTTPException(status_code=400, detail=f"File too large (max {settings.max_upload_size_mb} MB)")
-    dest.write_bytes(data)
+    if file is not None and (text_content or "").strip():
+        raise HTTPException(status_code=400, detail="Provide either a file or text, not both")
 
-    extracted = extract_text(dest)
+    if file is not None:
+        stored_name, content_type, original_filename, data, extracted = _store_uploaded_file(file)
+    elif (text_content or "").strip():
+        stored_name, content_type, original_filename, data, extracted = _store_typed_text(title, text_content.strip(), save_as)
+    else:
+        raise HTTPException(status_code=400, detail="Provide a file, or some text to save")
 
     doc = KnowledgeDocument(
-        title=title.strip(),
+        title=title,
         description=(description or "").strip() or None,
         team_id=team_id,
         file_path=stored_name,
-        original_filename=file.filename,
-        content_type=file.content_type,
+        original_filename=original_filename,
+        content_type=content_type,
         file_size=len(data),
         extracted_text=extracted or None,
         uploaded_by=user.id,
@@ -114,6 +131,66 @@ def upload_document(
     db.commit()
     db.refresh(doc)
     return _doc_out(doc, user.full_name or user.username)
+
+
+def _store_uploaded_file(file: UploadFile) -> tuple[str, str, str, bytes, str]:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file given")
+    if file.content_type not in _ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF, Word (.docx), .txt, or .md files are supported for the knowledge base",
+        )
+    data = file.file.read()
+    if len(data) > settings.max_upload_size_mb * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"File too large (max {settings.max_upload_size_mb} MB)")
+
+    ext = Path(file.filename).suffix or ""
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+    dest = settings.knowledge_base_dir / stored_name
+    dest.write_bytes(data)
+    extracted = extract_text(dest)
+    return stored_name, file.content_type, file.filename, data, extracted
+
+
+def _store_typed_text(title: str, text: str, save_as: str) -> tuple[str, str, str, bytes, str]:
+    if save_as not in ("txt", "pdf"):
+        raise HTTPException(status_code=400, detail="save_as must be 'txt' or 'pdf'")
+    if save_as == "pdf":
+        try:
+            data = render_text_pdf(title, text)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not create a PDF from this text (it may contain unsupported characters) — try saving as .txt instead",
+            )
+        content_type = "application/pdf"
+    else:
+        data = text.encode("utf-8")
+        content_type = "text/plain"
+    ext = ".pdf" if save_as == "pdf" else ".txt"
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+    (settings.knowledge_base_dir / stored_name).write_bytes(data)
+    return stored_name, content_type, f"{title}{ext}", data, text
+
+
+@router.post("/transcribe")
+async def transcribe_for_knowledge_base(file: UploadFile = File(...), user: User = Depends(get_current_user)):
+    """Turns a voice recording into text for the "record instead of typing" path in the upload
+    dialog — returns the transcript only, so the admin/team leader can review and edit it before
+    it's actually saved as a document via POST ''. Nothing is written to the knowledge base here."""
+    if not _can_manage(user):
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if content_type not in _ACCEPTED_AUDIO_TYPES:
+        raise HTTPException(status_code=400, detail=f"Unsupported audio type: {file.content_type}")
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty recording")
+    text, err = transcribe_audio(raw, file.filename or "recording.webm", content_type)
+    if not text:
+        raise HTTPException(status_code=503, detail=err or "Could not transcribe this recording")
+    return {"transcript": text}
 
 
 def _load_visible(db: Session, doc_id: int, user: User) -> KnowledgeDocument:
