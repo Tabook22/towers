@@ -45,6 +45,7 @@ import { useChangePassword } from '../api/hooks';
 import { useOffline } from '../offline/OfflineProvider';
 import { OfflineBanner, OfflineChip } from '../offline/OfflineStatus';
 import { SplashScreen } from './SplashScreen';
+import { FloatingHelpChat } from './FloatingHelpChat';
 
 const drawerWidth = 232;
 
@@ -397,6 +398,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </Box>
       <ChangePasswordDialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)} />
       <SplashScreen />
+      <FloatingHelpChat />
     </Box>
   );
 }
