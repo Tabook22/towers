@@ -112,7 +112,7 @@ import {
 } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { mediaUrl } from '../api/client';
-import { TILE_LAYERS, type MapLayer } from '../components/MapPicker';
+import { DEFAULT_MAP_LAYER, TILE_LAYERS, type MapLayer } from '../components/MapPicker';
 import { VoiceNoteControls, VoiceNotePlayer } from '../components/VoiceNoteControls';
 import { splitTrailSegments } from '../utils/gpsTrail';
 import { useOffline } from '../offline/OfflineProvider';
@@ -432,7 +432,7 @@ export function TeamDetailPage() {
   const trackMapRef = useRef<L.Map | null>(null);
   // Same enlarge + satellite toggle as the Job map further down this page.
   const [trackMapExpanded, setTrackMapExpanded] = useState(false);
-  const [trackMapLayer, setTrackMapLayer] = useState<MapLayer>('street');
+  const [trackMapLayer, setTrackMapLayer] = useState<MapLayer>(DEFAULT_MAP_LAYER);
   const defaultNightKey = shift?.field_date ? `night:${shift.field_date}` : '';
   const effectiveTrackKey = trackKey || defaultNightKey;
   const pickedHistory = (fieldHistory || []).find((m) => missionSelectKey(m) === effectiveTrackKey) || null;
@@ -546,7 +546,7 @@ export function TeamDetailPage() {
   // Job map's own enlarge + satellite toggle — same controls as TowersOverviewMap, but sized in vh
   // so "enlarge" actually reads as most of the screen, per user request.
   const [jobMapExpanded, setJobMapExpanded] = useState(false);
-  const [jobMapLayer, setJobMapLayer] = useState<MapLayer>('street');
+  const [jobMapLayer, setJobMapLayer] = useState<MapLayer>(DEFAULT_MAP_LAYER);
   // "Show path to this tower" — a one-shot geolocation fix (not the continuous background
   // tracking of useFieldTracking), then an actual road-following driving route (via OSRM's free
   // public routing API — no key needed) traced on the map itself, the way Google Maps draws a

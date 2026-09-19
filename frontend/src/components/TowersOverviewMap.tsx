@@ -10,7 +10,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import 'leaflet/dist/leaflet.css';
 import type { DashboardTowerRow } from '../api/types';
 import { useNavigate } from 'react-router-dom';
-import { TILE_LAYERS, type MapLayer } from './MapPicker';
+import { DEFAULT_MAP_LAYER, TILE_LAYERS, type MapLayer } from './MapPicker';
 import { assignmentPinIcon, colorForTeam, FREE_TOWER_COLOR, teamsPresent, towerNumbersById } from './towerMapPins';
 
 function isCompleted(row: DashboardTowerRow): boolean {
@@ -68,7 +68,7 @@ export function TowersOverviewMap({
 
   const mapRef = useRef<L.Map | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [layer, setLayer] = useState<MapLayer>('street');
+  const [layer, setLayer] = useState<MapLayer>(DEFAULT_MAP_LAYER);
   const currentHeight = expanded ? Math.min(680, height * 2) : height;
 
   useEffect(() => {

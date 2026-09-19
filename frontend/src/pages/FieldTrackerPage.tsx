@@ -40,7 +40,7 @@ import { NextTowersCard } from '../components/NextTowersCard';
 import { HandoverPackCard } from '../components/HandoverPackCard';
 import { DispatchChannelFeed, NightChannel } from '../components/NightChannel';
 import type { LiveTeamMember, MovementDayReport, TrackingMission, TowerStay } from '../api/types';
-import { TILE_LAYERS, type MapLayer } from '../components/MapPicker';
+import { DEFAULT_MAP_LAYER, TILE_LAYERS, type MapLayer } from '../components/MapPicker';
 import { extractTowerNumber, numberedDotIcon, towerNumbersById } from '../components/towerMapPins';
 import { splitTrailSegments } from '../utils/gpsTrail';
 import {
@@ -332,7 +332,7 @@ export function FieldTrackerPage() {
   const nextStay =
     selectedReport && selectedStayIdx != null ? selectedReport.stays[selectedStayIdx + 1] : undefined;
   const [expanded, setExpanded] = useState(true);
-  const [layer, setLayer] = useState<MapLayer>('street');
+  const [layer, setLayer] = useState<MapLayer>(DEFAULT_MAP_LAYER);
   const mapRef = useRef<L.Map | null>(null);
   const mapBoxRef = useRef<HTMLDivElement | null>(null);
   const height = expanded ? 620 : 420;

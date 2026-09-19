@@ -15,6 +15,9 @@ import { extractTowerNumber, numberedDotIcon, towerNumbersById } from './towerMa
 
 export type MapLayer = 'street' | 'satellite';
 
+// The default basemap for every map in the app — change this one line to change them all.
+export const DEFAULT_MAP_LAYER: MapLayer = 'satellite';
+
 export const TILE_LAYERS: Record<MapLayer, { url: string; attribution: string; maxZoom: number }> = {
   street: {
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -157,7 +160,7 @@ export function MapPicker({
 
   const mapRef = useRef<L.Map | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [layer, setLayer] = useState<MapLayer>('street');
+  const [layer, setLayer] = useState<MapLayer>(DEFAULT_MAP_LAYER);
   const [locating, setLocating] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
   const currentHeight = expanded ? (expandedHeight ?? Math.min(680, Math.round(height * 1.8))) : height;

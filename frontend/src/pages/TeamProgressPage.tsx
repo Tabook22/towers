@@ -37,7 +37,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useShiftInfo, useTeamMissionProgress, useTeams } from '../api/hooks';
 import { KpiTile } from '../components/KpiTile';
-import { TILE_LAYERS, type MapLayer } from '../components/MapPicker';
+import { DEFAULT_MAP_LAYER, TILE_LAYERS, type MapLayer } from '../components/MapPicker';
 import { splitTrailSegments } from '../utils/gpsTrail';
 import type { TeamProgress } from '../api/types';
 
@@ -217,7 +217,7 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
   const segments = splitTrailSegments(row.path);
   const mapRef = useRef<L.Map | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
-  const [mapLayer, setMapLayer] = useState<MapLayer>('street');
+  const [mapLayer, setMapLayer] = useState<MapLayer>(DEFAULT_MAP_LAYER);
   // Leaflet doesn't notice its container resizing on its own (the enlarge toggle animates height
   // via CSS) — nudge it once the transition settles, same fix used on the other maps in this app.
   useEffect(() => {

@@ -8,7 +8,7 @@ import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
 import MapIcon from '@mui/icons-material/MapRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import 'leaflet/dist/leaflet.css';
-import { TILE_LAYERS, type MapLayer } from './MapPicker';
+import { DEFAULT_MAP_LAYER, TILE_LAYERS, type MapLayer } from './MapPicker';
 import { splitTrailSegments } from '../utils/gpsTrail';
 import type { LiveTeamMember, TeamJobMapTower, TrailPoint, UserTrail } from '../api/types';
 import { FREE_TOWER_COLOR, assignmentPinIcon, colorForTeam, extractTowerNumber, numberedDotIcon, teamsPresent, towerNumbersById } from './towerMapPins';
@@ -163,7 +163,7 @@ export function TeamSiteMap({
     h: number;
     edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
   } | null>(null);
-  const [layer, setLayer] = useState<MapLayer>('street');
+  const [layer, setLayer] = useState<MapLayer>(DEFAULT_MAP_LAYER);
   const h = height;
 
   const clampPct = (n: number) => Math.min(98, Math.max(40, Math.round(n)));

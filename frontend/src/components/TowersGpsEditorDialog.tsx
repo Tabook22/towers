@@ -22,7 +22,7 @@ import CloseIcon from '@mui/icons-material/CloseRounded';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
 import MapIcon from '@mui/icons-material/MapRounded';
 import 'leaflet/dist/leaflet.css';
-import { TILE_LAYERS, type MapLayer } from './MapPicker';
+import { DEFAULT_MAP_LAYER, TILE_LAYERS, type MapLayer } from './MapPicker';
 import { assignmentPinIcon, extractTowerNumber, numberedDotIcon, towerNumbersById } from './towerMapPins';
 import { useMatchPinIds, usePatchTowerLocation } from '../api/hooks';
 import type { TowerWithStats } from '../api/types';
@@ -81,7 +81,7 @@ export function TowersGpsEditorDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [withGps.map((t) => t.id).join(',')],
   );
-  const [layer, setLayer] = useState<MapLayer>('street');
+  const [layer, setLayer] = useState<MapLayer>(DEFAULT_MAP_LAYER);
   const [overrides, setOverrides] = useState<Record<number, { lat: number; lng: number }>>({});
   const [nameOverrides, setNameOverrides] = useState<Record<number, string>>({});
   const [status, setStatus] = useState<string | null>(null);
