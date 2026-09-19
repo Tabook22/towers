@@ -59,6 +59,10 @@ function BrandingSection() {
   const [subtitle, setSubtitle] = useState('');
   const [oetcLogo, setOetcLogo] = useState<File | null>(null);
   const [skyLogo, setSkyLogo] = useState<File | null>(null);
+  const [oetcWidth, setOetcWidth] = useState('');
+  const [oetcHeight, setOetcHeight] = useState('');
+  const [skyWidth, setSkyWidth] = useState('');
+  const [skyHeight, setSkyHeight] = useState('');
   const [heroImage, setHeroImage] = useState<File | null>(null);
   const [heroRawSrc, setHeroRawSrc] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -74,6 +78,10 @@ function BrandingSection() {
     setAppVersion(branding.app_version || '');
     setHeader(branding.splash_header || '');
     setSubtitle(branding.splash_subtitle || '');
+    setOetcWidth(branding.oetc_logo_width != null ? String(branding.oetc_logo_width) : '');
+    setOetcHeight(branding.oetc_logo_height != null ? String(branding.oetc_logo_height) : '');
+    setSkyWidth(branding.sky_green_line_logo_width != null ? String(branding.sky_green_line_logo_width) : '');
+    setSkyHeight(branding.sky_green_line_logo_height != null ? String(branding.sky_green_line_logo_height) : '');
   }, [branding]);
 
   const oetcPreview = oetcLogo ? URL.createObjectURL(oetcLogo) : branding?.oetc_logo_url ? mediaUrl(branding.oetc_logo_url) : null;
@@ -92,6 +100,10 @@ function BrandingSection() {
         app_version: appVersion,
         splash_header: header,
         splash_subtitle: subtitle,
+        oetc_logo_width: oetcWidth ? Number(oetcWidth) : null,
+        oetc_logo_height: oetcHeight ? Number(oetcHeight) : null,
+        sky_green_line_logo_width: skyWidth ? Number(skyWidth) : null,
+        sky_green_line_logo_height: skyHeight ? Number(skyHeight) : null,
         oetc_logo: oetcLogo || undefined,
         sky_green_line_logo: skyLogo || undefined,
         hero_image: heroImage || undefined,
@@ -233,7 +245,11 @@ function BrandingSection() {
                 want the company name/tagline text under the logo, include it in this image; nothing is drawn
                 underneath it automatically.
               </Typography>
-              <Avatar variant="rounded" src={oetcPreview || undefined} sx={{ width: 120, height: 70, bgcolor: 'action.hover' }}>
+              <Avatar
+                variant="rounded"
+                src={oetcPreview || undefined}
+                sx={{ width: Number(oetcWidth) || 120, height: Number(oetcHeight) || 70, bgcolor: 'action.hover' }}
+              >
                 {!oetcPreview && 'None set'}
               </Avatar>
               <input
@@ -246,12 +262,38 @@ function BrandingSection() {
               <Button size="small" startIcon={<CloudUploadIcon />} onClick={() => oetcInputRef.current?.click()}>
                 {oetcLogo ? oetcLogo.name : 'Upload logo'}
               </Button>
+              <Stack direction="row" spacing={1}>
+                <TextField
+                  label="Width (px)"
+                  type="number"
+                  size="small"
+                  value={oetcWidth}
+                  onChange={(e) => setOetcWidth(e.target.value)}
+                  placeholder="120"
+                  sx={{ width: 110 }}
+                  slotProps={{ htmlInput: { min: 10 } }}
+                />
+                <TextField
+                  label="Height (px)"
+                  type="number"
+                  size="small"
+                  value={oetcHeight}
+                  onChange={(e) => setOetcHeight(e.target.value)}
+                  placeholder="70"
+                  sx={{ width: 110 }}
+                  slotProps={{ htmlInput: { min: 10 } }}
+                />
+              </Stack>
             </Stack>
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <Stack spacing={1} sx={{ alignItems: 'center' }}>
               <Typography variant="subtitle2">Sky Green Line logo</Typography>
-              <Avatar variant="rounded" src={skyPreview || undefined} sx={{ width: 120, height: 70, bgcolor: 'action.hover' }}>
+              <Avatar
+                variant="rounded"
+                src={skyPreview || undefined}
+                sx={{ width: Number(skyWidth) || 120, height: Number(skyHeight) || 70, bgcolor: 'action.hover' }}
+              >
                 {!skyPreview && 'SGL'}
               </Avatar>
               <input
@@ -264,6 +306,28 @@ function BrandingSection() {
               <Button size="small" startIcon={<CloudUploadIcon />} onClick={() => skyInputRef.current?.click()}>
                 {skyLogo ? skyLogo.name : 'Upload logo'}
               </Button>
+              <Stack direction="row" spacing={1}>
+                <TextField
+                  label="Width (px)"
+                  type="number"
+                  size="small"
+                  value={skyWidth}
+                  onChange={(e) => setSkyWidth(e.target.value)}
+                  placeholder="120"
+                  sx={{ width: 110 }}
+                  slotProps={{ htmlInput: { min: 10 } }}
+                />
+                <TextField
+                  label="Height (px)"
+                  type="number"
+                  size="small"
+                  value={skyHeight}
+                  onChange={(e) => setSkyHeight(e.target.value)}
+                  placeholder="70"
+                  sx={{ width: 110 }}
+                  slotProps={{ htmlInput: { min: 10 } }}
+                />
+              </Stack>
             </Stack>
           </Grid>
         </Grid>

@@ -104,7 +104,7 @@ export function ImageCropDialog({
               slotProps={{ htmlInput: { min: 50, step: 10 } }}
             />
           </Stack>
-          <Box sx={{ position: 'relative', width: '100%', height: 320, bgcolor: 'black', borderRadius: 1, overflow: 'hidden' }}>
+          <Box sx={{ position: 'relative', width: '100%', height: 400, maxHeight: 400, bgcolor: 'black', borderRadius: 1, overflow: 'hidden' }}>
             {imageSrc && (
               <Cropper
                 image={imageSrc}

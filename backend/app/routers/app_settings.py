@@ -48,6 +48,10 @@ def _to_out(row: AppSetting) -> BrandingOut:
         splash_subtitle=row.splash_subtitle,
         oetc_logo_url=_image_url("oetc", row.oetc_logo_filename, row.updated_at),
         sky_green_line_logo_url=_image_url("sky-green-line", row.sky_green_line_logo_filename, row.updated_at),
+        oetc_logo_width=row.oetc_logo_width,
+        oetc_logo_height=row.oetc_logo_height,
+        sky_green_line_logo_width=row.sky_green_line_logo_width,
+        sky_green_line_logo_height=row.sky_green_line_logo_height,
         hero_image_url=_image_url("hero", row.hero_image_filename, row.updated_at),
         configured=bool(
             row.app_title or row.splash_header or row.oetc_logo_filename or row.sky_green_line_logo_filename or row.hero_image_filename
@@ -68,6 +72,10 @@ def update_branding(
     app_version: str | None = Form(default=None),
     splash_header: str | None = Form(default=None),
     splash_subtitle: str | None = Form(default=None),
+    oetc_logo_width: int | None = Form(default=None),
+    oetc_logo_height: int | None = Form(default=None),
+    sky_green_line_logo_width: int | None = Form(default=None),
+    sky_green_line_logo_height: int | None = Form(default=None),
     oetc_logo: UploadFile | None = File(default=None),
     sky_green_line_logo: UploadFile | None = File(default=None),
     hero_image: UploadFile | None = File(default=None),
@@ -77,6 +85,10 @@ def update_branding(
     row.app_version = app_version or None
     row.splash_header = splash_header or None
     row.splash_subtitle = splash_subtitle or None
+    row.oetc_logo_width = oetc_logo_width
+    row.oetc_logo_height = oetc_logo_height
+    row.sky_green_line_logo_width = sky_green_line_logo_width
+    row.sky_green_line_logo_height = sky_green_line_logo_height
     for upload, field in (
         (oetc_logo, "oetc_logo_filename"),
         (sky_green_line_logo, "sky_green_line_logo_filename"),

@@ -1200,6 +1200,10 @@ export function useUpdateBrandingSettings() {
       app_version?: string;
       splash_header?: string;
       splash_subtitle?: string;
+      oetc_logo_width?: number | null;
+      oetc_logo_height?: number | null;
+      sky_green_line_logo_width?: number | null;
+      sky_green_line_logo_height?: number | null;
       oetc_logo?: File;
       sky_green_line_logo?: File;
       hero_image?: File;
@@ -1209,6 +1213,12 @@ export function useUpdateBrandingSettings() {
       if (payload.app_version !== undefined) form.append('app_version', payload.app_version);
       if (payload.splash_header !== undefined) form.append('splash_header', payload.splash_header);
       if (payload.splash_subtitle !== undefined) form.append('splash_subtitle', payload.splash_subtitle);
+      if (payload.oetc_logo_width != null) form.append('oetc_logo_width', String(payload.oetc_logo_width));
+      if (payload.oetc_logo_height != null) form.append('oetc_logo_height', String(payload.oetc_logo_height));
+      if (payload.sky_green_line_logo_width != null)
+        form.append('sky_green_line_logo_width', String(payload.sky_green_line_logo_width));
+      if (payload.sky_green_line_logo_height != null)
+        form.append('sky_green_line_logo_height', String(payload.sky_green_line_logo_height));
       if (payload.oetc_logo) form.append('oetc_logo', payload.oetc_logo);
       if (payload.sky_green_line_logo) form.append('sky_green_line_logo', payload.sky_green_line_logo);
       if (payload.hero_image) form.append('hero_image', payload.hero_image);

@@ -90,10 +90,13 @@ export function SplashScreen() {
                 position: 'absolute',
                 top: 12,
                 right: 12,
-                maxWidth: '45%',
-                maxHeight: 90,
-                width: 'auto',
-                height: 'auto',
+                ...(branding?.oetc_logo_width || branding?.oetc_logo_height
+                  ? {
+                      width: branding.oetc_logo_width || 'auto',
+                      height: branding.oetc_logo_height || 'auto',
+                      maxWidth: '45%',
+                    }
+                  : { width: 'auto', height: 'auto', maxWidth: '45%', maxHeight: 90 }),
                 objectFit: 'contain',
                 bgcolor: '#fff',
                 borderRadius: 1,
@@ -114,7 +117,13 @@ export function SplashScreen() {
               component="img"
               src={mainLogoSrc}
               alt="Company logo"
-              sx={{ maxWidth: '100%', maxHeight: 160, width: 'auto', height: 'auto', objectFit: 'contain', display: 'block' }}
+              sx={{
+                ...(branding?.oetc_logo_width || branding?.oetc_logo_height
+                  ? { width: branding.oetc_logo_width || 'auto', height: branding.oetc_logo_height || 'auto', maxWidth: '100%' }
+                  : { width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: 160 }),
+                objectFit: 'contain',
+                display: 'block',
+              }}
             />
           </Stack>
         )}
@@ -125,8 +134,8 @@ export function SplashScreen() {
             src={skyGreenLogoSrc}
             alt="Sky Green Line"
             sx={{
-              width: 56,
-              height: 56,
+              width: branding?.sky_green_line_logo_width || 56,
+              height: branding?.sky_green_line_logo_height || 56,
               objectFit: 'contain',
               bgcolor: '#fff',
               borderRadius: 1.5,

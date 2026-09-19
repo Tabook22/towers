@@ -817,6 +817,13 @@ class AppSetting(Base):
     # storage directory doesn't strand old rows. Null = fall back to the built-in placeholder asset.
     oetc_logo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sky_green_line_logo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Display size (px) for each logo on the splash screen — null means "use the built-in default
+    # size" (see SplashScreen.tsx). Width and height are independent (not just a scale factor) so a
+    # non-matching aspect ratio letterboxes within object-fit: contain rather than being disallowed.
+    oetc_logo_width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    oetc_logo_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sky_green_line_logo_width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sky_green_line_logo_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # A wide banner photo shown across the top of the splash (e.g. a tower/field shot) — purely
     # decorative, so null just means "don't show a banner" rather than falling back to a placeholder.
     hero_image_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)

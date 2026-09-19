@@ -1365,6 +1365,11 @@ class BrandingOut(BaseModel):
     # else None — the frontend falls back to its own bundled placeholder in that case.
     oetc_logo_url: str | None = None
     sky_green_line_logo_url: str | None = None
+    # Display size (px) on the splash screen — None means "use the built-in default size".
+    oetc_logo_width: int | None = None
+    oetc_logo_height: int | None = None
+    sky_green_line_logo_width: int | None = None
+    sky_green_line_logo_height: int | None = None
     # Same idea, but no placeholder fallback — a banner photo across the top of the splash is purely
     # optional, so None just means "don't show one".
     hero_image_url: str | None = None
