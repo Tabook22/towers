@@ -131,8 +131,8 @@ function BrandingSection() {
           </Typography>
           <Box
             sx={{
-              width: '100%',
-              maxHeight: 220,
+              width: '30%',
+              maxHeight: 330,
               borderRadius: 2,
               bgcolor: 'action.hover',
               display: 'flex',
@@ -144,7 +144,7 @@ function BrandingSection() {
             }}
           >
             {heroPreview ? (
-              <Box component="img" src={heroPreview} alt="" sx={{ width: '100%', height: 'auto', maxHeight: 220, display: 'block' }} />
+              <Box component="img" src={heroPreview} alt="" sx={{ width: '100%', height: 'auto', maxHeight: 330, display: 'block' }} />
             ) : (
               <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
                 No banner set — a plain icon is shown instead
