@@ -66,6 +66,10 @@ function BrandingSection() {
   const [skyHeight, setSkyHeight] = useState('');
   const [logoPosX, setLogoPosX] = useState<number | null>(null);
   const [logoPosY, setLogoPosY] = useState<number | null>(null);
+  const [skyLogoPosX, setSkyLogoPosX] = useState<number | null>(null);
+  const [skyLogoPosY, setSkyLogoPosY] = useState<number | null>(null);
+  const [titlePosX, setTitlePosX] = useState<number | null>(null);
+  const [titlePosY, setTitlePosY] = useState<number | null>(null);
   const [heroImage, setHeroImage] = useState<File | null>(null);
   const [heroRawSrc, setHeroRawSrc] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -87,6 +91,10 @@ function BrandingSection() {
     setSkyHeight(branding.sky_green_line_logo_height != null ? String(branding.sky_green_line_logo_height) : '');
     setLogoPosX(branding.oetc_logo_pos_x);
     setLogoPosY(branding.oetc_logo_pos_y);
+    setSkyLogoPosX(branding.sky_green_line_logo_pos_x);
+    setSkyLogoPosY(branding.sky_green_line_logo_pos_y);
+    setTitlePosX(branding.app_title_pos_x);
+    setTitlePosY(branding.app_title_pos_y);
   }, [branding]);
 
   const oetcPreview = oetcLogo ? URL.createObjectURL(oetcLogo) : branding?.oetc_logo_url ? mediaUrl(branding.oetc_logo_url) : null;
@@ -111,6 +119,10 @@ function BrandingSection() {
         sky_green_line_logo_height: skyHeight ? Number(skyHeight) : null,
         oetc_logo_pos_x: logoPosX,
         oetc_logo_pos_y: logoPosY,
+        sky_green_line_logo_pos_x: skyLogoPosX,
+        sky_green_line_logo_pos_y: skyLogoPosY,
+        app_title_pos_x: titlePosX,
+        app_title_pos_y: titlePosY,
         oetc_logo: oetcLogo || undefined,
         sky_green_line_logo: skyLogo || undefined,
         hero_image: heroImage || undefined,
@@ -148,15 +160,28 @@ function BrandingSection() {
         <Stack spacing={1} sx={{ mb: 3 }}>
           <Typography variant="subtitle2">Live preview</Typography>
           <Typography variant="caption" color="text.secondary">
-            This is exactly what the splash screen will look like with your changes below — drag the
-            main logo to reposition it on the banner. Nothing here is saved until you click "Save
-            branding".
+            This is exactly what the splash screen will look like with your changes below. Drag the
+            main logo anywhere on the banner; for the Sky Green Line logo or the app name, click
+            "Move onto banner" below them first, then drag to fine-tune. Nothing here is saved
+            until you click "Save branding".
           </Typography>
-          {logoPosX != null && (
-            <Button size="small" onClick={() => { setLogoPosX(null); setLogoPosY(null); }} sx={{ alignSelf: 'flex-start' }}>
-              Reset logo position
-            </Button>
-          )}
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+            {logoPosX != null && (
+              <Button size="small" onClick={() => { setLogoPosX(null); setLogoPosY(null); }}>
+                Reset logo position
+              </Button>
+            )}
+            {skyLogoPosX != null && (
+              <Button size="small" onClick={() => { setSkyLogoPosX(null); setSkyLogoPosY(null); }}>
+                Reset Sky Green Line position
+              </Button>
+            )}
+            {titlePosX != null && (
+              <Button size="small" onClick={() => { setTitlePosX(null); setTitlePosY(null); }}>
+                Reset app name position
+              </Button>
+            )}
+          </Stack>
           <Box sx={{ maxWidth: 480 }}>
             <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
               {heroPreview ? (
@@ -167,10 +192,27 @@ function BrandingSection() {
                   mainLogoHeight={oetcHeight ? Number(oetcHeight) : null}
                   mainLogoPosX={logoPosX}
                   mainLogoPosY={logoPosY}
+                  skyLogoSrc={skyPreview || '/branding/sky-green-line.png'}
+                  skyLogoWidth={skyWidth ? Number(skyWidth) : null}
+                  skyLogoHeight={skyHeight ? Number(skyHeight) : null}
+                  skyLogoPosX={skyLogoPosX}
+                  skyLogoPosY={skyLogoPosY}
+                  appTitle={appTitle}
+                  appVersion={appVersion}
+                  titlePosX={titlePosX}
+                  titlePosY={titlePosY}
                   editable
-                  onLogoPosChange={(x, y) => {
+                  onMainLogoPosChange={(x, y) => {
                     setLogoPosX(x);
                     setLogoPosY(y);
+                  }}
+                  onSkyLogoPosChange={(x, y) => {
+                    setSkyLogoPosX(x);
+                    setSkyLogoPosY(y);
+                  }}
+                  onTitlePosChange={(x, y) => {
+                    setTitlePosX(x);
+                    setTitlePosY(y);
                   }}
                 />
               ) : (
@@ -191,6 +233,10 @@ function BrandingSection() {
                   skyLogoHeight={skyHeight ? Number(skyHeight) : null}
                   appTitle={appTitle || null}
                   appVersion={appVersion || null}
+                  hideSkyLogo={!!heroPreview && skyLogoPosX != null}
+                  hideTitle={!!heroPreview && titlePosX != null}
+                  onPinSkyLogoToBanner={heroPreview ? () => { setSkyLogoPosX(15); setSkyLogoPosY(85); } : undefined}
+                  onPinTitleToBanner={heroPreview ? () => { setTitlePosX(50); setTitlePosY(85); } : undefined}
                 />
               </Box>
             </Box>

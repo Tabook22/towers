@@ -74,6 +74,15 @@ export function SplashScreen() {
           mainLogoHeight={branding?.oetc_logo_height}
           mainLogoPosX={branding?.oetc_logo_pos_x}
           mainLogoPosY={branding?.oetc_logo_pos_y}
+          skyLogoSrc={skyGreenLogoSrc}
+          skyLogoWidth={branding?.sky_green_line_logo_width}
+          skyLogoHeight={branding?.sky_green_line_logo_height}
+          skyLogoPosX={branding?.sky_green_line_logo_pos_x}
+          skyLogoPosY={branding?.sky_green_line_logo_pos_y}
+          appTitle={branding?.app_title}
+          appVersion={branding?.app_version}
+          titlePosX={branding?.app_title_pos_x}
+          titlePosY={branding?.app_title_pos_y}
         />
       )}
       {/* Everything below the hero image scrolls as one region — there's easily more here (stats,
@@ -90,6 +99,8 @@ export function SplashScreen() {
           skyLogoHeight={branding?.sky_green_line_logo_height}
           appTitle={branding?.app_title ?? null}
           appVersion={branding?.app_version ?? null}
+          hideSkyLogo={!!heroImageSrc && branding?.sky_green_line_logo_pos_x != null}
+          hideTitle={!!heroImageSrc && branding?.app_title_pos_x != null}
         />
 
         <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center', mb: 3 }}>

@@ -47,7 +47,7 @@ export function ImageCropDialog({
   onCancel,
   onCropped,
   defaultWidth = 1600,
-  defaultHeight = 400,
+  defaultHeight = 700,
 }: {
   open: boolean;
   imageSrc: string | null;

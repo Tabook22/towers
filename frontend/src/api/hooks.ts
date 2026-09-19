@@ -1206,6 +1206,10 @@ export function useUpdateBrandingSettings() {
       sky_green_line_logo_height?: number | null;
       oetc_logo_pos_x?: number | null;
       oetc_logo_pos_y?: number | null;
+      sky_green_line_logo_pos_x?: number | null;
+      sky_green_line_logo_pos_y?: number | null;
+      app_title_pos_x?: number | null;
+      app_title_pos_y?: number | null;
       oetc_logo?: File;
       sky_green_line_logo?: File;
       hero_image?: File;
@@ -1223,6 +1227,12 @@ export function useUpdateBrandingSettings() {
         form.append('sky_green_line_logo_height', String(payload.sky_green_line_logo_height));
       if (payload.oetc_logo_pos_x != null) form.append('oetc_logo_pos_x', String(payload.oetc_logo_pos_x));
       if (payload.oetc_logo_pos_y != null) form.append('oetc_logo_pos_y', String(payload.oetc_logo_pos_y));
+      if (payload.sky_green_line_logo_pos_x != null)
+        form.append('sky_green_line_logo_pos_x', String(payload.sky_green_line_logo_pos_x));
+      if (payload.sky_green_line_logo_pos_y != null)
+        form.append('sky_green_line_logo_pos_y', String(payload.sky_green_line_logo_pos_y));
+      if (payload.app_title_pos_x != null) form.append('app_title_pos_x', String(payload.app_title_pos_x));
+      if (payload.app_title_pos_y != null) form.append('app_title_pos_y', String(payload.app_title_pos_y));
       if (payload.oetc_logo) form.append('oetc_logo', payload.oetc_logo);
       if (payload.sky_green_line_logo) form.append('sky_green_line_logo', payload.sky_green_line_logo);
       if (payload.hero_image) form.append('hero_image', payload.hero_image);

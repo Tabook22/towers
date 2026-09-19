@@ -1373,6 +1373,12 @@ class BrandingOut(BaseModel):
     # Where the main logo sits on the banner (% from top-left) — None means the built-in corner spot.
     oetc_logo_pos_x: float | None = None
     oetc_logo_pos_y: float | None = None
+    # Same idea for the Sky Green Line logo and the name/version text — None means "not pinned to
+    # the banner", so each falls back to its own spot in the row below it instead.
+    sky_green_line_logo_pos_x: float | None = None
+    sky_green_line_logo_pos_y: float | None = None
+    app_title_pos_x: float | None = None
+    app_title_pos_y: float | None = None
     # Same idea, but no placeholder fallback — a banner photo across the top of the splash is purely
     # optional, so None just means "don't show one".
     hero_image_url: str | None = None

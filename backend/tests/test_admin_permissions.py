@@ -169,6 +169,10 @@ def test_branding_update_saves_text_fields_and_logo(db, tmp_path, monkeypatch):
         sky_green_line_logo_height=None,
         oetc_logo_pos_x=None,
         oetc_logo_pos_y=None,
+        sky_green_line_logo_pos_x=None,
+        sky_green_line_logo_pos_y=None,
+        app_title_pos_x=None,
+        app_title_pos_y=None,
         oetc_logo=logo,
         sky_green_line_logo=None,
         hero_image=None,
@@ -196,6 +200,10 @@ def test_branding_update_saves_a_hero_banner_image(db, tmp_path, monkeypatch):
         sky_green_line_logo_height=None,
         oetc_logo_pos_x=None,
         oetc_logo_pos_y=None,
+        sky_green_line_logo_pos_x=None,
+        sky_green_line_logo_pos_y=None,
+        app_title_pos_x=None,
+        app_title_pos_y=None,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=hero,
@@ -220,6 +228,10 @@ def test_branding_update_saves_the_app_version(db):
         sky_green_line_logo_height=None,
         oetc_logo_pos_x=None,
         oetc_logo_pos_y=None,
+        sky_green_line_logo_pos_x=None,
+        sky_green_line_logo_pos_y=None,
+        app_title_pos_x=None,
+        app_title_pos_y=None,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
@@ -242,6 +254,10 @@ def test_branding_update_saves_logo_display_sizes(db):
         sky_green_line_logo_height=48,
         oetc_logo_pos_x=None,
         oetc_logo_pos_y=None,
+        sky_green_line_logo_pos_x=None,
+        sky_green_line_logo_pos_y=None,
+        app_title_pos_x=None,
+        app_title_pos_y=None,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
@@ -266,9 +282,41 @@ def test_branding_update_saves_the_logo_position(db):
         sky_green_line_logo_height=None,
         oetc_logo_pos_x=72.5,
         oetc_logo_pos_y=15.0,
+        sky_green_line_logo_pos_x=None,
+        sky_green_line_logo_pos_y=None,
+        app_title_pos_x=None,
+        app_title_pos_y=None,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
     )
     assert out.oetc_logo_pos_x == 72.5
     assert out.oetc_logo_pos_y == 15.0
+
+
+def test_branding_update_saves_sky_logo_and_title_positions(db):
+    out = app_settings.update_branding(
+        db=db,
+        _user=_super_admin(),
+        app_title=None,
+        app_version=None,
+        splash_header=None,
+        splash_subtitle=None,
+        oetc_logo_width=None,
+        oetc_logo_height=None,
+        sky_green_line_logo_width=None,
+        sky_green_line_logo_height=None,
+        oetc_logo_pos_x=None,
+        oetc_logo_pos_y=None,
+        sky_green_line_logo_pos_x=10.0,
+        sky_green_line_logo_pos_y=85.0,
+        app_title_pos_x=40.0,
+        app_title_pos_y=88.0,
+        oetc_logo=None,
+        sky_green_line_logo=None,
+        hero_image=None,
+    )
+    assert out.sky_green_line_logo_pos_x == 10.0
+    assert out.sky_green_line_logo_pos_y == 85.0
+    assert out.app_title_pos_x == 40.0
+    assert out.app_title_pos_y == 88.0
