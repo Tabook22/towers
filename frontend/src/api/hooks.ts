@@ -1197,6 +1197,7 @@ export function useUpdateBrandingSettings() {
   return useMutation({
     mutationFn: async (payload: {
       app_title?: string;
+      app_version?: string;
       splash_header?: string;
       splash_subtitle?: string;
       oetc_logo?: File;
@@ -1205,6 +1206,7 @@ export function useUpdateBrandingSettings() {
     }) => {
       const form = new FormData();
       if (payload.app_title !== undefined) form.append('app_title', payload.app_title);
+      if (payload.app_version !== undefined) form.append('app_version', payload.app_version);
       if (payload.splash_header !== undefined) form.append('splash_header', payload.splash_header);
       if (payload.splash_subtitle !== undefined) form.append('splash_subtitle', payload.splash_subtitle);
       if (payload.oetc_logo) form.append('oetc_logo', payload.oetc_logo);

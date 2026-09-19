@@ -810,6 +810,7 @@ class AppSetting(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     app_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    app_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     splash_header: Mapped[str | None] = mapped_column(String(300), nullable=True)
     splash_subtitle: Mapped[str | None] = mapped_column(String(300), nullable=True)
     # Filenames only (relative to settings.branding_dir) — never a full path or URL, so moving the

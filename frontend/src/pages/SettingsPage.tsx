@@ -54,6 +54,7 @@ function BrandingSection() {
   const { data: branding } = useBrandingSettings();
   const update = useUpdateBrandingSettings();
   const [appTitle, setAppTitle] = useState('');
+  const [appVersion, setAppVersion] = useState('');
   const [header, setHeader] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [oetcLogo, setOetcLogo] = useState<File | null>(null);
@@ -70,6 +71,7 @@ function BrandingSection() {
   useEffect(() => {
     if (!branding) return;
     setAppTitle(branding.app_title || '');
+    setAppVersion(branding.app_version || '');
     setHeader(branding.splash_header || '');
     setSubtitle(branding.splash_subtitle || '');
   }, [branding]);
@@ -87,6 +89,7 @@ function BrandingSection() {
     update.mutate(
       {
         app_title: appTitle,
+        app_version: appVersion,
         splash_header: header,
         splash_subtitle: subtitle,
         oetc_logo: oetcLogo || undefined,
@@ -268,13 +271,22 @@ function BrandingSection() {
         <Divider sx={{ my: 3 }} />
 
         <Stack spacing={2}>
-          <TextField
-            label="App title"
-            helperText="Shown as a small masthead line on the splash screen"
-            value={appTitle}
-            onChange={(e) => setAppTitle(e.target.value)}
-            fullWidth
-          />
+          <Stack direction="row" spacing={2}>
+            <TextField
+              label="App name"
+              helperText="Shown next to the Sky Green Line logo on the splash screen"
+              value={appTitle}
+              onChange={(e) => setAppTitle(e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Version"
+              helperText='e.g. "ver. 1.0"'
+              value={appVersion}
+              onChange={(e) => setAppVersion(e.target.value)}
+              sx={{ minWidth: 160 }}
+            />
+          </Stack>
           <TextField
             label="Welcome header"
             helperText='Defaults to "Welcome back, <name>" when left blank'

@@ -1358,6 +1358,7 @@ class HelpChatResponse(BaseModel):
 
 class BrandingOut(BaseModel):
     app_title: str | None = None
+    app_version: str | None = None
     splash_header: str | None = None
     splash_subtitle: str | None = None
     # Absolute API paths (e.g. "/api/settings/branding/logo/oetc") when a logo has been uploaded,

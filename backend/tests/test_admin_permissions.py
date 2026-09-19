@@ -160,6 +160,7 @@ def test_branding_update_saves_text_fields_and_logo(db, tmp_path, monkeypatch):
         db=db,
         _user=_super_admin(),
         app_title="OETC Field Ops",
+        app_version=None,
         splash_header="Welcome back",
         splash_subtitle=None,
         oetc_logo=logo,
@@ -180,6 +181,7 @@ def test_branding_update_saves_a_hero_banner_image(db, tmp_path, monkeypatch):
         db=db,
         _user=_super_admin(),
         app_title=None,
+        app_version=None,
         splash_header=None,
         splash_subtitle=None,
         oetc_logo=None,
@@ -190,3 +192,19 @@ def test_branding_update_saves_a_hero_banner_image(db, tmp_path, monkeypatch):
     assert out.configured is True
     row = db.get(AppSetting, 1)
     assert (tmp_path / row.hero_image_filename).exists()
+
+
+def test_branding_update_saves_the_app_version(db):
+    out = app_settings.update_branding(
+        db=db,
+        _user=_super_admin(),
+        app_title="Insulator Inspection Pro",
+        app_version="ver. 1.0",
+        splash_header=None,
+        splash_subtitle=None,
+        oetc_logo=None,
+        sky_green_line_logo=None,
+        hero_image=None,
+    )
+    assert out.app_title == "Insulator Inspection Pro"
+    assert out.app_version == "ver. 1.0"

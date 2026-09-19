@@ -43,6 +43,7 @@ def _image_url(which: str, filename: str | None, updated_at) -> str | None:
 def _to_out(row: AppSetting) -> BrandingOut:
     return BrandingOut(
         app_title=row.app_title,
+        app_version=row.app_version,
         splash_header=row.splash_header,
         splash_subtitle=row.splash_subtitle,
         oetc_logo_url=_image_url("oetc", row.oetc_logo_filename, row.updated_at),
@@ -64,6 +65,7 @@ def update_branding(
     db: Session = Depends(get_db),
     _user: User = Depends(require_permission("manage_settings")),
     app_title: str | None = Form(default=None),
+    app_version: str | None = Form(default=None),
     splash_header: str | None = Form(default=None),
     splash_subtitle: str | None = Form(default=None),
     oetc_logo: UploadFile | None = File(default=None),
@@ -72,6 +74,7 @@ def update_branding(
 ):
     row = _get_or_create(db)
     row.app_title = app_title or None
+    row.app_version = app_version or None
     row.splash_header = splash_header or None
     row.splash_subtitle = splash_subtitle or None
     for upload, field in (

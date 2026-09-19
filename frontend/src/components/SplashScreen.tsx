@@ -11,15 +11,13 @@ import { mediaUrl } from '../api/client';
 // AuthContext's logout, so the next person to use this device/tab sees it again too.
 const SESSION_KEY = 'iip_splash_shown';
 
-/** A one-time welcome screen for admins and team leaders when they open the app — the admin's own
- * main logo up front (a plain "Main Logo" placeholder box until one is uploaded in Settings >
- * Branding — an obvious empty slot rather than a real-looking but wrong bundled graphic), the Sky
- * Green Line logo as a small badge on the dialog's corner, a quick "what's happened lately"
- * snapshot, and a way in. The main logo is deliberately just whatever single image the admin
- * uploads, shown at its own natural size — earlier this also redrew the company name/Nama Group
- * text in code underneath it, which duplicated (and, sized wrong, visually broke) whatever the
- * uploaded logo image already contained. Team members go straight to their own missions instead
- * (see Layout's isCrew split elsewhere) — this is deliberately not for them. */
+/** A one-time welcome screen for admins and team leaders when they open the app. Layout: the
+ * banner photo up top with the admin's main (company) logo overlaid in its corner; below that, the
+ * Sky Green Line logo next to the app name/version (both editable in Settings > Branding); then a
+ * quick "what's happened lately" snapshot and a way in. If no banner is set, the main logo falls
+ * back to its own block above the name/version row instead of floating over nothing. Team members
+ * go straight to their own missions instead (see Layout's isCrew split elsewhere) — this is
+ * deliberately not for them. */
 export function SplashScreen() {
   const { user } = useAuth();
   const eligible = user?.role === 'admin' || user?.role === 'team_leader';
@@ -68,82 +66,87 @@ export function SplashScreen() {
       }}
     >
       {heroImageSrc && (
-        <Box
-          component="img"
-          src={heroImageSrc}
-          alt=""
-          sx={{
-            width: '100%',
-            height: 'auto',
-            maxHeight: 220,
-            objectFit: 'cover',
-            display: 'block',
-            flexShrink: 0,
-            borderTopLeftRadius: 'inherit',
-            borderTopRightRadius: 'inherit',
-          }}
-        />
+        <Box sx={{ position: 'relative', flexShrink: 0 }}>
+          <Box
+            component="img"
+            src={heroImageSrc}
+            alt=""
+            sx={{
+              width: '100%',
+              height: 'auto',
+              maxHeight: 220,
+              objectFit: 'cover',
+              display: 'block',
+              borderTopLeftRadius: 'inherit',
+              borderTopRightRadius: 'inherit',
+            }}
+          />
+          {mainLogoSrc && (
+            <Box
+              component="img"
+              src={mainLogoSrc}
+              alt="Company logo"
+              sx={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                maxWidth: '45%',
+                maxHeight: 90,
+                width: 'auto',
+                height: 'auto',
+                objectFit: 'contain',
+                bgcolor: '#fff',
+                borderRadius: 1,
+                boxShadow: 3,
+                p: 1,
+              }}
+            />
+          )}
+        </Box>
       )}
-      <Box
-        component="img"
-        src={skyGreenLogoSrc}
-        alt="Sky Green Line"
-        sx={{
-          position: 'absolute',
-          bottom: -14,
-          right: -14,
-          width: 72,
-          height: 72,
-          objectFit: 'contain',
-          bgcolor: '#fff',
-          borderRadius: 2,
-          boxShadow: 3,
-          p: 0.75,
-        }}
-      />
       {/* Everything below the hero image scrolls as one region — there's easily more here (stats,
           a five-row "latest work" list, a pending-evidence note) than fits in one screen, especially
           on a shorter laptop/tablet window, so this can't just overflow off the bottom of the dialog. */}
       <Box sx={{ p: { xs: 2.5, sm: 4 }, overflowY: 'auto', flex: 1, minHeight: 0 }}>
-        {mainLogoSrc ? (
+        {!heroImageSrc && mainLogoSrc && (
           <Stack sx={{ alignItems: 'center', mb: 2 }}>
             <Box
               component="img"
               src={mainLogoSrc}
               alt="Company logo"
-              sx={{ maxWidth: '100%', maxHeight: 220, width: 'auto', height: 'auto', objectFit: 'contain', display: 'block' }}
+              sx={{ maxWidth: '100%', maxHeight: 160, width: 'auto', height: 'auto', objectFit: 'contain', display: 'block' }}
             />
           </Stack>
-        ) : (
-          <Box
-            sx={{
-              width: '100%',
-              height: 160,
-              mb: 2,
-              borderRadius: 2,
-              bgcolor: 'action.hover',
-              border: '1px dashed',
-              borderColor: 'divider',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Typography variant="h5" color="text.secondary" sx={{ fontWeight: 700, fontStyle: 'italic' }}>
-              Main Logo
-            </Typography>
-          </Box>
         )}
 
-        {branding?.app_title && (
-          <Typography
-            variant="overline"
-            color="text.secondary"
-            sx={{ display: 'block', textAlign: 'center', letterSpacing: 1.5, fontWeight: 700, mb: 1 }}
-          >
-            {branding.app_title}
-          </Typography>
-        )}
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 3 }}>
+          <Box
+            component="img"
+            src={skyGreenLogoSrc}
+            alt="Sky Green Line"
+            sx={{
+              width: 56,
+              height: 56,
+              objectFit: 'contain',
+              bgcolor: '#fff',
+              borderRadius: 1.5,
+              border: '1px solid',
+              borderColor: 'divider',
+              p: 0.75,
+              flexShrink: 0,
+            }}
+          />
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.15 }} noWrap>
+              {branding?.app_title || 'Insulator Inspector Pro'}
+            </Typography>
+            {branding?.app_version && (
+              <Typography variant="body2" color="text.secondary">
+                {branding.app_version}
+              </Typography>
+            )}
+          </Box>
+        </Stack>
 
         <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center', mb: 3 }}>
           <Typography variant="h5" sx={{ fontWeight: 800 }}>

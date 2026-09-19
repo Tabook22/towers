@@ -551,6 +551,7 @@ export interface KnowledgeDocumentDetail extends KnowledgeDocument {
 
 export interface BrandingSettings {
   app_title: string | null;
+  app_version: string | null;
   splash_header: string | null;
   splash_subtitle: string | null;
   oetc_logo_url: string | null;
