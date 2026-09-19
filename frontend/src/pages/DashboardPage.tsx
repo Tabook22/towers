@@ -4,6 +4,10 @@ import {
   AccordionSummary,
   Alert,
   Box,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Grid,
   MenuItem,
   Paper,
@@ -32,7 +36,7 @@ import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import FolderCopyRoundedIcon from '@mui/icons-material/FolderCopyRounded';
 import { type ReactNode, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAreas, useClaimTowerForTeam, useDashboardSummary, useLiveTeams, useOutingPlan, useReleaseTower, useShiftInfo, useTeamJobMap, useTeamLive, useTeams, useTeamTrails, useTowers } from '../api/hooks';
+import { useAreas, useClaimTowerForTeam, useDashboardSummary, useLiveTeams, useOutingPlan, useReleaseTower, useShiftInfo, useTeamJobMap, useTeamLive, useTeams, useTeamTrails, useTowers, useVisit } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { KpiTile } from '../components/KpiTile';
 import { TowersOverviewMap } from '../components/TowersOverviewMap';
@@ -118,6 +122,14 @@ export function DashboardPage() {
   // automatically rather than sitting there forever once assigned (see mission_status on Visit).
   const needsAttentionRows = (data?.rows || []).filter(
     (row) => row.latest_visit?.mission_status === 'planned' || row.latest_visit?.mission_status === 'in_progress',
+  );
+
+  // Clicking "Inspection incomplete" opens this instead of navigating away, so a leader can see
+  // exactly which positions still need screening without leaving the dashboard.
+  const [incompleteDetail, setIncompleteDetail] = useState<{ visitId: number; towerId: string } | null>(null);
+  const { data: incompleteVisit, isLoading: incompleteLoading } = useVisit(incompleteDetail?.visitId);
+  const missingPositions = (incompleteVisit?.positions || []).filter(
+    (p) => p.installed && (!p.screening_result || p.screening_result === 'Not inspected'),
   );
 
   return (
@@ -418,7 +430,13 @@ export function DashboardPage() {
                               <TableCell align="center">
                                 {row.rollup ? `${row.rollup.completion_pct}%` : '-'}
                               </TableCell>
-                              <TableCell>
+                              <TableCell
+                                onClick={(e) => {
+                                  if (row.rollup?.visit_status !== 'Inspection incomplete' || !row.latest_visit) return;
+                                  e.stopPropagation();
+                                  setIncompleteDetail({ visitId: row.latest_visit.id, towerId: row.tower.tower_id });
+                                }}
+                              >
                                 <VisitStatusChip status={row.rollup?.visit_status} />
                               </TableCell>
                             </TableRow>
@@ -451,6 +469,50 @@ export function DashboardPage() {
           )}
         </>
       )}
+
+      <Dialog open={!!incompleteDetail} onClose={() => setIncompleteDetail(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>What's missing — {incompleteDetail?.towerId}</DialogTitle>
+        <DialogContent>
+          {incompleteLoading ? (
+            <LinearProgress />
+          ) : missingPositions.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              Every installed position on this visit has already been screened — the status may
+              update once the page refreshes.
+            </Typography>
+          ) : (
+            <Stack spacing={1}>
+              <Typography variant="body2" color="text.secondary">
+                {missingPositions.length} position{missingPositions.length === 1 ? '' : 's'} still
+                {missingPositions.length === 1 ? " hasn't" : " haven't"} been screened:
+              </Typography>
+              <Stack spacing={0.75}>
+                {missingPositions.map((p) => (
+                  <Stack
+                    key={p.id}
+                    direction="row"
+                    spacing={1}
+                    sx={{ alignItems: 'center', p: 1, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {p.ohl} · {p.phase} · {p.string}
+                      {p.tower_proximity ? ` (${p.tower_proximity})` : ''}
+                    </Typography>
+                  </Stack>
+                ))}
+              </Stack>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIncompleteDetail(null)}>Close</Button>
+          {incompleteDetail && (
+            <Button variant="contained" onClick={() => navigate(`/visits/${incompleteDetail.visitId}`)}>
+              Go screen it
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
