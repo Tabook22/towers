@@ -33,8 +33,9 @@ import {
 import CloudUploadIcon from '@mui/icons-material/CloudUploadRounded';
 import AddIcon from '@mui/icons-material/AddRounded';
 import EditIcon from '@mui/icons-material/EditRounded';
+import DeleteIcon from '@mui/icons-material/DeleteOutlineRounded';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettingsRounded';
-import { useBrandingSettings, useCreateUser, useUpdateBrandingSettings, useUpdateUser, useUsers } from '../api/hooks';
+import { useBrandingSettings, useCreateUser, useDeleteUser, useUpdateBrandingSettings, useUpdateUser, useUsers } from '../api/hooks';
 import { mediaUrl } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import {
@@ -290,15 +291,19 @@ function PermissionEditor({ value, onChange }: { value: string[]; onChange: (nex
 
 function AdminAccountsSection() {
   const { data: users } = useUsers();
+  const { user: currentUser } = useAuth();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
   const admins = (users || []).filter((u) => u.role === 'admin');
 
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<AdminFormState>(emptyAdminForm);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<AdminUser | null>(null);
+  const [editFullAdmin, setEditFullAdmin] = useState(false);
   const [editPerms, setEditPerms] = useState<string[]>([]);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const openCreate = () => {
     setForm(emptyAdminForm);
@@ -333,19 +338,33 @@ function AdminAccountsSection() {
 
   const openEdit = (admin: AdminUser) => {
     setEditing(admin);
+    setEditFullAdmin(admin.is_super_admin);
     setEditPerms(admin.permissions);
   };
 
   const saveEdit = () => {
     if (!editing) return;
     updateUser.mutate(
-      { id: editing.id, payload: { permissions: editPerms } },
+      { id: editing.id, payload: { is_super_admin: editFullAdmin, permissions: editFullAdmin ? [] : editPerms } },
       { onSuccess: () => setEditing(null) },
     );
   };
 
   const toggleActive = (admin: AdminUser) => {
     updateUser.mutate({ id: admin.id, payload: { is_active: !admin.is_active } });
+  };
+
+  const removeAdmin = (admin: AdminUser) => {
+    setDeleteError(null);
+    if (!window.confirm(`Permanently delete the admin account "${admin.username}"? This can't be undone.`)) {
+      return;
+    }
+    deleteUser.mutate(admin.id, {
+      onError: (err: unknown) => {
+        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+        setDeleteError(detail || `Could not delete "${admin.username}".`);
+      },
+    });
   };
 
   return (
@@ -364,6 +383,11 @@ function AdminAccountsSection() {
           Add (create new, but not edit or delete), or Full (everything) per category — useful for giving
           someone limited access without handing them everything.
         </Typography>
+        {deleteError && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDeleteError(null)}>
+            {deleteError}
+          </Alert>
+        )}
 
         <TableContainer>
           <Table size="small">
@@ -414,16 +438,21 @@ function AdminAccountsSection() {
                     <Chip size="small" color={admin.is_active ? 'success' : 'default'} label={admin.is_active ? 'Active' : 'Deactivated'} />
                   </TableCell>
                   <TableCell align="right">
-                    {!admin.is_super_admin && (
-                      <Tooltip title="Edit permissions">
-                        <IconButton size="small" onClick={() => openEdit(admin)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+                    <Tooltip title="Edit access">
+                      <IconButton size="small" onClick={() => openEdit(admin)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                     <Button size="small" onClick={() => toggleActive(admin)}>
                       {admin.is_active ? 'Deactivate' : 'Reactivate'}
                     </Button>
+                    {admin.id !== currentUser?.id && (
+                      <Tooltip title="Delete this admin account">
+                        <IconButton size="small" color="error" onClick={() => removeAdmin(admin)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -493,9 +522,17 @@ function AdminAccountsSection() {
       </Dialog>
 
       <Dialog open={!!editing} onClose={() => setEditing(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Edit permissions — {editing?.username}</DialogTitle>
+        <DialogTitle>Edit access — {editing?.username}</DialogTitle>
         <DialogContent>
-          <PermissionEditor value={editPerms} onChange={setEditPerms} />
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <FormControlLabel
+              control={
+                <Switch checked={editFullAdmin} onChange={(e) => setEditFullAdmin(e.target.checked)} />
+              }
+              label="Full admin (every permission)"
+            />
+            {!editFullAdmin && <PermissionEditor value={editPerms} onChange={setEditPerms} />}
+          </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditing(null)}>Cancel</Button>

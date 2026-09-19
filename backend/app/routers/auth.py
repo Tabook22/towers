@@ -222,15 +222,23 @@ def delete_user(
     Soft vs. hard mirrors deactivate_tower/delete_team: an account with real mission-assignment
     history (Visit.assigned_member_id) is deactivated, not erased, so that history keeps its
     "assigned to" name; one that was never actually used for fieldwork is removed outright —
-    unlinking it from its team and clearing its GPS-ping history first."""
+    unlinking it from its team and clearing its GPS-ping history first.
+
+    An admin account may only be deleted by a full ("super") admin — a restricted admin, even with
+    "manage_users" at "full", can never touch another admin account, same boundary as
+    _require_can_manage's create path and update_user's edit path. There's no separate "don't
+    delete the last full admin" guard needed: the actor deleting an admin account is itself
+    required to be a full admin and (per the check above) can't be the account being deleted, so a
+    full admin always remains after this call succeeds."""
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if user.id == actor.id:
         raise HTTPException(status_code=400, detail="You can't delete your own account")
     if user.role == UserRole.ADMIN.value:
-        raise HTTPException(status_code=400, detail="Admin accounts can't be deleted here")
-    if actor.role == UserRole.ADMIN.value:
+        if not actor.is_super_admin:
+            raise HTTPException(status_code=403, detail="Only a full admin can delete an admin account")
+    elif actor.role == UserRole.ADMIN.value:
         if not actor.is_super_admin and not has_permission_level(actor, "manage_users", "full"):
             raise HTTPException(status_code=403, detail="Not enough permissions")
     elif actor.role == UserRole.TEAM_LEADER.value:

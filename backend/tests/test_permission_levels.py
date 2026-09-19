@@ -209,3 +209,73 @@ def test_create_user_blocked_without_manage_users_add(db):
             actor=actor,
         )
     assert exc.value.status_code == 403
+
+
+# ---- a full admin can now edit/delete another admin account (previously delete was hard-blocked
+# for every admin target, and the UI never offered editing a full admin at all) -------------------
+
+def test_full_admin_can_demote_another_full_admin_to_restricted_via_update(db):
+    from app.schemas import UserUpdate
+
+    actor = User(username="root_admin", role="admin", is_super_admin=True, hashed_password="x")
+    target = User(username="other_admin", role="admin", is_super_admin=True, hashed_password="x")
+    db.add_all([actor, target])
+    db.commit()
+    updated = auth.update_user(
+        target.id,
+        UserUpdate(is_super_admin=False, permissions=["manage_towers:add"]),
+        db=db,
+        actor=actor,
+    )
+    assert updated.is_super_admin is False
+    assert updated.permissions == ["manage_towers:add"]
+
+
+def test_full_admin_can_delete_another_full_admin_account(db):
+    actor = User(id=1, username="root_admin", role="admin", is_super_admin=True, hashed_password="x")
+    target = User(id=2, username="other_admin", role="admin", is_super_admin=True, hashed_password="x")
+    db.add_all([actor, target])
+    db.commit()
+    auth.delete_user(target.id, db=db, actor=actor)
+    assert db.get(User, target.id) is None
+
+
+def test_full_admin_can_delete_a_restricted_admin_account(db):
+    actor = User(id=1, username="root_admin", role="admin", is_super_admin=True, hashed_password="x")
+    target = User(id=2, username="ltd_admin", role="admin", is_super_admin=False, hashed_password="x")
+    db.add_all([actor, target])
+    db.commit()
+    auth.delete_user(target.id, db=db, actor=actor)
+    assert db.get(User, target.id) is None
+
+
+def test_a_full_admin_deleting_the_only_other_full_admin_still_leaves_itself(db):
+    # Even with just two full admins total, deleting one always leaves the acting admin behind —
+    # the actor can never delete its own account (see the id==actor.id check), so a full admin
+    # never disappears entirely through this endpoint.
+    actor = User(id=1, username="root_admin", role="admin", is_super_admin=True, hashed_password="x")
+    other_full_admin = User(id=2, username="other_admin", role="admin", is_super_admin=True, hashed_password="x")
+    db.add_all([actor, other_full_admin])
+    db.commit()
+    auth.delete_user(other_full_admin.id, db=db, actor=actor)
+    assert db.get(User, other_full_admin.id) is None
+    assert db.get(User, actor.id) is not None
+
+
+def test_restricted_admin_still_cannot_delete_an_admin_account_even_with_manage_users_full(db):
+    actor = _restricted_admin("manage_users:full")
+    target = User(id=20, username="other_admin", role="admin", is_super_admin=True, hashed_password="x")
+    db.add(target)
+    db.commit()
+    with pytest.raises(HTTPException) as exc:
+        auth.delete_user(target.id, db=db, actor=actor)
+    assert exc.value.status_code == 403
+
+
+def test_admin_cannot_delete_their_own_account(db):
+    actor = User(id=1, username="root_admin", role="admin", is_super_admin=True, hashed_password="x")
+    db.add(actor)
+    db.commit()
+    with pytest.raises(HTTPException) as exc:
+        auth.delete_user(actor.id, db=db, actor=actor)
+    assert exc.value.status_code == 400
