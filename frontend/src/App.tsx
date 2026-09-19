@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
-import { CssBaseline, ThemeProvider } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { theme } from './theme/theme';
+import { ColorModeProvider } from './theme/ColorModeContext';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { TrackingProvider } from './hooks/useFieldTracking';
 import { OfflineProvider } from './offline/OfflineProvider';
@@ -168,8 +167,7 @@ function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
 
 export default function App() {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <ColorModeProvider>
       <UpdateBanner />
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
@@ -180,6 +178,6 @@ export default function App() {
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>
-    </ThemeProvider>
+    </ColorModeProvider>
   );
 }

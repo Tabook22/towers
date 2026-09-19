@@ -37,6 +37,8 @@ import LocationDisabledIcon from '@mui/icons-material/LocationDisabledRounded';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutlineRounded';
 import SettingsIcon from '@mui/icons-material/SettingsRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
+import DarkModeIcon from '@mui/icons-material/DarkModeRounded';
+import LightModeIcon from '@mui/icons-material/LightModeRounded';
 
 import LockResetIcon from '@mui/icons-material/LockResetRounded';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -45,6 +47,7 @@ import { useTracking } from '../hooks/useFieldTracking';
 import { useChangePassword } from '../api/hooks';
 import { useOffline } from '../offline/OfflineProvider';
 import { OfflineBanner, OfflineChip } from '../offline/OfflineStatus';
+import { useColorMode } from '../theme/ColorModeContext';
 import { SplashScreen } from './SplashScreen';
 import { FloatingHelpChat } from './FloatingHelpChat';
 
@@ -262,6 +265,7 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { mode, toggleMode } = useColorMode();
   const isCrew = user?.role === 'team_member' || user?.role === 'team_leader';
   // Teams: admin/reviewer see every team; a crew login sees (and the backend scopes them to)
   // only their own. Field Tracker is the cross-team live board, so it stays admin/reviewer only.
@@ -324,6 +328,11 @@ export function Layout({ children }: { children: ReactNode }) {
           <Typography variant="body2" sx={{ opacity: 0.9, mr: 1 }}>
             {user?.full_name || user?.username} · {user?.role}
           </Typography>
+          <Tooltip title={mode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
+            <IconButton color="inherit" onClick={toggleMode}>
+              {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Log out">
             <IconButton
               color="inherit"
@@ -336,7 +345,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </IconButton>
           </Tooltip>
           <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)} sx={{ p: 0.5 }}>
-            <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main', color: '#1a1a1a', fontWeight: 700 }}>
+            <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main', color: 'secondary.contrastText', fontWeight: 700 }}>
               {(user?.full_name || user?.username || '?').slice(0, 1).toUpperCase()}
             </Avatar>
           </IconButton>
@@ -360,7 +369,7 @@ export function Layout({ children }: { children: ReactNode }) {
         sx={{
           width: drawerWidth,
           flexShrink: 0,
-          [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: 'border-box', borderRight: '1px solid rgba(0,0,0,0.08)' },
+          [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: 'border-box', borderRight: '1px solid', borderColor: 'divider' },
         }}
       >
         <Toolbar />
@@ -376,8 +385,8 @@ export function Layout({ children }: { children: ReactNode }) {
                 mb: 0.5,
                 '&.active': {
                   bgcolor: 'primary.main',
-                  color: 'white',
-                  '& .MuiListItemIcon-root': { color: 'white' },
+                  color: 'primary.contrastText',
+                  '& .MuiListItemIcon-root': { color: 'primary.contrastText' },
                 },
               }}
             >
