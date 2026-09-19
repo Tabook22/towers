@@ -38,6 +38,7 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettingsRounde
 import { useBrandingSettings, useCreateUser, useDeleteUser, useUpdateBrandingSettings, useUpdateUser, useUsers } from '../api/hooks';
 import { mediaUrl } from '../api/client';
 import { ImageCropDialog } from '../components/ImageCropDialog';
+import { BrandingBanner, BrandingLogoBlock, BrandingNameRow } from '../components/BrandingPreview';
 import { useAuth } from '../auth/AuthContext';
 import {
   ADMIN_PERMISSION_LABELS,
@@ -63,6 +64,8 @@ function BrandingSection() {
   const [oetcHeight, setOetcHeight] = useState('');
   const [skyWidth, setSkyWidth] = useState('');
   const [skyHeight, setSkyHeight] = useState('');
+  const [logoPosX, setLogoPosX] = useState<number | null>(null);
+  const [logoPosY, setLogoPosY] = useState<number | null>(null);
   const [heroImage, setHeroImage] = useState<File | null>(null);
   const [heroRawSrc, setHeroRawSrc] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -82,6 +85,8 @@ function BrandingSection() {
     setOetcHeight(branding.oetc_logo_height != null ? String(branding.oetc_logo_height) : '');
     setSkyWidth(branding.sky_green_line_logo_width != null ? String(branding.sky_green_line_logo_width) : '');
     setSkyHeight(branding.sky_green_line_logo_height != null ? String(branding.sky_green_line_logo_height) : '');
+    setLogoPosX(branding.oetc_logo_pos_x);
+    setLogoPosY(branding.oetc_logo_pos_y);
   }, [branding]);
 
   const oetcPreview = oetcLogo ? URL.createObjectURL(oetcLogo) : branding?.oetc_logo_url ? mediaUrl(branding.oetc_logo_url) : null;
@@ -104,6 +109,8 @@ function BrandingSection() {
         oetc_logo_height: oetcHeight ? Number(oetcHeight) : null,
         sky_green_line_logo_width: skyWidth ? Number(skyWidth) : null,
         sky_green_line_logo_height: skyHeight ? Number(skyHeight) : null,
+        oetc_logo_pos_x: logoPosX,
+        oetc_logo_pos_y: logoPosY,
         oetc_logo: oetcLogo || undefined,
         sky_green_line_logo: skyLogo || undefined,
         hero_image: heroImage || undefined,
@@ -137,6 +144,58 @@ function BrandingSection() {
           </Alert>
         )}
         {update.isError && <Alert severity="error" sx={{ mb: 2 }}>Could not save branding.</Alert>}
+
+        <Stack spacing={1} sx={{ mb: 3 }}>
+          <Typography variant="subtitle2">Live preview</Typography>
+          <Typography variant="caption" color="text.secondary">
+            This is exactly what the splash screen will look like with your changes below — drag the
+            main logo to reposition it on the banner. Nothing here is saved until you click "Save
+            branding".
+          </Typography>
+          {logoPosX != null && (
+            <Button size="small" onClick={() => { setLogoPosX(null); setLogoPosY(null); }} sx={{ alignSelf: 'flex-start' }}>
+              Reset logo position
+            </Button>
+          )}
+          <Box sx={{ maxWidth: 480 }}>
+            <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
+              {heroPreview ? (
+                <BrandingBanner
+                  heroSrc={heroPreview}
+                  mainLogoSrc={oetcPreview}
+                  mainLogoWidth={oetcWidth ? Number(oetcWidth) : null}
+                  mainLogoHeight={oetcHeight ? Number(oetcHeight) : null}
+                  mainLogoPosX={logoPosX}
+                  mainLogoPosY={logoPosY}
+                  editable
+                  onLogoPosChange={(x, y) => {
+                    setLogoPosX(x);
+                    setLogoPosY(y);
+                  }}
+                />
+              ) : (
+                oetcPreview && (
+                  <Box sx={{ pt: 2 }}>
+                    <BrandingLogoBlock
+                      mainLogoSrc={oetcPreview}
+                      mainLogoWidth={oetcWidth ? Number(oetcWidth) : null}
+                      mainLogoHeight={oetcHeight ? Number(oetcHeight) : null}
+                    />
+                  </Box>
+                )
+              )}
+              <Box sx={{ p: 2 }}>
+                <BrandingNameRow
+                  skyLogoSrc={skyPreview || '/branding/sky-green-line.png'}
+                  skyLogoWidth={skyWidth ? Number(skyWidth) : null}
+                  skyLogoHeight={skyHeight ? Number(skyHeight) : null}
+                  appTitle={appTitle || null}
+                  appVersion={appVersion || null}
+                />
+              </Box>
+            </Box>
+          </Box>
+        </Stack>
 
         <Stack spacing={1} sx={{ mb: 3 }}>
           <Typography variant="subtitle2">Splash banner photo</Typography>

@@ -824,6 +824,11 @@ class AppSetting(Base):
     oetc_logo_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sky_green_line_logo_width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sky_green_line_logo_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Where the main logo sits on top of the banner photo, as a percentage of the banner's own
+    # width/height (0-100, measured from the top-left) — set by dragging it in the Settings preview.
+    # Null means "use the built-in default corner position" (see SplashScreen.tsx).
+    oetc_logo_pos_x: Mapped[float | None] = mapped_column(Float, nullable=True)
+    oetc_logo_pos_y: Mapped[float | None] = mapped_column(Float, nullable=True)
     # A wide banner photo shown across the top of the splash (e.g. a tower/field shot) — purely
     # decorative, so null just means "don't show a banner" rather than falling back to a placeholder.
     hero_image_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)

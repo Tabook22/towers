@@ -560,6 +560,8 @@ export interface BrandingSettings {
   oetc_logo_height: number | null;
   sky_green_line_logo_width: number | null;
   sky_green_line_logo_height: number | null;
+  oetc_logo_pos_x: number | null;
+  oetc_logo_pos_y: number | null;
   hero_image_url: string | null;
   configured: boolean;
 }

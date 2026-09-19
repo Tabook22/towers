@@ -6,6 +6,7 @@ import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded
 import { useAuth } from '../auth/AuthContext';
 import { useBrandingSettings, useDashboardSummary } from '../api/hooks';
 import { mediaUrl } from '../api/client';
+import { BrandingBanner, BrandingLogoBlock, BrandingNameRow } from './BrandingPreview';
 
 // Shown once per browser session (not every page navigation) — cleared on a fresh sign-in via
 // AuthContext's logout, so the next person to use this device/tab sees it again too.
@@ -66,96 +67,30 @@ export function SplashScreen() {
       }}
     >
       {heroImageSrc && (
-        <Box sx={{ position: 'relative', flexShrink: 0 }}>
-          <Box
-            component="img"
-            src={heroImageSrc}
-            alt=""
-            sx={{
-              width: '100%',
-              height: 'auto',
-              maxHeight: 220,
-              objectFit: 'cover',
-              display: 'block',
-              borderTopLeftRadius: 'inherit',
-              borderTopRightRadius: 'inherit',
-            }}
-          />
-          {mainLogoSrc && (
-            <Box
-              component="img"
-              src={mainLogoSrc}
-              alt="Company logo"
-              sx={{
-                position: 'absolute',
-                top: 12,
-                right: 12,
-                ...(branding?.oetc_logo_width || branding?.oetc_logo_height
-                  ? {
-                      width: branding.oetc_logo_width || 'auto',
-                      height: branding.oetc_logo_height || 'auto',
-                      maxWidth: '45%',
-                    }
-                  : { width: 'auto', height: 'auto', maxWidth: '45%', maxHeight: 90 }),
-                objectFit: 'contain',
-                bgcolor: '#fff',
-                borderRadius: 1,
-                boxShadow: 3,
-                p: 1,
-              }}
-            />
-          )}
-        </Box>
+        <BrandingBanner
+          heroSrc={heroImageSrc}
+          mainLogoSrc={mainLogoSrc}
+          mainLogoWidth={branding?.oetc_logo_width}
+          mainLogoHeight={branding?.oetc_logo_height}
+          mainLogoPosX={branding?.oetc_logo_pos_x}
+          mainLogoPosY={branding?.oetc_logo_pos_y}
+        />
       )}
       {/* Everything below the hero image scrolls as one region — there's easily more here (stats,
           a five-row "latest work" list, a pending-evidence note) than fits in one screen, especially
           on a shorter laptop/tablet window, so this can't just overflow off the bottom of the dialog. */}
       <Box sx={{ p: { xs: 2.5, sm: 4 }, overflowY: 'auto', flex: 1, minHeight: 0 }}>
         {!heroImageSrc && mainLogoSrc && (
-          <Stack sx={{ alignItems: 'center', mb: 2 }}>
-            <Box
-              component="img"
-              src={mainLogoSrc}
-              alt="Company logo"
-              sx={{
-                ...(branding?.oetc_logo_width || branding?.oetc_logo_height
-                  ? { width: branding.oetc_logo_width || 'auto', height: branding.oetc_logo_height || 'auto', maxWidth: '100%' }
-                  : { width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: 160 }),
-                objectFit: 'contain',
-                display: 'block',
-              }}
-            />
-          </Stack>
+          <BrandingLogoBlock mainLogoSrc={mainLogoSrc} mainLogoWidth={branding?.oetc_logo_width} mainLogoHeight={branding?.oetc_logo_height} />
         )}
 
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 3 }}>
-          <Box
-            component="img"
-            src={skyGreenLogoSrc}
-            alt="Sky Green Line"
-            sx={{
-              width: branding?.sky_green_line_logo_width || 56,
-              height: branding?.sky_green_line_logo_height || 56,
-              objectFit: 'contain',
-              bgcolor: '#fff',
-              borderRadius: 1.5,
-              border: '1px solid',
-              borderColor: 'divider',
-              p: 0.75,
-              flexShrink: 0,
-            }}
-          />
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.15 }} noWrap>
-              {branding?.app_title || 'Insulator Inspector Pro'}
-            </Typography>
-            {branding?.app_version && (
-              <Typography variant="body2" color="text.secondary">
-                {branding.app_version}
-              </Typography>
-            )}
-          </Box>
-        </Stack>
+        <BrandingNameRow
+          skyLogoSrc={skyGreenLogoSrc}
+          skyLogoWidth={branding?.sky_green_line_logo_width}
+          skyLogoHeight={branding?.sky_green_line_logo_height}
+          appTitle={branding?.app_title ?? null}
+          appVersion={branding?.app_version ?? null}
+        />
 
         <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center', mb: 3 }}>
           <Typography variant="h5" sx={{ fontWeight: 800 }}>

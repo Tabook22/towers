@@ -1370,6 +1370,9 @@ class BrandingOut(BaseModel):
     oetc_logo_height: int | None = None
     sky_green_line_logo_width: int | None = None
     sky_green_line_logo_height: int | None = None
+    # Where the main logo sits on the banner (% from top-left) — None means the built-in corner spot.
+    oetc_logo_pos_x: float | None = None
+    oetc_logo_pos_y: float | None = None
     # Same idea, but no placeholder fallback — a banner photo across the top of the splash is purely
     # optional, so None just means "don't show one".
     hero_image_url: str | None = None
