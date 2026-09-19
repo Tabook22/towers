@@ -37,6 +37,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutlineRounded';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import { useBrandingSettings, useCreateUser, useDeleteUser, useUpdateBrandingSettings, useUpdateUser, useUsers } from '../api/hooks';
 import { mediaUrl } from '../api/client';
+import { ImageCropDialog } from '../components/ImageCropDialog';
 import { useAuth } from '../auth/AuthContext';
 import {
   ADMIN_PERMISSION_LABELS,
@@ -58,6 +59,8 @@ function BrandingSection() {
   const [oetcLogo, setOetcLogo] = useState<File | null>(null);
   const [skyLogo, setSkyLogo] = useState<File | null>(null);
   const [heroImage, setHeroImage] = useState<File | null>(null);
+  const [heroRawSrc, setHeroRawSrc] = useState<string | null>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const oetcInputRef = useRef<HTMLInputElement>(null);
   const skyInputRef = useRef<HTMLInputElement>(null);
@@ -95,6 +98,7 @@ function BrandingSection() {
           setOetcLogo(null);
           setSkyLogo(null);
           setHeroImage(null);
+          setHeroRawSrc(null);
         },
       },
     );
@@ -120,24 +124,28 @@ function BrandingSection() {
 
         <Stack spacing={1} sx={{ mb: 3 }}>
           <Typography variant="subtitle2">Splash banner photo</Typography>
+          <Typography variant="caption" color="text.secondary">
+            After choosing a photo you can drag/zoom to pick exactly which part shows, and set its
+            width and height — that framing is exactly what appears on the splash screen.
+          </Typography>
           <Box
             sx={{
               width: '100%',
-              height: 160,
+              maxHeight: 220,
               borderRadius: 2,
               bgcolor: 'action.hover',
-              backgroundImage: heroPreview ? `url(${heroPreview})` : undefined,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               border: '1px solid',
               borderColor: 'divider',
+              overflow: 'hidden',
             }}
           >
-            {!heroPreview && (
-              <Typography variant="body2" color="text.secondary">
+            {heroPreview ? (
+              <Box component="img" src={heroPreview} alt="" sx={{ width: '100%', height: 'auto', maxHeight: 220, display: 'block' }} />
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
                 No banner set — a plain icon is shown instead
               </Typography>
             )}
@@ -147,14 +155,46 @@ function BrandingSection() {
             type="file"
             accept="image/png,image/jpeg,image/webp,image/svg+xml"
             hidden
-            onChange={(e) => setHeroImage(e.target.files?.[0] || null)}
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              e.target.value = '';
+              if (!file) return;
+              if (file.type === 'image/svg+xml') {
+                // Vector art has no fixed pixel content to crop — use it as-is.
+                setHeroImage(file);
+                setHeroRawSrc(null);
+                return;
+              }
+              const reader = new FileReader();
+              reader.onload = () => {
+                const src = reader.result as string;
+                setHeroRawSrc(src);
+                setCropSrc(src);
+              };
+              reader.readAsDataURL(file);
+            }}
           />
-          <Box>
+          <Stack direction="row" spacing={1}>
             <Button size="small" startIcon={<CloudUploadIcon />} onClick={() => heroInputRef.current?.click()}>
-              {heroImage ? heroImage.name : 'Upload banner photo'}
+              {heroImage ? 'Replace banner photo' : 'Upload banner photo'}
             </Button>
-          </Box>
+            {heroRawSrc && (
+              <Button size="small" onClick={() => setCropSrc(heroRawSrc)}>
+                Adjust crop
+              </Button>
+            )}
+          </Stack>
         </Stack>
+        <ImageCropDialog
+          open={!!cropSrc}
+          imageSrc={cropSrc}
+          fileName="banner.jpg"
+          onCancel={() => setCropSrc(null)}
+          onCropped={(file) => {
+            setHeroImage(file);
+            setCropSrc(null);
+          }}
+        />
 
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, sm: 6 }}>

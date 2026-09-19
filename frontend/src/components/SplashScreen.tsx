@@ -74,7 +74,8 @@ export function SplashScreen() {
           alt=""
           sx={{
             width: '100%',
-            height: { xs: 140, sm: 180 },
+            height: 'auto',
+            maxHeight: 220,
             objectFit: 'cover',
             display: 'block',
             flexShrink: 0,
