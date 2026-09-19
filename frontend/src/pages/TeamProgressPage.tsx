@@ -32,12 +32,16 @@ import OpenInFullIcon from '@mui/icons-material/OpenInFullRounded';
 import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreenRounded';
 import SatelliteAltIcon from '@mui/icons-material/SatelliteAltRounded';
 import MapIcon from '@mui/icons-material/MapRounded';
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import { MapContainer, Marker, Polyline, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useTheme } from '@mui/material/styles';
 import { useShiftInfo, useTeamMissionProgress, useTeams } from '../api/hooks';
 import { KpiTile } from '../components/KpiTile';
 import { DEFAULT_MAP_LAYER, TILE_LAYERS, type MapLayer } from '../components/MapPicker';
+import { HorizontalBarChart, type BarDatum } from '../components/HorizontalBarChart';
+import { colorForTeam } from '../components/towerMapPins';
 import { splitTrailSegments } from '../utils/gpsTrail';
 import type { TeamProgress } from '../api/types';
 
@@ -98,6 +102,18 @@ export function TeamProgressPage() {
     () => (data || []).find((r) => `${r.team_id ?? r.logins[0]?.user_id}` === selectedKey) || data?.[0] || null,
     [data, selectedKey],
   );
+  const comparisonCharts = useMemo(() => {
+    const rows = data || [];
+    const byValue = (pick: (r: TeamProgress) => number): BarDatum[] =>
+      rows
+        .map((r) => ({ label: r.team_name, value: pick(r), color: colorForTeam(r.team_id) }))
+        .sort((a, b) => b.value - a.value);
+    return {
+      towers: byValue((r) => r.towers_visited),
+      distance: byValue((r) => r.distance_km),
+      onTowers: byValue((r) => r.dwell_minutes),
+    };
+  }, [data]);
 
   return (
     <Stack spacing={3}>
@@ -169,6 +185,59 @@ export function TeamProgressPage() {
 
       {isLoading && <LinearProgress />}
 
+      {!isLoading && (data || []).length > 0 && (
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+                  <InsightsRoundedIcon color="primary" fontSize="small" />
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    Towers visited
+                  </Typography>
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Towers visited per team in this window.
+                </Typography>
+                <HorizontalBarChart data={comparisonCharts.towers} emptyMessage="No towers visited yet." />
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+                  <InsightsRoundedIcon color="primary" fontSize="small" />
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    Distance travelled
+                  </Typography>
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Kilometres covered per team in this window.
+                </Typography>
+                <HorizontalBarChart data={comparisonCharts.distance} emptyMessage="No distance tracked yet." />
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+                  <InsightsRoundedIcon color="primary" fontSize="small" />
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    Time on towers
+                  </Typography>
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Minutes spent working at towers per team (excludes travel).
+                </Typography>
+                <HorizontalBarChart data={comparisonCharts.onTowers} emptyMessage="No time tracked yet." />
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
       <Grid container spacing={2}>
         {(data || []).map((row) => {
           const key = `${row.team_id ?? row.logins[0]?.user_id}`;
@@ -212,6 +281,7 @@ export function TeamProgressPage() {
 }
 
 function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisit: (id: number) => void }) {
+  const theme = useTheme();
   const pathPts = row.path.map((p) => [p.latitude, p.longitude] as [number, number]);
   const center: [number, number] = pathPts[0] || [17.01972, 54.08972];
   const segments = splitTrailSegments(row.path);
@@ -288,6 +358,21 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
           />
         </Grid>
       </Grid>
+
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
+            Time breakdown
+          </Typography>
+          <HorizontalBarChart
+            data={[
+              { label: 'On towers', value: row.dwell_minutes, color: theme.palette.success.main },
+              { label: 'Travelling', value: row.travel_minutes, color: theme.palette.warning.main },
+            ]}
+            emptyMessage="No time tracked yet."
+          />
+        </CardContent>
+      </Card>
 
       {pathPts.length > 0 && (
         <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)' }}>
