@@ -61,6 +61,7 @@ function BrandingSection() {
   const [heroImage, setHeroImage] = useState<File | null>(null);
   const [heroRawSrc, setHeroRawSrc] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropLoading, setCropLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const oetcInputRef = useRef<HTMLInputElement>(null);
   const skyInputRef = useRef<HTMLInputElement>(null);
@@ -178,9 +179,33 @@ function BrandingSection() {
             <Button size="small" startIcon={<CloudUploadIcon />} onClick={() => heroInputRef.current?.click()}>
               {heroImage ? 'Replace banner photo' : 'Upload banner photo'}
             </Button>
-            {heroRawSrc && (
-              <Button size="small" onClick={() => setCropSrc(heroRawSrc)}>
-                Adjust crop
+            {(heroRawSrc || (!heroImage && branding?.hero_image_url)) && (
+              <Button
+                size="small"
+                disabled={cropLoading}
+                onClick={async () => {
+                  if (heroRawSrc) {
+                    setCropSrc(heroRawSrc);
+                    return;
+                  }
+                  if (!branding?.hero_image_url) return;
+                  setCropLoading(true);
+                  try {
+                    const resp = await fetch(mediaUrl(branding.hero_image_url));
+                    const blob = await resp.blob();
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      const src = reader.result as string;
+                      setHeroRawSrc(src);
+                      setCropSrc(src);
+                    };
+                    reader.readAsDataURL(blob);
+                  } finally {
+                    setCropLoading(false);
+                  }
+                }}
+              >
+                {cropLoading ? 'Loading…' : 'Adjust crop'}
               </Button>
             )}
           </Stack>
