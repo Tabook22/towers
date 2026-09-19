@@ -77,6 +77,9 @@ class UserOut(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    # Rotating a username is a real credential-hygiene need (e.g. the old one was exposed
+    # alongside the password) — checked for uniqueness in the router same as UserCreate's.
+    username: str | None = Field(default=None, min_length=3, max_length=80)
     email: str | None = None
     full_name: str | None = None
     mobile: str | None = None

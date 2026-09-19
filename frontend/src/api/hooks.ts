@@ -1138,6 +1138,7 @@ export function useUpdateUser() {
       payload: Partial<
         Pick<
           AdminUser,
+          | 'username'
           | 'team_id'
           | 'role'
           | 'is_active'

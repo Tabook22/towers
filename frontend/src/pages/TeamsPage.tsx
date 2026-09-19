@@ -204,8 +204,12 @@ export function TeamsPage() {
 
   const handleSaveLeader = async () => {
     setLeaderError(null);
-    if (!editingLeader && (!leaderForm.username.trim() || leaderForm.password.length < 6)) {
-      setLeaderError('Username is required, and password needs at least 6 characters.');
+    if (leaderForm.username.trim().length < 3) {
+      setLeaderError('Username needs at least 3 characters.');
+      return;
+    }
+    if (!editingLeader && leaderForm.password.length < 6) {
+      setLeaderError('Password needs at least 6 characters.');
       return;
     }
     try {
@@ -217,6 +221,7 @@ export function TeamsPage() {
         await updateUser.mutateAsync({
           id: editingLeader.id,
           payload: {
+            username: leaderForm.username.trim(),
             full_name: leaderForm.full_name.trim() || undefined,
             mobile: leaderForm.mobile.trim() || undefined,
             address: leaderForm.address.trim() || undefined,
@@ -596,8 +601,6 @@ export function TeamsPage() {
                   label="Username"
                   fullWidth
                   value={leaderForm.username}
-                  disabled={!!editingLeader}
-                  helperText={editingLeader ? 'Username can’t be changed once created' : undefined}
                   onChange={(e) => setLeaderForm((f) => ({ ...f, username: e.target.value }))}
                 />
               </Grid>

@@ -190,6 +190,12 @@ def update_user(
     new_password = data.pop("password", None)
     is_super_admin = data.pop("is_super_admin", None)
     permissions = data.pop("permissions", None)
+    new_username = data.pop("username", None)
+    if new_username is not None:
+        new_username = new_username.strip()
+        if new_username != user.username and db.query(User).filter(User.username == new_username).first():
+            raise HTTPException(status_code=400, detail="Username already taken")
+        data["username"] = new_username
     for k, v in data.items():
         setattr(user, k, v)
     if is_super_admin is not None or permissions is not None:

@@ -303,6 +303,9 @@ function AdminAccountsSection() {
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [editFullAdmin, setEditFullAdmin] = useState(false);
   const [editPerms, setEditPerms] = useState<string[]>([]);
+  const [editUsername, setEditUsername] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const openCreate = () => {
@@ -340,13 +343,39 @@ function AdminAccountsSection() {
     setEditing(admin);
     setEditFullAdmin(admin.is_super_admin);
     setEditPerms(admin.permissions);
+    setEditUsername(admin.username);
+    setEditPassword('');
+    setEditError(null);
   };
 
   const saveEdit = () => {
     if (!editing) return;
+    setEditError(null);
+    if (editUsername.trim().length < 3) {
+      setEditError('Username needs at least 3 characters.');
+      return;
+    }
+    if (editPassword && editPassword.length < 6) {
+      setEditError('New password needs at least 6 characters.');
+      return;
+    }
     updateUser.mutate(
-      { id: editing.id, payload: { is_super_admin: editFullAdmin, permissions: editFullAdmin ? [] : editPerms } },
-      { onSuccess: () => setEditing(null) },
+      {
+        id: editing.id,
+        payload: {
+          username: editUsername.trim(),
+          is_super_admin: editFullAdmin,
+          permissions: editFullAdmin ? [] : editPerms,
+          ...(editPassword ? { password: editPassword } : {}),
+        },
+      },
+      {
+        onSuccess: () => setEditing(null),
+        onError: (err: unknown) => {
+          const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+          setEditError(detail || 'Could not save these changes.');
+        },
+      },
     );
   };
 
@@ -525,6 +554,21 @@ function AdminAccountsSection() {
         <DialogTitle>Edit access — {editing?.username}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
+            {editError && <Alert severity="error">{editError}</Alert>}
+            <TextField
+              label="Username"
+              fullWidth
+              value={editUsername}
+              onChange={(e) => setEditUsername(e.target.value)}
+            />
+            <TextField
+              label="Reset password (optional)"
+              type="password"
+              fullWidth
+              helperText="Leave blank to keep their current password. At least 6 characters if set."
+              value={editPassword}
+              onChange={(e) => setEditPassword(e.target.value)}
+            />
             <FormControlLabel
               control={
                 <Switch checked={editFullAdmin} onChange={(e) => setEditFullAdmin(e.target.checked)} />

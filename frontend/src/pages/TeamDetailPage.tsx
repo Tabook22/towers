@@ -568,7 +568,7 @@ export function TeamDetailPage() {
   const [memberMenuTarget, setMemberMenuTarget] = useState<AdminUser | null>(null);
   const [editingMember, setEditingMember] = useState<AdminUser | null>(null);
   const [editMemberOpen, setEditMemberOpen] = useState(false);
-  const [editMemberForm, setEditMemberForm] = useState({ full_name: '', mobile: '', job_type: '', notes: '', password: '' });
+  const [editMemberForm, setEditMemberForm] = useState({ username: '', full_name: '', mobile: '', job_type: '', notes: '', password: '' });
   const [editMemberError, setEditMemberError] = useState<string | null>(null);
 
   // Read-only, for the "Add mission" tower picker below and for what this page shows as "yours" —
@@ -580,13 +580,17 @@ export function TeamDetailPage() {
     setMemberMenuAnchor(null);
     setMemberMenuTarget(null);
     setEditingMember(u);
-    setEditMemberForm({ full_name: u.full_name || '', mobile: u.mobile || '', job_type: u.job_type || '', notes: u.notes || '', password: '' });
+    setEditMemberForm({ username: u.username, full_name: u.full_name || '', mobile: u.mobile || '', job_type: u.job_type || '', notes: u.notes || '', password: '' });
     setEditMemberError(null);
     setEditMemberOpen(true);
   };
 
   const handleSaveMemberEdit = () => {
     if (!editingMember) return;
+    if (editMemberForm.username.trim().length < 3) {
+      setEditMemberError('Username needs at least 3 characters.');
+      return;
+    }
     if (editMemberForm.password && editMemberForm.password.length < 6) {
       setEditMemberError('New password needs at least 6 characters.');
       return;
@@ -596,6 +600,7 @@ export function TeamDetailPage() {
       {
         id: editingMember.id,
         payload: {
+          username: editMemberForm.username.trim(),
           full_name: editMemberForm.full_name.trim() || undefined,
           mobile: editMemberForm.mobile.trim() || undefined,
           job_type: editMemberForm.job_type.trim() || undefined,
@@ -3016,11 +3021,17 @@ export function TeamDetailPage() {
           <Stack spacing={2} sx={{ mt: 1 }}>
             {editMemberError && <Alert severity="error">{editMemberError}</Alert>}
             <TextField
+              label="Username"
+              fullWidth
+              value={editMemberForm.username}
+              onChange={(e) => setEditMemberForm((f) => ({ ...f, username: e.target.value }))}
+              autoFocus
+            />
+            <TextField
               label="Full name"
               fullWidth
               value={editMemberForm.full_name}
               onChange={(e) => setEditMemberForm((f) => ({ ...f, full_name: e.target.value }))}
-              autoFocus
             />
             <TextField
               label="Mobile"
