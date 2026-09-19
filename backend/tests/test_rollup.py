@@ -106,6 +106,58 @@ def test_fully_screened_visit_is_ready_for_review_even_with_photos_missing(db):
     assert r["visit_status"] == "Ready for review"
 
 
+def test_recording_a_hotspot_determination_auto_fills_screening_result(db):
+    """A position where the inspector recorded Hotspot=Yes (and presumably temps/evidence) but
+    never separately touched the Screening result dropdown must not be left reading "Not
+    inspected" — that's real inspection data on file, and it should count as screened."""
+    visit = make_visit(db)
+    pos = visit.positions[0]
+    pos.direction = "Ashoor"
+    pos.hotspot = "Yes"  # screening_result deliberately left at its "Not inspected" default
+    db.flush()
+    refresh_position_codes(pos)
+    db.commit()
+
+    assert pos.screening_result == "Hotspot detected"
+
+
+def test_hotspot_no_auto_fills_screening_result_as_normal(db):
+    visit = make_visit(db)
+    pos = visit.positions[0]
+    pos.direction = "Ashoor"
+    pos.hotspot = "No"
+    db.flush()
+    refresh_position_codes(pos)
+    db.commit()
+
+    assert pos.screening_result == "Normal"
+
+
+def test_hotspot_unconfirmed_auto_fills_screening_result_as_inconclusive(db):
+    visit = make_visit(db)
+    pos = visit.positions[0]
+    pos.direction = "Ashoor"
+    pos.hotspot = "Unconfirmed"
+    db.flush()
+    refresh_position_codes(pos)
+    db.commit()
+
+    assert pos.screening_result == "Inconclusive"
+
+
+def test_auto_fill_never_overwrites_a_screening_result_the_inspector_already_picked(db):
+    visit = make_visit(db)
+    pos = visit.positions[0]
+    pos.direction = "Ashoor"
+    pos.screening_result = "Reinspection required"
+    pos.hotspot = "Yes"
+    db.flush()
+    refresh_position_codes(pos)
+    db.commit()
+
+    assert pos.screening_result == "Reinspection required"
+
+
 def test_completion_pct_is_zero_when_nothing_installed(db):
     visit = make_visit(db)
     for pos in visit.positions:

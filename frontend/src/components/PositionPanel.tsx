@@ -249,7 +249,13 @@ export function PositionPanel({
                 label="Screening result"
                 fullWidth
                 disabled={!position.installed}
-                helperText={!position.installed ? 'Locked to "Not installed" until you toggle Installed on' : undefined}
+                helperText={
+                  !position.installed
+                    ? 'Locked to "Not installed" until you toggle Installed on'
+                    : position.screening_result === 'Not inspected'
+                      ? 'Still counts as unscreened — this is what "Inspection incomplete" means. Setting Hotspot? below fills this in automatically.'
+                      : undefined
+                }
                 value={position.screening_result}
                 onChange={(e) => onUpdate({ screening_result: e.target.value })}
               >

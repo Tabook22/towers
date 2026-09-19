@@ -20,6 +20,20 @@ def refresh_position_codes(position: Position) -> None:
     elif position.screening_result == "Not installed":
         position.screening_result = "Not inspected"
 
+    # An inspector who has recorded a hotspot determination has, by definition, screened this
+    # position — even if they never separately touched the Screening result dropdown. Fill in a
+    # sensible starting value from that determination (only while screening_result is still at
+    # its untouched "Not inspected" default, so a value the inspector picked themselves — e.g.
+    # "Inconclusive" or "Reinspection required" — is never overwritten) so the position, and the
+    # whole visit's completion status, isn't stuck reading "incomplete" despite real inspection
+    # data already being on file.
+    if position.installed and position.screening_result == "Not inspected" and position.hotspot:
+        position.screening_result = {
+            "No": "Normal",
+            "Yes": "Hotspot detected",
+            "Unconfirmed": "Inconclusive",
+        }.get(position.hotspot, position.screening_result)
+
     tower_id = position.visit.tower.tower_id
     pcode = position_code(tower_id, position.ohl, position.phase, position.string, position.direction)
     position.position_code = pcode
