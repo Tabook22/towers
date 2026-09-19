@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.database import get_db
-from app.deps import effective_team_id, get_current_user, require_permission
+from app.deps import effective_team_id, get_current_user, require_permission_level
 from app.utils import natural_sort_key
 from app.models import (
     Area,
@@ -150,7 +150,7 @@ def _strip_tower_fks(db: Session, tower_id: int) -> None:
 def create_tower(
     payload: TowerCreate,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "add", UserRole.REVIEWER.value)),
 ):
     exists = db.query(Tower).filter(func.lower(Tower.tower_id) == payload.tower_id.lower()).first()
     if exists:
@@ -166,7 +166,7 @@ def create_tower(
 def bulk_assign_towers(
     payload: TowerBulkAssignRequest,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "full", UserRole.REVIEWER.value)),
 ):
     """The core of "admin assigns towers to a team" — sets (or clears, if team_id is None)
     Tower.assigned_team_id on every tower id given, in one action. This is what
@@ -195,7 +195,7 @@ def bulk_assign_towers(
 def match_tower_ids_to_pin_numbers(
     payload: TowerRenumberRequest,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "full", UserRole.REVIEWER.value)),
 ):
     """Rewrite Tower IDs so the trailing number equals the map pin number.
 
@@ -248,7 +248,7 @@ def match_tower_ids_to_pin_numbers(
 def bulk_delete_towers(
     payload: TowerBulkDeleteRequest,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "full", UserRole.REVIEWER.value)),
 ):
     """Permanently remove many towers (or the whole catalog). Inspection visits on those towers
     are deleted with them. Use this to wipe a bad import; it cannot be undone."""
@@ -340,7 +340,7 @@ def release_tower(tower_pk: int, db: Session = Depends(get_db), user: User = Dep
 
 @router.get("/import/template")
 def download_tower_import_template(
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "add", UserRole.REVIEWER.value)),
 ):
     """A starter .xlsx — the exact columns the importer below understands, plus a worked example
     row and a "Read me" sheet explaining the upsert-by-Tower-ID rule."""
@@ -355,7 +355,7 @@ def download_tower_import_template(
 @router.get("/export.xlsx")
 def export_towers_xlsx(
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "view", UserRole.REVIEWER.value)),
 ):
     """Every tower in the catalog as an .xlsx — same columns as the import template, plus assigned
     team and active flag. Includes deactivated towers. Safe to edit and upload again."""
@@ -374,7 +374,7 @@ def export_towers_xlsx(
 async def import_towers(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "full", UserRole.REVIEWER.value)),
 ):
     """Bulk create/update towers from an uploaded Excel file — one row per tower, upserted by
     Tower ID (existing ID -> fields updated in place; new ID -> tower created). See
@@ -401,7 +401,7 @@ def update_tower(
     tower_pk: int,
     payload: TowerUpdate,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "full", UserRole.REVIEWER.value)),
 ):
     tower = db.get(Tower, tower_pk)
     if not tower:
@@ -444,7 +444,7 @@ def update_tower(
 def deactivate_tower(
     tower_pk: int,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "full", UserRole.REVIEWER.value)),
 ):
     tower = db.get(Tower, tower_pk)
     if not tower:
@@ -465,7 +465,7 @@ async def upload_tower_photo(
     tower_pk: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "full", UserRole.REVIEWER.value)),
 ):
     """A single reference/context photo of the tower structure itself — separate from the
     per-position inspection evidence images uploaded under /api/images."""
@@ -500,7 +500,7 @@ async def upload_tower_photo(
 def clear_tower_photo(
     tower_pk: int,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "full", UserRole.REVIEWER.value)),
 ):
     tower = db.get(Tower, tower_pk)
     if not tower:

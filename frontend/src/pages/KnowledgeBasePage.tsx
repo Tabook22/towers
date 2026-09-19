@@ -42,6 +42,7 @@ import {
   useUploadKnowledgeDocument,
 } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
+import { getPermissionLevel } from '../api/types';
 import { mediaUrl } from '../api/client';
 import { VoiceNoteControls, VoiceNotePlayer } from '../components/VoiceNoteControls';
 import { DocumentPreviewDialog } from '../components/DocumentPreviewDialog';
@@ -64,10 +65,17 @@ export function KnowledgeBasePage() {
   const deleteDoc = useDeleteKnowledgeDocument();
   const transcribe = useTranscribeForKnowledgeBase();
 
-  const canManage =
-    user?.role === 'reviewer' ||
-    user?.role === 'team_leader' ||
-    (user?.role === 'admin' && (user.is_super_admin || user.permissions.includes('manage_knowledge_base')));
+  // Mirrors routers/knowledge_base.py's _can_manage ("add" level lets an admin upload) vs.
+  // _can_modify ("full" level to edit/delete an existing document) — reviewer/team_leader are
+  // unconditional on the backend for both, same here.
+  const kbLevel =
+    user?.role === 'admin'
+      ? user.is_super_admin
+        ? 'full'
+        : getPermissionLevel(user.permissions, 'manage_knowledge_base')
+      : 'view';
+  const canManage = user?.role === 'reviewer' || user?.role === 'team_leader' || kbLevel === 'add' || kbLevel === 'full';
+  const canManageFull = user?.role === 'reviewer' || user?.role === 'team_leader' || kbLevel === 'full';
   const isAdminOrReviewer = user?.role === 'admin' || user?.role === 'reviewer';
 
   const [open, setOpen] = useState(false);
@@ -154,8 +162,8 @@ export function KnowledgeBasePage() {
   };
 
   const canModify = (doc: { team_id: number | null }) => {
-    if (!canManage) return false;
-    if (isAdminOrReviewer) return true;
+    if (user?.role === 'reviewer') return true;
+    if (user?.role === 'admin') return canManageFull;
     if (user?.role === 'team_leader') return doc.team_id === user.team_id;
     return false;
   };

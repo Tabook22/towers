@@ -62,7 +62,7 @@ import {
 } from '../api/hooks';
 import { mediaUrl } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import type { DashboardTowerRow, Tower, TowerWithStats } from '../api/types';
+import { getPermissionLevel, type DashboardTowerRow, type Tower, type TowerWithStats } from '../api/types';
 import { VisitStatusChip } from '../components/Badges';
 import { MapPicker } from '../components/MapPicker';
 import { TowersOverviewMap } from '../components/TowersOverviewMap';
@@ -151,8 +151,20 @@ export function TowersPage() {
 
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canImport = user?.role === 'admin' || user?.role === 'reviewer';
-  const canEditCatalog = canImport;
+  // A restricted admin's "manage_towers" level: everything below (bulk assign/delete/import/move,
+  // and editing an existing tower's details) requires "full" on the backend — only creating a new
+  // tower is "add"-level (routers/towers.py's create_tower vs. its other endpoints).
+  const towersLevel =
+    user?.role === 'admin'
+      ? user.is_super_admin
+        ? 'full'
+        : getPermissionLevel(user.permissions, 'manage_towers')
+      : user?.role === 'reviewer'
+        ? 'full'
+        : 'view';
+  const canImport = towersLevel === 'full';
+  const canEditCatalog = towersLevel === 'full';
+  const canAddTower = towersLevel === 'add' || towersLevel === 'full';
   const isTeamLeader = user?.role === 'team_leader';
   const debouncedSearch = useDebouncedValue(search);
   const { data: towers, isLoading } = useTowers({
@@ -381,7 +393,7 @@ export function TowersPage() {
               </Button>
             </>
           )}
-          {canEditCatalog && (
+          {canAddTower && (
             <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
               Add tower
             </Button>

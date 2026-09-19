@@ -14,7 +14,6 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
-  FormGroup,
   Grid,
   IconButton,
   Stack,
@@ -26,6 +25,8 @@ import {
   TableHead,
   TableRow,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -36,7 +37,16 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettingsRounde
 import { useBrandingSettings, useCreateUser, useUpdateBrandingSettings, useUpdateUser, useUsers } from '../api/hooks';
 import { mediaUrl } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { ADMIN_PERMISSIONS, ADMIN_PERMISSION_LABELS, type AdminPermission, type AdminUser } from '../api/types';
+import {
+  ADMIN_PERMISSION_LABELS,
+  getPermissionLevel,
+  LEVELED_PERMISSIONS,
+  PERMISSION_LEVEL_LABELS,
+  PERMISSION_LEVELS,
+  setPermissionLevel,
+  type AdminUser,
+  type PermissionLevel,
+} from '../api/types';
 
 function BrandingSection() {
   const { data: branding } = useBrandingSettings();
@@ -230,35 +240,51 @@ interface AdminFormState {
   password: string;
   full_name: string;
   fullAdmin: boolean;
-  permissions: AdminPermission[];
+  permissions: string[];
 }
 
 const emptyAdminForm: AdminFormState = { username: '', password: '', full_name: '', fullAdmin: true, permissions: [] };
 
-function PermissionChecklist({
-  value,
-  onChange,
-}: {
-  value: AdminPermission[];
-  onChange: (next: AdminPermission[]) => void;
-}) {
+/** Towers/Teams/Users/Reports/Knowledge base each get a View / Add / Full grant; branding settings
+ * stays a plain on/off checkbox since it's a single form with no add-vs-edit distinction. */
+function PermissionEditor({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
   return (
-    <FormGroup>
-      {ADMIN_PERMISSIONS.map((perm) => (
-        <FormControlLabel
-          key={perm}
-          control={
-            <Checkbox
-              checked={value.includes(perm)}
-              onChange={(e) =>
-                onChange(e.target.checked ? [...value, perm] : value.filter((p) => p !== perm))
-              }
-            />
-          }
-          label={ADMIN_PERMISSION_LABELS[perm]}
-        />
-      ))}
-    </FormGroup>
+    <Stack spacing={1.5}>
+      {LEVELED_PERMISSIONS.map((perm) => {
+        const level = getPermissionLevel(value, perm);
+        return (
+          <Box key={perm} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+            <Typography variant="body2">{ADMIN_PERMISSION_LABELS[perm]}</Typography>
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={level}
+              onChange={(_e, next: PermissionLevel | null) => next && onChange(setPermissionLevel(value, perm, next))}
+            >
+              {PERMISSION_LEVELS.map((lvl) => (
+                <ToggleButton key={lvl} value={lvl}>
+                  {PERMISSION_LEVEL_LABELS[lvl]}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          </Box>
+        );
+      })}
+      <Divider />
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={value.includes('manage_settings')}
+            onChange={(e) =>
+              onChange(
+                e.target.checked ? [...value, 'manage_settings'] : value.filter((p) => p !== 'manage_settings'),
+              )
+            }
+          />
+        }
+        label={ADMIN_PERMISSION_LABELS.manage_settings}
+      />
+    </Stack>
   );
 }
 
@@ -272,7 +298,7 @@ function AdminAccountsSection() {
   const [form, setForm] = useState<AdminFormState>(emptyAdminForm);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<AdminUser | null>(null);
-  const [editPerms, setEditPerms] = useState<AdminPermission[]>([]);
+  const [editPerms, setEditPerms] = useState<string[]>([]);
 
   const openCreate = () => {
     setForm(emptyAdminForm);
@@ -307,7 +333,7 @@ function AdminAccountsSection() {
 
   const openEdit = (admin: AdminUser) => {
     setEditing(admin);
-    setEditPerms(admin.permissions as AdminPermission[]);
+    setEditPerms(admin.permissions);
   };
 
   const saveEdit = () => {
@@ -334,8 +360,9 @@ function AdminAccountsSection() {
           </Button>
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          A full admin has every permission. A restricted admin can only do what's checked below — useful for
-          giving someone limited access (e.g. only reports, or only towers) without handing them everything.
+          A full admin has every permission. A restricted admin can be given View only (see it, no changes),
+          Add (create new, but not edit or delete), or Full (everything) per category — useful for giving
+          someone limited access without handing them everything.
         </Typography>
 
         <TableContainer>
@@ -364,9 +391,20 @@ function AdminAccountsSection() {
                       <Chip size="small" color="primary" label="Full admin" />
                     ) : admin.permissions.length ? (
                       <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                        {admin.permissions.map((p) => (
-                          <Chip key={p} size="small" variant="outlined" label={ADMIN_PERMISSION_LABELS[p as AdminPermission] || p} />
-                        ))}
+                        {admin.permissions.map((p) => {
+                          const [name, level] = p.split(':');
+                          const label = ADMIN_PERMISSION_LABELS[name as keyof typeof ADMIN_PERMISSION_LABELS] || name;
+                          const isLeveled = (LEVELED_PERMISSIONS as readonly string[]).includes(name);
+                          const levelLabel = PERMISSION_LEVEL_LABELS[(level as PermissionLevel) || 'full'];
+                          return (
+                            <Chip
+                              key={p}
+                              size="small"
+                              variant="outlined"
+                              label={isLeveled ? `${label} — ${levelLabel}` : label}
+                            />
+                          );
+                        })}
                       </Stack>
                     ) : (
                       <Chip size="small" variant="outlined" color="default" label="No permissions" />
@@ -439,7 +477,7 @@ function AdminAccountsSection() {
               label="Full admin (every permission)"
             />
             {!form.fullAdmin && (
-              <PermissionChecklist
+              <PermissionEditor
                 value={form.permissions}
                 onChange={(next) => setForm((f) => ({ ...f, permissions: next }))}
               />
@@ -457,7 +495,7 @@ function AdminAccountsSection() {
       <Dialog open={!!editing} onClose={() => setEditing(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Edit permissions — {editing?.username}</DialogTitle>
         <DialogContent>
-          <PermissionChecklist value={editPerms} onChange={setEditPerms} />
+          <PermissionEditor value={editPerms} onChange={setEditPerms} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditing(null)}>Cancel</Button>

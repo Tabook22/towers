@@ -467,6 +467,65 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   manage_knowledge_base: 'Manage the knowledge base',
 };
 
+/** Permissions that support a graded View / Add / Full grant instead of a plain on/off checkbox.
+ * `manage_settings` is deliberately excluded — it's a single branding form, there's nothing an
+ * "Add" vs. "Full" grant would distinguish, so it stays a plain checkbox everywhere. */
+export const LEVELED_PERMISSIONS = [
+  'manage_towers',
+  'manage_teams',
+  'manage_users',
+  'generate_reports',
+  'manage_knowledge_base',
+] as const;
+export type LeveledPermission = (typeof LEVELED_PERMISSIONS)[number];
+
+export const PERMISSION_LEVELS = ['view', 'add', 'full'] as const;
+export type PermissionLevel = (typeof PERMISSION_LEVELS)[number];
+
+export const PERMISSION_LEVEL_LABELS: Record<PermissionLevel, string> = {
+  view: 'View only',
+  add: 'Add',
+  full: 'Full',
+};
+
+const PERMISSION_LEVEL_ORDER: Record<PermissionLevel, number> = { view: 0, add: 1, full: 2 };
+
+/** Reads a leveled permission out of a raw permissions array. A bare entry (`"manage_towers"`)
+ * means "full" — the original, pre-level encoding, kept so old accounts keep meaning exactly what
+ * they always did. No entry at all means "view", the floor every restricted admin already has
+ * (list/detail endpoints for these resources have no permission gate). */
+export function getPermissionLevel(permissions: string[], perm: LeveledPermission): PermissionLevel {
+  for (const raw of permissions) {
+    const [name, level] = raw.split(':');
+    if (name === perm) {
+      return (level as PermissionLevel) || 'full';
+    }
+  }
+  return 'view';
+}
+
+/** Returns a new permissions array with `perm` set to `level` (removing any existing entry for
+ * it first). Setting `level` to "view" simply omits the entry, since "view" is the implicit floor. */
+export function setPermissionLevel(
+  permissions: string[],
+  perm: LeveledPermission,
+  level: PermissionLevel,
+): string[] {
+  const rest = permissions.filter((raw) => raw.split(':')[0] !== perm);
+  if (level === 'view') {
+    return rest;
+  }
+  return [...rest, level === 'full' ? perm : `${perm}:${level}`];
+}
+
+export function hasPermissionLevel(
+  permissions: string[],
+  perm: LeveledPermission,
+  minLevel: PermissionLevel,
+): boolean {
+  return PERMISSION_LEVEL_ORDER[getPermissionLevel(permissions, perm)] >= PERMISSION_LEVEL_ORDER[minLevel];
+}
+
 export interface KnowledgeDocument {
   id: number;
   title: string;

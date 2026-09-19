@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.database import get_db
-from app.deps import check_visit_team_access, get_current_user, require_permission
+from app.deps import check_visit_team_access, get_current_user, has_permission_level, require_permission_level
 from app.models import Area, LineInspectionReport, Position, ReportTemplate, Team, Tower, User, UserRole, Visit, utcnow
 from app.schemas import (
     FieldExecutionPlanRequest,
@@ -239,7 +239,7 @@ def team_activity_report_xlsx(
 def field_execution_plan_report(
     payload: FieldExecutionPlanRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission("generate_reports", UserRole.REVIEWER.value)),
+    user: User = Depends(require_permission_level("generate_reports", "add", UserRole.REVIEWER.value)),
 ):
     """The customer-facing mobilization/execution plan document — client info, live tower/team
     counts, a computed day-by-day schedule projection. See services/field_execution_plan.py for what
@@ -361,6 +361,8 @@ def oetc_line_report(
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
     if user.role == UserRole.TEAM_LEADER.value and user.team_id != team_id:
         raise HTTPException(status_code=403, detail="You don't have access to this team")
+    if user.role == UserRole.ADMIN.value and not has_permission_level(user, "generate_reports", "add"):
+        raise HTTPException(status_code=403, detail="Not enough permissions")
 
     team = db.get(Team, team_id)
     if not team:
@@ -447,7 +449,7 @@ def _persist_blocks(db: Session, blocks, user: User, payload) -> None:
 def oetc_area_report(
     payload: OetcAreaReportRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission("generate_reports", UserRole.REVIEWER.value)),
+    user: User = Depends(require_permission_level("generate_reports", "add", UserRole.REVIEWER.value)),
 ):
     """One .docx covering every team currently working `payload.area` — each team's own campaign
     rendered in the exact same official template as /oetc-line-report.docx, concatenated together
@@ -483,7 +485,7 @@ def oetc_area_report(
 def oetc_consolidated_report(
     payload: OetcConsolidatedReportRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission("generate_reports", UserRole.REVIEWER.value)),
+    user: User = Depends(require_permission_level("generate_reports", "add", UserRole.REVIEWER.value)),
 ):
     """The fully "collected" report — every area in the catalog, and within each area every team
     that worked it in the date range, all in one .docx: Area, then Team, then (per section) Mission.

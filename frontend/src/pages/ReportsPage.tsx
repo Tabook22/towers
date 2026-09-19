@@ -35,7 +35,7 @@ import {
   useUploadReportTemplate,
 } from '../api/hooks';
 import { mediaUrl } from '../api/client';
-import type { ReportTemplate } from '../api/types';
+import { getPermissionLevel, type ReportTemplate } from '../api/types';
 import { VisitStatusChip } from '../components/Badges';
 import { TeamActivityReport } from '../components/TeamActivityReport';
 import { FieldExecutionPlanForm } from '../components/FieldExecutionPlanForm';
@@ -92,6 +92,7 @@ function TemplateSlot({
   description,
   template,
   loading,
+  canRemove,
 }: {
   kind: 'docx' | 'pdf';
   label: string;
@@ -99,6 +100,7 @@ function TemplateSlot({
   description: string;
   template: ReportTemplate | null | undefined;
   loading: boolean;
+  canRemove: boolean;
 }) {
   const uploadTemplate = useUploadReportTemplate();
   const deleteTemplate = useDeleteReportTemplate();
@@ -171,7 +173,7 @@ function TemplateSlot({
         >
           Download starter
         </Button>
-        {template && (
+        {template && canRemove && (
           <Button
             size="small"
             variant="text"
@@ -195,7 +197,18 @@ function TemplateSlot({
 
 export function ReportsPage() {
   const { user } = useAuth();
-  const canManageProjectPlans = user?.role === 'admin' || user?.role === 'reviewer';
+  // Mirrors routers/reports.py and routers/report_templates.py: generating the official/execution
+  // reports and uploading a custom template need "add"; clearing an active template needs "full".
+  const reportsLevel =
+    user?.role === 'admin'
+      ? user.is_super_admin
+        ? 'full'
+        : getPermissionLevel(user.permissions, 'generate_reports')
+      : user?.role === 'reviewer'
+        ? 'full'
+        : 'view';
+  const canManageProjectPlans = reportsLevel === 'add' || reportsLevel === 'full';
+  const canRemoveTemplate = reportsLevel === 'full';
   const [area, setArea] = useState<string>('');
   const { data: areas } = useAreas();
   const { data, isLoading } = useDashboardSummary(area || undefined);
@@ -279,6 +292,7 @@ export function ReportsPage() {
         </ReportSection>
       )}
 
+      {canManageProjectPlans && (
       <ReportSection
         number={5}
         title="Custom report templates"
@@ -295,6 +309,7 @@ export function ReportsPage() {
             }
             template={templates?.docx}
             loading={templatesLoading}
+            canRemove={canRemoveTemplate}
           />
           <TemplateSlot
             kind="pdf"
@@ -307,9 +322,11 @@ export function ReportsPage() {
             }
             template={templates?.pdf}
             loading={templatesLoading}
+            canRemove={canRemoveTemplate}
           />
         </Stack>
       </ReportSection>
+      )}
 
       <ReportSection
         number={6}

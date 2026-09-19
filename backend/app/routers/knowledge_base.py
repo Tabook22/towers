@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.database import get_db
-from app.deps import effective_team_id, get_current_user, has_permission
+from app.deps import effective_team_id, get_current_user, has_permission_level
 from app.models import KnowledgeDocument, User, UserRole
 from app.schemas import KnowledgeDocumentDetail, KnowledgeDocumentOut, KnowledgeDocumentUpdate
 from app.services.knowledge_compose import html_to_text, render_html_pdf, render_text_pdf, sanitize_html
@@ -64,13 +64,23 @@ _ACCEPTED_AUDIO_TYPES = {
 
 
 def _can_manage(user: User) -> bool:
-    """Who can upload/delete at all: reviewer always; a (super or permitted) admin via
-    has_permission; a team_leader can (their own team only, enforced by the caller); nobody else —
-    a team_member reads/searches only, same as the chat tool's own scoping."""
+    """Who can upload at all: reviewer always; a (super or "add"-permitted) admin; a team_leader
+    can (their own team only, enforced by the caller); nobody else — a team_member reads/searches
+    only, same as the chat tool's own scoping."""
     if user.role == UserRole.REVIEWER.value:
         return True
     if user.role == UserRole.ADMIN.value:
-        return has_permission(user, "manage_knowledge_base")
+        return has_permission_level(user, "manage_knowledge_base", "add")
+    return user.role == UserRole.TEAM_LEADER.value
+
+
+def _can_modify(user: User) -> bool:
+    """Editing or deleting an EXISTING document needs more than upload rights for a restricted
+    admin — "full", not just "add" (see _require_modify, the only caller)."""
+    if user.role == UserRole.REVIEWER.value:
+        return True
+    if user.role == UserRole.ADMIN.value:
+        return has_permission_level(user, "manage_knowledge_base", "full")
     return user.role == UserRole.TEAM_LEADER.value
 
 
@@ -87,7 +97,7 @@ def _require_modify(db: Session, doc: KnowledgeDocument, user: User) -> None:
     """The shared gate for delete AND edit: can this user manage documents at all, and — for a
     team leader — is this specifically one of their own team's documents (never a company-wide
     one, never another team's, since other teams may depend on those)."""
-    if not _can_manage(user):
+    if not _can_modify(user):
         raise HTTPException(status_code=403, detail="Not enough permissions")
     if user.role == UserRole.TEAM_LEADER.value:
         tid = effective_team_id(db, user)

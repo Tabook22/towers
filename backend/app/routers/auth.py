@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import PERMISSIONS, effective_team_id, get_current_user, has_permission
+from app.deps import LEVELED_PERMISSIONS, PERMISSION_LEVELS, PERMISSIONS, effective_team_id, get_current_user, has_permission_level
 from app.models import LocationPing, Team, User, UserRole, Visit
 from app.schemas import ChangePasswordRequest, Token, UserCreate, UserOut, UserUpdate
 from app.security import create_access_token, hash_password, verify_password
@@ -71,7 +71,7 @@ def _require_can_manage(payload_role: str, payload_team_id: int | None, actor: U
             return
         if payload_role == UserRole.ADMIN.value:
             raise HTTPException(status_code=403, detail="Only a full admin can create or edit admin accounts")
-        if not has_permission(actor, "manage_users"):
+        if not has_permission_level(actor, "manage_users", "add"):
             raise HTTPException(status_code=403, detail="Not enough permissions")
         return
     if actor.role == UserRole.TEAM_LEADER.value:
@@ -86,15 +86,27 @@ def _require_can_manage(payload_role: str, payload_team_id: int | None, actor: U
 def _clean_permissions(role: str, is_super_admin: bool, permissions: list[str]) -> tuple[bool, str | None]:
     """Normalizes is_super_admin/permissions for storage: meaningless combinations (any non-admin
     role, or a super admin) are collapsed to the harmless default rather than trusted verbatim from
-    the payload, and every permission name is checked against the fixed PERMISSIONS list."""
+    the payload, and every entry is checked against the fixed PERMISSIONS list. An entry is either
+    bare (`"manage_towers"`, meaning "full") or `"name:level"` (`"manage_towers:add"`) for one of
+    LEVELED_PERMISSIONS — see deps.permission_level for how these are read back."""
     if role != UserRole.ADMIN.value:
         return True, None
     if is_super_admin:
         return True, None
-    unknown = [p for p in permissions if p not in PERMISSIONS]
-    if unknown:
-        raise HTTPException(status_code=400, detail=f"Unknown permission(s): {', '.join(unknown)}")
-    return False, ",".join(permissions) if permissions else None
+    cleaned: list[str] = []
+    for raw in permissions:
+        name, sep, level = raw.partition(":")
+        if name not in PERMISSIONS:
+            raise HTTPException(status_code=400, detail=f"Unknown permission(s): {name}")
+        if sep:
+            if name not in LEVELED_PERMISSIONS:
+                raise HTTPException(status_code=400, detail=f"'{name}' doesn't support a level like '{level}'")
+            if level not in PERMISSION_LEVELS or level == "view":
+                raise HTTPException(status_code=400, detail=f"Invalid level '{level}' for '{name}'")
+            cleaned.append(f"{name}:{level}")
+        else:
+            cleaned.append(name)
+    return False, ",".join(cleaned) if cleaned else None
 
 
 @router.post("/users", response_model=UserOut, status_code=201)
@@ -159,7 +171,7 @@ def update_user(
         # account (their own included) — same escalation concern as _require_can_manage's create path.
         if user.role == UserRole.ADMIN.value:
             raise HTTPException(status_code=403, detail="Only a full admin can edit admin accounts")
-        if not has_permission(actor, "manage_users"):
+        if not has_permission_level(actor, "manage_users", "full"):
             raise HTTPException(status_code=403, detail="Not enough permissions")
         payload = UserUpdate(
             **payload.model_dump(exclude_unset=True, exclude={"is_super_admin", "permissions"}),
@@ -219,7 +231,7 @@ def delete_user(
     if user.role == UserRole.ADMIN.value:
         raise HTTPException(status_code=400, detail="Admin accounts can't be deleted here")
     if actor.role == UserRole.ADMIN.value:
-        if not actor.is_super_admin and not has_permission(actor, "manage_users"):
+        if not actor.is_super_admin and not has_permission_level(actor, "manage_users", "full"):
             raise HTTPException(status_code=403, detail="Not enough permissions")
     elif actor.role == UserRole.TEAM_LEADER.value:
         if user.role != UserRole.TEAM_MEMBER.value or user.team_id != actor.team_id:

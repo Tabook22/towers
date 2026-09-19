@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user, require_permission
+from app.deps import get_current_user, require_permission_level
 from app.models import Area, Tower, User, UserRole
 from app.schemas import AreaCreate, AreaOut, AreaUpdate
 
@@ -36,7 +36,7 @@ def list_areas(db: Session = Depends(get_db), _user: User = Depends(get_current_
 def create_area(
     payload: AreaCreate,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "add", UserRole.REVIEWER.value)),
 ):
     name = payload.name.strip()
     if db.query(Area).filter(Area.name.ilike(name)).first():
@@ -53,7 +53,7 @@ def update_area(
     area_id: int,
     payload: AreaUpdate,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "full", UserRole.REVIEWER.value)),
 ):
     area = db.get(Area, area_id)
     if not area:
@@ -81,7 +81,7 @@ def update_area(
 def delete_area(
     area_id: int,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_towers", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_towers", "full", UserRole.REVIEWER.value)),
 ):
     area = db.get(Area, area_id)
     if not area:

@@ -50,7 +50,7 @@ import {
   useUsers,
 } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
-import type { AdminUser, Team } from '../api/types';
+import { getPermissionLevel, type AdminUser, type Team } from '../api/types';
 import { TowerAssignmentPicker } from '../components/TowerAssignmentPicker';
 
 interface TeamFormState {
@@ -99,9 +99,19 @@ export function TeamsPage() {
   const deleteUser = useDeleteUser();
   const navigate = useNavigate();
   const { user } = useAuth();
-  // Only admin/reviewer can create teams or archive one — a team_leader's own PATCH access (edit)
-  // still works via the backend's per-team scoping, so the edit pencil stays available to them.
-  const canManageTeams = user?.role === 'admin' || user?.role === 'reviewer';
+  // A restricted admin's "manage_teams" level: creating a team needs "add", archiving/deleting one
+  // needs "full" (routers/teams.py's create_team vs. delete_team) — a team_leader's own PATCH
+  // access (edit) still works via the backend's per-team scoping regardless of this.
+  const teamsLevel =
+    user?.role === 'admin'
+      ? user.is_super_admin
+        ? 'full'
+        : getPermissionLevel(user.permissions, 'manage_teams')
+      : user?.role === 'reviewer'
+        ? 'full'
+        : 'view';
+  const canAddTeam = teamsLevel === 'add' || teamsLevel === 'full';
+  const canManageTeams = teamsLevel === 'full';
   // Managing team-leader logins (creating them, seeing every username) is admin-only on the
   // backend — a reviewer can manage team fields but not accounts.
   const isAdmin = user?.role === 'admin';
@@ -319,7 +329,7 @@ export function TeamsPage() {
             Field crews, their rosters, missions, and day-by-day progress along the line.
           </Typography>
         </Box>
-        {canManageTeams && (
+        {canAddTeam && (
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
             Add team
           </Button>

@@ -23,6 +23,19 @@ PERMISSIONS: tuple[str, ...] = (
     "manage_knowledge_base",
 )
 
+# Of the permissions above, these five support a graded level rather than a plain on/off toggle —
+# manage_settings is a single branding form, not a list of records, so "view vs. add vs. edit"
+# doesn't mean anything for it and it stays binary (granted = full, absent = nothing).
+LEVELED_PERMISSIONS: tuple[str, ...] = (
+    "manage_towers",
+    "manage_teams",
+    "manage_users",
+    "generate_reports",
+    "manage_knowledge_base",
+)
+PERMISSION_LEVELS: tuple[str, ...] = ("view", "add", "full")
+_LEVEL_ORDER = {level: i for i, level in enumerate(PERMISSION_LEVELS)}
+
 
 def get_current_user(
     token: str | None = Depends(oauth2_scheme),
@@ -95,6 +108,48 @@ def require_permission(perm: str, *extra_roles: str):
         if user.role in extra_roles:
             return user
         if has_permission(user, perm):
+            return user
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    return checker
+
+
+def permission_level(user: User, perm: str) -> str:
+    """"view" / "add" / "full" for one of LEVELED_PERMISSIONS. "view" is the floor a restricted
+    admin always has — every list/detail GET for these resources has no permission gate at all
+    (a restricted admin can already see towers/teams/reports/the knowledge base regardless of what
+    they're granted; only the create/edit/delete routes are gated), so "not granted anything" and
+    "explicitly granted view" are the same outcome and neither needs a stored entry. A granted
+    entry in User.permissions is either bare (`"manage_towers"`, meaning "full" — the original,
+    pre-level form this app's permissions have always been stored in, so old data keeps meaning
+    exactly what it always did) or `"manage_towers:add"` / `"manage_towers:full"`."""
+    if user.role != UserRole.ADMIN.value:
+        return "view"
+    if user.is_super_admin:
+        return "full"
+    for raw in user.permissions:
+        name, _, level = raw.partition(":")
+        if name == perm:
+            return level or "full"
+    return "view"
+
+
+def has_permission_level(user: User, perm: str, min_level: str) -> bool:
+    if user.role != UserRole.ADMIN.value:
+        return False
+    if user.is_super_admin:
+        return True
+    return _LEVEL_ORDER[permission_level(user, perm)] >= _LEVEL_ORDER[min_level]
+
+
+def require_permission_level(perm: str, min_level: str, *extra_roles: str):
+    """Like require_permission, but for one of LEVELED_PERMISSIONS — needs at least `min_level`
+    ("add" for a create route, "full" for an edit/delete one) rather than just "granted at all"."""
+
+    def checker(user: User = Depends(get_current_user)) -> User:
+        if user.role in extra_roles:
+            return user
+        if has_permission_level(user, perm, min_level):
             return user
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
 

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.deps import get_current_user, require_permission
+from app.deps import get_current_user, require_permission_level
 from app.models import ReportTemplate, User, UserRole
 from app.schemas import ReportTemplateOut, ReportTemplatesActive
 from app.services.docx_reports import build_starter_template
@@ -47,7 +47,7 @@ def get_active_templates(db: Session = Depends(get_db), _user: User = Depends(ge
 async def upload_template(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission("generate_reports", UserRole.REVIEWER.value)),
+    user: User = Depends(require_permission_level("generate_reports", "add", UserRole.REVIEWER.value)),
 ):
     """Kind (Word vs. PDF form) is auto-detected from the file extension — one upload control on
     the frontend handles both, no separate endpoint per kind needed."""
@@ -119,7 +119,7 @@ async def upload_template(
 def clear_active_template(
     kind: str,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_permission("generate_reports", UserRole.REVIEWER.value)),
+    _user: User = Depends(require_permission_level("generate_reports", "full", UserRole.REVIEWER.value)),
 ):
     if kind not in ("docx", "pdf"):
         raise HTTPException(status_code=400, detail="kind must be 'docx' or 'pdf'")

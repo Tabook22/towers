@@ -28,7 +28,14 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.deps import effective_team_id, get_current_user, require_permission, require_team_read, require_team_scope
+from app.deps import (
+    effective_team_id,
+    get_current_user,
+    has_permission_level,
+    require_permission_level,
+    require_team_read,
+    require_team_scope,
+)
 from app.models import LineInspectionReport, LocationPing, Position, Team, TeamDailyLog, TeamDailyLogFile, TeamMember, TeamOutingPlan, TeamOutingTower, Tower, TrackingMission, User, UserRole, Visit
 from app.routers.visits import _load_visit, attach_rollup, create_visit_row, delete_visit_completely
 from app.services.channel import post_assignment_event
@@ -306,7 +313,7 @@ def list_teams(
 def create_team(
     payload: TeamCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission("manage_teams", UserRole.REVIEWER.value)),
+    user: User = Depends(require_permission_level("manage_teams", "add", UserRole.REVIEWER.value)),
 ):
     if db.query(Team).filter(Team.name.ilike(payload.name)).first():
         raise HTTPException(status_code=400, detail=f"A team named '{payload.name}' already exists")
@@ -331,8 +338,14 @@ def update_team(
     team_id: int,
     payload: TeamUpdate,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_team_scope()),
+    user: User = Depends(require_team_scope()),
 ):
+    # require_team_scope() lets any admin/reviewer through regardless of manage_teams — right for a
+    # team_leader editing their own team, but a *restricted* admin still needs "full" specifically
+    # to edit an existing team's details (creating/deleting already go through
+    # require_permission_level; this was the one gap where editing wasn't actually checked).
+    if user.role == UserRole.ADMIN.value and not has_permission_level(user, "manage_teams", "full"):
+        raise HTTPException(status_code=403, detail="Not enough permissions")
     team = _load_team(db, team_id)
     data = payload.model_dump(exclude_unset=True)
     if "name" in data and data["name"]:
@@ -353,7 +366,7 @@ def update_team(
 def delete_team(
     team_id: int,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_permission("manage_teams", UserRole.REVIEWER.value)),
+    _admin: User = Depends(require_permission_level("manage_teams", "full", UserRole.REVIEWER.value)),
 ):
     """Deleting a team is total, by design: every mission it ever ran (its Visits — positions,
     images, photos, all of it, files on disk included), every team-leader/team-member LOGIN linked
