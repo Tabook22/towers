@@ -1,5 +1,8 @@
 import { useRef, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -11,6 +14,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Grid,
   IconButton,
   InputAdornment,
   MenuItem,
@@ -26,6 +30,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/AddRounded';
 import SearchIcon from '@mui/icons-material/SearchRounded';
 import EditIcon from '@mui/icons-material/EditRounded';
@@ -39,6 +44,8 @@ import GroupsIcon from '@mui/icons-material/GroupsRounded';
 import EditLocationAltIcon from '@mui/icons-material/EditLocationAltRounded';
 import CheckIcon from '@mui/icons-material/CheckRounded';
 import CloseIcon from '@mui/icons-material/CloseRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import { useNavigate } from 'react-router-dom';
 import {
   useAreas,
@@ -69,6 +76,8 @@ import { TowersOverviewMap } from '../components/TowersOverviewMap';
 import { TowersGpsEditorDialog } from '../components/TowersGpsEditorDialog';
 import { ExpandableImage } from '../components/ExpandableImage';
 import { ResizableDialogPaper } from '../components/ResizableDialogPaper';
+import { HorizontalBarChart, type BarDatum } from '../components/HorizontalBarChart';
+import { colorForTeam } from '../components/towerMapPins';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
 interface TowerFormState {
@@ -151,6 +160,7 @@ export function TowersPage() {
 
   const navigate = useNavigate();
   const { user } = useAuth();
+  const theme = useTheme();
   // A restricted admin's "manage_towers" level: everything below (bulk assign/delete/import/move,
   // and editing an existing tower's details) requires "full" on the backend — only creating a new
   // tower is "add"-level (routers/towers.py's create_tower vs. its other endpoints).
@@ -238,6 +248,35 @@ export function TowersPage() {
         }
       : null,
   }));
+
+  // These two overview charts read the current search/area result set (before the line-sector/team
+  // quick filters below it), so they stay a stable "whole picture" summary rather than shrinking to
+  // whatever the quick filters narrow the table down to.
+  const towersByLine: BarDatum[] = Array.from(
+    (towers || []).reduce((acc, t) => {
+      const key = t.line_sector || 'No line sector';
+      acc.set(key, (acc.get(key) || 0) + 1);
+      return acc;
+    }, new Map<string, number>()),
+  )
+    .map(([label, value]) => ({ label, value, color: theme.palette.primary.main }))
+    .sort((a, b) => b.value - a.value);
+
+  const completedByTeam: BarDatum[] = (() => {
+    const counts = new Map<number, { name: string; count: number }>();
+    for (const t of (teams || []).filter((tm) => tm.is_active)) {
+      counts.set(t.id, { name: t.name, count: 0 });
+    }
+    for (const t of towers || []) {
+      if (t.assigned_team_id == null || t.latest_visit_mission_status !== 'completed') continue;
+      const existing = counts.get(t.assigned_team_id);
+      if (existing) existing.count += 1;
+      else counts.set(t.assigned_team_id, { name: t.assigned_team_name || `Team ${t.assigned_team_id}`, count: 1 });
+    }
+    return Array.from(counts, ([id, { name, count }]) => ({ label: name, value: count, color: colorForTeam(id) })).sort(
+      (a, b) => b.value - a.value,
+    );
+  })();
 
   const openCreate = () => {
     setEditing(null);
@@ -620,7 +659,49 @@ export function TowersPage() {
         </CardContent>
       </Card>
 
-      <TableContainer component={Paper} variant="outlined">
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+                <InsightsRoundedIcon color="primary" fontSize="small" />
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Towers per line
+                </Typography>
+              </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                How the current search/area result is split across each line sector.
+              </Typography>
+              <HorizontalBarChart data={towersByLine} emptyMessage="No towers to summarize yet." />
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+                <CheckIcon color="success" fontSize="small" />
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Towers completed per team
+                </Typography>
+              </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Assigned towers whose latest visit is fully completed, by team.
+              </Typography>
+              <HorizontalBarChart data={completedByTeam} emptyMessage="No completed towers yet." />
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      <Accordion defaultExpanded disableGutters variant="outlined">
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            All towers ({(visibleTowers || []).length})
+          </Typography>
+        </AccordionSummary>
+        <AccordionDetails sx={{ p: 0 }}>
+      <TableContainer component={Paper} variant="outlined" sx={{ border: 0 }}>
         <Table>
           <TableHead>
             <TableRow>
@@ -763,6 +844,8 @@ export function TowersPage() {
           </TableBody>
         </Table>
       </TableContainer>
+        </AccordionDetails>
+      </Accordion>
 
       <Dialog
         open={dialogOpen}
