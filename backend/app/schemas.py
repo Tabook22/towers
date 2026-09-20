@@ -1393,6 +1393,8 @@ class BrandingOut(BaseModel):
     org_footer_text: str | None = None
     org_report_footer: str | None = None
     org_contact: str | None = None
+    # A full-bleed photo behind the login form — None falls back to the built-in gradient.
+    login_background_url: str | None = None
 
 
 class PublicBrandingOut(BaseModel):
@@ -1400,6 +1402,7 @@ class PublicBrandingOut(BaseModel):
 
     org_logo_url: str | None = None
     org_name_en: str | None = None
+    login_background_url: str | None = None
 
 
 class BrandingUpdate(BaseModel):

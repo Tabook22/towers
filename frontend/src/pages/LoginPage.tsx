@@ -15,6 +15,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const { data: branding } = usePublicBranding();
   const logoUrl = branding?.org_logo_url ? mediaUrl(branding.org_logo_url) : null;
+  const backgroundUrl = branding?.login_background_url ? mediaUrl(branding.login_background_url) : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +37,11 @@ export function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #062a38 0%, #0d475c 55%, #17708f 100%)',
+        background: backgroundUrl
+          ? `linear-gradient(rgba(4,20,26,0.55), rgba(4,20,26,0.55)), url(${backgroundUrl})`
+          : 'linear-gradient(135deg, #062a38 0%, #0d475c 55%, #17708f 100%)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
       }}
     >
       <Stack spacing={2} sx={{ alignItems: 'center' }}>

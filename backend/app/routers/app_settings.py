@@ -22,6 +22,7 @@ _IMAGE_FIELDS = {
     "sky-green-line": "sky_green_line_logo_filename",
     "hero": "hero_image_filename",
     "org": "org_logo_filename",
+    "login-background": "login_background_filename",
 }
 
 
@@ -69,6 +70,7 @@ def _to_out(row: AppSetting) -> BrandingOut:
         org_footer_text=row.org_footer_text,
         org_report_footer=row.org_report_footer,
         org_contact=row.org_contact,
+        login_background_url=_image_url("login-background", row.login_background_filename, row.updated_at),
     )
 
 
@@ -86,6 +88,7 @@ def get_public_branding(db: Session = Depends(get_db)):
     return PublicBrandingOut(
         org_logo_url=_image_url("org", row.org_logo_filename, row.updated_at),
         org_name_en=row.org_name_en,
+        login_background_url=_image_url("login-background", row.login_background_filename, row.updated_at),
     )
 
 
@@ -113,10 +116,12 @@ def update_branding(
     org_report_footer: str | None = Form(default=None),
     org_contact: str | None = Form(default=None),
     reset_org_logo: bool = Form(default=False),
+    reset_login_background: bool = Form(default=False),
     oetc_logo: UploadFile | None = File(default=None),
     sky_green_line_logo: UploadFile | None = File(default=None),
     hero_image: UploadFile | None = File(default=None),
     org_logo: UploadFile | None = File(default=None),
+    login_background: UploadFile | None = File(default=None),
 ):
     row = _get_or_create(db)
     row.app_title = app_title or None
@@ -138,16 +143,21 @@ def update_branding(
     row.org_footer_text = org_footer_text or None
     row.org_report_footer = org_report_footer or None
     row.org_contact = org_contact or None
-    if reset_org_logo and row.org_logo_filename:
-        old_path = settings.branding_dir / row.org_logo_filename
-        if old_path.exists():
-            old_path.unlink()
-        row.org_logo_filename = None
+    for should_reset, field in (
+        (reset_org_logo, "org_logo_filename"),
+        (reset_login_background, "login_background_filename"),
+    ):
+        if should_reset and getattr(row, field):
+            old_path = settings.branding_dir / getattr(row, field)
+            if old_path.exists():
+                old_path.unlink()
+            setattr(row, field, None)
     for upload, field in (
         (oetc_logo, "oetc_logo_filename"),
         (sky_green_line_logo, "sky_green_line_logo_filename"),
         (hero_image, "hero_image_filename"),
         (org_logo, "org_logo_filename"),
+        (login_background, "login_background_filename"),
     ):
         if upload is None or not upload.filename:
             continue

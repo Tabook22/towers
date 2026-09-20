@@ -574,11 +574,13 @@ export interface BrandingSettings {
   org_footer_text: string | null;
   org_report_footer: string | null;
   org_contact: string | null;
+  login_background_url: string | null;
 }
 
 export interface PublicBranding {
   org_logo_url: string | null;
   org_name_en: string | null;
+  login_background_url: string | null;
 }
 
 export interface TeamMember {

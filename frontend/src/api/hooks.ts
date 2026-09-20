@@ -1227,10 +1227,12 @@ export function useUpdateBrandingSettings() {
       org_report_footer?: string;
       org_contact?: string;
       reset_org_logo?: boolean;
+      reset_login_background?: boolean;
       oetc_logo?: File;
       sky_green_line_logo?: File;
       hero_image?: File;
       org_logo?: File;
+      login_background?: File;
     }) => {
       const form = new FormData();
       if (payload.app_title !== undefined) form.append('app_title', payload.app_title);
@@ -1257,10 +1259,12 @@ export function useUpdateBrandingSettings() {
       if (payload.org_report_footer !== undefined) form.append('org_report_footer', payload.org_report_footer);
       if (payload.org_contact !== undefined) form.append('org_contact', payload.org_contact);
       if (payload.reset_org_logo) form.append('reset_org_logo', 'true');
+      if (payload.reset_login_background) form.append('reset_login_background', 'true');
       if (payload.oetc_logo) form.append('oetc_logo', payload.oetc_logo);
       if (payload.sky_green_line_logo) form.append('sky_green_line_logo', payload.sky_green_line_logo);
       if (payload.hero_image) form.append('hero_image', payload.hero_image);
       if (payload.org_logo) form.append('org_logo', payload.org_logo);
+      if (payload.login_background) form.append('login_background', payload.login_background);
       return (await apiClient.put<BrandingSettings>('/api/settings/branding', form)).data;
     },
     onSuccess: (data) => {

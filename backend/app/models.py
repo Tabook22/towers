@@ -847,6 +847,9 @@ class AppSetting(Base):
     org_footer_text: Mapped[str | None] = mapped_column(String(300), nullable=True)
     org_report_footer: Mapped[str | None] = mapped_column(String(200), nullable=True)
     org_contact: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # A full-bleed photo behind the login form (LoginPage.tsx) — null falls back to the built-in
+    # gradient, same "not configured yet" convention as the other optional images on this row.
+    login_background_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 

@@ -179,10 +179,12 @@ def test_branding_update_saves_text_fields_and_logo(db, tmp_path, monkeypatch):
         org_report_footer=None,
         org_contact=None,
         reset_org_logo=False,
+        reset_login_background=False,
         oetc_logo=logo,
         sky_green_line_logo=None,
         hero_image=None,
         org_logo=None,
+        login_background=None,
     )
     assert out.app_title == "OETC Field Ops"
     assert out.oetc_logo_url is not None
@@ -217,10 +219,12 @@ def test_branding_update_saves_a_hero_banner_image(db, tmp_path, monkeypatch):
         org_report_footer=None,
         org_contact=None,
         reset_org_logo=False,
+        reset_login_background=False,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=hero,
         org_logo=None,
+        login_background=None,
     )
     assert out.hero_image_url is not None
     assert out.configured is True
@@ -252,10 +256,12 @@ def test_branding_update_saves_the_app_version(db):
         org_report_footer=None,
         org_contact=None,
         reset_org_logo=False,
+        reset_login_background=False,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
         org_logo=None,
+        login_background=None,
     )
     assert out.app_title == "Insulator Inspection Pro"
     assert out.app_version == "ver. 1.0"
@@ -285,10 +291,12 @@ def test_branding_update_saves_logo_display_sizes(db):
         org_report_footer=None,
         org_contact=None,
         reset_org_logo=False,
+        reset_login_background=False,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
         org_logo=None,
+        login_background=None,
     )
     assert out.oetc_logo_width == 150
     assert out.oetc_logo_height == 90
@@ -320,10 +328,12 @@ def test_branding_update_saves_the_logo_position(db):
         org_report_footer=None,
         org_contact=None,
         reset_org_logo=False,
+        reset_login_background=False,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
         org_logo=None,
+        login_background=None,
     )
     assert out.oetc_logo_pos_x == 72.5
     assert out.oetc_logo_pos_y == 15.0
@@ -353,10 +363,12 @@ def test_branding_update_saves_sky_logo_and_title_positions(db):
         org_report_footer=None,
         org_contact=None,
         reset_org_logo=False,
+        reset_login_background=False,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
         org_logo=None,
+        login_background=None,
     )
     assert out.sky_green_line_logo_pos_x == 10.0
     assert out.sky_green_line_logo_pos_y == 85.0
@@ -390,10 +402,12 @@ def test_branding_update_saves_organization_report_identity(db, tmp_path, monkey
         org_report_footer="Demo Report",
         org_contact="ops@taip.demo",
         reset_org_logo=False,
+        reset_login_background=False,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
         org_logo=logo,
+        login_background=None,
     )
     assert out.org_name_en == "Dhofar Transmission Demo"
     assert out.org_name_ar == "عرض ظفار للنقل"
@@ -433,11 +447,52 @@ def test_branding_update_resets_organization_logo(db, tmp_path, monkeypatch):
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
+        login_background=None,
     )
-    out = app_settings.update_branding(reset_org_logo=False, org_logo=logo, **common_kwargs)
+    out = app_settings.update_branding(reset_org_logo=False, reset_login_background=False, org_logo=logo, **common_kwargs)
     assert out.org_logo_url is not None
     stored_path = tmp_path / db.get(AppSetting, 1).org_logo_filename
 
-    out = app_settings.update_branding(reset_org_logo=True, org_logo=None, **common_kwargs)
+    out = app_settings.update_branding(reset_org_logo=True, reset_login_background=False, org_logo=None, **common_kwargs)
     assert out.org_logo_url is None
+    assert not stored_path.exists()
+
+
+def test_branding_update_saves_and_resets_login_background(db, tmp_path, monkeypatch):
+    monkeypatch.setattr(app_settings.settings, "branding_dir", tmp_path)
+    photo = UploadFile(file=io.BytesIO(b"fake-jpeg-bytes"), filename="bg.jpg", headers=Headers({"content-type": "image/jpeg"}))
+    common_kwargs = dict(
+        db=db,
+        _user=_super_admin(),
+        app_title=None,
+        app_version=None,
+        splash_header=None,
+        splash_subtitle=None,
+        oetc_logo_width=None,
+        oetc_logo_height=None,
+        sky_green_line_logo_width=None,
+        sky_green_line_logo_height=None,
+        oetc_logo_pos_x=None,
+        oetc_logo_pos_y=None,
+        sky_green_line_logo_pos_x=None,
+        sky_green_line_logo_pos_y=None,
+        app_title_pos_x=None,
+        app_title_pos_y=None,
+        org_name_en=None,
+        org_name_ar=None,
+        org_footer_text=None,
+        org_report_footer=None,
+        org_contact=None,
+        reset_org_logo=False,
+        oetc_logo=None,
+        sky_green_line_logo=None,
+        hero_image=None,
+        org_logo=None,
+    )
+    out = app_settings.update_branding(reset_login_background=False, login_background=photo, **common_kwargs)
+    assert out.login_background_url is not None
+    stored_path = tmp_path / db.get(AppSetting, 1).login_background_filename
+
+    out = app_settings.update_branding(reset_login_background=True, login_background=None, **common_kwargs)
+    assert out.login_background_url is None
     assert not stored_path.exists()

@@ -492,8 +492,11 @@ function OrganizationBrandingSection() {
   const [contact, setContact] = useState('');
   const [orgLogo, setOrgLogo] = useState<File | null>(null);
   const [resetLogo, setResetLogo] = useState(false);
+  const [loginBackground, setLoginBackground] = useState<File | null>(null);
+  const [resetLoginBackground, setResetLoginBackground] = useState(false);
   const [saved, setSaved] = useState(false);
   const orgLogoInputRef = useRef<HTMLInputElement>(null);
+  const loginBackgroundInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!branding) return;
@@ -509,6 +512,11 @@ function OrganizationBrandingSection() {
     : !resetLogo && branding?.org_logo_url
       ? mediaUrl(branding.org_logo_url)
       : null;
+  const loginBackgroundPreview = loginBackground
+    ? URL.createObjectURL(loginBackground)
+    : !resetLoginBackground && branding?.login_background_url
+      ? mediaUrl(branding.login_background_url)
+      : null;
 
   const handleSave = () => {
     setSaved(false);
@@ -521,12 +529,16 @@ function OrganizationBrandingSection() {
         org_contact: contact,
         org_logo: orgLogo || undefined,
         reset_org_logo: resetLogo,
+        login_background: loginBackground || undefined,
+        reset_login_background: resetLoginBackground,
       },
       {
         onSuccess: () => {
           setSaved(true);
           setOrgLogo(null);
           setResetLogo(false);
+          setLoginBackground(null);
+          setResetLoginBackground(false);
         },
       },
     );
@@ -539,7 +551,7 @@ function OrganizationBrandingSection() {
           Organization Branding
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Configure the display name, logo, and identity shown on generated inspection reports.
+          Configure the display name, logo, and identity shown on generated inspection reports and the login page.
         </Typography>
 
         {saved && (
@@ -613,6 +625,76 @@ function OrganizationBrandingSection() {
                 onClick={() => {
                   setOrgLogo(null);
                   setResetLogo(true);
+                }}
+              >
+                Reset to default
+              </Button>
+            )}
+          </Stack>
+        </Stack>
+
+        <Stack spacing={1} sx={{ mb: 3 }}>
+          <Typography variant="subtitle2">Login page background</Typography>
+          <Typography variant="caption" color="text.secondary">
+            Shown full-screen behind the sign-in form. Leave unset to use the default gradient.
+          </Typography>
+          <Box
+            sx={{
+              width: '100%',
+              maxWidth: 360,
+              height: 140,
+              borderRadius: 2,
+              bgcolor: 'action.hover',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid',
+              borderColor: 'divider',
+              overflow: 'hidden',
+            }}
+          >
+            {loginBackgroundPreview ? (
+              <Box
+                component="img"
+                src={loginBackgroundPreview}
+                alt=""
+                sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Default gradient
+              </Typography>
+            )}
+          </Box>
+          <input
+            ref={loginBackgroundInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              e.target.value = '';
+              if (!file) return;
+              setLoginBackground(file);
+              setResetLoginBackground(false);
+            }}
+          />
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<CloudUploadIcon />}
+              onClick={() => loginBackgroundInputRef.current?.click()}
+            >
+              {loginBackgroundPreview ? 'Replace image' : 'Upload image'}
+            </Button>
+            {loginBackgroundPreview && (
+              <Button
+                size="small"
+                color="inherit"
+                onClick={() => {
+                  setLoginBackground(null);
+                  setResetLoginBackground(true);
                 }}
               >
                 Reset to default
