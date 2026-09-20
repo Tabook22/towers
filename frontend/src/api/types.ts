@@ -576,6 +576,11 @@ export interface BrandingSettings {
   org_contact: string | null;
 }
 
+export interface PublicBranding {
+  org_logo_url: string | null;
+  org_name_en: string | null;
+}
+
 export interface TeamMember {
   id: number;
   team_id: number;

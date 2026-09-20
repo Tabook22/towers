@@ -10,6 +10,7 @@ import type {
   ChannelKind,
   KnowledgeDocument,
   KnowledgeDocumentDetail,
+  PublicBranding,
   ChannelMessage,
   ChoiceLists,
   DashboardSummary,
@@ -1189,6 +1190,16 @@ export function useBrandingSettings(enabled = true) {
     queryKey: ['branding'],
     queryFn: async () => (await apiClient.get<BrandingSettings>('/api/settings/branding')).data,
     enabled,
+  });
+}
+
+// Unauthenticated — safe to call from the login page, before a token exists (see
+// app_settings.get_public_branding on the backend).
+export function usePublicBranding() {
+  return useQuery({
+    queryKey: ['public-branding'],
+    queryFn: async () => (await apiClient.get<PublicBranding>('/api/settings/public-branding')).data,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

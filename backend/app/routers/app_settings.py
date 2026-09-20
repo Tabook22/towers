@@ -13,7 +13,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user, require_permission
 from app.models import AppSetting, User
-from app.schemas import BrandingOut
+from app.schemas import BrandingOut, PublicBrandingOut
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -75,6 +75,18 @@ def _to_out(row: AppSetting) -> BrandingOut:
 @router.get("/branding", response_model=BrandingOut)
 def get_branding(db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
     return _to_out(_get_or_create(db))
+
+
+@router.get("/public-branding", response_model=PublicBrandingOut)
+def get_public_branding(db: Session = Depends(get_db)):
+    """Unauthenticated — the login page (LoginPage.tsx) needs the org logo and name before anyone
+    has signed in. Deliberately returns only these two fields, not the full BrandingOut, so the
+    rest of the splash/report configuration stays behind a login."""
+    row = _get_or_create(db)
+    return PublicBrandingOut(
+        org_logo_url=_image_url("org", row.org_logo_filename, row.updated_at),
+        org_name_en=row.org_name_en,
+    )
 
 
 @router.put("/branding", response_model=BrandingOut)
@@ -157,7 +169,9 @@ def update_branding(
 
 
 @router.get("/branding/image/{which}")
-def get_branding_image(which: str, db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
+def get_branding_image(which: str, db: Session = Depends(get_db)):
+    """Unauthenticated on purpose — the org logo needs to render on the login page before anyone
+    has signed in (see get_public_branding), and none of these images are sensitive."""
     field = _IMAGE_FIELDS.get(which)
     if not field:
         raise HTTPException(status_code=404, detail="Unknown image")

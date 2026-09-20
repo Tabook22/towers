@@ -1395,6 +1395,13 @@ class BrandingOut(BaseModel):
     org_contact: str | None = None
 
 
+class PublicBrandingOut(BaseModel):
+    """The subset of BrandingOut safe to expose with no login — see app_settings.get_public_branding."""
+
+    org_logo_url: str | None = None
+    org_name_en: str | None = None
+
+
 class BrandingUpdate(BaseModel):
     app_title: str | None = None
     splash_header: str | None = None
