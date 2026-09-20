@@ -482,6 +482,189 @@ function BrandingSection() {
   );
 }
 
+function OrganizationBrandingSection() {
+  const { data: branding } = useBrandingSettings();
+  const update = useUpdateBrandingSettings();
+  const [nameEn, setNameEn] = useState('');
+  const [nameAr, setNameAr] = useState('');
+  const [footerText, setFooterText] = useState('');
+  const [reportFooter, setReportFooter] = useState('');
+  const [contact, setContact] = useState('');
+  const [orgLogo, setOrgLogo] = useState<File | null>(null);
+  const [resetLogo, setResetLogo] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const orgLogoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!branding) return;
+    setNameEn(branding.org_name_en || '');
+    setNameAr(branding.org_name_ar || '');
+    setFooterText(branding.org_footer_text || '');
+    setReportFooter(branding.org_report_footer || '');
+    setContact(branding.org_contact || '');
+  }, [branding]);
+
+  const orgLogoPreview = orgLogo
+    ? URL.createObjectURL(orgLogo)
+    : !resetLogo && branding?.org_logo_url
+      ? mediaUrl(branding.org_logo_url)
+      : null;
+
+  const handleSave = () => {
+    setSaved(false);
+    update.mutate(
+      {
+        org_name_en: nameEn,
+        org_name_ar: nameAr,
+        org_footer_text: footerText,
+        org_report_footer: reportFooter,
+        org_contact: contact,
+        org_logo: orgLogo || undefined,
+        reset_org_logo: resetLogo,
+      },
+      {
+        onSuccess: () => {
+          setSaved(true);
+          setOrgLogo(null);
+          setResetLogo(false);
+        },
+      },
+    );
+  };
+
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+          Organization Branding
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Configure the display name, logo, and identity shown on generated inspection reports.
+        </Typography>
+
+        {saved && (
+          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSaved(false)}>
+            Organization branding saved. New reports will use it right away.
+          </Alert>
+        )}
+        {update.isError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Could not save organization branding.
+          </Alert>
+        )}
+
+        <Stack spacing={1} sx={{ mb: 3 }}>
+          <Typography variant="subtitle2">Current logo</Typography>
+          <Box
+            sx={{
+              width: '100%',
+              maxWidth: 360,
+              height: 140,
+              borderRadius: 2,
+              bgcolor: 'action.hover',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid',
+              borderColor: 'divider',
+              overflow: 'hidden',
+              p: 2,
+            }}
+          >
+            {orgLogoPreview ? (
+              <Box
+                component="img"
+                src={orgLogoPreview}
+                alt=""
+                sx={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+              />
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                No logo set
+              </Typography>
+            )}
+          </Box>
+          <input
+            ref={orgLogoInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              e.target.value = '';
+              if (!file) return;
+              setOrgLogo(file);
+              setResetLogo(false);
+            }}
+          />
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<CloudUploadIcon />}
+              onClick={() => orgLogoInputRef.current?.click()}
+            >
+              {orgLogoPreview ? 'Replace logo' : 'Upload logo'}
+            </Button>
+            {orgLogoPreview && (
+              <Button
+                size="small"
+                color="inherit"
+                onClick={() => {
+                  setOrgLogo(null);
+                  setResetLogo(true);
+                }}
+              >
+                Reset to default
+              </Button>
+            )}
+          </Stack>
+        </Stack>
+
+        <Divider sx={{ my: 3 }} />
+
+        <Stack spacing={2}>
+          <TextField label="Company name (English)" required value={nameEn} onChange={(e) => setNameEn(e.target.value)} fullWidth />
+          <TextField
+            label="Company name (Arabic)"
+            value={nameAr}
+            onChange={(e) => setNameAr(e.target.value)}
+            fullWidth
+            slotProps={{ htmlInput: { dir: 'rtl' } }}
+          />
+          <TextField
+            label="Footer text"
+            helperText="A short description shown under the company name"
+            value={footerText}
+            onChange={(e) => setFooterText(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            label="Report footer"
+            helperText='Shown at the bottom of every generated PDF report — defaults to "Confidential field inspection record" when left blank'
+            value={reportFooter}
+            onChange={(e) => setReportFooter(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            label="Contact"
+            helperText="Shown next to the report footer, e.g. an email or phone number"
+            value={contact}
+            onChange={(e) => setContact(e.target.value)}
+            fullWidth
+          />
+        </Stack>
+
+        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button variant="contained" onClick={handleSave} disabled={update.isPending}>
+            Save organization branding
+          </Button>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
 interface AdminFormState {
   username: string;
   password: string;
@@ -847,6 +1030,7 @@ export function SettingsPage() {
       </Typography>
       <Stack spacing={3}>
         {canManageSettings && <BrandingSection />}
+        {canManageSettings && <OrganizationBrandingSection />}
         {isSuperAdmin && <AdminAccountsSection />}
         {!canManageSettings && !isSuperAdmin && (
           <Alert severity="info">You don't have any settings permissions on this account yet — ask a full admin.</Alert>

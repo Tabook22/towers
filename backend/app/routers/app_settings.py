@@ -21,6 +21,7 @@ _IMAGE_FIELDS = {
     "oetc": "oetc_logo_filename",
     "sky-green-line": "sky_green_line_logo_filename",
     "hero": "hero_image_filename",
+    "org": "org_logo_filename",
 }
 
 
@@ -62,6 +63,12 @@ def _to_out(row: AppSetting) -> BrandingOut:
         configured=bool(
             row.app_title or row.splash_header or row.oetc_logo_filename or row.sky_green_line_logo_filename or row.hero_image_filename
         ),
+        org_logo_url=_image_url("org", row.org_logo_filename, row.updated_at),
+        org_name_en=row.org_name_en,
+        org_name_ar=row.org_name_ar,
+        org_footer_text=row.org_footer_text,
+        org_report_footer=row.org_report_footer,
+        org_contact=row.org_contact,
     )
 
 
@@ -88,9 +95,16 @@ def update_branding(
     sky_green_line_logo_pos_y: float | None = Form(default=None),
     app_title_pos_x: float | None = Form(default=None),
     app_title_pos_y: float | None = Form(default=None),
+    org_name_en: str | None = Form(default=None),
+    org_name_ar: str | None = Form(default=None),
+    org_footer_text: str | None = Form(default=None),
+    org_report_footer: str | None = Form(default=None),
+    org_contact: str | None = Form(default=None),
+    reset_org_logo: bool = Form(default=False),
     oetc_logo: UploadFile | None = File(default=None),
     sky_green_line_logo: UploadFile | None = File(default=None),
     hero_image: UploadFile | None = File(default=None),
+    org_logo: UploadFile | None = File(default=None),
 ):
     row = _get_or_create(db)
     row.app_title = app_title or None
@@ -107,10 +121,21 @@ def update_branding(
     row.sky_green_line_logo_pos_y = sky_green_line_logo_pos_y
     row.app_title_pos_x = app_title_pos_x
     row.app_title_pos_y = app_title_pos_y
+    row.org_name_en = org_name_en or None
+    row.org_name_ar = org_name_ar or None
+    row.org_footer_text = org_footer_text or None
+    row.org_report_footer = org_report_footer or None
+    row.org_contact = org_contact or None
+    if reset_org_logo and row.org_logo_filename:
+        old_path = settings.branding_dir / row.org_logo_filename
+        if old_path.exists():
+            old_path.unlink()
+        row.org_logo_filename = None
     for upload, field in (
         (oetc_logo, "oetc_logo_filename"),
         (sky_green_line_logo, "sky_green_line_logo_filename"),
         (hero_image, "hero_image_filename"),
+        (org_logo, "org_logo_filename"),
     ):
         if upload is None or not upload.filename:
             continue

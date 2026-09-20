@@ -568,6 +568,12 @@ export interface BrandingSettings {
   app_title_pos_y: number | null;
   hero_image_url: string | null;
   configured: boolean;
+  org_logo_url: string | null;
+  org_name_en: string | null;
+  org_name_ar: string | null;
+  org_footer_text: string | null;
+  org_report_footer: string | null;
+  org_contact: string | null;
 }
 
 export interface TeamMember {

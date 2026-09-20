@@ -4,9 +4,10 @@ from __future__ import annotations
 import datetime as dt
 
 from fpdf import FPDF
+from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Visit
+from app.models import AppSetting, Visit
 from app.services.rollup import visit_rollup
 
 SEVERITY_COLOR = {
@@ -19,14 +20,52 @@ SEVERITY_COLOR = {
 BRAND = (13, 71, 92)
 
 
+def _load_org_branding(db: Session | None) -> dict:
+    """Reads the admin-configured Organization Branding (SettingsPage.tsx) so generated reports
+    carry the org's own name/logo/footer instead of a hardcoded app name — db is optional so
+    report-building code can still run (with the old hardcoded defaults) in contexts with no
+    session, e.g. a script or test that doesn't wire one up."""
+    if db is None:
+        return {}
+    row = db.get(AppSetting, 1)
+    if not row:
+        return {}
+    logo_path = None
+    if row.org_logo_filename and not row.org_logo_filename.lower().endswith(".svg"):
+        candidate = settings.branding_dir / row.org_logo_filename
+        if candidate.exists():
+            logo_path = str(candidate)
+    return {
+        "org_name": row.org_name_en or None,
+        "org_logo_path": logo_path,
+        "org_report_footer": row.org_report_footer or None,
+        "org_contact": row.org_contact or None,
+    }
+
+
 class ReportPDF(FPDF):
+    def __init__(self, *args, branding: dict | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        branding = branding or {}
+        self.org_name = branding.get("org_name") or "Insulator Inspector Pro"
+        self.org_logo_path = branding.get("org_logo_path")
+        self.org_report_footer = branding.get("org_report_footer")
+        self.org_contact = branding.get("org_contact")
+
     def header(self):
         self.set_fill_color(*BRAND)
         self.rect(0, 0, self.w, 18, style="F")
-        self.set_xy(10, 4)
+        text_x = 10
+        if self.org_logo_path:
+            try:
+                self.image(self.org_logo_path, x=8, y=2, h=14)
+                text_x = 26
+            except Exception:
+                pass
+        self.set_xy(text_x, 4)
         self.set_text_color(255, 255, 255)
         self.set_font("Helvetica", "B", 13)
-        self.cell(0, 10, "Insulator Inspector Pro", ln=False)
+        self.cell(0, 10, self.org_name, ln=False)
         self.set_font("Helvetica", "", 9)
         self.set_xy(-70, 6)
         self.cell(60, 8, dt.date.today().isoformat(), align="R")
@@ -37,7 +76,11 @@ class ReportPDF(FPDF):
         self.set_y(-12)
         self.set_font("Helvetica", "I", 7)
         self.set_text_color(120, 120, 120)
-        self.cell(0, 8, f"Page {self.page_no()} - Confidential field inspection record", align="C")
+        label = self.org_report_footer or "Confidential field inspection record"
+        text = f"{label} - Page {self.page_no()}"
+        if self.org_contact:
+            text = f"{text}  |  {self.org_contact}"
+        self.cell(0, 8, text, align="C")
 
 
 def _kv_row(pdf: ReportPDF, label: str, value: str, w_label=45, w_value=90):
@@ -47,9 +90,9 @@ def _kv_row(pdf: ReportPDF, label: str, value: str, w_label=45, w_value=90):
     pdf.cell(w_value, 6, value or "-", border=0)
 
 
-def build_visit_report(visit: Visit) -> bytes:
+def build_visit_report(visit: Visit, db: Session | None = None) -> bytes:
     r = visit_rollup(visit)
-    pdf = ReportPDF(orientation="L", format="A4")
+    pdf = ReportPDF(orientation="L", format="A4", branding=_load_org_branding(db))
     pdf.set_auto_page_break(auto=True, margin=16)
     pdf.add_page()
 
@@ -174,8 +217,8 @@ def build_visit_report(visit: Visit) -> bytes:
     return bytes(out)
 
 
-def build_overall_report(summary_rows: list[dict], area: str | None) -> bytes:
-    pdf = ReportPDF(orientation="L", format="A4")
+def build_overall_report(summary_rows: list[dict], area: str | None, db: Session | None = None) -> bytes:
+    pdf = ReportPDF(orientation="L", format="A4", branding=_load_org_branding(db))
     pdf.set_auto_page_break(auto=True, margin=16)
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 16)

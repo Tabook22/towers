@@ -838,6 +838,15 @@ class AppSetting(Base):
     # A wide banner photo shown across the top of the splash (e.g. a tower/field shot) — purely
     # decorative, so null just means "don't show a banner" rather than falling back to a placeholder.
     hero_image_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Organization identity used on generated PDF reports (see services/reports.py's ReportPDF) —
+    # deliberately separate from the two splash-only logos above, since a report's letterhead and
+    # the app's own welcome screen are different surfaces an admin may want to brand differently.
+    org_logo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    org_name_en: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    org_name_ar: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    org_footer_text: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    org_report_footer: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    org_contact: Mapped[str | None] = mapped_column(String(200), nullable=True)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 

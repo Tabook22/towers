@@ -173,9 +173,16 @@ def test_branding_update_saves_text_fields_and_logo(db, tmp_path, monkeypatch):
         sky_green_line_logo_pos_y=None,
         app_title_pos_x=None,
         app_title_pos_y=None,
+        org_name_en=None,
+        org_name_ar=None,
+        org_footer_text=None,
+        org_report_footer=None,
+        org_contact=None,
+        reset_org_logo=False,
         oetc_logo=logo,
         sky_green_line_logo=None,
         hero_image=None,
+        org_logo=None,
     )
     assert out.app_title == "OETC Field Ops"
     assert out.oetc_logo_url is not None
@@ -204,9 +211,16 @@ def test_branding_update_saves_a_hero_banner_image(db, tmp_path, monkeypatch):
         sky_green_line_logo_pos_y=None,
         app_title_pos_x=None,
         app_title_pos_y=None,
+        org_name_en=None,
+        org_name_ar=None,
+        org_footer_text=None,
+        org_report_footer=None,
+        org_contact=None,
+        reset_org_logo=False,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=hero,
+        org_logo=None,
     )
     assert out.hero_image_url is not None
     assert out.configured is True
@@ -232,9 +246,16 @@ def test_branding_update_saves_the_app_version(db):
         sky_green_line_logo_pos_y=None,
         app_title_pos_x=None,
         app_title_pos_y=None,
+        org_name_en=None,
+        org_name_ar=None,
+        org_footer_text=None,
+        org_report_footer=None,
+        org_contact=None,
+        reset_org_logo=False,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
+        org_logo=None,
     )
     assert out.app_title == "Insulator Inspection Pro"
     assert out.app_version == "ver. 1.0"
@@ -258,9 +279,16 @@ def test_branding_update_saves_logo_display_sizes(db):
         sky_green_line_logo_pos_y=None,
         app_title_pos_x=None,
         app_title_pos_y=None,
+        org_name_en=None,
+        org_name_ar=None,
+        org_footer_text=None,
+        org_report_footer=None,
+        org_contact=None,
+        reset_org_logo=False,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
+        org_logo=None,
     )
     assert out.oetc_logo_width == 150
     assert out.oetc_logo_height == 90
@@ -286,9 +314,16 @@ def test_branding_update_saves_the_logo_position(db):
         sky_green_line_logo_pos_y=None,
         app_title_pos_x=None,
         app_title_pos_y=None,
+        org_name_en=None,
+        org_name_ar=None,
+        org_footer_text=None,
+        org_report_footer=None,
+        org_contact=None,
+        reset_org_logo=False,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
+        org_logo=None,
     )
     assert out.oetc_logo_pos_x == 72.5
     assert out.oetc_logo_pos_y == 15.0
@@ -312,11 +347,97 @@ def test_branding_update_saves_sky_logo_and_title_positions(db):
         sky_green_line_logo_pos_y=85.0,
         app_title_pos_x=40.0,
         app_title_pos_y=88.0,
+        org_name_en=None,
+        org_name_ar=None,
+        org_footer_text=None,
+        org_report_footer=None,
+        org_contact=None,
+        reset_org_logo=False,
         oetc_logo=None,
         sky_green_line_logo=None,
         hero_image=None,
+        org_logo=None,
     )
     assert out.sky_green_line_logo_pos_x == 10.0
     assert out.sky_green_line_logo_pos_y == 85.0
     assert out.app_title_pos_x == 40.0
     assert out.app_title_pos_y == 88.0
+
+
+def test_branding_update_saves_organization_report_identity(db, tmp_path, monkeypatch):
+    monkeypatch.setattr(app_settings.settings, "branding_dir", tmp_path)
+    logo = UploadFile(file=io.BytesIO(b"fake-png-bytes"), filename="org.png", headers=Headers({"content-type": "image/png"}))
+    out = app_settings.update_branding(
+        db=db,
+        _user=_super_admin(),
+        app_title=None,
+        app_version=None,
+        splash_header=None,
+        splash_subtitle=None,
+        oetc_logo_width=None,
+        oetc_logo_height=None,
+        sky_green_line_logo_width=None,
+        sky_green_line_logo_height=None,
+        oetc_logo_pos_x=None,
+        oetc_logo_pos_y=None,
+        sky_green_line_logo_pos_x=None,
+        sky_green_line_logo_pos_y=None,
+        app_title_pos_x=None,
+        app_title_pos_y=None,
+        org_name_en="Dhofar Transmission Demo",
+        org_name_ar="عرض ظفار للنقل",
+        org_footer_text="Fictional demo organization",
+        org_report_footer="Demo Report",
+        org_contact="ops@taip.demo",
+        reset_org_logo=False,
+        oetc_logo=None,
+        sky_green_line_logo=None,
+        hero_image=None,
+        org_logo=logo,
+    )
+    assert out.org_name_en == "Dhofar Transmission Demo"
+    assert out.org_name_ar == "عرض ظفار للنقل"
+    assert out.org_footer_text == "Fictional demo organization"
+    assert out.org_report_footer == "Demo Report"
+    assert out.org_contact == "ops@taip.demo"
+    assert out.org_logo_url is not None
+    row = db.get(AppSetting, 1)
+    assert (tmp_path / row.org_logo_filename).exists()
+
+
+def test_branding_update_resets_organization_logo(db, tmp_path, monkeypatch):
+    monkeypatch.setattr(app_settings.settings, "branding_dir", tmp_path)
+    logo = UploadFile(file=io.BytesIO(b"fake-png-bytes"), filename="org.png", headers=Headers({"content-type": "image/png"}))
+    common_kwargs = dict(
+        db=db,
+        _user=_super_admin(),
+        app_title=None,
+        app_version=None,
+        splash_header=None,
+        splash_subtitle=None,
+        oetc_logo_width=None,
+        oetc_logo_height=None,
+        sky_green_line_logo_width=None,
+        sky_green_line_logo_height=None,
+        oetc_logo_pos_x=None,
+        oetc_logo_pos_y=None,
+        sky_green_line_logo_pos_x=None,
+        sky_green_line_logo_pos_y=None,
+        app_title_pos_x=None,
+        app_title_pos_y=None,
+        org_name_en=None,
+        org_name_ar=None,
+        org_footer_text=None,
+        org_report_footer=None,
+        org_contact=None,
+        oetc_logo=None,
+        sky_green_line_logo=None,
+        hero_image=None,
+    )
+    out = app_settings.update_branding(reset_org_logo=False, org_logo=logo, **common_kwargs)
+    assert out.org_logo_url is not None
+    stored_path = tmp_path / db.get(AppSetting, 1).org_logo_filename
+
+    out = app_settings.update_branding(reset_org_logo=True, org_logo=None, **common_kwargs)
+    assert out.org_logo_url is None
+    assert not stored_path.exists()

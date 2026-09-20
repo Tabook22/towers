@@ -124,7 +124,7 @@ def _active_template_path(db: Session, kind: str):
 def visit_report(visit_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     visit = _load_visit(db, visit_id)
     check_visit_team_access(visit, user)
-    pdf_bytes = build_visit_report(visit)
+    pdf_bytes = build_visit_report(visit, db)
     filename = f"{visit.tower.tower_id.replace(' ', '')}-visit-{visit.id}-report.pdf"
     return Response(
         content=pdf_bytes,
@@ -189,7 +189,7 @@ def overall_report(area: str | None = None, db: Session = Depends(get_db), user:
         r = visit_rollup(latest)
         rows.append({"tower_id": tower.tower_id, "area": tower.area, **r})
 
-    pdf_bytes = build_overall_report(rows, area)
+    pdf_bytes = build_overall_report(rows, area, db)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

@@ -1385,6 +1385,14 @@ class BrandingOut(BaseModel):
     # Only true once an admin has explicitly saved settings — lets the splash screen keep showing
     # its own sensible defaults (rather than blanks) until then.
     configured: bool = False
+    # Organization identity shown on generated PDF reports (see services/reports.py) — separate
+    # from the splash-only logo/title fields above.
+    org_logo_url: str | None = None
+    org_name_en: str | None = None
+    org_name_ar: str | None = None
+    org_footer_text: str | None = None
+    org_report_footer: str | None = None
+    org_contact: str | None = None
 
 
 class BrandingUpdate(BaseModel):

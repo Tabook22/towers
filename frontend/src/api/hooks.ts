@@ -1210,9 +1210,16 @@ export function useUpdateBrandingSettings() {
       sky_green_line_logo_pos_y?: number | null;
       app_title_pos_x?: number | null;
       app_title_pos_y?: number | null;
+      org_name_en?: string;
+      org_name_ar?: string;
+      org_footer_text?: string;
+      org_report_footer?: string;
+      org_contact?: string;
+      reset_org_logo?: boolean;
       oetc_logo?: File;
       sky_green_line_logo?: File;
       hero_image?: File;
+      org_logo?: File;
     }) => {
       const form = new FormData();
       if (payload.app_title !== undefined) form.append('app_title', payload.app_title);
@@ -1233,9 +1240,16 @@ export function useUpdateBrandingSettings() {
         form.append('sky_green_line_logo_pos_y', String(payload.sky_green_line_logo_pos_y));
       if (payload.app_title_pos_x != null) form.append('app_title_pos_x', String(payload.app_title_pos_x));
       if (payload.app_title_pos_y != null) form.append('app_title_pos_y', String(payload.app_title_pos_y));
+      if (payload.org_name_en !== undefined) form.append('org_name_en', payload.org_name_en);
+      if (payload.org_name_ar !== undefined) form.append('org_name_ar', payload.org_name_ar);
+      if (payload.org_footer_text !== undefined) form.append('org_footer_text', payload.org_footer_text);
+      if (payload.org_report_footer !== undefined) form.append('org_report_footer', payload.org_report_footer);
+      if (payload.org_contact !== undefined) form.append('org_contact', payload.org_contact);
+      if (payload.reset_org_logo) form.append('reset_org_logo', 'true');
       if (payload.oetc_logo) form.append('oetc_logo', payload.oetc_logo);
       if (payload.sky_green_line_logo) form.append('sky_green_line_logo', payload.sky_green_line_logo);
       if (payload.hero_image) form.append('hero_image', payload.hero_image);
+      if (payload.org_logo) form.append('org_logo', payload.org_logo);
       return (await apiClient.put<BrandingSettings>('/api/settings/branding', form)).data;
     },
     onSuccess: (data) => {
