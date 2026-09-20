@@ -214,6 +214,14 @@ function BrandingSection() {
                     setTitlePosX(x);
                     setTitlePosY(y);
                   }}
+                  onMainLogoSizeChange={(w, h) => {
+                    setOetcWidth(String(w));
+                    setOetcHeight(String(h));
+                  }}
+                  onSkyLogoSizeChange={(w, h) => {
+                    setSkyWidth(String(w));
+                    setSkyHeight(String(h));
+                  }}
                 />
               ) : (
                 oetcPreview && (
