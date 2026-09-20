@@ -974,6 +974,25 @@ export interface VisitPhoto {
   uploaded_at: string;
 }
 
+// VisitPhoto plus the Team/Tower context the Image Archive page needs to fold these free-form
+// photos into the same team/tower tree as the formal checklist images (ImageRow above).
+export interface ArchiveVisitPhoto extends VisitPhoto {
+  team_id: number | null;
+  team_name: string | null;
+  tower_pk: number;
+  tower_code: string;
+  area: string | null;
+  ohl: string | null;
+  phase: string | null;
+  string: string | null;
+  direction: string | null;
+}
+
+export interface ArchiveResponse {
+  images: ImageRow[];
+  photos: ArchiveVisitPhoto[];
+}
+
 export interface TeamDayProgress {
   log_date: string;
   towers_visited: number;

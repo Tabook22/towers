@@ -15,6 +15,7 @@ import type {
   ChoiceLists,
   DashboardSummary,
   FieldExecutionPlanRequest,
+  ArchiveResponse,
   ImageRow,
   LineInspectionReportOut,
   LineInspectionReportRequest,
@@ -788,7 +789,7 @@ export function useDashboardSummary(area?: string, enabled = true) {
 export function useArchive(filters: { year?: number; month?: number; day?: number; tower_id?: number; team_id?: number }) {
   return useQuery({
     queryKey: ['archive', filters],
-    queryFn: async () => (await apiClient.get<ImageRow[]>('/api/archive', { params: filters })).data,
+    queryFn: async () => (await apiClient.get<ArchiveResponse>('/api/archive', { params: filters })).data,
   });
 }
 

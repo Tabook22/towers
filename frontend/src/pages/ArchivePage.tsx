@@ -31,6 +31,7 @@ import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import RouteRoundedIcon from '@mui/icons-material/RouteRounded';
 import CellTowerRoundedIcon from '@mui/icons-material/CellTowerRounded';
 import BoltRoundedIcon from '@mui/icons-material/BoltRounded';
+import PhotoLibraryRoundedIcon from '@mui/icons-material/PhotoLibraryRounded';
 import {
   useArchive,
   useDeleteTeamArchiveImage,
@@ -43,7 +44,7 @@ import { useAuth } from '../auth/AuthContext';
 import { mediaUrl } from '../api/client';
 import { EvidenceChip } from '../components/Badges';
 import { ImageLightbox } from '../components/ImageLightbox';
-import type { ImageRow, TeamArchiveImage } from '../api/types';
+import type { ArchiveVisitPhoto, ImageRow, TeamArchiveImage } from '../api/types';
 
 const months = [
   '01 - January', '02 - February', '03 - March', '04 - April', '05 - May', '06 - June',
@@ -88,22 +89,57 @@ function Thumb({
   );
 }
 
+// A free-form visit photo (VisitPhoto) rendered the same way as a formal evidence Paper card,
+// labeled "Field photo" instead of an image_type/evidence-status chip since it was never picked
+// as one of the four official checklist slots.
+function PhotoCard({ photo, onClick }: { photo: ArchiveVisitPhoto; onClick: () => void }) {
+  const dateLabel = (photo.captured_at || photo.uploaded_at).slice(0, 16).replace('T', ' ');
+  return (
+    <Paper variant="outlined" sx={{ p: 2 }}>
+      <Stack direction="row" spacing={2.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+        <Thumb
+          label="Field photo"
+          thumbUrl={mediaUrl(`/api/visits/${photo.visit_id}/photos/${photo.id}/thumbnail`, photo.uploaded_at)}
+          onClick={onClick}
+        />
+        <Box sx={{ flex: 1, minWidth: 220 }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5, flexWrap: 'wrap' }}>
+            <Chip size="small" variant="outlined" label="Field photo" />
+          </Stack>
+          {photo.caption && (
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {photo.caption}
+            </Typography>
+          )}
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            {dateLabel}
+            {photo.original_filename ? ` · ${photo.original_filename}` : ''}
+          </Typography>
+        </Box>
+      </Stack>
+    </Paper>
+  );
+}
+
 const monthName = (m: number) =>
   new Date(2000, m - 1, 1).toLocaleDateString(undefined, { month: 'long' });
 const naturalCompare = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
 interface PositionGroup {
   key: string;
+  sortKey: string;
   ohl: string;
   phase: string;
   string: string;
   direction: string | null;
   images: ImageRow[];
+  photos: ArchiveVisitPhoto[];
 }
 interface TowerGroup {
   key: string;
   towerCode: string;
   positions: PositionGroup[];
+  ungroupedPhotos: ArchiveVisitPhoto[];
 }
 interface LineGroup {
   key: string;
@@ -124,67 +160,99 @@ interface TeamGroup {
 
 /** Team → Year/Month → Line (Tower.area) → Tower → Insulator (position) — the exact grouping an
  * admin browsing the archive actually thinks in, built client-side from the already-filtered,
- * already-team/tower-scoped list the API returns (see routers/archive.browse_archive). */
-function buildArchiveTree(images: ImageRow[]): TeamGroup[] {
+ * already-team/tower-scoped lists the API returns (see routers/archive.browse_archive). Folds in
+ * both the formal per-position checklist images and the free-form visit photos — a photo tagged to
+ * a position joins that position's card, an untagged one sits in its tower's own "other photos"
+ * bucket, so nothing uploaded for a tower goes unlisted just because it was never picked as one of
+ * the four official evidence slots. */
+function buildArchiveTree(images: ImageRow[], photos: ArchiveVisitPhoto[]): TeamGroup[] {
   const teams = new Map<string, TeamGroup>();
-  for (const img of images) {
-    const teamKey = img.team_name || 'Unassigned (no team)';
-    let team = teams.get(teamKey);
-    if (!team) {
-      team = { key: teamKey, teamName: teamKey, months: [] };
-      teams.set(teamKey, team);
-    }
 
-    const d = img.capture_date ? new Date(`${img.capture_date}T00:00:00`) : null;
+  function team(teamName: string | null | undefined): TeamGroup {
+    const teamKey = teamName || 'Unassigned (no team)';
+    let t = teams.get(teamKey);
+    if (!t) {
+      t = { key: teamKey, teamName: teamKey, months: [] };
+      teams.set(teamKey, t);
+    }
+    return t;
+  }
+  function month(t: TeamGroup, isoDate: string | null): MonthGroup {
+    const d = isoDate ? new Date(isoDate) : null;
     const year = d ? d.getFullYear() : 0;
-    const month = d ? d.getMonth() + 1 : 0;
-    const monthKey = `${year}-${month}`;
-    let monthGroup = team.months.find((m) => m.key === monthKey);
-    if (!monthGroup) {
-      monthGroup = { key: monthKey, year, month, lines: [] };
-      team.months.push(monthGroup);
+    const monthNum = d ? d.getMonth() + 1 : 0;
+    const monthKey = `${year}-${monthNum}`;
+    let m = t.months.find((x) => x.key === monthKey);
+    if (!m) {
+      m = { key: monthKey, year, month: monthNum, lines: [] };
+      t.months.push(m);
     }
+    return m;
+  }
+  function line(m: MonthGroup, area: string | null | undefined): LineGroup {
+    const areaKey = area || 'No line set';
+    let l = m.lines.find((x) => x.key === areaKey);
+    if (!l) {
+      l = { key: areaKey, area: areaKey, towers: [] };
+      m.lines.push(l);
+    }
+    return l;
+  }
+  function tower(l: LineGroup, towerCode: string | null | undefined): TowerGroup {
+    const code = towerCode || 'Unknown tower';
+    let t = l.towers.find((x) => x.key === code);
+    if (!t) {
+      t = { key: code, towerCode: code, positions: [], ungroupedPhotos: [] };
+      l.towers.push(t);
+    }
+    return t;
+  }
+  function position(
+    t: TowerGroup,
+    posKey: string,
+    ohl: string,
+    phase: string,
+    str: string,
+    direction: string | null,
+  ): PositionGroup {
+    let p = t.positions.find((x) => x.key === posKey);
+    if (!p) {
+      p = { key: posKey, sortKey: `${ohl}-${phase}-${str}`, ohl, phase, string: str, direction, images: [], photos: [] };
+      t.positions.push(p);
+    }
+    return p;
+  }
 
-    const areaKey = img.area || 'No line set';
-    let line = monthGroup.lines.find((l) => l.key === areaKey);
-    if (!line) {
-      line = { key: areaKey, area: areaKey, towers: [] };
-      monthGroup.lines.push(line);
-    }
+  // Grouped by the actual Position row id (always present on both an Image and a tagged
+  // VisitPhoto) rather than position_code — that field is frequently still null until
+  // refresh_position_codes() has run for a position, which would otherwise split an image and its
+  // tagged field photo into two separate cards instead of merging them into one.
+  for (const img of images) {
+    const t = tower(line(month(team(img.team_name), img.capture_date ? `${img.capture_date}T00:00:00` : null), img.area), img.tower_code);
+    position(t, String(img.position_id), img.ohl || '', img.phase || '', img.string || '', img.direction ?? null).images.push(img);
+  }
 
-    const towerCode = img.tower_code || 'Unknown tower';
-    let tower = line.towers.find((t) => t.key === towerCode);
-    if (!tower) {
-      tower = { key: towerCode, towerCode, positions: [] };
-      line.towers.push(tower);
+  for (const photo of photos) {
+    const t = tower(line(month(team(photo.team_name), photo.captured_at || photo.uploaded_at), photo.area), photo.tower_code);
+    if (photo.position_id != null) {
+      position(t, String(photo.position_id), photo.ohl || '', photo.phase || '', photo.string || '', photo.direction ?? null).photos.push(
+        photo,
+      );
+    } else {
+      t.ungroupedPhotos.push(photo);
     }
-
-    const posKey = img.position_code || `${img.ohl}-${img.phase}-${img.string}`;
-    let pos = tower.positions.find((p) => p.key === posKey);
-    if (!pos) {
-      pos = {
-        key: posKey,
-        ohl: img.ohl || '',
-        phase: img.phase || '',
-        string: img.string || '',
-        direction: img.direction ?? null,
-        images: [],
-      };
-      tower.positions.push(pos);
-    }
-    pos.images.push(img);
   }
 
   const out = Array.from(teams.values());
   out.sort((a, b) => a.teamName.localeCompare(b.teamName));
-  for (const team of out) {
-    team.months.sort((a, b) => b.year - a.year || b.month - a.month);
-    for (const m of team.months) {
+  for (const t of out) {
+    t.months.sort((a, b) => b.year - a.year || b.month - a.month);
+    for (const m of t.months) {
       m.lines.sort((a, b) => a.area.localeCompare(b.area));
       for (const l of m.lines) {
         l.towers.sort((a, b) => naturalCompare(a.towerCode, b.towerCode));
-        for (const t of l.towers) {
-          t.positions.sort((a, b) => naturalCompare(a.key, b.key));
+        for (const tw of l.towers) {
+          tw.positions.sort((a, b) => naturalCompare(a.sortKey, b.sortKey));
         }
       }
     }
@@ -200,17 +268,22 @@ export function ArchivePage() {
   const [archiveTeamId, setArchiveTeamId] = useState<string>('');
   const { data: towers } = useTowers({ include_inactive: true });
 
-  const { data: images, isLoading } = useArchive({
+  const { data: archiveData, isLoading } = useArchive({
     year: year ? Number(year) : undefined,
     month: month ? Number(month) : undefined,
     day: day ? Number(day) : undefined,
     tower_id: towerId ? Number(towerId) : undefined,
     team_id: archiveTeamId ? Number(archiveTeamId) : undefined,
   });
-  const archiveTree = useMemo(() => buildArchiveTree(images || []), [images]);
+  const archiveTree = useMemo(
+    () => buildArchiveTree(archiveData?.images || [], archiveData?.photos || []),
+    [archiveData],
+  );
+  const archiveIsEmpty = !isLoading && (archiveData?.images.length || 0) === 0 && (archiveData?.photos.length || 0) === 0;
 
   // Which image's original/annotated version is currently enlarged, if any.
   const [lightbox, setLightbox] = useState<{ image: ImageRow; variant: 'original' | 'annotated' } | null>(null);
+  const [photoLightbox, setPhotoLightbox] = useState<ArchiveVisitPhoto | null>(null);
 
   const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
 
@@ -456,7 +529,7 @@ export function ArchivePage() {
         </CardContent>
       </Card>
 
-      {!isLoading && images && images.length === 0 && (
+      {archiveIsEmpty && (
         <Stack spacing={1} sx={{ py: 6, color: 'text.secondary', alignItems: 'center' }}>
           <FolderIcon fontSize="large" />
           <Typography>No archived images match these filters.</Typography>
@@ -551,9 +624,35 @@ export function ArchivePage() {
                                                   </Stack>
                                                 </Paper>
                                               ))}
+                                              {pos.photos.map((photo) => (
+                                                <PhotoCard
+                                                  key={`photo-${photo.id}`}
+                                                  photo={photo}
+                                                  onClick={() => setPhotoLightbox(photo)}
+                                                />
+                                              ))}
                                             </Stack>
                                           </Box>
                                         ))}
+                                        {tower.ungroupedPhotos.length > 0 && (
+                                          <Box>
+                                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
+                                              <PhotoLibraryRoundedIcon fontSize="small" color="action" />
+                                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                                Other tower photos
+                                              </Typography>
+                                            </Stack>
+                                            <Stack spacing={1.5}>
+                                              {tower.ungroupedPhotos.map((photo) => (
+                                                <PhotoCard
+                                                  key={`photo-${photo.id}`}
+                                                  photo={photo}
+                                                  onClick={() => setPhotoLightbox(photo)}
+                                                />
+                                              ))}
+                                            </Stack>
+                                          </Box>
+                                        )}
                                       </Stack>
                                     </AccordionDetails>
                                   </Accordion>
@@ -582,6 +681,16 @@ export function ArchivePage() {
             `/api/images/${lightbox.image.id}/${lightbox.variant === 'annotated' ? 'annotation' : 'file'}`,
             lightbox.variant === 'annotated' ? lightbox.image.annotated_uploaded_at : lightbox.image.uploaded_at,
           )}
+        />
+      )}
+
+      {photoLightbox && (
+        <ImageLightbox
+          open
+          onClose={() => setPhotoLightbox(null)}
+          title={photoLightbox.original_filename || 'Field photo'}
+          subtitle={`${(photoLightbox.captured_at || photoLightbox.uploaded_at).slice(0, 16).replace('T', ' ')}${photoLightbox.caption ? ` — ${photoLightbox.caption}` : ''}`}
+          imageUrl={mediaUrl(`/api/visits/${photoLightbox.visit_id}/photos/${photoLightbox.id}/file`, photoLightbox.uploaded_at)}
         />
       )}
 

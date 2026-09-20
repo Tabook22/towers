@@ -1019,6 +1019,32 @@ class VisitPhotoPromote(BaseModel):
     image_id: int
 
 
+class ArchiveVisitPhotoOut(VisitPhotoOut):
+    """VisitPhotoOut plus the same Team/Tower context ArchiveImageOut adds to ImageOut — lets the
+    Image Archive page fold these free-form photos into the same team/tower tree as the formal
+    checklist images (see routers/archive.browse_archive)."""
+
+    team_id: int | None = None
+    team_name: str | None = None
+    tower_pk: int
+    tower_code: str
+    area: str | None = None
+    ohl: str | None = None
+    phase: str | None = None
+    string: str | None = None
+    direction: str | None = None
+
+
+class ArchiveOut(BaseModel):
+    """The Image Archive page's two datasets for one tower/team/date filter: the formal
+    per-position checklist images, and the free-form visit photos (some tagged to a position, some
+    not) — kept separate since they have different shapes rather than forcing one into the other's
+    schema."""
+
+    images: list[ArchiveImageOut]
+    photos: list[ArchiveVisitPhotoOut]
+
+
 class TeamDayProgress(BaseModel):
     log_date: dt.date
     towers_visited: int
