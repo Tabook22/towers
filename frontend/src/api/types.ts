@@ -928,10 +928,19 @@ export interface ChannelMessage {
   has_photo: boolean;
   has_audio: boolean;
   duration_seconds: number | null;
+  has_video: boolean;
+  has_file: boolean;
+  file_name: string | null;
+  file_size: number | null;
   created_by: number | null;
   author_name: string | null;
   author_role: string | null;
   created_at: string;
+}
+
+export interface ChannelUnread {
+  unread_count: number;
+  latest_id: number | null;
 }
 
 export interface NextTowersPlan {

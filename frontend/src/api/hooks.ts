@@ -8,6 +8,7 @@ import type {
   Area,
   BrandingSettings,
   ChannelKind,
+  ChannelUnread,
   KnowledgeDocument,
   KnowledgeDocumentDetail,
   PublicBranding,
@@ -1964,7 +1965,103 @@ export function usePostChannel(teamId: number) {
         invalidate();
       },
     }),
+    video: useMutation({
+      mutationFn: async (payload: {
+        file: Blob;
+        duration_seconds?: number;
+        kind?: ChannelKind;
+        body?: string;
+        tower_id?: number | null;
+        latitude?: number | null;
+        longitude?: number | null;
+      }) => {
+        const form = new FormData();
+        const named = payload.file as File;
+        const name = named.name || `channel-video.${payload.file.type.includes('webm') ? 'webm' : 'mp4'}`;
+        form.set('file', payload.file, name);
+        if (payload.duration_seconds != null) form.set('duration_seconds', String(payload.duration_seconds));
+        if (payload.kind) form.set('kind', payload.kind);
+        if (payload.body) form.set('body', payload.body);
+        if (payload.tower_id) form.set('tower_id', String(payload.tower_id));
+        if (payload.latitude != null) form.set('latitude', String(payload.latitude));
+        if (payload.longitude != null) form.set('longitude', String(payload.longitude));
+        const result = await sendOrQueue(
+          async () =>
+            (await apiClient.post<ChannelMessage>(`/api/teams/${teamId}/channel/video`, form, { timeout: 180_000 })).data,
+          {
+            kind: 'channel-video',
+            label: `Channel video · ${name}`,
+            path: { teamId },
+            json: {
+              kind: payload.kind,
+              body: payload.body,
+              duration_seconds: payload.duration_seconds,
+              tower_id: payload.tower_id,
+              latitude: payload.latitude,
+              longitude: payload.longitude,
+            },
+            file: asOutboxFile(payload.file, name),
+          },
+        );
+        if (isQueued(result)) return result;
+        return result;
+      },
+      onSuccess: (data) => {
+        if (isQueued(data)) return;
+        invalidate();
+      },
+    }),
+    file: useMutation({
+      mutationFn: async (payload: {
+        file: File;
+        kind?: ChannelKind;
+        body?: string;
+        tower_id?: number | null;
+        latitude?: number | null;
+        longitude?: number | null;
+      }) => {
+        const form = new FormData();
+        form.set('file', payload.file);
+        if (payload.kind) form.set('kind', payload.kind);
+        if (payload.body) form.set('body', payload.body);
+        if (payload.tower_id) form.set('tower_id', String(payload.tower_id));
+        if (payload.latitude != null) form.set('latitude', String(payload.latitude));
+        if (payload.longitude != null) form.set('longitude', String(payload.longitude));
+        const result = await sendOrQueue(
+          async () =>
+            (await apiClient.post<ChannelMessage>(`/api/teams/${teamId}/channel/file`, form, { timeout: 180_000 })).data,
+          {
+            kind: 'channel-file',
+            label: `Channel file · ${payload.file.name}`,
+            path: { teamId },
+            json: { kind: payload.kind, body: payload.body, tower_id: payload.tower_id, latitude: payload.latitude, longitude: payload.longitude },
+            file: asOutboxFile(payload.file),
+          },
+        );
+        if (isQueued(result)) return result;
+        return result;
+      },
+      onSuccess: (data) => {
+        if (isQueued(data)) return;
+        invalidate();
+      },
+    }),
   };
+}
+
+// A lightweight poll target for the Messages nav badge — counts only, not full message bodies, so
+// it's cheap enough to run everywhere the app shell is mounted (see Layout.tsx).
+export function useChannelUnread(afterId: number, fieldDate?: string) {
+  return useQuery({
+    queryKey: ['channel-unread', afterId, fieldDate],
+    queryFn: async () =>
+      (
+        await apiClient.get<ChannelUnread>('/api/tracking/channel/unread-count', {
+          params: { after_id: afterId, field_date: fieldDate },
+        })
+      ).data,
+    refetchInterval: 15_000,
+  });
 }
 
 export function useCreateTeamMission(teamId: number) {

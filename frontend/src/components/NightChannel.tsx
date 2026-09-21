@@ -20,6 +20,10 @@ import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
 import SendIcon from '@mui/icons-material/SendRounded';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCameraRounded';
+import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
+import AttachFileRoundedIcon from '@mui/icons-material/AttachFileRounded';
+import InsertDriveFileRoundedIcon from '@mui/icons-material/InsertDriveFileRounded';
+import RoomRoundedIcon from '@mui/icons-material/RoomRounded';
 import { mediaUrl } from '../api/client';
 import { usePostChannel, useTeamChannel, useTrackingChannel } from '../api/hooks';
 import type { ChannelKind, ChannelMessage } from '../api/types';
@@ -54,6 +58,13 @@ function clock(iso: string) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatBytes(bytes: number | null): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function useHere() {
   const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
@@ -62,7 +73,7 @@ function useHere() {
   return here;
 }
 
-function MessageBody({
+export function MessageBody({
   msg,
   showTeam,
   onTower,
@@ -75,6 +86,9 @@ function MessageBody({
     ? mediaUrl(`/api/teams/${msg.team_id}/channel/${msg.id}/photo?thumb=true`, msg.created_at)
     : null;
   const audio = msg.has_audio ? mediaUrl(`/api/teams/${msg.team_id}/channel/${msg.id}/audio`) : null;
+  const video = msg.has_video ? mediaUrl(`/api/teams/${msg.team_id}/channel/${msg.id}/video`, msg.created_at) : null;
+  const file = msg.has_file ? mediaUrl(`/api/teams/${msg.team_id}/channel/${msg.id}/file`, msg.created_at) : null;
+  const hasLocation = msg.latitude != null && msg.longitude != null;
   return (
     <Box
       sx={{
@@ -113,6 +127,19 @@ function MessageBody({
             }}
           />
         )}
+        {hasLocation && (
+          <Chip
+            size="small"
+            icon={<RoomRoundedIcon fontSize="small" />}
+            label="Location"
+            component="a"
+            href={`https://www.google.com/maps/search/?api=1&query=${msg.latitude},${msg.longitude}`}
+            target="_blank"
+            rel="noreferrer"
+            clickable
+            variant="outlined"
+          />
+        )}
         <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
           {msg.author_name || 'Unknown'} · {clock(msg.created_at)}
         </Typography>
@@ -136,6 +163,48 @@ function MessageBody({
             alt=""
             sx={{ maxWidth: '100%', maxHeight: 160, borderRadius: 1, objectFit: 'cover' }}
           />
+        </Box>
+      )}
+      {video && (
+        <Box
+          component="video"
+          controls
+          preload="metadata"
+          src={video}
+          sx={{ display: 'block', mt: 0.75, maxWidth: '100%', maxHeight: 220, borderRadius: 1, bgcolor: 'common.black' }}
+        />
+      )}
+      {file && (
+        <Box
+          component="a"
+          href={file}
+          download={msg.file_name || undefined}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            mt: 0.75,
+            p: 1,
+            borderRadius: 1,
+            border: '1px solid',
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+            textDecoration: 'none',
+            color: 'text.primary',
+            '&:hover': { bgcolor: 'action.hover' },
+          }}
+        >
+          <InsertDriveFileRoundedIcon color="action" />
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+              {msg.file_name || 'File'}
+            </Typography>
+            {msg.file_size != null && (
+              <Typography variant="caption" color="text.secondary">
+                {formatBytes(msg.file_size)}
+              </Typography>
+            )}
+          </Box>
         </Box>
       )}
       {audio && <VoiceNotePlayer src={audio} duration={msg.duration_seconds} />}
@@ -169,7 +238,14 @@ export function NightChannel({
   const [towerId, setTowerId] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
-  const sending = channel.post.isPending || channel.photo.isPending || channel.voice.isPending;
+  const videoRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const sending =
+    channel.post.isPending ||
+    channel.photo.isPending ||
+    channel.voice.isPending ||
+    channel.video.isPending ||
+    channel.file.isPending;
   const visible = matchingMessages(data || [], kindFilter || 'all');
 
   useEffect(() => {
@@ -300,6 +376,30 @@ export function NightChannel({
               </IconButton>
             </span>
           </Tooltip>
+          <Tooltip title="Video">
+            <span>
+              <IconButton disabled={sending} onClick={() => videoRef.current?.click()}>
+                <VideocamRoundedIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Attach file">
+            <span>
+              <IconButton disabled={sending} onClick={() => fileRef.current?.click()}>
+                <AttachFileRoundedIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title={here ? 'Share my location' : 'Waiting for GPS…'}>
+            <span>
+              <IconButton
+                disabled={sending || !here}
+                onClick={() => send(kind === 'dispatch' ? 'dispatch' : 'note', draft.trim() || '📍 Shared location')}
+              >
+                <RoomRoundedIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
           <VoiceNoteControls
             disabled={sending}
             saving={channel.voice.isPending}
@@ -324,6 +424,45 @@ export function NightChannel({
               const file = e.target.files?.[0];
               if (file) {
                 channel.photo.mutate({
+                  file,
+                  kind: kind === 'dispatch' ? 'dispatch' : 'note',
+                  body: draft.trim() || undefined,
+                  ...loc,
+                });
+                setDraft('');
+              }
+              e.target.value = '';
+            }}
+          />
+          <input
+            ref={videoRef}
+            type="file"
+            accept="video/*"
+            capture="environment"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                channel.video.mutate({
+                  file,
+                  kind: kind === 'dispatch' ? 'dispatch' : 'note',
+                  body: draft.trim() || undefined,
+                  ...loc,
+                });
+                setDraft('');
+              }
+              e.target.value = '';
+            }}
+          />
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                channel.file.mutate({
                   file,
                   kind: kind === 'dispatch' ? 'dispatch' : 'note',
                   body: draft.trim() || undefined,

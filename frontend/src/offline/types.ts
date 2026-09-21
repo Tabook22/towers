@@ -13,7 +13,9 @@ export type OutboxKind =
   | 'team-files'
   | 'channel-note'
   | 'channel-photo'
-  | 'channel-voice';
+  | 'channel-voice'
+  | 'channel-video'
+  | 'channel-file';
 
 export interface OutboxFile {
   blob: Blob;

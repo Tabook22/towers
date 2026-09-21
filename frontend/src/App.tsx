@@ -15,6 +15,7 @@ import { VisitDetailPage } from './pages/VisitDetailPage';
 import { ArchivePage } from './pages/ArchivePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { FieldTrackerPage } from './pages/FieldTrackerPage';
+import { MessagesPage } from './pages/MessagesPage';
 import { TeamProgressPage } from './pages/TeamProgressPage';
 import { TeamsPage } from './pages/TeamsPage';
 import { TeamDetailPage } from './pages/TeamDetailPage';
@@ -117,6 +118,14 @@ function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
         element={
           <ProtectedLayout>
             <TeamProgressPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/messages"
+        element={
+          <ProtectedLayout>
+            <MessagesPage />
           </ProtectedLayout>
         }
       />

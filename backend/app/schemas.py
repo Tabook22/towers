@@ -982,10 +982,19 @@ class ChannelMessageOut(BaseModel):
     has_photo: bool = False
     has_audio: bool = False
     duration_seconds: float | None = None
+    has_video: bool = False
+    has_file: bool = False
+    file_name: str | None = None
+    file_size: int | None = None
     created_by: int | None = None
     author_name: str | None = None
     author_role: str | None = None
     created_at: dt.datetime
+
+
+class ChannelUnreadOut(BaseModel):
+    unread_count: int
+    latest_id: int | None = None
 
 
 class VisitPhotoOut(BaseModel):

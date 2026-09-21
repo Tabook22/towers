@@ -3,6 +3,7 @@ import {
   Alert,
   AppBar,
   Avatar,
+  Badge,
   Box,
   Button,
   Chip,
@@ -39,12 +40,13 @@ import SettingsIcon from '@mui/icons-material/SettingsRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import DarkModeIcon from '@mui/icons-material/DarkModeRounded';
 import LightModeIcon from '@mui/icons-material/LightModeRounded';
+import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
 
 import LockResetIcon from '@mui/icons-material/LockResetRounded';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useTracking } from '../hooks/useFieldTracking';
-import { useChangePassword } from '../api/hooks';
+import { useChangePassword, useChannelUnread } from '../api/hooks';
 import { useOffline } from '../offline/OfflineProvider';
 import { OfflineBanner, OfflineChip } from '../offline/OfflineStatus';
 import { useColorMode } from '../theme/ColorModeContext';
@@ -59,6 +61,24 @@ const navItems = [
   { label: 'Image Archive', to: '/archive', icon: <PhotoLibraryIcon /> },
   { label: 'Reports', to: '/reports', icon: <AssessmentIcon /> },
 ];
+
+const SEEN_KEY = 'iip_channel_seen_id';
+
+/** Live unread-count badge for the Messages nav item — cheap poll (counts only, see
+ * routers/channel.channel_unread_count), and marks everything read the moment you're actually
+ * looking at the Messages page rather than requiring an explicit "mark read" action. */
+function useMessagesUnreadCount() {
+  const location = useLocation();
+  const [seenId, setSeenId] = useState<number>(() => Number(localStorage.getItem(SEEN_KEY) || 0));
+  const { data } = useChannelUnread(seenId);
+  useEffect(() => {
+    if (location.pathname === '/messages' && data?.latest_id != null && data.latest_id > seenId) {
+      setSeenId(data.latest_id);
+      localStorage.setItem(SEEN_KEY, String(data.latest_id));
+    }
+  }, [location.pathname, data?.latest_id, seenId]);
+  return location.pathname === '/messages' ? 0 : data?.unread_count || 0;
+}
 
 // A team_member's whole app is their own assigned missions — no dashboard, towers list, archive,
 // reports, or team management, all of which are scoped away server-side anyway (see
@@ -271,8 +291,19 @@ export function Layout({ children }: { children: ReactNode }) {
   // only their own. Field Tracker is the cross-team live board, so it stays admin/reviewer only.
   const canSeeTeams = user?.role === 'admin' || user?.role === 'reviewer' || isCrew;
   const canSeeFieldTracker = user?.role === 'admin' || user?.role === 'reviewer';
+  const unreadMessages = useMessagesUnreadCount();
+  const messagesNavItem = {
+    label: 'Messages',
+    to: '/messages',
+    icon: (
+      <Badge badgeContent={unreadMessages} color="error" max={99}>
+        <ForumRoundedIcon />
+      </Badge>
+    ),
+  };
   const crewNav = [
     { label: 'Dashboard', to: '/', icon: <DashboardIcon /> },
+    messagesNavItem,
     { label: 'Towers', to: '/towers', icon: <TowerIcon /> },
     ...(user?.team_id
       ? [{ label: 'Our team', to: `/teams/${user.team_id}`, icon: <GroupsIcon /> }]
@@ -286,6 +317,7 @@ export function Layout({ children }: { children: ReactNode }) {
     ? crewNav
     : [
         ...navItems,
+        messagesNavItem,
         ...(canSeeTeams ? [{ label: 'Teams', to: '/teams', icon: <GroupsIcon /> }] : []),
         ...(canSeeFieldTracker
           ? [

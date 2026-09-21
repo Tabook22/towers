@@ -103,6 +103,33 @@ async function sendItem(item: OutboxItem): Promise<void> {
       await apiClient.post(`/api/teams/${item.path.teamId}/channel/voice`, form, { timeout: 120_000 });
       return;
     }
+    case 'channel-video': {
+      if (!item.file) throw new Error('Queued video is missing');
+      const form = new FormData();
+      appendFile(form, 'file', item.file);
+      const json = item.json || {};
+      if (json.kind) form.set('kind', String(json.kind));
+      if (json.body) form.set('body', String(json.body));
+      if (json.duration_seconds != null) form.set('duration_seconds', String(json.duration_seconds));
+      if (json.tower_id) form.set('tower_id', String(json.tower_id));
+      if (json.latitude != null) form.set('latitude', String(json.latitude));
+      if (json.longitude != null) form.set('longitude', String(json.longitude));
+      await apiClient.post(`/api/teams/${item.path.teamId}/channel/video`, form, { timeout: 180_000 });
+      return;
+    }
+    case 'channel-file': {
+      if (!item.file) throw new Error('Queued file is missing');
+      const form = new FormData();
+      appendFile(form, 'file', item.file);
+      const json = item.json || {};
+      if (json.kind) form.set('kind', String(json.kind));
+      if (json.body) form.set('body', String(json.body));
+      if (json.tower_id) form.set('tower_id', String(json.tower_id));
+      if (json.latitude != null) form.set('latitude', String(json.latitude));
+      if (json.longitude != null) form.set('longitude', String(json.longitude));
+      await apiClient.post(`/api/teams/${item.path.teamId}/channel/file`, form, { timeout: 180_000 });
+      return;
+    }
     case 'team-note':
       await apiClient.post(`/api/teams/${item.path.teamId}/notes`, item.json);
       return;
@@ -191,7 +218,13 @@ export function queryKeysTouched(items: OutboxItem[]): (string | number)[][] {
     if (item.kind === 'team-note' || item.kind === 'team-voice' || item.kind === 'team-files') {
       add(['team-progress']);
     }
-    if (item.kind === 'channel-note' || item.kind === 'channel-photo' || item.kind === 'channel-voice') {
+    if (
+      item.kind === 'channel-note' ||
+      item.kind === 'channel-photo' ||
+      item.kind === 'channel-voice' ||
+      item.kind === 'channel-video' ||
+      item.kind === 'channel-file'
+    ) {
       add(['team-channel']);
       add(['tracking-channel']);
     }

@@ -5,11 +5,12 @@ import datetime as dt
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.database import get_db
-from app.deps import get_current_user, require_role, require_team_read
+from app.deps import get_current_user, require_team_read
 from app.models import (
     CHANNEL_KIND_CHOICES,
     CHANNEL_KIND_DEFAULT_BODY,
@@ -19,7 +20,7 @@ from app.models import (
     User,
     UserRole,
 )
-from app.schemas import ChannelMessageCreate, ChannelMessageOut
+from app.schemas import ChannelMessageCreate, ChannelMessageOut, ChannelUnreadOut
 from app.services.archive import build_thumbnail, file_extension, save_upload
 from app.services.channel import message_out, resolve_location
 from app.services.movement import current_field_date
@@ -27,6 +28,23 @@ from app.services.movement import current_field_date
 router = APIRouter(tags=["channel"])
 
 ACCEPTED_PHOTO = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"}
+ACCEPTED_VIDEO = {"video/mp4", "video/webm", "video/quicktime"}
+# A generic "send anything" attachment — common office/document formats plus archives. Not a
+# security allowlist for executables etc.; deliberately permissive since this is the same kind of
+# file a crew might otherwise text/email (a permit PDF, a site diagram, a spreadsheet).
+ACCEPTED_FILE = {
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+    "text/csv",
+    "application/zip",
+    "application/x-zip-compressed",
+}
 
 
 def _load_team(db: Session, team_id: int) -> Team:
@@ -222,13 +240,88 @@ async def post_channel_voice(
     return message_out(_load_message(db, team_id, row.id))
 
 
+@router.post("/api/teams/{team_id}/channel/video", response_model=ChannelMessageOut, status_code=201)
+async def post_channel_video(
+    team_id: int,
+    file: UploadFile = File(...),
+    kind: str = Form("note"),
+    body: str = Form(""),
+    duration_seconds: float | None = Form(None),
+    tower_id: int | None = Form(None),
+    latitude: float | None = Form(None),
+    longitude: float | None = Form(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_team_read()),
+):
+    kind = _kind(kind, user)
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Video is empty")
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    if len(raw) > max_bytes:
+        raise HTTPException(status_code=400, detail=f"Video is too large (max {settings.max_upload_size_mb} MB)")
+    ctype = (file.content_type or "").split(";")[0].strip().lower()
+    if ctype not in ACCEPTED_VIDEO:
+        raise HTTPException(status_code=400, detail="Send a video (MP4/WebM/MOV)")
+    row = _create_row(db, team_id, user, kind, body, tower_id, latitude, longitude, allow_empty=True)
+    ext = file_extension(file.filename, ctype)
+    stamp = dt.datetime.utcnow().strftime("%Y%m%dT%H%M%S%f")
+    rel = f"{team_id}/{row.field_date.isoformat()}/{stamp}{ext}"
+    save_upload(raw, rel, base_dir=settings.channel_dir)
+    row.video_path = rel
+    row.video_content_type = ctype
+    row.video_original_filename = file.filename
+    row.duration_seconds = duration_seconds
+    if not row.body:
+        row.body = "Video"
+    db.commit()
+    return message_out(_load_message(db, team_id, row.id))
+
+
+@router.post("/api/teams/{team_id}/channel/file", response_model=ChannelMessageOut, status_code=201)
+async def post_channel_file(
+    team_id: int,
+    file: UploadFile = File(...),
+    kind: str = Form("note"),
+    body: str = Form(""),
+    tower_id: int | None = Form(None),
+    latitude: float | None = Form(None),
+    longitude: float | None = Form(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_team_read()),
+):
+    kind = _kind(kind, user)
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="File is empty")
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    if len(raw) > max_bytes:
+        raise HTTPException(status_code=400, detail=f"File is too large (max {settings.max_upload_size_mb} MB)")
+    ctype = (file.content_type or "").split(";")[0].strip().lower()
+    if ctype not in ACCEPTED_FILE:
+        raise HTTPException(status_code=400, detail="That file type isn't supported")
+    row = _create_row(db, team_id, user, kind, body, tower_id, latitude, longitude, allow_empty=True)
+    ext = file_extension(file.filename, ctype)
+    stamp = dt.datetime.utcnow().strftime("%Y%m%dT%H%M%S%f")
+    rel = f"{team_id}/{row.field_date.isoformat()}/{stamp}{ext}"
+    save_upload(raw, rel, base_dir=settings.channel_dir)
+    row.file_path = rel
+    row.file_content_type = ctype
+    row.file_original_filename = file.filename
+    row.file_size = len(raw)
+    if not row.body:
+        row.body = file.filename or "File"
+    db.commit()
+    return message_out(_load_message(db, team_id, row.id))
+
+
 @router.get("/api/teams/{team_id}/channel/{message_id}/photo")
 def channel_photo(
     team_id: int,
     message_id: int,
     thumb: bool = Query(default=False),
     db: Session = Depends(get_db),
-    _user: User = Depends(require_team_read()),
+    _user: User = Depends(get_current_user),
 ):
     row = _load_message(db, team_id, message_id)
     rel = row.photo_thumb_path if thumb and row.photo_thumb_path else row.photo_path
@@ -248,7 +341,7 @@ def channel_audio(
     team_id: int,
     message_id: int,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_team_read()),
+    _user: User = Depends(get_current_user),
 ):
     row = _load_message(db, team_id, message_id)
     if not row.audio_path:
@@ -257,6 +350,42 @@ def channel_audio(
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Recording file missing")
     return FileResponse(path, media_type=row.audio_content_type or "audio/webm")
+
+
+@router.get("/api/teams/{team_id}/channel/{message_id}/video")
+def channel_video(
+    team_id: int,
+    message_id: int,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    row = _load_message(db, team_id, message_id)
+    if not row.video_path:
+        raise HTTPException(status_code=404, detail="No video")
+    path = settings.channel_dir / row.video_path
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Video file missing")
+    return FileResponse(path, media_type=row.video_content_type or "video/mp4")
+
+
+@router.get("/api/teams/{team_id}/channel/{message_id}/file")
+def channel_file(
+    team_id: int,
+    message_id: int,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    row = _load_message(db, team_id, message_id)
+    if not row.file_path:
+        raise HTTPException(status_code=404, detail="No file")
+    path = settings.channel_dir / row.file_path
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="File missing")
+    return FileResponse(
+        path,
+        media_type=row.file_content_type or "application/octet-stream",
+        filename=row.file_original_filename or path.name,
+    )
 
 
 @router.delete("/api/teams/{team_id}/channel/{message_id}", status_code=204)
@@ -282,9 +411,11 @@ def tracking_channel_feed(
     team_id: int | None = Query(default=None),
     limit: int = Query(default=150, ge=1, le=300),
     db: Session = Depends(get_db),
-    _viewer: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
+    _viewer: User = Depends(get_current_user),
 ):
-    """Dispatch inbox: tonight's channel traffic across crews, newest last."""
+    """One open company channel: every crew's traffic, newest last — every signed-in user can see
+    it (not just admin/reviewer), same as the Messages page. Posting is still per-team
+    (see post_channel and friends), just reading spans every team."""
     day = field_date or current_field_date()
     q = (
         db.query(TeamChannelMessage)
@@ -300,3 +431,25 @@ def tracking_channel_feed(
     rows = q.order_by(TeamChannelMessage.id.desc()).limit(limit).all()
     rows.reverse()
     return [message_out(r) for r in rows]
+
+
+@router.get("/api/tracking/channel/unread-count", response_model=ChannelUnreadOut)
+def channel_unread_count(
+    after_id: int = Query(default=0),
+    field_date: dt.date | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _viewer: User = Depends(get_current_user),
+):
+    """A cheap poll target for the Messages nav badge — counts only, no message bodies/media, so
+    every page can afford to check this often without pulling the full feed."""
+    day = field_date or current_field_date()
+    latest_id = db.query(func.max(TeamChannelMessage.id)).filter(TeamChannelMessage.field_date == day).scalar()
+    unread = 0
+    if latest_id and latest_id > after_id:
+        unread = (
+            db.query(func.count(TeamChannelMessage.id))
+            .filter(TeamChannelMessage.field_date == day, TeamChannelMessage.id > after_id)
+            .scalar()
+            or 0
+        )
+    return ChannelUnreadOut(unread_count=unread, latest_id=latest_id)

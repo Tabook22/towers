@@ -658,6 +658,17 @@ class TeamChannelMessage(Base):
     audio_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     audio_content_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # A short video clip — no server-side thumbnail (no ffmpeg in this stack), so the frontend just
+    # shows a play-button placeholder and streams it into a <video> element on tap.
+    video_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    video_content_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    video_original_filename: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # A generic file attachment (PDF, spreadsheet, doc, zip, ...) — a permit, a site diagram,
+    # anything that doesn't fit the photo/voice/video slots above.
+    file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    file_content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    file_original_filename: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
