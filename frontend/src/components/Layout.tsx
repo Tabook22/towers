@@ -11,6 +11,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   Drawer,
   IconButton,
   List,
@@ -24,7 +25,10 @@ import {
   Toolbar,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import DashboardIcon from '@mui/icons-material/SpaceDashboardRounded';
 import TowerIcon from '@mui/icons-material/CellTowerRounded';
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibraryRounded';
@@ -366,6 +370,45 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  const drawerContent = (
+    <>
+      <Toolbar />
+      <List sx={{ px: 1, pt: 2 }}>
+        {items.map((item) => (
+          <ListItemButton
+            key={item.to}
+            component={NavLink}
+            to={item.to}
+            end={item.to === '/'}
+            onClick={() => setMobileNavOpen(false)}
+            sx={{
+              borderRadius: 2,
+              mb: 0.5,
+              '&.active': {
+                bgcolor: 'primary.main',
+                color: 'primary.contrastText',
+                '& .MuiListItemIcon-root': { color: 'primary.contrastText' },
+              },
+            }}
+          >
+            <ListItemIcon>{item.icon}</ListItemIcon>
+            <ListItemText primary={item.label} />
+          </ListItemButton>
+        ))}
+      </List>
+      <Box sx={{ mt: 'auto', p: 2 }}>
+        <Typography variant="caption" color="text.secondary">
+          132 kV OHL Field Inspections
+          <br />
+          Dufar Area &amp; beyond
+        </Typography>
+      </Box>
+    </>
+  );
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -374,50 +417,105 @@ export function Layout({ children }: { children: ReactNode }) {
         color="primary"
         sx={{ zIndex: (t) => t.zIndex.drawer + 1, width: '100%' }}
       >
-        <Toolbar sx={{ gap: 1.5 }}>
-          <BoltIcon />
-          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 800, flexGrow: 1 }}>
+        <Toolbar sx={{ gap: { xs: 0.5, md: 1.5 }, px: { xs: 1, sm: 2 } }}>
+          <IconButton
+            color="inherit"
+            edge="start"
+            onClick={() => setMobileNavOpen(true)}
+            sx={{ display: { xs: 'inline-flex', md: 'none' } }}
+          >
+            <MenuRoundedIcon />
+          </IconButton>
+          <BoltIcon sx={{ display: { xs: 'none', sm: 'block' } }} />
+          <Typography
+            variant="h6"
+            noWrap
+            component="div"
+            sx={{ fontWeight: 800, flexGrow: 1, display: { xs: 'none', sm: 'block' } }}
+          >
             Insulator Inspector Pro
           </Typography>
-          <OfflineChip />
-          <TrackingChip />
-          <Tooltip title="Step-by-step guides for the daily/mission routine">
-            <Button
-              color="inherit"
-              size="small"
-              startIcon={<HelpOutlineIcon />}
-              onClick={() => navigate('/help')}
-              sx={{ borderRadius: 5, px: 1.5, bgcolor: 'rgba(255,255,255,0.12)', '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}
-            >
-              Help me
-            </Button>
-          </Tooltip>
-          <Typography variant="body2" sx={{ opacity: 0.9, mr: 1 }}>
-            {user?.full_name || user?.username} · {user?.role}
-          </Typography>
-          <NotificationBell />
-          <Tooltip title={mode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
-            <IconButton color="inherit" onClick={toggleMode}>
-              {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Log out">
-            <IconButton
-              color="inherit"
-              onClick={() => {
-                logout();
-                navigate('/login');
-              }}
-            >
-              <LogoutIcon />
-            </IconButton>
-          </Tooltip>
-          <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)} sx={{ p: 0.5 }}>
+          <Box sx={{ flexGrow: { xs: 1, sm: 0 } }} />
+
+          {/* Desktop: every status/action visible inline, unchanged from before. */}
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1.5 }}>
+            <OfflineChip />
+            <TrackingChip />
+            <Tooltip title="Step-by-step guides for the daily/mission routine">
+              <Button
+                color="inherit"
+                size="small"
+                startIcon={<HelpOutlineIcon />}
+                onClick={() => navigate('/help')}
+                sx={{ borderRadius: 5, px: 1.5, bgcolor: 'rgba(255,255,255,0.12)', '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}
+              >
+                Help me
+              </Button>
+            </Tooltip>
+            <Typography variant="body2" sx={{ opacity: 0.9, mr: 1 }}>
+              {user?.full_name || user?.username} · {user?.role}
+            </Typography>
+            <NotificationBell />
+            <Tooltip title={mode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
+              <IconButton color="inherit" onClick={toggleMode}>
+                {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Log out">
+              <IconButton
+                color="inherit"
+                onClick={() => {
+                  logout();
+                  navigate('/login');
+                }}
+              >
+                <LogoutIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+
+          {/* Mobile: only what needs to be glanceable at all times — GPS status and any offline/
+              sync notice — everything else (help, theme, notifications, logout) moves into the
+              avatar menu below so the toolbar never overflows a phone-width screen. */}
+          <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center' }}>
+            <OfflineChip />
+            <TrackingChip />
+          </Box>
+
+          <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)} sx={{ p: 0.5, ml: { xs: 0.5, md: 0 } }}>
             <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main', color: 'secondary.contrastText', fontWeight: 700 }}>
               {(user?.full_name || user?.username || '?').slice(0, 1).toUpperCase()}
             </Avatar>
           </IconButton>
           <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
+            <MenuItem disabled sx={{ display: { xs: 'flex', md: 'none' }, opacity: '1 !important' }}>
+              <Typography variant="body2" color="text.secondary">
+                {user?.full_name || user?.username} · {user?.role}
+              </Typography>
+            </MenuItem>
+            <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+              <Divider />
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  navigate('/help');
+                }}
+              >
+                <ListItemIcon>
+                  <HelpOutlineIcon fontSize="small" />
+                </ListItemIcon>
+                Help me
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  toggleMode();
+                  setMenuAnchor(null);
+                }}
+              >
+                <ListItemIcon>{mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}</ListItemIcon>
+                {mode === 'dark' ? 'Light theme' : 'Dark theme'}
+              </MenuItem>
+            </Box>
             <MenuItem
               onClick={() => {
                 setMenuAnchor(null);
@@ -429,51 +527,43 @@ export function Layout({ children }: { children: ReactNode }) {
               </ListItemIcon>
               Change password
             </MenuItem>
+            <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+              <Divider />
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  logout();
+                  navigate('/login');
+                }}
+              >
+                <ListItemIcon>
+                  <LogoutIcon fontSize="small" />
+                </ListItemIcon>
+                Log out
+              </MenuItem>
+            </Box>
           </Menu>
         </Toolbar>
       </AppBar>
       <Drawer
-        variant="permanent"
+        variant={isMobile ? 'temporary' : 'permanent'}
+        open={isMobile ? mobileNavOpen : true}
+        onClose={() => setMobileNavOpen(false)}
+        ModalProps={{ keepMounted: true }}
         sx={{
           width: drawerWidth,
           flexShrink: 0,
           [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: 'border-box', borderRight: '1px solid', borderColor: 'divider' },
         }}
       >
-        <Toolbar />
-        <List sx={{ px: 1, pt: 2 }}>
-          {items.map((item) => (
-            <ListItemButton
-              key={item.to}
-              component={NavLink}
-              to={item.to}
-              end={item.to === '/'}
-              sx={{
-                borderRadius: 2,
-                mb: 0.5,
-                '&.active': {
-                  bgcolor: 'primary.main',
-                  color: 'primary.contrastText',
-                  '& .MuiListItemIcon-root': { color: 'primary.contrastText' },
-                },
-              }}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} />
-            </ListItemButton>
-          ))}
-        </List>
-        <Box sx={{ mt: 'auto', p: 2 }}>
-          <Typography variant="caption" color="text.secondary">
-            132 kV OHL Field Inspections
-            <br />
-            Dufar Area &amp; beyond
-          </Typography>
-        </Box>
+        {drawerContent}
       </Drawer>
-      <Box component="main" sx={{ flexGrow: 1, p: 3, width: `calc(100% - ${drawerWidth}px)` }}>
+      <Box
+        component="main"
+        sx={{ flexGrow: 1, p: { xs: 1.5, sm: 3 }, width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` }, minWidth: 0 }}
+      >
         <Toolbar />
-        <Box sx={{ mx: -3, mt: -3, mb: 2 }}>
+        <Box sx={{ mx: { xs: -1.5, sm: -3 }, mt: { xs: -1.5, sm: -3 }, mb: 2 }}>
           <OfflineBanner />
           <LocationBanner />
         </Box>

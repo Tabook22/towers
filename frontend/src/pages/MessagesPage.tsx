@@ -14,7 +14,9 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import SendIcon from '@mui/icons-material/SendRounded';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCameraRounded';
 import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
@@ -22,6 +24,7 @@ import AttachFileRoundedIcon from '@mui/icons-material/AttachFileRounded';
 import RoomRoundedIcon from '@mui/icons-material/RoomRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { useTeams, useTrackingChannel, usePostChannel } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { MessageBody } from '../components/NightChannel';
@@ -53,8 +56,19 @@ export function MessagesPage() {
   const { user } = useAuth();
   const { data: teams } = useTeams();
   const here = useHere();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  // Phone-width: show either the channel list or the open thread, WhatsApp-style, never both at
+  // once (there isn't room). Desktop/tablet always shows both side by side, same as before.
+  const [mobileShowList, setMobileShowList] = useState(true);
   const [selected, setSelected] = useState<number | 'all'>('all');
   const { data, isLoading } = useTrackingChannel(undefined, selected === 'all' ? undefined : selected);
+  const selectChannel = (key: number | 'all') => {
+    setSelected(key);
+    setMobileShowList(false);
+  };
+  const showList = !isMobile || mobileShowList;
+  const showThread = !isMobile || !mobileShowList;
 
   // Posting is still per-team (see routers/channel.py) — a crew member always posts as their own
   // team; an admin/reviewer with no home team must pick a specific team from the list first.
@@ -108,43 +122,64 @@ export function MessagesPage() {
         direction="row"
         spacing={0}
         sx={{
-          height: 'calc(100vh - 230px)',
-          minHeight: 480,
+          height: { xs: 'calc(100vh - 190px)', md: 'calc(100vh - 230px)' },
+          minHeight: 420,
           border: '1px solid',
           borderColor: 'divider',
           borderRadius: 2,
           overflow: 'hidden',
         }}
       >
-        <Box sx={{ width: 260, flexShrink: 0, borderRight: '1px solid', borderColor: 'divider', overflowY: 'auto', bgcolor: 'background.paper' }}>
-          <List dense disablePadding>
-            <ListItemButton selected={selected === 'all'} onClick={() => setSelected('all')}>
-              <ListItemIcon sx={{ minWidth: 40 }}>
-                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
-                  <ForumRoundedIcon fontSize="small" />
-                </Avatar>
-              </ListItemIcon>
-              <ListItemText primary="All crews" secondary="Everyone, tonight" />
-            </ListItemButton>
-            {activeTeams.map((t) => (
-              <ListItemButton key={t.id} selected={selected === t.id} onClick={() => setSelected(t.id)}>
+        {showList && (
+          <Box
+            sx={{
+              width: { xs: '100%', md: 260 },
+              flexShrink: 0,
+              borderRight: { xs: 0, md: '1px solid' },
+              borderColor: 'divider',
+              overflowY: 'auto',
+              bgcolor: 'background.paper',
+            }}
+          >
+            <List dense disablePadding>
+              <ListItemButton selected={selected === 'all'} onClick={() => selectChannel('all')}>
                 <ListItemIcon sx={{ minWidth: 40 }}>
-                  <Avatar sx={{ width: 32, height: 32, bgcolor: 'action.selected', color: 'text.primary' }}>
-                    <GroupsRoundedIcon fontSize="small" />
+                  <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+                    <ForumRoundedIcon fontSize="small" />
                   </Avatar>
                 </ListItemIcon>
-                <ListItemText primary={t.name} secondary={t.id === user?.team_id ? 'Your team' : undefined} />
+                <ListItemText primary="All crews" secondary="Everyone, tonight" />
               </ListItemButton>
-            ))}
-          </List>
-        </Box>
+              {activeTeams.map((t) => (
+                <ListItemButton key={t.id} selected={selected === t.id} onClick={() => selectChannel(t.id)}>
+                  <ListItemIcon sx={{ minWidth: 40 }}>
+                    <Avatar sx={{ width: 32, height: 32, bgcolor: 'action.selected', color: 'text.primary' }}>
+                      <GroupsRoundedIcon fontSize="small" />
+                    </Avatar>
+                  </ListItemIcon>
+                  <ListItemText primary={t.name} secondary={t.id === user?.team_id ? 'Your team' : undefined} />
+                </ListItemButton>
+              ))}
+            </List>
+          </Box>
+        )}
 
+        {showThread && (
         <Stack sx={{ flex: 1, minWidth: 0 }}>
-          <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Typography sx={{ fontWeight: 700 }}>{selectedTeamName}</Typography>
-            <Typography variant="caption" color="text.secondary">
-              {selected === 'all' ? 'Read-only mix of every crew — posts go to your own team' : 'This team, tonight'}
-            </Typography>
+          <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+            {isMobile && (
+              <IconButton size="small" onClick={() => setMobileShowList(true)} sx={{ ml: -0.5 }}>
+                <ArrowBackRoundedIcon fontSize="small" />
+              </IconButton>
+            )}
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 700 }} noWrap>
+                {selectedTeamName}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {selected === 'all' ? 'Read-only mix of every crew — posts go to your own team' : 'This team, tonight'}
+              </Typography>
+            </Box>
           </Box>
 
           {isLoading && <LinearProgress />}
@@ -296,6 +331,7 @@ export function MessagesPage() {
             </Stack>
           </Box>
         </Stack>
+        )}
       </Stack>
     </Stack>
   );
