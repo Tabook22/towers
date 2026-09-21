@@ -71,6 +71,7 @@ class UserOut(BaseModel):
     job_type: str | None = None
     role: str
     is_active: bool
+    is_approved: bool = True
     team_id: int | None = None
     is_super_admin: bool = True
     permissions: list[str] = Field(default_factory=list)
@@ -88,6 +89,9 @@ class UserUpdate(BaseModel):
     job_type: str | None = None
     role: str | None = None
     is_active: bool | None = None
+    # Admin-only (see routers/auth.py's update_user) — approves a self-registered account so it can
+    # finally sign in. Never settable by a team_leader through this same route.
+    is_approved: bool | None = None
     team_id: int | None = None
     is_super_admin: bool | None = None
     permissions: list[str] | None = None
@@ -100,6 +104,17 @@ class UserUpdate(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str = Field(min_length=6)
+
+
+class UserRegister(BaseModel):
+    """Public self sign-up (routers/auth.py's register()) — deliberately far narrower than
+    UserCreate: no role, team, or permission fields, since an unvetted signup always lands as a
+    plain team_member with no team and is_approved=False until an admin reviews it."""
+
+    username: str = Field(min_length=3, max_length=80)
+    password: str = Field(min_length=6)
+    full_name: str | None = None
+    mobile: str | None = Field(default=None, max_length=60)
 
 
 # ---------- Area (the catalog behind Tower.area — see models.Area) ----------

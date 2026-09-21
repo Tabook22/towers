@@ -13,9 +13,13 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControl,
   FormControlLabel,
   Grid,
   IconButton,
+  InputLabel,
+  MenuItem,
+  Select,
   Stack,
   Switch,
   Table,
@@ -35,7 +39,18 @@ import AddIcon from '@mui/icons-material/AddRounded';
 import EditIcon from '@mui/icons-material/EditRounded';
 import DeleteIcon from '@mui/icons-material/DeleteOutlineRounded';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettingsRounded';
-import { useBrandingSettings, useCreateUser, useDeleteUser, useUpdateBrandingSettings, useUpdateUser, useUsers } from '../api/hooks';
+import CheckCircleIcon from '@mui/icons-material/CheckCircleRounded';
+import CancelIcon from '@mui/icons-material/CancelRounded';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmptyRounded';
+import {
+  useBrandingSettings,
+  useCreateUser,
+  useDeleteUser,
+  useTeams,
+  useUpdateBrandingSettings,
+  useUpdateUser,
+  useUsers,
+} from '../api/hooks';
 import { mediaUrl } from '../api/client';
 import { ImageCropDialog } from '../components/ImageCropDialog';
 import { BrandingBanner, BrandingLogoBlock, BrandingNameRow } from '../components/BrandingPreview';
@@ -808,6 +823,159 @@ function PermissionEditor({ value, onChange }: { value: string[]; onChange: (nex
   );
 }
 
+function PendingAccountsSection() {
+  const { data: users } = useUsers();
+  const { data: teams } = useTeams();
+  const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
+  const pending = (users || []).filter((u) => !u.is_approved);
+
+  const [approving, setApproving] = useState<AdminUser | null>(null);
+  const [approveRole, setApproveRole] = useState<'team_member' | 'team_leader'>('team_member');
+  const [approveTeamId, setApproveTeamId] = useState<number | ''>('');
+  const [approveError, setApproveError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const openApprove = (u: AdminUser) => {
+    setApproving(u);
+    setApproveRole('team_member');
+    setApproveTeamId('');
+    setApproveError(null);
+  };
+
+  const confirmApprove = () => {
+    if (!approving) return;
+    setApproveError(null);
+    updateUser.mutate(
+      {
+        id: approving.id,
+        payload: {
+          is_approved: true,
+          role: approveRole,
+          team_id: approveTeamId === '' ? null : approveTeamId,
+        },
+      },
+      {
+        onSuccess: () => setApproving(null),
+        onError: (err: unknown) => {
+          const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+          setApproveError(detail || 'Could not approve this account.');
+        },
+      },
+    );
+  };
+
+  const reject = (u: AdminUser) => {
+    setActionError(null);
+    if (!window.confirm(`Reject and delete the pending account "${u.username}"? This can't be undone.`)) return;
+    deleteUser.mutate(u.id, {
+      onError: (err: unknown) => {
+        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+        setActionError(detail || `Could not reject "${u.username}".`);
+      },
+    });
+  };
+
+  if (pending.length === 0) return null;
+
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+          <HourglassEmptyIcon color="warning" fontSize="small" />
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Pending sign-ups
+          </Typography>
+          <Chip size="small" color="warning" label={pending.length} />
+        </Stack>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          These accounts created themselves from the login page and can't sign in until you approve them.
+        </Typography>
+        {actionError && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setActionError(null)}>
+            {actionError}
+          </Alert>
+        )}
+
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Username</TableCell>
+                <TableCell>Full name</TableCell>
+                <TableCell>Mobile</TableCell>
+                <TableCell align="right">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {pending.map((u) => (
+                <TableRow key={u.id} hover>
+                  <TableCell>{u.username}</TableCell>
+                  <TableCell>{u.full_name || '—'}</TableCell>
+                  <TableCell>{u.mobile || '—'}</TableCell>
+                  <TableCell align="right">
+                    <Button size="small" color="success" startIcon={<CheckCircleIcon />} onClick={() => openApprove(u)}>
+                      Approve
+                    </Button>
+                    <Button size="small" color="error" startIcon={<CancelIcon />} onClick={() => reject(u)}>
+                      Reject
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </CardContent>
+
+      <Dialog open={!!approving} onClose={() => setApproving(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Approve — {approving?.username}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {approveError && <Alert severity="error">{approveError}</Alert>}
+            <FormControl fullWidth>
+              <InputLabel id="approve-role-label">Role</InputLabel>
+              <Select
+                labelId="approve-role-label"
+                label="Role"
+                value={approveRole}
+                onChange={(e) => setApproveRole(e.target.value as 'team_member' | 'team_leader')}
+              >
+                <MenuItem value="team_member">Team member</MenuItem>
+                <MenuItem value="team_leader">Team leader</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="approve-team-label">Team (optional)</InputLabel>
+              <Select
+                labelId="approve-team-label"
+                label="Team (optional)"
+                value={approveTeamId === '' ? '' : String(approveTeamId)}
+                onChange={(e) => setApproveTeamId(e.target.value === '' ? '' : Number(e.target.value))}
+              >
+                <MenuItem value="">
+                  <em>No team</em>
+                </MenuItem>
+                {(teams || []).map((t) => (
+                  <MenuItem key={t.id} value={String(t.id)}>
+                    {t.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setApproving(null)}>Cancel</Button>
+          <Button variant="contained" color="success" onClick={confirmApprove} disabled={updateUser.isPending}>
+            Approve
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Card>
+  );
+}
+
 function AdminAccountsSection() {
   const { data: users } = useUsers();
   const { user: currentUser } = useAuth();
@@ -1119,6 +1287,7 @@ export function SettingsPage() {
         Settings
       </Typography>
       <Stack spacing={3}>
+        {user?.role === 'admin' && <PendingAccountsSection />}
         {canManageSettings && <BrandingSection />}
         {canManageSettings && <OrganizationBrandingSection />}
         {isSuperAdmin && <AdminAccountsSection />}

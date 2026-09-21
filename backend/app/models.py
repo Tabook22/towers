@@ -59,6 +59,12 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(20), default=UserRole.INSPECTOR.value)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # True for every account an admin creates directly (unchanged behavior) — only the public
+    # self-registration endpoint (routers/auth.py's register()) ever creates a row with this False,
+    # and login() refuses to issue a token until an admin flips it via update_user. Deliberately a
+    # separate flag from is_active: that one is for an admin later disabling a once-good account,
+    # this one is for an account that was never vetted in the first place.
+    is_approved: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
     # The login this account's device pings/visits count toward for team tracking & progress —
     # nullable because not every login has to belong to a team (e.g. an office/admin account).

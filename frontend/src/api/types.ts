@@ -443,6 +443,7 @@ export interface AdminUser {
   job_type: string | null;
   role: string;
   is_active: boolean;
+  is_approved: boolean;
   team_id: number | null;
   is_super_admin: boolean;
   permissions: string[];
