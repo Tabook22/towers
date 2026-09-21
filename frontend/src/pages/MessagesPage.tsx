@@ -197,7 +197,7 @@ export function MessagesPage() {
           <Box sx={{ p: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
             {!canPost && (
               <Alert severity="info" sx={{ mb: 1 }}>
-                Pick a team on the left to post as — you don't have a home team of your own.
+                Pick a team from the channel list to post as — you don't have a home team of your own.
               </Alert>
             )}
             <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', mb: 1 }}>
@@ -213,77 +213,81 @@ export function MessagesPage() {
                 />
               ))}
             </Stack>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
-              <TextField
-                size="small"
-                placeholder={canPost ? 'Message the crew…' : 'Select a team to post'}
-                value={draft}
-                disabled={!canPost}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (draft.trim()) send(kind === 'dispatch' ? 'dispatch' : 'note');
-                  }
-                }}
-                sx={{ flex: 1 }}
-              />
-              <Tooltip title="Send">
-                <span>
-                  <IconButton
-                    color="primary"
-                    disabled={sending || !canPost || !draft.trim()}
-                    onClick={() => send(kind === 'dispatch' ? 'dispatch' : 'note')}
-                  >
-                    <SendIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title="Photo">
-                <span>
-                  <IconButton disabled={sending || !canPost} onClick={() => photoRef.current?.click()}>
-                    <PhotoCameraIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title="Video">
-                <span>
-                  <IconButton disabled={sending || !canPost} onClick={() => videoRef.current?.click()}>
-                    <VideocamRoundedIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title="Attach file">
-                <span>
-                  <IconButton disabled={sending || !canPost} onClick={() => fileRef.current?.click()}>
-                    <AttachFileRoundedIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title={here ? 'Share my location' : 'Waiting for GPS…'}>
-                <span>
-                  <IconButton
-                    disabled={sending || !canPost || !here}
-                    onClick={() => send(kind === 'dispatch' ? 'dispatch' : 'note', draft.trim() || '📍 Shared location')}
-                  >
-                    <RoomRoundedIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <VoiceNoteControls
-                disabled={sending || !canPost}
-                saving={channel.voice.isPending}
-                onRecorded={(blob, duration, live) => {
-                  channel.voice.mutate({
-                    file: blob,
-                    duration_seconds: duration,
-                    kind: kind === 'dispatch' ? 'dispatch' : 'note',
-                    body: draft.trim() || live || undefined,
-                    ...loc,
-                  });
-                  setDraft('');
-                }}
-              />
+            <Stack spacing={1}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <TextField
+                  size="small"
+                  placeholder={canPost ? 'Message the crew…' : 'Select a team to post'}
+                  value={draft}
+                  disabled={!canPost}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (draft.trim()) send(kind === 'dispatch' ? 'dispatch' : 'note');
+                    }
+                  }}
+                  sx={{ flex: 1, minWidth: 0 }}
+                />
+                <Tooltip title="Send">
+                  <span>
+                    <IconButton
+                      color="primary"
+                      disabled={sending || !canPost || !draft.trim()}
+                      onClick={() => send(kind === 'dispatch' ? 'dispatch' : 'note')}
+                    >
+                      <SendIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
+              <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                <Tooltip title="Photo">
+                  <span>
+                    <IconButton disabled={sending || !canPost} onClick={() => photoRef.current?.click()}>
+                      <PhotoCameraIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title="Video">
+                  <span>
+                    <IconButton disabled={sending || !canPost} onClick={() => videoRef.current?.click()}>
+                      <VideocamRoundedIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title="Attach file">
+                  <span>
+                    <IconButton disabled={sending || !canPost} onClick={() => fileRef.current?.click()}>
+                      <AttachFileRoundedIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title={here ? 'Share my location' : 'Waiting for GPS…'}>
+                  <span>
+                    <IconButton
+                      disabled={sending || !canPost || !here}
+                      onClick={() => send(kind === 'dispatch' ? 'dispatch' : 'note', draft.trim() || '📍 Shared location')}
+                    >
+                      <RoomRoundedIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <VoiceNoteControls
+                  disabled={sending || !canPost}
+                  saving={channel.voice.isPending}
+                  onRecorded={(blob, duration, live) => {
+                    channel.voice.mutate({
+                      file: blob,
+                      duration_seconds: duration,
+                      kind: kind === 'dispatch' ? 'dispatch' : 'note',
+                      body: draft.trim() || live || undefined,
+                      ...loc,
+                    });
+                    setDraft('');
+                  }}
+                />
+              </Stack>
               <input
                 ref={photoRef}
                 type="file"
