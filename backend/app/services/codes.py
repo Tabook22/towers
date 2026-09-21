@@ -38,13 +38,26 @@ def refresh_position_codes(position: Position) -> None:
     pcode = position_code(tower_id, position.ohl, position.phase, position.string, position.direction)
     position.position_code = pcode
 
-    by_type = {img.image_type: img for img in position.images}
+    # Only the baseline (sequence == 1) image of each type feeds evidence-status/roll-up counting
+    # (see models.Image) — filter to it explicitly rather than picking whichever image of that type
+    # `position.images` happens to list last, which could otherwise be an extra (sequence > 1) one
+    # and collide its code with the baseline's (images.image_code is unique).
+    baseline_by_type = {img.image_type: img for img in position.images if img.sequence == 1}
     for img_type in IMAGE_TYPE_CHOICES:
-        img = by_type.get(img_type)
+        img = baseline_by_type.get(img_type)
         if img is None:
             continue
         img.image_code = image_code(pcode, position.ohl, position.phase, position.string, position.direction, img_type)
         _apply_default_evidence_status(position, img)
+
+    # Extra gallery images (sequence > 1) aren't part of the required checklist, but their code
+    # should still track the position's own code (base code + their sequence suffix, same scheme as
+    # routers/positions.py's add_extra_image) rather than going stale after a Direction/phase edit.
+    for img in position.images:
+        if img.sequence == 1:
+            continue
+        base = image_code(pcode, position.ohl, position.phase, position.string, position.direction, img.image_type)
+        img.image_code = base if base is None else f"{base}-{img.sequence}"
 
 
 def _apply_default_evidence_status(position: Position, img) -> None:
