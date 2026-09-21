@@ -6,7 +6,7 @@ import datetime as dt
 import io
 
 import pytest
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 from fastapi import UploadFile
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -40,9 +40,11 @@ def test_post_channel_video_sets_has_video(db, tmp_path, monkeypatch):
     db.commit()
 
     video = UploadFile(file=io.BytesIO(b"fake-mp4-bytes"), filename="clip.mp4", headers=Headers({"content-type": "video/mp4"}))
+    tasks = BackgroundTasks()
     out = asyncio.run(
         channel.post_channel_video(
             team_id=team.id,
+            background_tasks=tasks,
             file=video,
             kind="note",
             body="",
@@ -58,6 +60,9 @@ def test_post_channel_video_sets_has_video(db, tmp_path, monkeypatch):
     assert out.body == "Video"
     row = db.get(TeamChannelMessage, out.id)
     assert (tmp_path / row.video_path).exists()
+    # A push notification was scheduled for this message.
+    assert len(tasks.tasks) == 1
+    assert tasks.tasks[0].args == (10, "crew10 · Alpha", "Video", "/messages")
 
 
 def test_post_channel_video_rejects_wrong_type(db, tmp_path, monkeypatch):
@@ -69,7 +74,7 @@ def test_post_channel_video_rejects_wrong_type(db, tmp_path, monkeypatch):
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
             channel.post_channel_video(
-                team_id=team.id, file=bad, kind="note", body="", duration_seconds=None,
+                team_id=team.id, background_tasks=BackgroundTasks(), file=bad, kind="note", body="", duration_seconds=None,
                 tower_id=None, latitude=None, longitude=None, db=db, user=_team_member(team.id),
             )
         )
@@ -86,7 +91,7 @@ def test_post_channel_file_sets_has_file_and_size(db, tmp_path, monkeypatch):
     doc = UploadFile(file=io.BytesIO(payload), filename="permit.pdf", headers=Headers({"content-type": "application/pdf"}))
     out = asyncio.run(
         channel.post_channel_file(
-            team_id=team.id, file=doc, kind="note", body="",
+            team_id=team.id, background_tasks=BackgroundTasks(), file=doc, kind="note", body="",
             tower_id=None, latitude=None, longitude=None, db=db, user=_team_member(team.id),
         )
     )

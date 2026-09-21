@@ -935,6 +935,7 @@ export interface ChannelMessage {
   created_by: number | null;
   author_name: string | null;
   author_role: string | null;
+  author_mobile: string | null;
   created_at: string;
 }
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
@@ -24,6 +24,7 @@ from app.schemas import ChannelMessageCreate, ChannelMessageOut, ChannelUnreadOu
 from app.services.archive import build_thumbnail, file_extension, save_upload
 from app.services.channel import message_out, resolve_location
 from app.services.movement import current_field_date
+from app.services.push import notify_new_message
 
 router = APIRouter(tags=["channel"])
 
@@ -82,6 +83,17 @@ def _fallback_gps(db: Session, user: User, latitude: float | None, longitude: fl
     if ping:
         return ping.latitude, ping.longitude
     return latitude, longitude
+
+
+def _schedule_push(background_tasks: BackgroundTasks, db: Session, team_id: int, user: User, row: TeamChannelMessage) -> None:
+    """Pushes a lock-screen notification to every other signed-in user with the app open — see
+    services/push.py. Computed synchronously here (while the request's session is still open) and
+    handed to the background task as plain strings, since that task opens its own session."""
+    team = db.get(Team, team_id)
+    who = user.full_name or user.username
+    title = f"{who} · {team.name}" if team else who
+    body = row.body or "New message"
+    background_tasks.add_task(notify_new_message, user.id, title, body, "/messages")
 
 
 def _load_message(db: Session, team_id: int, message_id: int) -> TeamChannelMessage:
@@ -161,11 +173,13 @@ def _create_row(
 def post_channel(
     team_id: int,
     payload: ChannelMessageCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(require_team_read()),
 ):
     kind = _kind(payload.kind, user)
     row = _create_row(db, team_id, user, kind, payload.body, payload.tower_id, payload.latitude, payload.longitude)
+    _schedule_push(background_tasks, db, team_id, user, row)
     db.commit()
     return message_out(_load_message(db, team_id, row.id))
 
@@ -173,6 +187,7 @@ def post_channel(
 @router.post("/api/teams/{team_id}/channel/photo", response_model=ChannelMessageOut, status_code=201)
 async def post_channel_photo(
     team_id: int,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     kind: str = Form("note"),
     body: str = Form(""),
@@ -204,6 +219,7 @@ async def post_channel_photo(
     row.photo_original_filename = file.filename
     if not row.body:
         row.body = "Photo"
+    _schedule_push(background_tasks, db, team_id, user, row)
     db.commit()
     return message_out(_load_message(db, team_id, row.id))
 
@@ -211,6 +227,7 @@ async def post_channel_photo(
 @router.post("/api/teams/{team_id}/channel/voice", response_model=ChannelMessageOut, status_code=201)
 async def post_channel_voice(
     team_id: int,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     kind: str = Form("note"),
     body: str = Form(""),
@@ -236,6 +253,7 @@ async def post_channel_voice(
     row.duration_seconds = duration_seconds
     if not row.body:
         row.body = "Voice note"
+    _schedule_push(background_tasks, db, team_id, user, row)
     db.commit()
     return message_out(_load_message(db, team_id, row.id))
 
@@ -243,6 +261,7 @@ async def post_channel_voice(
 @router.post("/api/teams/{team_id}/channel/video", response_model=ChannelMessageOut, status_code=201)
 async def post_channel_video(
     team_id: int,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     kind: str = Form("note"),
     body: str = Form(""),
@@ -274,6 +293,7 @@ async def post_channel_video(
     row.duration_seconds = duration_seconds
     if not row.body:
         row.body = "Video"
+    _schedule_push(background_tasks, db, team_id, user, row)
     db.commit()
     return message_out(_load_message(db, team_id, row.id))
 
@@ -281,6 +301,7 @@ async def post_channel_video(
 @router.post("/api/teams/{team_id}/channel/file", response_model=ChannelMessageOut, status_code=201)
 async def post_channel_file(
     team_id: int,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     kind: str = Form("note"),
     body: str = Form(""),
@@ -311,6 +332,7 @@ async def post_channel_file(
     row.file_size = len(raw)
     if not row.body:
         row.body = file.filename or "File"
+    _schedule_push(background_tasks, db, team_id, user, row)
     db.commit()
     return message_out(_load_message(db, team_id, row.id))
 

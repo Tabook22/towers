@@ -24,6 +24,7 @@ from app.routers import (
     knowledge_base,
     lists,
     positions,
+    push,
     report_templates,
     reports,
     team_archive,
@@ -56,6 +57,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(app_settings.router)
+app.include_router(push.router)
 app.include_router(areas.router)
 app.include_router(towers.router)
 app.include_router(visits.router)

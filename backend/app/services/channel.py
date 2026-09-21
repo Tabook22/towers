@@ -128,5 +128,6 @@ def message_out(row: TeamChannelMessage) -> ChannelMessageOut:
         created_by=row.created_by,
         author_name=(author.full_name or author.username) if author else None,
         author_role=author.role if author else None,
+        author_mobile=author.mobile if author else None,
         created_at=row.created_at,
     )

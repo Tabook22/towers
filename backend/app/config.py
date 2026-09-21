@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     voice_notes_dir: Path = BASE_DIR / "storage" / "voice_notes"
     log_files_dir: Path = BASE_DIR / "storage" / "log_files"
     channel_dir: Path = BASE_DIR / "storage" / "channel"
+    # Web Push (see services/push.py) — the VAPID key pair is generated once and cached here on
+    # first use, same as every other environment-local file under storage/ (never committed, and
+    # deliberately different per deployment rather than a literal baked into source).
+    push_dir: Path = BASE_DIR / "storage" / "push"
+    vapid_subject: str = "mailto:ops@insulator-inspector.local"
     # Admin-uploaded branding assets (splash-screen logos) — see models.AppSetting.
     branding_dir: Path = BASE_DIR / "storage" / "branding"
     # Field reports / incident write-ups / reference files for the help-chat's knowledge base
@@ -71,5 +76,6 @@ for d in (
     settings.channel_dir,
     settings.branding_dir,
     settings.knowledge_base_dir,
+    settings.push_dir,
 ):
     d.mkdir(parents=True, exist_ok=True)

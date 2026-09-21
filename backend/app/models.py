@@ -678,6 +678,25 @@ class TeamChannelMessage(Base):
     author: Mapped["User | None"] = relationship(foreign_keys=[created_by])
 
 
+class PushSubscription(Base):
+    """One browser/device's Web Push subscription (see services/push.py) — a user can have several
+    (phone + tablet + desktop). Not team-scoped: every signed-in user is notified about every new
+    channel message, matching the "one open company channel" read model (routers/channel.py)."""
+
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (UniqueConstraint("endpoint", name="uq_push_subscription_endpoint"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    endpoint: Mapped[str] = mapped_column(String(1000))
+    p256dh: Mapped[str] = mapped_column(String(255))
+    auth: Mapped[str] = mapped_column(String(255))
+    user_agent: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+
+    user: Mapped["User"] = relationship()
+
+
 class TeamArchiveImage(Base):
     """A photo an admin uploads straight into a team's own archive — not tied to any specific
     tower/visit/position, unlike Image (inspection evidence). Auto-filed under the Image Archive

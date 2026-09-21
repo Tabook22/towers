@@ -989,12 +989,34 @@ class ChannelMessageOut(BaseModel):
     created_by: int | None = None
     author_name: str | None = None
     author_role: str | None = None
+    # Lets the Messages page offer one-tap "Call" / "WhatsApp" buttons back to whoever sent this —
+    # see components/NightChannel.tsx's MessageBody. None when the author has no number on file.
+    author_mobile: str | None = None
     created_at: dt.datetime
 
 
 class ChannelUnreadOut(BaseModel):
     unread_count: int
     latest_id: int | None = None
+
+
+class PushSubscriptionKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionCreate(BaseModel):
+    endpoint: str
+    keys: PushSubscriptionKeys
+    user_agent: str | None = None
+
+
+class PushUnsubscribe(BaseModel):
+    endpoint: str
+
+
+class VapidKeyOut(BaseModel):
+    public_key: str
 
 
 class VisitPhotoOut(BaseModel):

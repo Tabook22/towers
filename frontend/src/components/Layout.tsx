@@ -41,11 +41,15 @@ import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import DarkModeIcon from '@mui/icons-material/DarkModeRounded';
 import LightModeIcon from '@mui/icons-material/LightModeRounded';
 import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
+import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded';
+import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneRounded';
+import NotificationsOffRoundedIcon from '@mui/icons-material/NotificationsOffRounded';
 
 import LockResetIcon from '@mui/icons-material/LockResetRounded';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useTracking } from '../hooks/useFieldTracking';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import { useChangePassword, useChannelUnread } from '../api/hooks';
 import { useOffline } from '../offline/OfflineProvider';
 import { OfflineBanner, OfflineChip } from '../offline/OfflineStatus';
@@ -134,6 +138,37 @@ function TrackingChip() {
         }}
         sx={{ mr: 1, '& .MuiChip-icon': { color: 'inherit' } }}
       />
+    </Tooltip>
+  );
+}
+
+/** One tap to turn on lock-screen notifications for new Messages traffic (see services/push.py
+ * and public/sw.js) — per-browser/device, same as WhatsApp Web vs. the phone app. Hidden entirely
+ * on a browser with no Push API support (e.g. iOS Safari unless added to the home screen). */
+function NotificationBell() {
+  const { status, busy, error, enable, disable } = usePushNotifications();
+  if (status === 'unsupported') return null;
+  const subscribed = status === 'subscribed';
+  const label =
+    error ||
+    (status === 'denied'
+      ? 'Notifications are blocked — allow them in your browser/site settings'
+      : subscribed
+        ? 'Notifications on for new messages — click to turn off'
+        : 'Turn on notifications for new messages');
+  return (
+    <Tooltip title={label}>
+      <span>
+        <IconButton color="inherit" disabled={busy || status === 'denied'} onClick={() => (subscribed ? disable() : enable())}>
+          {status === 'denied' ? (
+            <NotificationsOffRoundedIcon />
+          ) : subscribed ? (
+            <NotificationsActiveRoundedIcon />
+          ) : (
+            <NotificationsNoneRoundedIcon />
+          )}
+        </IconButton>
+      </span>
     </Tooltip>
   );
 }
@@ -360,6 +395,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <Typography variant="body2" sx={{ opacity: 0.9, mr: 1 }}>
             {user?.full_name || user?.username} · {user?.role}
           </Typography>
+          <NotificationBell />
           <Tooltip title={mode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
             <IconButton color="inherit" onClick={toggleMode}>
               {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}

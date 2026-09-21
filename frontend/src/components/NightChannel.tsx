@@ -24,6 +24,8 @@ import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
 import AttachFileRoundedIcon from '@mui/icons-material/AttachFileRounded';
 import InsertDriveFileRoundedIcon from '@mui/icons-material/InsertDriveFileRounded';
 import RoomRoundedIcon from '@mui/icons-material/RoomRounded';
+import CallRoundedIcon from '@mui/icons-material/CallRounded';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { mediaUrl } from '../api/client';
 import { usePostChannel, useTeamChannel, useTrackingChannel } from '../api/hooks';
 import type { ChannelKind, ChannelMessage } from '../api/types';
@@ -56,6 +58,12 @@ const KIND_LABEL: Record<string, string> = {
 function clock(iso: string) {
   const d = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// wa.me wants digits only (no "+", spaces or dashes) — mobile numbers on file may have any of
+// those, so strip everything but digits before building the deep link.
+function digitsOnly(phone: string): string {
+  return phone.replace(/\D/g, '');
 }
 
 function formatBytes(bytes: number | null): string {
@@ -143,6 +151,26 @@ export function MessageBody({
         <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
           {msg.author_name || 'Unknown'} · {clock(msg.created_at)}
         </Typography>
+        {msg.author_mobile && (
+          <Stack direction="row" spacing={0.25}>
+            <Tooltip title={`Call ${msg.author_name || 'them'}`}>
+              <IconButton size="small" component="a" href={`tel:${msg.author_mobile}`}>
+                <CallRoundedIcon fontSize="inherit" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={`WhatsApp ${msg.author_name || 'them'}`}>
+              <IconButton
+                size="small"
+                component="a"
+                href={`https://wa.me/${digitsOnly(msg.author_mobile)}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <WhatsAppIcon fontSize="inherit" sx={{ color: '#25D366' }} />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        )}
       </Stack>
       {msg.body && (
         <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
