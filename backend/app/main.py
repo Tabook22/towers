@@ -10,6 +10,7 @@ from app.migrations import (
     backfill_areas_from_towers,
     backfill_visit_team_id_from_towers,
     rebuild_images_table_for_multi_image_support,
+    rebuild_positions_table_for_multi_direction_support,
 )
 from app.routers import (
     app_settings,
@@ -36,6 +37,7 @@ from app.routers import (
 
 Base.metadata.create_all(bind=engine)
 rebuild_images_table_for_multi_image_support(engine)
+rebuild_positions_table_for_multi_direction_support(engine)
 add_missing_columns(engine, Base)
 backfill_areas_from_towers(engine)
 backfill_visit_team_id_from_towers(engine)

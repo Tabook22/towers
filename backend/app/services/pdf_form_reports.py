@@ -61,12 +61,18 @@ def build_field_values(visit: Visit) -> dict[str, str]:
         "generated_date": dt.date.today().isoformat(),
     }
 
-    by_slot = {(p.ohl, p.phase, p.string): p for p in visit.positions}
+    # A Tension tower can have more than one Direction on the same (ohl, phase, string) — this
+    # fixed-field PDF form has no loop construct to show a second one (see module docstring), so
+    # keep the first (lowest id, i.e. the original baseline slot) and leave any further direction
+    # for that slot off this particular export; the dynamic Word/other reports show every row.
+    by_slot: dict[tuple[str, str, str], object] = {}
+    for p in sorted(visit.positions, key=lambda p: p.id):
+        by_slot.setdefault((p.ohl, p.phase, p.string), p)
     for i, combo in enumerate(POSITION_SLOT_ORDER, start=1):
         p = by_slot.get(combo)
         prefix = f"position_{i}_"
         if p is None:
-            # Shouldn't happen — all 12 slots always exist per visit — but stay safe if it ever does.
+            # Shouldn't happen — all 12 baseline slots always exist per visit — but stay safe if it ever does.
             for suffix in POSITION_FIELD_SUFFIXES:
                 values[f"{prefix}{suffix}"] = ""
             continue

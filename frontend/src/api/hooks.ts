@@ -481,6 +481,21 @@ export function useUpdatePosition(visitId: number) {
   });
 }
 
+// Adds a position beyond a visit's 12 baseline slots — only needed for a Tension-type tower
+// carrying the same OHL/phase/string out toward a second line Direction (see AddPositionBar).
+export function useCreatePosition(visitId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { ohl: string; phase: string; string: string; direction: string; mount_type?: string }) =>
+      (await apiClient.post<Position>(`/api/visits/${visitId}/positions`, payload)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['visit', visitId] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['towers'] });
+    },
+  });
+}
+
 // ---------- Images ----------
 export function useUploadImage(visitId: number) {
   const qc = useQueryClient();

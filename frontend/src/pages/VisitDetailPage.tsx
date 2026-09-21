@@ -24,6 +24,7 @@ import {
   useAddPositionVoiceNote,
   useChoiceLists,
   useClearImageFile,
+  useCreatePosition,
   useDeleteImage,
   useDeletePositionVoiceNote,
   useDeleteVisit,
@@ -73,6 +74,7 @@ export function VisitDetailPage() {
   const { data: lists } = useChoiceLists();
   const updateVisit = useUpdateVisit();
   const updatePosition = useUpdatePosition(id);
+  const createPosition = useCreatePosition(id);
   const uploadImage = useUploadImage(id);
   const updateImage = useUpdateImage(id);
   const clearImageFile = useClearImageFile(id);
@@ -151,6 +153,14 @@ export function VisitDetailPage() {
     if (Object.keys(payload).length > 0) {
       updatePosition.mutate({ id: position.id, payload });
     }
+  };
+
+  // Only reached for a Tension tower's second (or further) Direction on an OHL/phase/string whose
+  // one baseline slot is already claimed by a different direction — see AddPositionBar. The new row
+  // arrives with its direction already set, so it's immediately "active" (isPositionActive above)
+  // once the visit refetches; no addedIds bookkeeping needed the way handleAddPosition needs it.
+  const handleCreatePosition = (ohl: string, phase: string, string_: string, direction: string, mountType: string) => {
+    createPosition.mutate({ ohl, phase, string: string_, direction, mount_type: mountType || undefined });
   };
 
   const handleRemovePosition = (positionId: number) => {
@@ -512,6 +522,7 @@ export function VisitDetailPage() {
             lists={lists}
             towerArea={visit.tower?.area}
             onAdd={handleAddPosition}
+            onCreate={handleCreatePosition}
           />
           {visiblePositions.length === 0 && (
             <Alert severity="info">

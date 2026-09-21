@@ -9,7 +9,16 @@
  * overwriting a Direction the user already set (see call sites).
  */
 export function deriveDirectionFromArea(area: string | null | undefined, directionChoices: string[]): string | null {
-  if (!area) return null;
+  return deriveDirectionsFromArea(area, directionChoices)[0] ?? null;
+}
+
+/** Every Direction segment found in the tower's line/area name, in the order they appear (e.g.
+ * "Ashoor-Saada" -> ["Ashoor", "Saada"]) — a Tension position (see AddPositionBar) needs to offer
+ * ALL of them, not just a single best guess, since the line genuinely runs toward each one from
+ * that tower. Empty if the area doesn't match any known Direction, so callers can fall back to the
+ * full choice list rather than showing nothing. */
+export function deriveDirectionsFromArea(area: string | null | undefined, directionChoices: string[]): string[] {
+  if (!area) return [];
   const segments = area.split(/[-–—]/).map((s) => s.trim());
-  return segments.find((seg) => directionChoices.includes(seg)) ?? null;
+  return segments.filter((seg) => directionChoices.includes(seg));
 }

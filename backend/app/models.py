@@ -218,7 +218,10 @@ class Visit(Base):
     )
 
 
-# The fixed 12 positions generated per visit: 2 OHL x 3 phase x 2 string
+# The 12 baseline positions generated per visit: 2 OHL x 3 phase x 2 string. A Tension-type tower
+# can carry the same OHL/phase/string out toward a second line Direction — see Position below — so
+# a Tension tower's real total can go up to 12 x len(that tower's own Direction choices), typically
+# 24 for the common two-direction case.
 OHL_CHOICES = ["OHL1", "OHL2"]
 PHASE_CHOICES = ["R", "Y", "B"]
 STRING_CHOICES = ["S1", "S2"]
@@ -264,11 +267,16 @@ EVIDENCE_STATUS_CHOICES = ["NOT REQUIRED", "PENDING CAPTURE", "COMPLETE", "RECAP
 
 
 class Position(Base):
-    """One of the 12 fixed insulator-string positions on a tower for a visit."""
+    """An insulator-string reading on a tower for a visit, one row per (OHL, phase, string,
+    direction). Every visit starts with the 12 baseline slots (2 OHL x 3 phase x 2 string,
+    direction unset — see routers/visits.py's create_visit_row), which cover a Suspension tower
+    completely. A Tension tower can carry the same OHL/phase/string out toward more than one line
+    Direction, so a second (and further) direction for an already-claimed slot gets its own extra
+    row instead of overwriting the first — see routers/visits.py's add_extra_position."""
 
     __tablename__ = "positions"
     __table_args__ = (
-        UniqueConstraint("visit_id", "ohl", "phase", "string", name="uq_position_slot"),
+        UniqueConstraint("visit_id", "ohl", "phase", "string", "direction", name="uq_position_slot"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

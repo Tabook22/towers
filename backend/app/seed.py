@@ -9,7 +9,11 @@ from __future__ import annotations
 import datetime as dt
 
 from app.database import Base, SessionLocal, engine
-from app.migrations import add_missing_columns, rebuild_images_table_for_multi_image_support
+from app.migrations import (
+    add_missing_columns,
+    rebuild_images_table_for_multi_image_support,
+    rebuild_positions_table_for_multi_direction_support,
+)
 from app.models import (
     DIRECTION_CHOICES,
     IMAGE_TYPE_CHOICES,
@@ -27,6 +31,7 @@ from app.services.codes import refresh_position_codes
 
 Base.metadata.create_all(bind=engine)
 rebuild_images_table_for_multi_image_support(engine)
+rebuild_positions_table_for_multi_direction_support(engine)
 add_missing_columns(engine, Base)
 
 

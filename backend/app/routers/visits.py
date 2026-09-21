@@ -25,6 +25,8 @@ from app.models import (
 from app.routers.images import apply_upload
 from app.schemas import (
     ImageOut,
+    PositionCreate,
+    PositionOut,
     VisitCreate,
     VisitDetail,
     VisitOut,
@@ -171,6 +173,50 @@ def get_visit(visit_id: int, db: Session = Depends(get_db), user: User = Depends
     visit = _load_visit(db, visit_id)
     check_visit_team_access(visit, user)
     return attach_rollup(visit, detail=True)
+
+
+@router.post("/{visit_id}/positions", response_model=PositionOut, status_code=201)
+def add_extra_position(
+    visit_id: int, payload: PositionCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
+    """Adds a position beyond the visit's 12 baseline slots — only needed for a Tension-type tower
+    carrying the same OHL/phase/string out toward a second line Direction (see AddPositionBar.tsx):
+    the first direction for a slot reuses the matching baseline row via PATCH /api/positions/{id}
+    as before, and only a second (or further) direction for that same slot lands here."""
+    visit = _load_visit(db, visit_id)
+    check_visit_team_access(visit, user)
+    exists = (
+        db.query(Position)
+        .filter(
+            Position.visit_id == visit_id,
+            Position.ohl == payload.ohl,
+            Position.phase == payload.phase,
+            Position.string == payload.string,
+            Position.direction == payload.direction,
+        )
+        .first()
+    )
+    if exists:
+        raise HTTPException(status_code=400, detail="This exact OHL/phase/string/direction already exists on this visit")
+
+    pos = Position(
+        visit_id=visit_id,
+        ohl=payload.ohl,
+        phase=payload.phase,
+        string=payload.string,
+        direction=payload.direction,
+        mount_type=payload.mount_type,
+    )
+    db.add(pos)
+    db.flush()
+    for img_type in IMAGE_TYPE_CHOICES:
+        db.add(Image(position_id=pos.id, image_type=img_type, evidence_status="NOT REQUIRED"))
+    db.flush()
+    pos.visit = visit
+    refresh_position_codes(pos)
+    db.commit()
+    db.refresh(pos)
+    return pos
 
 
 @router.patch("/{visit_id}", response_model=VisitDetail)

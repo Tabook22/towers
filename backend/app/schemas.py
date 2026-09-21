@@ -435,6 +435,54 @@ class PositionUpdate(BaseModel):
         return v
 
 
+class PositionCreate(BaseModel):
+    """Adds an *extra* position beyond a visit's 12 baseline slots — only ever needed for a
+    Tension-type tower carrying the same OHL/phase/string out toward a second line Direction (see
+    models.Position and routers/visits.py's add_extra_position). Rejected if this exact
+    (ohl, phase, string, direction) already exists on the visit."""
+
+    ohl: str
+    phase: str
+    string: str
+    direction: str
+    mount_type: str | None = None
+
+    @field_validator("ohl")
+    @classmethod
+    def check_ohl(cls, v):
+        if v not in OHL_CHOICES:
+            raise ValueError(f"ohl must be one of {OHL_CHOICES}")
+        return v
+
+    @field_validator("phase")
+    @classmethod
+    def check_phase(cls, v):
+        if v not in PHASE_CHOICES:
+            raise ValueError(f"phase must be one of {PHASE_CHOICES}")
+        return v
+
+    @field_validator("string")
+    @classmethod
+    def check_string(cls, v):
+        if v not in STRING_CHOICES:
+            raise ValueError(f"string must be one of {STRING_CHOICES}")
+        return v
+
+    @field_validator("direction")
+    @classmethod
+    def check_direction(cls, v):
+        if v not in DIRECTION_CHOICES:
+            raise ValueError(f"direction must be one of {DIRECTION_CHOICES}")
+        return v
+
+    @field_validator("mount_type")
+    @classmethod
+    def check_mount_type(cls, v):
+        if v is not None and v not in MOUNT_TYPE_CHOICES:
+            raise ValueError(f"mount_type must be one of {MOUNT_TYPE_CHOICES}")
+        return v
+
+
 class PositionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

@@ -51,6 +51,41 @@ def rebuild_images_table_for_multi_image_support(engine: Engine) -> None:
         conn.execute(text('DROP TABLE "images_old"'))
 
 
+def rebuild_positions_table_for_multi_direction_support(engine: Engine) -> None:
+    """One-off structural migration for the `positions` table.
+
+    A position used to be capped at exactly one row per (visit, ohl, phase, string) — enforced by a
+    UNIQUE(visit_id, ohl, phase, string) constraint — because Direction was purely a label on that
+    one row. A Tension-type tower can now carry the same OHL/phase/string out toward more than one
+    line Direction, each needing its own row, so the constraint gains `direction` as a column.
+    SQLite can't ALTER a UNIQUE constraint away, so this rebuilds the table the same way
+    rebuild_images_table_for_multi_image_support does above: rename the old table aside, create the
+    new one from the current model, copy every column the old table had, then drop the old one.
+
+    Safe to call on every startup — it's a no-op once the constraint already includes `direction`.
+    """
+    from app.models import Position  # local import: models.py doesn't need to know about migrations.py
+
+    inspector = inspect(engine)
+    if "positions" not in inspector.get_table_names():
+        return  # brand-new DB — create_all() already builds the current (correct) schema
+    already_migrated = any(
+        "direction" in (uc.get("column_names") or []) for uc in inspector.get_unique_constraints("positions")
+    )
+    if already_migrated:
+        return
+    existing_columns = {c["name"] for c in inspector.get_columns("positions")}
+
+    logger.info("Auto-migration: rebuilding positions table to allow more than one direction per slot")
+    with engine.begin() as conn:
+        conn.execute(text('ALTER TABLE "positions" RENAME TO "positions_old"'))
+        conn.execute(CreateTable(Position.__table__))
+        shared_cols = [f'"{c.name}"' for c in Position.__table__.columns if c.name in existing_columns]
+        cols_sql = ", ".join(shared_cols)
+        conn.execute(text(f'INSERT INTO "positions" ({cols_sql}) SELECT {cols_sql} FROM "positions_old"'))
+        conn.execute(text('DROP TABLE "positions_old"'))
+
+
 def backfill_areas_from_towers(engine: Engine) -> None:
     """One-time seed for the new `areas` catalog table (see models.Area): every distinct
     Tower.area value that already exists in real data gets its own Area row, so nothing an admin
