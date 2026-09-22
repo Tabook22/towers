@@ -659,3 +659,67 @@ def test_findings_and_measurements_are_sorted_by_the_towers_own_trailing_number(
 
         assert [f["tower_id"] for f in context["findings"]] == ["Ashoor-Saada-29", "Ashoor-Saada-32", "Ashoor-Saada-36"]
         assert [m["tower_id"] for m in context["measurements"]] == ["Ashoor-Saada-29", "Ashoor-Saada-32", "Ashoor-Saada-36"]
+
+
+def test_insulator_type_defaults_to_composite_when_never_recorded_by_hand():
+    """Every insulator on this line is composite — the checkbox should show that by default
+    rather than leaving both boxes unticked just because an inspector skipped the optional
+    "Insulator record" dropdown (see _finding_context)."""
+    from app.services.oetc_report import _finding_context
+
+    tower = Tower(id=1, tower_id="T-1", voltage="132 kV")
+    visit = Visit(id=1, tower_id=1)
+    visit.tower = tower
+    pos = Position(id=1, visit_id=1, ohl="OHL1", phase="R", string="S1")
+    pos.images = []
+
+    ctx = _finding_context(tpl=None, seq=1, visit=visit, pos=pos)
+    assert ctx["insulator_type"] == "Composite"
+
+
+def test_insulator_type_manual_value_always_wins_over_the_default():
+    from app.services.oetc_report import _finding_context
+
+    tower = Tower(id=1, tower_id="T-1", voltage="132 kV")
+    visit = Visit(id=1, tower_id=1)
+    visit.tower = tower
+    pos = Position(id=1, visit_id=1, ohl="OHL1", phase="R", string="S1", insulator_type="Porcelain")
+    pos.images = []
+
+    ctx = _finding_context(tpl=None, seq=1, visit=visit, pos=pos)
+    assert ctx["insulator_type"] == "Porcelain"
+
+
+def test_measurements_table_has_exactly_one_severity_column():
+    """Regression for the duplicate "Severity" header — the color-coded column added right after
+    ΔT (°C) replaced the old plain-text one rather than sitting alongside it."""
+    engine = _engine()
+    with Session(engine) as db:
+        team, tower_a, _tower_b = _seed(db)
+        admin = User(username="admin", role="admin", hashed_password="x")
+        db.add(admin)
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            tower_id=tower_a.id,
+            team_id=team.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="TEST-0011",
+        )
+        response = oetc_line_report(payload=payload, db=db, user=admin)
+
+    import io
+    import zipfile
+
+    from docx import Document
+
+    doc = Document(io.BytesIO(response.body))
+    target = next(
+        tbl
+        for tbl in doc.tables
+        if "Severity" in [c.text for c in tbl.rows[0].cells] and "ΔT (°C)" in [c.text for c in tbl.rows[0].cells]
+    )
+    headers = [c.text for c in target.rows[0].cells]
+    assert headers.count("Severity") == 1
+    assert headers == ["No.", "Location (Tower No)", "Max. Temp. (°C)", "Reference Temp. (°C)", "ΔT (°C)", "Severity", "Load / Current", "Remarks"]

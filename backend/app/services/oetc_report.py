@@ -71,7 +71,11 @@ def _finding_context(tpl, seq: int, visit: Visit, pos: Position) -> dict:
         "phase": pos.phase,
         "mount_type": pos.mount_type,
         "gs_side": pos.gs_side,
-        "insulator_type": pos.insulator_type,
+        # Every insulator on this line is composite — the field stays a real, editable dropdown
+        # (see PositionPanel's "Insulator record" section) for the rare exception, but the report's
+        # checkbox defaults to Composite rather than leaving both boxes unticked whenever an
+        # inspector never touched this optional field, same convention as _derived_tower_proximity.
+        "insulator_type": pos.insulator_type or "Composite",
         "string_count": pos.string_count,
         "tower_proximity": _derived_tower_proximity(pos),
         "manufacturer": pos.manufacturer,
