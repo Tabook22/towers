@@ -613,3 +613,49 @@ def test_history_reports_line_sector_and_whether_a_file_was_saved():
         row = next(r for r in history if r.report_number == "LIB-0003")
         assert row.line_sector == "Ittin - Thumrait"
         assert row.has_file is True
+
+
+def test_findings_and_measurements_are_sorted_by_the_towers_own_trailing_number():
+    """Ashoor-Saada-29 before -32 before -36 — the order a reviewer actually walks the line in —
+    regardless of which order the crew happened to record the visits in."""
+    from docxtpl import DocxTemplate
+
+    from app.services.oetc_report import TEMPLATE_PATH
+
+    engine = _engine()
+    with Session(engine) as db:
+        team = Team(name="Alpha")
+        tower_36 = Tower(tower_id="Ashoor-Saada-36", voltage="132")
+        tower_29 = Tower(tower_id="Ashoor-Saada-29", voltage="132")
+        tower_32 = Tower(tower_id="Ashoor-Saada-32", voltage="132")
+        db.add_all([team, tower_36, tower_29, tower_32])
+        db.flush()
+        for t in (tower_36, tower_29, tower_32):
+            t.assigned_team_id = team.id
+
+        # Recorded out of numeric order on purpose — visit/mission order must not leak through.
+        visit_36 = Visit(tower_id=tower_36.id, team_id=team.id, inspection_date=dt.date(2026, 9, 1))
+        visit_29 = Visit(tower_id=tower_29.id, team_id=team.id, inspection_date=dt.date(2026, 9, 2))
+        visit_32 = Visit(tower_id=tower_32.id, team_id=team.id, inspection_date=dt.date(2026, 9, 3))
+        db.add_all([visit_36, visit_29, visit_32])
+        db.flush()
+        db.add_all(
+            [
+                Position(visit_id=visit_36.id, ohl="OHL1", phase="R", string="S1", direction="Ashoor", installed=True),
+                Position(visit_id=visit_29.id, ohl="OHL1", phase="R", string="S1", direction="Ashoor", installed=True),
+                Position(visit_id=visit_32.id, ohl="OHL1", phase="R", string="S1", direction="Ashoor", installed=True),
+            ]
+        )
+        db.commit()
+
+        payload = LineInspectionReportRequest(
+            team_id=team.id,
+            start_date=dt.date(2026, 9, 1),
+            end_date=dt.date(2026, 9, 30),
+            report_number="TEST-SORT",
+        )
+        tpl = DocxTemplate(str(TEMPLATE_PATH))
+        context = build_oetc_line_report_context(tpl, team, db.query(Visit).all(), payload)
+
+        assert [f["tower_id"] for f in context["findings"]] == ["Ashoor-Saada-29", "Ashoor-Saada-32", "Ashoor-Saada-36"]
+        assert [m["tower_id"] for m in context["measurements"]] == ["Ashoor-Saada-29", "Ashoor-Saada-32", "Ashoor-Saada-36"]

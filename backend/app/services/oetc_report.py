@@ -34,6 +34,7 @@ from app.models import Position, Team, Tower, Visit
 from app.schemas import LineInspectionReportRequest
 from app.services.docx_reports import _inline_image
 from app.services.team_activity_report import _position_has_activity, _position_sort_key
+from app.services.tower_numbers import extract_tower_number
 
 TEMPLATE_PATH = BASE_DIR / "app" / "templates" / "oetc_line_report.docx"
 
@@ -131,10 +132,21 @@ def _measurement_context(seq: int, visit: Visit, pos: Position) -> dict:
     }
 
 
+def _visit_sort_key(v: Visit):
+    """Sorts by the tower's own trailing number — "Ashoor-Saada-29" before "...-32" before
+    "...-36" — the order the customer actually walks the line in, rather than by whatever order
+    the crew happened to visit/record them in. A tower ID with no trailing number (rare) sorts
+    after every numbered one; ties (two areas sharing the same number) fall back to the tower ID
+    string, then visit date/mission, so the order stays fully deterministic either way."""
+    tower_id = v.tower.tower_id if v.tower else ""
+    number = extract_tower_number(tower_id)
+    return (number is None, number or 0, tower_id, v.inspection_date or dt.date.min, v.mission_seq or 0)
+
+
 def build_oetc_line_report_context(
     tpl, team: Team, visits: list[Visit], payload: LineInspectionReportRequest, tower: Tower | None = None
 ) -> dict:
-    visits = sorted(visits, key=lambda v: (v.inspection_date or dt.date.min, v.mission_seq or 0))
+    visits = sorted(visits, key=_visit_sort_key)
 
     findings: list[dict] = []
     measurements: list[dict] = []
