@@ -1,9 +1,15 @@
 """The customer's own "Transmission Line Insulator Thermal Inspection Report" — an official
 deliverable they handed us as a filled-in example file, which we turned into a docxtpl template
 (backend/app/templates/oetc_line_report.docx) by replacing every example value with a {{ }} merge
-field and every "circle the right option" mark with a Jinja-driven checkbox state, without touching
-its layout, wording, or styling in any other way (see the build script used to make it for exactly
-which spots were templatized — same convention as services/field_execution_plan.py's bundled asset).
+field and every "circle the right option" mark with a Jinja-driven checkbox state, otherwise
+preserving its layout, wording, and styling (see the build script used to make it for exactly which
+spots were templatized — same convention as services/field_execution_plan.py's bundled asset). One
+deliberate addition since: a color-coded "Severity" column, right after ΔT (°C) in the Thermal
+Inspection Measurements table, at the customer's own request — its cell shading is set from
+`{{ m.severity_fill }}` (a real hex string by render time, see _severity_visual below) written
+directly into the table cell's <w:shd w:fill="..."/> attribute in the template XML; docxtpl runs
+Jinja over the whole raw document.xml, so a tag works there exactly as it does inside a run's
+visible text, it's just not something python-docx's own table-building API can express.
 
 One report covers a team's whole line campaign over a date range by default — the template's own
 shape (one Line ID/date/report number, a repeating "Inspection findings" block per insulator, a
@@ -83,7 +89,33 @@ def _finding_context(tpl, seq: int, visit: Visit, pos: Position) -> dict:
     }
 
 
+# ΔT severity bands the customer specified for the Thermal Inspection Measurements table's color
+# column — (upper bound inclusive, label, cell fill, text color). abs() guards the rare negative
+# reading (Tmax below Tref) — that's still an anomaly by magnitude, not a "Normal" one just because
+# the sign happens to be negative. None (no reading yet) gets no color at all, checked separately.
+_SEVERITY_BANDS: list[tuple[float, str, str, str]] = [
+    (5.0, "Normal", "00B050", "FFFFFF"),
+    (10.0, "Low", "FFFF00", "000000"),
+    (20.0, "Medium", "FFC000", "000000"),
+]
+_SEVERITY_ABOVE_ALL_BANDS = ("High / Critical", "FF0000", "FFFFFF")
+
+
+def _severity_visual(delta_t: float | None) -> tuple[str, str, str]:
+    """(label, cell fill hex, text color hex) for the ΔT-driven severity swatch — see the
+    "Severity Classification and Recommended Action" table the customer supplied: Normal <=5C
+    (green), Low >5-10C (yellow), Medium >10-20C (orange), High/Critical >20C (red)."""
+    if delta_t is None:
+        return "", "FFFFFF", "000000"
+    magnitude = abs(delta_t)
+    for upper, label, fill, text_color in _SEVERITY_BANDS:
+        if magnitude <= upper:
+            return label, fill, text_color
+    return _SEVERITY_ABOVE_ALL_BANDS
+
+
 def _measurement_context(seq: int, visit: Visit, pos: Position) -> dict:
+    severity_label, severity_fill, severity_text_color = _severity_visual(pos.delta_t)
     return {
         "seq": seq,
         "tower_id": visit.tower.tower_id,
@@ -92,6 +124,9 @@ def _measurement_context(seq: int, visit: Visit, pos: Position) -> dict:
         "delta_t": pos.delta_t,
         "load_current": visit.electrical_load,
         "severity": pos.severity,
+        "severity_label": severity_label,
+        "severity_fill": severity_fill,
+        "severity_text_color": severity_text_color,
         "remarks": pos.inspector_notes,
     }
 
