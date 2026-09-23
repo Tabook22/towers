@@ -1,7 +1,11 @@
 import { useMemo, useState } from 'react';
 import {
   Alert,
+  Badge,
   Box,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   IconButton,
   MenuItem,
   Paper,
@@ -17,6 +21,8 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import { useOetcReportHistory } from '../api/hooks';
@@ -24,6 +30,7 @@ import { useAuth } from '../auth/AuthContext';
 import { mediaUrl } from '../api/client';
 import type { LineInspectionReportOut } from '../api/types';
 import { DocxViewerDialog } from './DocxViewerDialog';
+import { ReportCommentsSection } from './ReportCommentsSection';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -51,6 +58,8 @@ export function ReportHistoryTable() {
   const [sortKey, setSortKey] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [viewing, setViewing] = useState<LineInspectionReportOut | null>(null);
+  const [commentingId, setCommentingId] = useState<number | null>(null);
+  const commenting = (rows || []).find((r) => r.id === commentingId) || null;
 
   const years = useMemo(
     () => Array.from(new Set((rows || []).map((r) => new Date(r.created_at).getFullYear()))).sort((a, b) => b - a),
@@ -197,6 +206,13 @@ export function ReportHistoryTable() {
                       <DownloadRoundedIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  <Tooltip title="Comments">
+                    <IconButton size="small" onClick={() => setCommentingId(r.id)}>
+                      <Badge badgeContent={r.comment_count} color="primary">
+                        <ChatBubbleOutlineRoundedIcon fontSize="small" />
+                      </Badge>
+                    </IconButton>
+                  </Tooltip>
                 </TableCell>
               </TableRow>
             ))}
@@ -221,6 +237,16 @@ export function ReportHistoryTable() {
           fileUrl={downloadUrl(viewing)}
         />
       )}
+
+      <Dialog open={!!commenting} onClose={() => setCommentingId(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Comments — {commenting?.report_number}
+          <IconButton size="small" onClick={() => setCommentingId(null)}>
+            <CloseRoundedIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>{commenting && <ReportCommentsSection reportId={commenting.id} />}</DialogContent>
+      </Dialog>
     </Box>
   );
 }

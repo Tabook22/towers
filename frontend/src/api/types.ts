@@ -284,6 +284,7 @@ export interface LineInspectionReportOut {
   report_type: string | null;
   has_file: boolean;
   image_count: number;
+  comment_count: number;
 }
 
 export interface LineInspectionReportUpdate {
@@ -310,6 +311,17 @@ export interface ReportImageOut {
   area: string | null;
   capture_date: string | null;
   capture_time: string | null;
+}
+
+// One message in a report's comment thread (see backend models.ReportComment) — how a client
+// flags something for the internal team to act on, and how the team answers back.
+export interface ReportCommentOut {
+  id: number;
+  report_id: number;
+  author_name: string;
+  author_role: string;
+  body: string;
+  created_at: string;
 }
 
 // Live "what will this include" summary for the report form — see useOetcReportPreview.

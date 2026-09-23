@@ -486,6 +486,9 @@ class LineInspectionReport(Base):
     team: Mapped["Team"] = relationship()
     tower: Mapped["Tower | None"] = relationship()
     images: Mapped[list["ReportImage"]] = relationship(back_populates="report", cascade="all, delete-orphan")
+    comments: Mapped[list["ReportComment"]] = relationship(
+        back_populates="report", cascade="all, delete-orphan", order_by="ReportComment.created_at"
+    )
 
 
 class ReportImage(Base):
@@ -507,6 +510,27 @@ class ReportImage(Base):
     report: Mapped["LineInspectionReport"] = relationship(back_populates="images")
     position: Mapped["Position"] = relationship()
     image: Mapped["Image"] = relationship()
+
+
+class ReportComment(Base):
+    """A conversation thread on a generated report — this is how the customer (a `client` login)
+    flags something on a specific report for the internal team to act on, and how the team answers
+    back; anyone who can already see the report (admin, reviewer, that report's own team's
+    team_leader, or a client account) can post to it. `author_name`/`author_role` are snapshotted at
+    post time rather than joined live, so a comment still reads sensibly (who said it, in what
+    capacity) even if that account is later renamed, deactivated, or removed."""
+
+    __tablename__ = "report_comments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    report_id: Mapped[int] = mapped_column(ForeignKey("line_inspection_reports.id"), index=True)
+    author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    author_name: Mapped[str] = mapped_column(String(200))
+    author_role: Mapped[str] = mapped_column(String(20))
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+
+    report: Mapped["LineInspectionReport"] = relationship(back_populates="comments")
 
 
 class LocationPing(Base):

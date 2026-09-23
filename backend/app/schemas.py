@@ -115,17 +115,6 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=6)
 
 
-class UserRegister(BaseModel):
-    """Public self sign-up (routers/auth.py's register()) — deliberately far narrower than
-    UserCreate: no role, team, or permission fields, since an unvetted signup always lands as a
-    plain team_member with no team and is_approved=False until an admin reviews it."""
-
-    username: str = Field(min_length=3, max_length=80)
-    password: str = Field(min_length=6)
-    full_name: str | None = None
-    mobile: str | None = Field(default=None, max_length=60)
-
-
 # ---------- Area (the catalog behind Tower.area — see models.Area) ----------
 class AreaCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
@@ -1434,6 +1423,7 @@ class LineInspectionReportOut(BaseModel):
     report_type: str | None = None
     has_file: bool = False
     image_count: int = 0
+    comment_count: int = 0
 
 
 class LineInspectionReportUpdate(BaseModel):
@@ -1475,6 +1465,32 @@ class ReportImageOut(BaseModel):
     area: str | None = None
     capture_date: dt.date | None = None
     capture_time: dt.time | None = None
+
+
+class ReportCommentCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("body")
+    @classmethod
+    def strip_body(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Comment can't be empty")
+        return v
+
+
+class ReportCommentOut(BaseModel):
+    """One message in a report's comment thread (see models.ReportComment) — author_name/role are
+    a snapshot taken when it was posted, not a live join, so the thread still reads sensibly if
+    that account is later renamed or removed."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    report_id: int
+    author_name: str
+    author_role: str
+    body: str
+    created_at: dt.datetime
 
 
 class OetcReportPreview(BaseModel):

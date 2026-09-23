@@ -30,6 +30,7 @@ import type {
   OetcConsolidatedReportRequest,
   OetcReportPreview,
   Position,
+  ReportCommentOut,
   ReportImageOut,
   ReportTemplate,
   ReportTemplatesActive,
@@ -1007,6 +1008,28 @@ export function useDeleteReportImage(reportId?: number) {
     mutationFn: async (imageId: number) => apiClient.delete(`/api/images/${imageId}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['oetc-report-images', reportId] });
+    },
+  });
+}
+
+// A report's comment thread, oldest first — how a client flags something for the internal team to
+// act on, and how the team answers back (see backend models.ReportComment).
+export function useReportComments(reportId?: number) {
+  return useQuery({
+    queryKey: ['oetc-report-comments', reportId],
+    queryFn: async () => (await apiClient.get<ReportCommentOut[]>(`/api/reports/oetc-line-report/${reportId}/comments`)).data,
+    enabled: !!reportId,
+  });
+}
+
+export function useAddReportComment(reportId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: string) =>
+      (await apiClient.post<ReportCommentOut>(`/api/reports/oetc-line-report/${reportId}/comments`, { body })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['oetc-report-comments', reportId] });
+      qc.invalidateQueries({ queryKey: ['oetc-report-history'] });
     },
   });
 }

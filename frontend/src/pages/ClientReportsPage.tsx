@@ -28,6 +28,7 @@ import {
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import PhotoLibraryRoundedIcon from '@mui/icons-material/PhotoLibraryRounded';
+import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import ZoomInRoundedIcon from '@mui/icons-material/ZoomInRounded';
 import { useAuth } from '../auth/AuthContext';
@@ -36,6 +37,7 @@ import { useDeleteReportImage, useOetcReportHistory, useReportImages, useUpdateO
 import type { LineInspectionReportOut, LineInspectionReportUpdate, ReportImageOut } from '../api/types';
 import { DocxViewerDialog } from '../components/DocxViewerDialog';
 import { ImageLightbox } from '../components/ImageLightbox';
+import { ReportCommentsSection } from '../components/ReportCommentsSection';
 
 type SortKey = 'created_at' | 'report_number' | 'team_name' | 'line_sector';
 
@@ -337,6 +339,17 @@ function ReportDetailDialog({ report, onClose }: { report: LineInspectionReportO
           </Typography>
         </Stack>
         <ReportImageGallery report={report} canDelete={!!user?.can_delete_report_images} />
+
+        <Stack direction="row" sx={{ alignItems: 'center', mt: 3, mb: 1 }} spacing={1}>
+          <ChatBubbleOutlineRoundedIcon fontSize="small" color="action" />
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            Comments
+          </Typography>
+        </Stack>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          Flag anything you'd like the team to check — they'll see it here and can follow up.
+        </Typography>
+        <ReportCommentsSection reportId={report.id} />
       </DialogContent>
       <DialogActions>
         <Button onClick={() => setViewingDoc(true)} startIcon={<VisibilityRoundedIcon />}>
@@ -498,6 +511,7 @@ export function ClientReportsPage() {
                   </TableSortLabel>
                 </TableCell>
                 <TableCell>Images</TableCell>
+                <TableCell>Comments</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -513,6 +527,7 @@ export function ClientReportsPage() {
                   <TableCell>{r.start_date === r.end_date ? r.start_date : `${r.start_date} → ${r.end_date}`}</TableCell>
                   <TableCell>{new Date(r.created_at).toLocaleDateString()}</TableCell>
                   <TableCell>{r.image_count}</TableCell>
+                  <TableCell>{r.comment_count}</TableCell>
                   <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                     <Tooltip title="View">
                       <IconButton size="small" onClick={() => setDetailId(r.id)}>
@@ -529,7 +544,7 @@ export function ClientReportsPage() {
               ))}
               {sorted.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={9} align="center">
                     <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
                       No reports match these filters.
                     </Typography>

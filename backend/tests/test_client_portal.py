@@ -16,7 +16,7 @@ from app.models import Image, LineInspectionReport, Position, ReportImage, Team,
 from app.routers import auth as auth_router
 from app.routers import images as images_router
 from app.routers import reports as reports_router
-from app.schemas import LineInspectionReportRequest, LineInspectionReportUpdate, UserCreate
+from app.schemas import LineInspectionReportRequest, LineInspectionReportUpdate, ReportCommentCreate, UserCreate
 from app.services.oetc_report import used_image_ids
 
 
@@ -315,3 +315,106 @@ def test_only_a_super_admin_can_create_a_client_account():
         assert user.role == UserRole.CLIENT.value
         assert user.can_edit_reports is True
         assert user.can_delete_report_images is False
+
+
+def _make_report(db, team, admin) -> LineInspectionReport:
+    reports_router.oetc_line_report(
+        payload=LineInspectionReportRequest(
+            team_id=team.id, start_date=dt.date(2026, 9, 1), end_date=dt.date(2026, 9, 30), report_number="CMT-0001"
+        ),
+        db=db,
+        user=admin,
+    )
+    return db.query(LineInspectionReport).filter_by(report_number="CMT-0001").one()
+
+
+def test_client_can_post_a_comment_and_a_technician_can_reply():
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        team, tower, visit, pos = _seed_visit_with_images(db)
+        admin = _admin()
+        db.add(admin)
+        db.commit()
+        record = _make_report(db, team, admin)
+
+        client = _client()
+        client_comment = reports_router.add_oetc_line_report_comment(
+            report_id=record.id, payload=ReportCommentCreate(body="Tower T-1 looks like it needs a closer look."), db=db, user=client
+        )
+        assert client_comment.author_name == "oetc_client"
+        assert client_comment.author_role == "client"
+
+        admin_reply = reports_router.add_oetc_line_report_comment(
+            report_id=record.id, payload=ReportCommentCreate(body="Noted, dispatching a team."), db=db, user=admin
+        )
+        assert admin_reply.author_role == "admin"
+
+        thread = reports_router.oetc_line_report_comments(report_id=record.id, db=db, user=client)
+        assert [c.body for c in thread] == ["Tower T-1 looks like it needs a closer look.", "Noted, dispatching a team."]
+
+
+def test_team_member_cannot_post_or_read_comments():
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        team, tower, visit, pos = _seed_visit_with_images(db)
+        admin = _admin()
+        db.add(admin)
+        db.commit()
+        record = _make_report(db, team, admin)
+
+        member = User(id=9, username="member1", role=UserRole.TEAM_MEMBER.value, team_id=team.id, hashed_password="x")
+        with pytest.raises(HTTPException) as exc:
+            reports_router.oetc_line_report_comments(report_id=record.id, db=db, user=member)
+        assert exc.value.status_code == 403
+        with pytest.raises(HTTPException) as exc:
+            reports_router.add_oetc_line_report_comment(
+                report_id=record.id, payload=ReportCommentCreate(body="hi"), db=db, user=member
+            )
+        assert exc.value.status_code == 403
+
+
+def test_team_leader_cannot_comment_on_another_teams_report():
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        team, tower, visit, pos = _seed_visit_with_images(db)
+        other_team = Team(name="Beta")
+        db.add(other_team)
+        admin = _admin()
+        db.add(admin)
+        db.commit()
+        record = _make_report(db, team, admin)
+
+        other_leader = User(id=7, username="leader_beta", role=UserRole.TEAM_LEADER.value, team_id=other_team.id, hashed_password="x")
+        with pytest.raises(HTTPException) as exc:
+            reports_router.add_oetc_line_report_comment(
+                report_id=record.id, payload=ReportCommentCreate(body="hi"), db=db, user=other_leader
+            )
+        assert exc.value.status_code == 403
+
+
+def test_empty_comment_body_is_rejected():
+    with pytest.raises(ValueError):
+        ReportCommentCreate(body="   ")
+
+
+def test_history_reports_comment_count():
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        team, tower, visit, pos = _seed_visit_with_images(db)
+        admin = _admin()
+        db.add(admin)
+        db.commit()
+        record = _make_report(db, team, admin)
+        reports_router.add_oetc_line_report_comment(report_id=record.id, payload=ReportCommentCreate(body="one"), db=db, user=admin)
+        reports_router.add_oetc_line_report_comment(report_id=record.id, payload=ReportCommentCreate(body="two"), db=db, user=admin)
+
+        out = reports_router.oetc_line_report_history(
+            team_id=None, tower_id=None, report_type=None, line_sector=None, start_date=None, end_date=None, search=None,
+            db=db, user=admin,
+        )
+        row = next(r for r in out if r.id == record.id)
+        assert row.comment_count == 2

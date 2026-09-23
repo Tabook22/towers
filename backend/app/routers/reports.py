@@ -16,6 +16,7 @@ from app.models import (
     Image,
     LineInspectionReport,
     Position,
+    ReportComment,
     ReportImage,
     ReportTemplate,
     Team,
@@ -33,6 +34,8 @@ from app.schemas import (
     OetcAreaReportRequest,
     OetcConsolidatedReportRequest,
     OetcReportPreview,
+    ReportCommentCreate,
+    ReportCommentOut,
     ReportImageOut,
 )
 from app.services.docx_reports import render_visit_report_docx
@@ -58,6 +61,17 @@ from app.services.team_activity_report import (
 from app.utils import natural_sort_key
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
+
+
+def _check_report_access(record: LineInspectionReport, user: User) -> None:
+    """Who may view a given report (and by extension its images/comments) — a team_member's whole
+    workspace is their own assigned missions, not team-wide reporting, so they're refused outright;
+    a team_leader only their own team's reports; everyone else (admin, reviewer, client — this app
+    serves one customer, not several tenants needing separation from each other) sees any report."""
+    if user.role == UserRole.TEAM_MEMBER.value:
+        raise HTTPException(status_code=403, detail="Not available for team-member accounts")
+    if user.role == UserRole.TEAM_LEADER.value and user.team_id != record.team_id:
+        raise HTTPException(status_code=403, detail="You don't have access to this team")
 
 
 def _save_report_file(report_number: str, generated_at: dt.datetime, docx_bytes: bytes) -> str:
@@ -567,7 +581,10 @@ def oetc_line_report_history(
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
     q = db.query(LineInspectionReport).options(
-        joinedload(LineInspectionReport.team), joinedload(LineInspectionReport.tower), joinedload(LineInspectionReport.images)
+        joinedload(LineInspectionReport.team),
+        joinedload(LineInspectionReport.tower),
+        joinedload(LineInspectionReport.images),
+        joinedload(LineInspectionReport.comments),
     )
     if user.role == UserRole.TEAM_LEADER.value:
         q = q.filter(LineInspectionReport.team_id == user.team_id) if user.team_id else q.filter(False)
@@ -593,6 +610,7 @@ def oetc_line_report_history(
         item.tower_name = r.tower.tower_id if r.tower else None
         item.has_file = bool(r.file_path)
         item.image_count = len(r.images)
+        item.comment_count = len(r.comments)
         out.append(item)
     return out
 
@@ -610,10 +628,7 @@ def oetc_line_report_images(
     record = db.get(LineInspectionReport, report_id)
     if not record:
         raise HTTPException(status_code=404, detail="Report not found")
-    if user.role == UserRole.TEAM_MEMBER.value:
-        raise HTTPException(status_code=403, detail="Not available for team-member accounts")
-    if user.role == UserRole.TEAM_LEADER.value and user.team_id != record.team_id:
-        raise HTTPException(status_code=403, detail="You don't have access to this team")
+    _check_report_access(record, user)
 
     rows = (
         db.query(ReportImage)
@@ -649,6 +664,48 @@ def oetc_line_report_images(
     return out
 
 
+@router.get("/oetc-line-report/{report_id}/comments", response_model=list[ReportCommentOut])
+def oetc_line_report_comments(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """A report's comment thread, oldest first — how a client flags something for the internal
+    team to act on, and how the team answers back. Same access boundary as the report itself."""
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Report not found")
+    _check_report_access(record, user)
+    return db.query(ReportComment).filter(ReportComment.report_id == report_id).order_by(ReportComment.created_at).all()
+
+
+@router.post("/oetc-line-report/{report_id}/comments", response_model=ReportCommentOut, status_code=201)
+def add_oetc_line_report_comment(
+    report_id: int,
+    payload: ReportCommentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Posts to a report's comment thread — anyone who can see the report can write to it (same
+    boundary as reading it), so a client can raise something and the team can reply, or the other
+    way around."""
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Report not found")
+    _check_report_access(record, user)
+    comment = ReportComment(
+        report_id=report_id,
+        author_id=user.id,
+        author_name=user.full_name or user.username,
+        author_role=user.role,
+        body=payload.body,
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return comment
+
+
 @router.patch("/oetc-line-report/{report_id}", response_model=LineInspectionReportOut)
 def update_oetc_line_report(
     report_id: int,
@@ -682,6 +739,7 @@ def update_oetc_line_report(
     item.tower_name = record.tower.tower_id if record.tower else None
     item.has_file = bool(record.file_path)
     item.image_count = len(record.images)
+    item.comment_count = len(record.comments)
     return item
 
 
