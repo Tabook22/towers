@@ -1247,6 +1247,7 @@ export function useUpdateUser() {
           | 'permissions'
           | 'can_edit_reports'
           | 'can_delete_report_images'
+          | 'menu_permissions'
         >
       > & { password?: string };
     }) => (await apiClient.patch<AdminUser>(`/api/auth/users/${id}`, payload)).data,
@@ -1274,6 +1275,7 @@ export function useCreateUser() {
       permissions?: string[];
       can_edit_reports?: boolean;
       can_delete_report_images?: boolean;
+      menu_permissions?: Record<string, string>;
     }) => (await apiClient.post<AdminUser>('/api/auth/users', payload)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });

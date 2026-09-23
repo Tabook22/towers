@@ -5,7 +5,17 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import LEVELED_PERMISSIONS, PERMISSION_LEVELS, PERMISSIONS, effective_team_id, get_current_user, has_permission_level
+from app.deps import (
+    LEVELED_PERMISSIONS,
+    MENU_ITEM_IDS,
+    MENU_PERMISSION_LEVELS,
+    PERMISSION_LEVELS,
+    PERMISSIONS,
+    default_menu_permissions_for_role,
+    effective_team_id,
+    get_current_user,
+    has_permission_level,
+)
 from app.models import LocationPing, Team, User, UserRole, Visit
 from app.schemas import ChangePasswordRequest, Token, UserCreate, UserOut, UserUpdate
 from app.security import create_access_token, hash_password, verify_password
@@ -35,6 +45,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         permissions=user.permissions,
         can_edit_reports=user.can_edit_reports,
         can_delete_report_images=user.can_delete_report_images,
+        menu_permissions=user.menu_permissions,
     )
 
 
@@ -114,6 +125,36 @@ def _clean_permissions(role: str, is_super_admin: bool, permissions: list[str]) 
     return False, ",".join(cleaned) if cleaned else None
 
 
+def _validate_menu_permissions(raw: dict[str, str]) -> dict[str, str]:
+    cleaned: dict[str, str] = {}
+    for item_id, level in raw.items():
+        if item_id not in MENU_ITEM_IDS:
+            raise HTTPException(status_code=400, detail=f"Unknown menu item: {item_id}")
+        if level not in MENU_PERMISSION_LEVELS:
+            raise HTTPException(status_code=400, detail=f"Invalid level '{level}' for '{item_id}'")
+        cleaned[item_id] = level
+    return cleaned
+
+
+def _encode_menu_permissions(perms: dict[str, str]) -> str | None:
+    return ",".join(f"{k}:{v}" for k, v in perms.items()) or None
+
+
+def _resolve_menu_permissions(role: str, provided: dict[str, str], actor: User) -> str | None:
+    """Only an admin actor (super or restricted) may hand-pick an account's per-menu-item grants
+    — every other creator (a team_leader adding a team_member) always gets
+    default_menu_permissions_for_role(role) instead, so "only for users created by admin" holds
+    regardless of who technically submits the row. An admin who submits nothing (or clears every
+    item) also falls back to that same role default, rather than leaving the new account with an
+    empty, completely hidden nav — if that's genuinely what's wanted, it can be edited down to
+    nothing afterward via update_user."""
+    if actor.role == UserRole.ADMIN.value and provided:
+        perms = _validate_menu_permissions(provided)
+    else:
+        perms = default_menu_permissions_for_role(role)
+    return _encode_menu_permissions(perms)
+
+
 @router.post("/users", response_model=UserOut, status_code=201)
 def create_user(
     payload: UserCreate,
@@ -124,6 +165,7 @@ def create_user(
     if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status_code=400, detail="Username already taken")
     is_super_admin, permissions_csv = _clean_permissions(payload.role, payload.is_super_admin, payload.permissions)
+    menu_permissions_csv = _resolve_menu_permissions(payload.role, payload.menu_permissions, actor)
     user = User(
         username=payload.username,
         email=payload.email,
@@ -139,6 +181,7 @@ def create_user(
         permissions_csv=permissions_csv,
         can_edit_reports=payload.can_edit_reports if payload.role == UserRole.CLIENT.value else False,
         can_delete_report_images=payload.can_delete_report_images if payload.role == UserRole.CLIENT.value else False,
+        menu_permissions_csv=menu_permissions_csv,
     )
     db.add(user)
     db.commit()
@@ -190,15 +233,19 @@ def update_user(
         if user.role != UserRole.TEAM_MEMBER.value or user.team_id != actor.team_id:
             raise HTTPException(status_code=403, detail="You can only manage your own team's members")
         # A leader growing/editing their roster can't use this route to escalate a member's role,
-        # move them to another team, or approve a pending sign-up — only the fields a roster edit
-        # actually needs.
+        # move them to another team, approve a pending sign-up, or hand-pick nav grants (admin-only,
+        # see _resolve_menu_permissions) — only the fields a roster edit actually needs.
         payload = UserUpdate(
-            **payload.model_dump(exclude_unset=True, exclude={"role", "team_id", "is_super_admin", "permissions", "is_approved"}),
+            **payload.model_dump(
+                exclude_unset=True,
+                exclude={"role", "team_id", "is_super_admin", "permissions", "is_approved", "menu_permissions"},
+            ),
         )
     data = payload.model_dump(exclude_unset=True)
     new_password = data.pop("password", None)
     is_super_admin = data.pop("is_super_admin", None)
     permissions = data.pop("permissions", None)
+    menu_permissions = data.pop("menu_permissions", None)
     new_username = data.pop("username", None)
     if new_username is not None:
         new_username = new_username.strip()
@@ -216,6 +263,8 @@ def update_user(
         )
         user.is_super_admin = resolved_super
         user.permissions_csv = resolved_csv
+    if menu_permissions is not None and actor.role == UserRole.ADMIN.value:
+        user.menu_permissions_csv = _encode_menu_permissions(_validate_menu_permissions(menu_permissions))
     if new_password:
         user.hashed_password = hash_password(new_password)
     db.commit()

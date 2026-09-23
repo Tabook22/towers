@@ -106,6 +106,15 @@ class User(Base):
     can_edit_reports: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     can_delete_report_images: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
+    # CSV of "item_id:level" pairs (e.g. "dashboard:full,reports:view") controlling which sidebar
+    # menu items this account sees at all — an item with no entry here is fully hidden from the
+    # nav, not just disabled (see frontend Layout.tsx). Only ever hand-picked by an admin actor
+    # (see routers/auth.py's create_user/update_user); every other account-creator (e.g. a
+    # team_leader adding a team_member) gets deps.default_menu_permissions_for_role(role) instead.
+    # NOTE: a frontend visibility control only, for now — it doesn't (yet) gate the underlying API
+    # routes, which keep using their own existing role/permission checks regardless of this.
+    menu_permissions_csv: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     # Teams also has a `created_by -> users.id` FK, so the join column has to be spelled out
     # explicitly here — otherwise SQLAlchemy can't tell which of the two FKs this relationship means.
     team: Mapped["Team | None"] = relationship(back_populates="users", foreign_keys=[team_id])
@@ -113,6 +122,15 @@ class User(Base):
     @property
     def permissions(self) -> list[str]:
         return [p for p in (self.permissions_csv or "").split(",") if p]
+
+    @property
+    def menu_permissions(self) -> dict[str, str]:
+        result: dict[str, str] = {}
+        for raw in (self.menu_permissions_csv or "").split(","):
+            name, _, level = raw.partition(":")
+            if name and level:
+                result[name] = level
+        return result
 
 
 class Area(Base):

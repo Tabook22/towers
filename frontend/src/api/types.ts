@@ -347,6 +347,7 @@ export interface LoginResponse {
   permissions: string[];
   can_edit_reports: boolean;
   can_delete_report_images: boolean;
+  menu_permissions: Record<string, string>;
 }
 
 export interface ReportTemplate {
@@ -495,6 +496,9 @@ export interface AdminUser {
   // Only meaningful for role === 'client'.
   can_edit_reports: boolean;
   can_delete_report_images: boolean;
+  // Which sidebar menu items this account can see, and at what level — an item with no entry is
+  // fully hidden from the nav (see components/Layout.tsx and MenuPermissionsEditor).
+  menu_permissions: Record<string, string>;
 }
 
 export const ADMIN_PERMISSIONS = [
@@ -535,6 +539,33 @@ export const PERMISSION_LEVEL_LABELS: Record<PermissionLevel, string> = {
   view: 'View only',
   add: 'Add',
   full: 'Full',
+};
+
+/** Every sidebar menu item that can be individually shown/hidden per account — keep these ids in
+ * sync with backend deps.MENU_ITEM_IDS. An item this account has no grant for (see
+ * AdminUser.menu_permissions) never renders in Layout.tsx's nav at all, not just disabled. */
+export const MENU_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'towers', label: 'Towers' },
+  { id: 'image_archive', label: 'Image Archive' },
+  { id: 'reports', label: 'Reports' },
+  { id: 'messages', label: 'Messages' },
+  { id: 'teams', label: 'Teams' },
+  { id: 'field_tracker', label: 'Field Tracker' },
+  { id: 'team_progress', label: 'Team Progress' },
+  { id: 'knowledge_base', label: 'Knowledge base' },
+  { id: 'settings', label: 'Settings' },
+] as const;
+export type MenuItemId = (typeof MENU_ITEMS)[number]['id'];
+
+export const MENU_PERMISSION_LEVELS = ['view', 'edit', 'download', 'full'] as const;
+export type MenuPermissionLevel = (typeof MENU_PERMISSION_LEVELS)[number];
+
+export const MENU_PERMISSION_LEVEL_LABELS: Record<MenuPermissionLevel, string> = {
+  view: 'View',
+  edit: 'Edit',
+  download: 'Download',
+  full: 'Full control',
 };
 
 const PERMISSION_LEVEL_ORDER: Record<PermissionLevel, number> = { view: 0, add: 1, full: 2 };

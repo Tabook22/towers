@@ -52,6 +52,17 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { getPermissionLevel, type AdminUser, type Team } from '../api/types';
 import { TowerAssignmentPicker } from '../components/TowerAssignmentPicker';
+import { MenuPermissionsEditor } from '../components/MenuPermissionsEditor';
+
+// Mirrors backend deps.default_menu_permissions_for_role("team_leader") — the starting grant a
+// new team-leader login gets before an admin customizes it in the editor below.
+const DEFAULT_LEADER_MENU_PERMISSIONS: Record<string, string> = {
+  dashboard: 'full',
+  messages: 'full',
+  towers: 'full',
+  teams: 'full',
+  knowledge_base: 'full',
+};
 
 interface TeamFormState {
   name: string;
@@ -178,12 +189,21 @@ export function TeamsPage() {
     username: '',
     password: '',
     notes: '',
+    menu_permissions: DEFAULT_LEADER_MENU_PERMISSIONS,
   });
   const [leaderError, setLeaderError] = useState<string | null>(null);
 
   const openCreateLeader = () => {
     setEditingLeader(null);
-    setLeaderForm({ full_name: '', mobile: '', address: '', username: '', password: '', notes: '' });
+    setLeaderForm({
+      full_name: '',
+      mobile: '',
+      address: '',
+      username: '',
+      password: '',
+      notes: '',
+      menu_permissions: DEFAULT_LEADER_MENU_PERMISSIONS,
+    });
     setLeaderError(null);
     setLeaderDialogOpen(true);
   };
@@ -197,6 +217,7 @@ export function TeamsPage() {
       username: u.username,
       password: '',
       notes: u.notes || '',
+      menu_permissions: Object.keys(u.menu_permissions || {}).length ? u.menu_permissions : DEFAULT_LEADER_MENU_PERMISSIONS,
     });
     setLeaderError(null);
     setLeaderDialogOpen(true);
@@ -226,6 +247,7 @@ export function TeamsPage() {
             mobile: leaderForm.mobile.trim() || undefined,
             address: leaderForm.address.trim() || undefined,
             notes: leaderForm.notes.trim() || undefined,
+            menu_permissions: leaderForm.menu_permissions,
             ...(leaderForm.password ? { password: leaderForm.password } : {}),
           },
         });
@@ -239,6 +261,7 @@ export function TeamsPage() {
           notes: leaderForm.notes.trim() || undefined,
           role: 'team_leader',
           team_id: null,
+          menu_permissions: leaderForm.menu_permissions,
         });
       }
       setLeaderDialogOpen(false);
@@ -622,6 +645,11 @@ export function TeamsPage() {
               value={leaderForm.notes}
               onChange={(e) => setLeaderForm((f) => ({ ...f, notes: e.target.value }))}
               placeholder="Anything worth knowing about this leader"
+            />
+            <Divider />
+            <MenuPermissionsEditor
+              value={leaderForm.menu_permissions}
+              onChange={(next) => setLeaderForm((f) => ({ ...f, menu_permissions: next }))}
             />
             {!editingLeader && (
               <Alert severity="info">

@@ -36,6 +36,46 @@ LEVELED_PERMISSIONS: tuple[str, ...] = (
 PERMISSION_LEVELS: tuple[str, ...] = ("view", "add", "full")
 _LEVEL_ORDER = {level: i for i, level in enumerate(PERMISSION_LEVELS)}
 
+# Every sidebar item that can be individually shown/hidden per account — see User.menu_permissions.
+# Keep this list's ids in sync with frontend/src/api/types.ts's MENU_ITEMS (same ids, used to
+# validate what an admin submits and to compute a role's starting grants below).
+MENU_ITEM_IDS: tuple[str, ...] = (
+    "dashboard",
+    "towers",
+    "image_archive",
+    "reports",
+    "messages",
+    "teams",
+    "field_tracker",
+    "team_progress",
+    "knowledge_base",
+    "settings",
+)
+MENU_PERMISSION_LEVELS: tuple[str, ...] = ("view", "edit", "download", "full")
+
+
+def default_menu_permissions_for_role(role: str) -> dict[str, str]:
+    """The starting per-menu-item grant for a newly created account of this role, and what every
+    pre-existing account is backfilled to (see migrations.backfill_menu_permissions) — chosen to
+    reproduce, item for item, exactly what frontend Layout.tsx used to hardcode as each role's
+    fixed nav before User.menu_permissions_csv existed, so nobody's menu silently changes until an
+    admin deliberately customizes it. Only an admin actor may ever override this (see
+    routers/auth.py's create_user/update_user) — anyone else creating an account (e.g. a
+    team_leader adding a team_member) always gets exactly this."""
+    if role == UserRole.ADMIN.value:
+        return {item: "full" for item in MENU_ITEM_IDS}
+    if role == UserRole.REVIEWER.value:
+        return {item: "full" for item in MENU_ITEM_IDS if item != "settings"}
+    if role == UserRole.TEAM_LEADER.value:
+        return {item: "full" for item in ("dashboard", "messages", "towers", "teams", "knowledge_base")}
+    if role == UserRole.TEAM_MEMBER.value:
+        return {item: "full" for item in ("dashboard", "messages", "towers", "teams")}
+    if role == UserRole.CLIENT.value:
+        return {"reports": "full"}
+    # "inspector" (the schema-default, rarely-created role) and any other/legacy role value — the
+    # old default/staff nav branch, minus the items that always required admin/reviewer/crew.
+    return {item: "full" for item in ("dashboard", "towers", "image_archive", "reports", "messages", "knowledge_base")}
+
 
 def get_current_user(
     token: str | None = Depends(oauth2_scheme),

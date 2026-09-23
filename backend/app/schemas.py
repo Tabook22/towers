@@ -41,6 +41,7 @@ class Token(BaseModel):
     permissions: list[str] = Field(default_factory=list)
     can_edit_reports: bool = False
     can_delete_report_images: bool = False
+    menu_permissions: dict[str, str] = Field(default_factory=dict)
 
 
 class UserCreate(BaseModel):
@@ -62,6 +63,11 @@ class UserCreate(BaseModel):
     # Only meaningful for role="client" — see models.User. Ignored for every other role.
     can_edit_reports: bool = False
     can_delete_report_images: bool = False
+    # Which sidebar menu items this account sees, and at what level (view/edit/download/full) —
+    # see models.User.menu_permissions_csv. Only honored when the actor creating this account is an
+    # admin (routers/auth.py's create_user); left empty (or the actor isn't an admin), the new
+    # account gets deps.default_menu_permissions_for_role(role) instead.
+    menu_permissions: dict[str, str] = Field(default_factory=dict)
 
 
 class UserOut(BaseModel):
@@ -82,6 +88,7 @@ class UserOut(BaseModel):
     permissions: list[str] = Field(default_factory=list)
     can_edit_reports: bool = False
     can_delete_report_images: bool = False
+    menu_permissions: dict[str, str] = Field(default_factory=dict)
 
 
 class UserUpdate(BaseModel):
@@ -104,6 +111,9 @@ class UserUpdate(BaseModel):
     permissions: list[str] | None = None
     can_edit_reports: bool | None = None
     can_delete_report_images: bool | None = None
+    # Admin-actor-only (see routers/auth.py's update_user) — a team_leader editing their own
+    # team_member roster can never touch this, same boundary as is_super_admin/permissions above.
+    menu_permissions: dict[str, str] | None = None
     # Lets an admin/team_leader reset someone's password for them (e.g. they're locked out) —
     # separate from the self-service change-password flow. Handled specially in the router (hashed
     # into hashed_password), never applied via the generic setattr loop.

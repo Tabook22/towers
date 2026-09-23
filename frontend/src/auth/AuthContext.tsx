@@ -13,6 +13,8 @@ interface AuthUser {
   // Only meaningful for role === 'client' — see backend models.User.
   can_edit_reports: boolean;
   can_delete_report_images: boolean;
+  // Which sidebar menu items this account sees, and at what level — see components/Layout.tsx.
+  menu_permissions: Record<string, string>;
 }
 
 interface AuthContextValue {
@@ -52,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         permissions: string[];
         can_edit_reports: boolean;
         can_delete_report_images: boolean;
+        menu_permissions: Record<string, string>;
       }>('/api/auth/me')
       .then(({ data }) => {
         const u: AuthUser = {
@@ -64,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           permissions: data.permissions,
           can_edit_reports: data.can_edit_reports,
           can_delete_report_images: data.can_delete_report_images,
+          menu_permissions: data.menu_permissions || {},
         };
         localStorage.setItem('iip_user', JSON.stringify(u));
         setUser(u);
@@ -105,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           permissions: data.permissions,
           can_edit_reports: data.can_edit_reports,
           can_delete_report_images: data.can_delete_report_images,
+          menu_permissions: data.menu_permissions || {},
         };
         localStorage.setItem('iip_user', JSON.stringify(u));
         setUser(u);

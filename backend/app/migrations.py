@@ -163,6 +163,33 @@ def backfill_report_type(engine: Engine) -> None:
             logger.info("Auto-migration: backfilled report_type on %d report row(s)", result.rowcount)
 
 
+def backfill_menu_permissions(engine: Engine) -> None:
+    """One-time fill-in for User.menu_permissions_csv on accounts created before that column
+    existed — set to deps.default_menu_permissions_for_role(role), which reproduces exactly what
+    that role's sidebar looked like under the old hardcoded nav logic in frontend Layout.tsx, so no
+    existing account's menu silently changes until an admin deliberately edits it. Safe to call on
+    every startup — only touches rows where menu_permissions_csv is still NULL."""
+    from app.deps import default_menu_permissions_for_role  # local import: avoids a migrations<->deps import cycle at module load
+
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return  # brand-new DB
+    existing_columns = {c["name"] for c in inspector.get_columns("users")}
+    if "menu_permissions_csv" not in existing_columns:
+        return  # add_missing_columns hasn't added it yet this run — next startup will backfill
+    with engine.begin() as conn:
+        rows = conn.execute(text("SELECT id, role FROM users WHERE menu_permissions_csv IS NULL")).fetchall()
+        for user_id, role in rows:
+            perms = default_menu_permissions_for_role(role)
+            csv_value = ",".join(f"{k}:{v}" for k, v in perms.items()) or None
+            conn.execute(
+                text("UPDATE users SET menu_permissions_csv = :csv WHERE id = :id"),
+                {"csv": csv_value, "id": user_id},
+            )
+        if rows:
+            logger.info("Auto-migration: backfilled menu_permissions_csv on %d user(s)", len(rows))
+
+
 def dt_now_iso() -> str:
     import datetime as dt
 

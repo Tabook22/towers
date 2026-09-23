@@ -63,13 +63,6 @@ import { FloatingHelpChat } from './FloatingHelpChat';
 
 const drawerWidth = 232;
 
-const navItems = [
-  { label: 'Dashboard', to: '/', icon: <DashboardIcon /> },
-  { label: 'Towers', to: '/towers', icon: <TowerIcon /> },
-  { label: 'Image Archive', to: '/archive', icon: <PhotoLibraryIcon /> },
-  { label: 'Reports', to: '/reports', icon: <AssessmentIcon /> },
-];
-
 const SEEN_KEY = 'iip_channel_seen_id';
 
 /** Live unread-count badge for the Messages nav item — cheap poll (counts only, see
@@ -326,53 +319,42 @@ export function Layout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { mode, toggleMode } = useColorMode();
   const isClient = user?.role === 'client';
-  const isCrew = user?.role === 'team_member' || user?.role === 'team_leader';
-  // Teams: admin/reviewer see every team; a crew login sees (and the backend scopes them to)
-  // only their own. Field Tracker is the cross-team live board, so it stays admin/reviewer only.
-  const canSeeTeams = user?.role === 'admin' || user?.role === 'reviewer' || isCrew;
-  const canSeeFieldTracker = user?.role === 'admin' || user?.role === 'reviewer';
   const unreadMessages = useMessagesUnreadCount();
-  const messagesNavItem = {
-    label: 'Messages',
-    to: '/messages',
-    icon: (
-      <Badge badgeContent={unreadMessages} color="error" max={99}>
-        <ForumRoundedIcon />
-      </Badge>
-    ),
-  };
-  const crewNav = [
-    { label: 'Dashboard', to: '/', icon: <DashboardIcon /> },
-    messagesNavItem,
-    { label: 'Towers', to: '/towers', icon: <TowerIcon /> },
-    ...(user?.team_id
-      ? [{ label: 'Our team', to: `/teams/${user.team_id}`, icon: <GroupsIcon /> }]
-      : [{ label: 'Teams', to: '/teams', icon: <GroupsIcon /> }]),
-    // A team_member's app stays deliberately narrow (their own missions) — knowledge-base
-    // management is a team_leader/admin tool; a team_member still gets its content through the
-    // chat assistant, which searches it regardless of this nav item.
-    ...(user?.role === 'team_leader' ? [{ label: 'Knowledge base', to: '/knowledge-base', icon: <MenuBookRoundedIcon /> }] : []),
+
+  // Every possible sidebar item, in display order — which ones actually render for this account
+  // is driven entirely by user.menu_permissions (an item with no grant there is skipped below,
+  // not just disabled). See backend deps.default_menu_permissions_for_role for the starting grant
+  // each role gets, and routers/auth.py's create_user/update_user for how an admin customizes it —
+  // this replaces what used to be a fixed role-based nav hardcoded here.
+  const navItemDefs: { id: string; label: string; to: string; icon: ReactNode }[] = [
+    { id: 'dashboard', label: 'Dashboard', to: '/', icon: <DashboardIcon /> },
+    { id: 'towers', label: 'Towers', to: '/towers', icon: <TowerIcon /> },
+    { id: 'image_archive', label: 'Image Archive', to: '/archive', icon: <PhotoLibraryIcon /> },
+    // A client (customer) login's report link goes to the portal page, not the staff one — see
+    // App.tsx's route guard for the server-side-equivalent enforcement (app/client_guard.py).
+    { id: 'reports', label: 'Reports', to: isClient ? '/client-reports' : '/reports', icon: <AssessmentIcon /> },
+    {
+      id: 'messages',
+      label: 'Messages',
+      to: '/messages',
+      icon: (
+        <Badge badgeContent={unreadMessages} color="error" max={99}>
+          <ForumRoundedIcon />
+        </Badge>
+      ),
+    },
+    {
+      id: 'teams',
+      label: user?.team_id ? 'Our team' : 'Teams',
+      to: user?.team_id ? `/teams/${user.team_id}` : '/teams',
+      icon: <GroupsIcon />,
+    },
+    { id: 'field_tracker', label: 'Field Tracker', to: '/field-tracker', icon: <MyLocationIcon /> },
+    { id: 'team_progress', label: 'Team Progress', to: '/team-progress', icon: <InsightsIcon /> },
+    { id: 'knowledge_base', label: 'Knowledge base', to: '/knowledge-base', icon: <MenuBookRoundedIcon /> },
+    { id: 'settings', label: 'Settings', to: '/settings', icon: <SettingsIcon /> },
   ];
-  // A client (customer) login is locked to exactly this one page — see App.tsx's route guard for
-  // the server-side-equivalent enforcement (app/client_guard.py on the backend).
-  const clientNav = [{ label: 'Reports', to: '/client-reports', icon: <AssessmentIcon /> }];
-  const items = isClient
-    ? clientNav
-    : isCrew
-    ? crewNav
-    : [
-        ...navItems,
-        messagesNavItem,
-        ...(canSeeTeams ? [{ label: 'Teams', to: '/teams', icon: <GroupsIcon /> }] : []),
-        ...(canSeeFieldTracker
-          ? [
-              { label: 'Field Tracker', to: '/field-tracker', icon: <MyLocationIcon /> },
-              { label: 'Team Progress', to: '/team-progress', icon: <InsightsIcon /> },
-            ]
-          : []),
-        { label: 'Knowledge base', to: '/knowledge-base', icon: <MenuBookRoundedIcon /> },
-        ...(user?.role === 'admin' ? [{ label: 'Settings', to: '/settings', icon: <SettingsIcon /> }] : []),
-      ];
+  const items = navItemDefs.filter((def) => !!user?.menu_permissions?.[def.id]);
 
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);

@@ -9,6 +9,7 @@ from app.database import Base, engine
 from app.migrations import (
     add_missing_columns,
     backfill_areas_from_towers,
+    backfill_menu_permissions,
     backfill_report_type,
     backfill_visit_team_id_from_towers,
     rebuild_images_table_for_multi_image_support,
@@ -44,6 +45,7 @@ add_missing_columns(engine, Base)
 backfill_areas_from_towers(engine)
 backfill_visit_team_id_from_towers(engine)
 backfill_report_type(engine)
+backfill_menu_permissions(engine)
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
 
