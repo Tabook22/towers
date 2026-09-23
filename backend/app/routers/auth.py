@@ -7,34 +7,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import LEVELED_PERMISSIONS, PERMISSION_LEVELS, PERMISSIONS, effective_team_id, get_current_user, has_permission_level
 from app.models import LocationPing, Team, User, UserRole, Visit
-from app.schemas import ChangePasswordRequest, Token, UserCreate, UserOut, UserRegister, UserUpdate
+from app.schemas import ChangePasswordRequest, Token, UserCreate, UserOut, UserUpdate
 from app.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-
-@router.post("/register", status_code=201)
-def register(payload: UserRegister, db: Session = Depends(get_db)):
-    """Public self sign-up — anyone can create their own login, but it's inert (login() refuses it)
-    until an admin approves it (see update_user, PendingAccountsSection on the frontend). Always
-    lands as a plain team_member with no team — an admin sets the real role/team on approval."""
-    username = payload.username.strip()
-    if db.query(User).filter(User.username == username).first():
-        raise HTTPException(status_code=400, detail="That username is already taken")
-    user = User(
-        username=username,
-        full_name=(payload.full_name or "").strip() or None,
-        mobile=payload.mobile,
-        hashed_password=hash_password(payload.password),
-        role=UserRole.TEAM_MEMBER.value,
-        team_id=None,
-        is_active=True,
-        is_approved=False,
-        is_super_admin=False,
-    )
-    db.add(user)
-    db.commit()
-    return {"detail": "Account created. An admin needs to approve it before you can sign in."}
 
 
 @router.post("/login", response_model=Token)

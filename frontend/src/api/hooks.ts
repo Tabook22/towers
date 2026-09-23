@@ -71,15 +71,6 @@ export function useLogin() {
   });
 }
 
-// Public self sign-up — no auth needed (the account can't sign in until an admin approves it, see
-// routers/auth.py's register()/update_user and SettingsPage's PendingAccountsSection).
-export function useRegister() {
-  return useMutation({
-    mutationFn: async (payload: { username: string; password: string; full_name?: string; mobile?: string }) =>
-      (await apiClient.post<{ detail: string }>('/api/auth/register', payload)).data,
-  });
-}
-
 // ---------- Lists (choice enums) ----------
 export function useChoiceLists() {
   return useQuery({
