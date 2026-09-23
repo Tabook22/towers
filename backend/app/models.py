@@ -17,6 +17,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    JSON,
     String,
     Text,
     Time,
@@ -497,6 +498,8 @@ class LineInspectionReport(Base):
     # (imperfect for a pre-existing area/consolidated row, since that distinction wasn't tracked
     # yet, but harmless — it only affects an old report's filter facet, never what it contains).
     report_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Freeze tower membership and display names even when catalog assignments later change.
+    scope_towers: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
 
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)

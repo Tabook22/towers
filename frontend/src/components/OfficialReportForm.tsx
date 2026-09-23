@@ -33,6 +33,7 @@ import {
   useTowers,
 } from '../api/hooks';
 import { ReportHistoryTable } from './ReportHistoryTable';
+import { reportError } from '../utils/reportLibrary';
 
 type Mode = 'tower' | 'team' | 'line' | 'overall';
 
@@ -45,7 +46,7 @@ type Mode = 'tower' | 'team' | 'line' | 'overall';
  * line, every team, every tower at once). "Line" here is the Tower.area field — in this app a line
  * and an area are the same thing, just named for what an admin actually calls it. Same rendering
  * path in every case — see backend services/oetc_report.py and oetc_grouped_report.py. */
-export function OfficialReportForm() {
+export function OfficialReportForm({ showHistory = true, onCreated }: { showHistory?: boolean; onCreated?: () => void }) {
   const { data: teams } = useTeams();
   const { data: towers } = useTowers({ include_inactive: true, limit: 5000 });
   const { data: areas } = useAreas();
@@ -84,7 +85,8 @@ export function OfficialReportForm() {
   const generating = generateTeam.isPending || generateArea.isPending || generateConsolidated.isPending;
   const scopeChosen =
     mode === 'overall' || (mode === 'team' && !!teamId) || (mode === 'tower' && !!towerId) || (mode === 'line' && !!area);
-  const requiredFilled = reportNumber.trim() && startDate && endDate && scopeChosen;
+  const validDates = Boolean(startDate && endDate && startDate <= endDate);
+  const requiredFilled = validDates && scopeChosen;
 
   // Live "what will this include" check — fires the moment a scope and both dates are picked, well
   // before the report number/sign-off fields are filled in, so the "no visits found" surprise (the
@@ -96,7 +98,7 @@ export function OfficialReportForm() {
     area: mode === 'line' ? area : undefined,
     start_date: startDate || undefined,
     end_date: endDate || undefined,
-    enabled: Boolean(scopeChosen && startDate && endDate),
+    enabled: Boolean(scopeChosen && validDates),
   });
 
   const handleModeChange = (next: Mode | null) => {
@@ -120,18 +122,17 @@ export function OfficialReportForm() {
       approved_by: approvedBy.trim() || null,
       approval_date: approvalDate || null,
     };
-    const onError = (err: unknown) => {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(detail || 'Could not generate the report.');
+    const onError = async (err: unknown) => {
+      setError(await reportError(err, 'Could not generate the report.'));
     };
     if (mode === 'tower') {
-      generateTeam.mutate({ ...shared, tower_id: towerId }, { onError });
+      generateTeam.mutate({ ...shared, tower_id: towerId }, { onError, onSuccess: onCreated });
     } else if (mode === 'team') {
-      generateTeam.mutate({ ...shared, team_id: Number(teamId) }, { onError });
+      generateTeam.mutate({ ...shared, team_id: Number(teamId) }, { onError, onSuccess: onCreated });
     } else if (mode === 'line') {
-      generateArea.mutate({ ...shared, area }, { onError });
+      generateArea.mutate({ ...shared, area }, { onError, onSuccess: onCreated });
     } else {
-      generateConsolidated.mutate(shared, { onError });
+      generateConsolidated.mutate(shared, { onError, onSuccess: onCreated });
     }
   };
 
@@ -154,25 +155,20 @@ export function OfficialReportForm() {
         </Typography>
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Fills the customer's own "Transmission Line Insulator Thermal Inspection Report" template with
-        real inspection data — the page design is never changed. Four kinds, smallest to largest:{' '}
-        <strong>by tower</strong> (one specific tower), <strong>by team</strong> (everything that team
-        has done so far), <strong>by line</strong> (a whole transmission line, e.g. Ashoor-Saada —
-        every team currently working any part of it, combined into one file), and{' '}
-        <strong>overall</strong> (every line, every team, every tower together — the one to hand the
-        customer as the final project report).
+        Choose the inspection scope and date range, review the coverage, then add your assessment
+        and sign-off. Reports use the official customer template and are saved to the library.
       </Typography>
 
       <Accordion variant="outlined" sx={{ mb: 2 }} disableGutters>
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
           <Typography variant="subtitle2">
-            Getting "No visits found" or an empty report? Check this first
+            Help with report coverage
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={1}>
             <Typography variant="body2">
-              <strong>1.</strong> The tower is assigned to a team (Towers page) — not "Unassigned".
+              <strong>1.</strong> The tower has inspection visits linked to a team in the selected date range.
             </Typography>
             <Typography variant="body2">
               <strong>2.</strong> The visit was started from the team leader's or a crew member's own
@@ -224,7 +220,7 @@ export function OfficialReportForm() {
               {selectedTowerOption
                 ? selectedTowerOption.assigned_team_name
                   ? `Team: ${selectedTowerOption.assigned_team_name} (worked out automatically)`
-                  : 'This tower has no team assigned yet — assign it on the Towers page first.'
+                  : 'The team will be resolved from this tower’s inspection visits.'
                 : 'Just the report for this one tower — the team is worked out automatically.'}
             </Typography>
           </Box>
@@ -278,21 +274,18 @@ export function OfficialReportForm() {
           </Alert>
         )}
 
-        <TextField
+        {(mode === 'tower' || mode === 'team') && <TextField
           size="small"
-          label="Report number"
-          placeholder="e.g. OETC-DFRTRM-IR-2026-01"
-          helperText={
-            mode === 'tower' || mode === 'team'
-              ? 'Must be unique — used as the file name too.'
-              : "Each team's section gets its own number derived from this (e.g. -ASHOOR-SAADA-TEAM1) so it stays traceable per team."
-          }
+          label="Report number (optional)"
+          placeholder="Automatically assigned"
+          helperText="Leave blank for a unique number, or enter your own reference."
           value={reportNumber}
           onChange={(e) => setReportNumber(e.target.value)}
           sx={{ maxWidth: 420 }}
-        />
+        />}
+        {(mode === 'line' || mode === 'overall') && <Alert severity="info">Each team section receives an automatic report number and is saved separately in the library. The combined document downloads when generation finishes.</Alert>}
 
-        <Stack direction="row" spacing={2}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <TextField
             type="date"
             size="small"
@@ -305,23 +298,26 @@ export function OfficialReportForm() {
             type="date"
             size="small"
             label="To"
+            error={Boolean(startDate && endDate && !validDates)}
+            helperText={startDate && endDate && !validDates ? 'End date must be on or after start date.' : undefined}
             slotProps={{ inputLabel: { shrink: true } }}
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
           />
         </Stack>
 
-        {scopeChosen && startDate && endDate && (
+        {scopeChosen && validDates && (
           <Box>
             {preview.isLoading ? (
               <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', color: 'text.secondary' }}>
                 <CircularProgress size={16} />
                 <Typography variant="body2">Checking what this will include…</Typography>
               </Stack>
+            ) : preview.isError ? (
+              <Alert severity="error">Could not check report coverage. Check your connection and try again.</Alert>
             ) : preview.data && !preview.data.ok ? (
               <Alert severity="warning">
-                {preview.data.message} — check the "Getting 'No visits found'?" box above before
-                generating.
+                {preview.data.message} — review the scope and dates, or open Help with report coverage above.
               </Alert>
             ) : preview.data ? (
               <Alert
@@ -421,13 +417,13 @@ export function OfficialReportForm() {
         </Stack>
 
         <Box>
-          <Button variant="contained" disabled={!requiredFilled || generating} onClick={handleGenerate}>
+          <Button variant="contained" disabled={!requiredFilled || generating || preview.isFetching || preview.isError || !preview.data?.ok} onClick={handleGenerate}>
             {buttonLabel}
           </Button>
         </Box>
       </Stack>
 
-      <Accordion variant="outlined" sx={{ mt: 3 }} disableGutters>
+      {showHistory && <Accordion variant="outlined" sx={{ mt: 3 }} disableGutters>
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <HistoryRoundedIcon fontSize="small" color="action" />
@@ -441,7 +437,7 @@ export function OfficialReportForm() {
           </Typography>
           <ReportHistoryTable />
         </AccordionDetails>
-      </Accordion>
+      </Accordion>}
     </Box>
   );
 }

@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Box, Button, Dialog, DialogContent, DialogTitle, IconButton, Typography } from '@mui/material';
+import { Alert, Box, Button, Dialog, DialogContent, DialogTitle, IconButton, LinearProgress, Typography } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded';
-import { renderAsync } from 'docx-preview';
 import { DraggableResizableDialogPaper } from './DraggableResizableDialogPaper';
 
 interface Props {
@@ -13,6 +12,7 @@ interface Props {
   /** Authenticated URL (see api/client.mediaUrl) to fetch the .docx bytes from — same URL the
    * Download button already uses, just rendered in place instead of saved to disk. */
   fileUrl: string;
+  notice?: string;
 }
 
 /** A read-only "click to view" popup for a generated .docx report — renders the real document
@@ -21,7 +21,7 @@ interface Props {
  * ResizableDialogPaper-based viewers — can also be dragged anywhere via its title bar (see
  * DraggableResizableDialogPaper), since a document this size often needs moving out of the way
  * of whatever the admin is cross-checking it against. */
-export function DocxViewerDialog({ open, onClose, title, fileUrl }: Props) {
+export function DocxViewerDialog({ open, onClose, title, fileUrl, notice }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +29,7 @@ export function DocxViewerDialog({ open, onClose, title, fileUrl }: Props) {
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
     const container = containerRef.current;
@@ -36,14 +37,22 @@ export function DocxViewerDialog({ open, onClose, title, fileUrl }: Props) {
 
     (async () => {
       try {
-        const res = await fetch(fileUrl);
-        if (!res.ok) throw new Error(`Server returned ${res.status}`);
+        const res = await fetch(fileUrl, { signal: controller.signal });
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(typeof data?.detail === 'string' ? data.detail : `Could not open the document (${res.status}).`);
+        }
         const blob = await res.blob();
         if (cancelled || !containerRef.current) return;
-        await renderAsync(blob, containerRef.current, containerRef.current, {
+        const { renderAsync } = await import('docx-preview');
+        if (cancelled) return;
+        // Render offscreen so a slower previous request cannot overwrite a newly opened report.
+        const rendered = document.createElement('div');
+        await renderAsync(blob, rendered, rendered, {
           inWrapper: true,
           ignoreLastRenderedPageBreak: true,
         });
+        if (!cancelled && containerRef.current) containerRef.current.replaceChildren(...Array.from(rendered.childNodes));
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Could not open this report.');
       } finally {
@@ -53,6 +62,7 @@ export function DocxViewerDialog({ open, onClose, title, fileUrl }: Props) {
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [open, fileUrl]);
 
@@ -64,13 +74,13 @@ export function DocxViewerDialog({ open, onClose, title, fileUrl }: Props) {
       PaperComponent={DraggableResizableDialogPaper}
       slotProps={{
         paper: {
-          sx: { width: '80vw', height: '80vh', maxWidth: '96vw', maxHeight: '96vh', display: 'flex', flexDirection: 'column' },
+          sx: { width: { xs: '96vw', md: '88vw' }, height: '90vh', m: 1, maxWidth: '96vw', maxHeight: '96vh', display: 'flex', flexDirection: 'column' },
         },
       }}
     >
       <DialogTitle
         data-drag-handle
-        sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, bgcolor: 'grey.100' }}
+        sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}
       >
         <DragIndicatorRoundedIcon fontSize="small" sx={{ opacity: 0.5 }} />
         <Typography variant="h6" component="span" sx={{ fontWeight: 700, flex: 1, minWidth: 0 }} noWrap>
@@ -79,11 +89,13 @@ export function DocxViewerDialog({ open, onClose, title, fileUrl }: Props) {
         <Button size="small" startIcon={<DownloadRoundedIcon />} component="a" href={fileUrl} target="_blank" rel="noreferrer">
           Download
         </Button>
-        <IconButton onClick={onClose} size="small">
+        <IconButton onClick={onClose} size="small" aria-label="Close document preview">
           <CloseRoundedIcon />
         </IconButton>
       </DialogTitle>
-      <DialogContent sx={{ p: 0, flex: 1, minHeight: 0, overflow: 'auto', bgcolor: 'grey.400' }}>
+      {notice && <Alert severity="warning">{notice}</Alert>}
+      {loading && <LinearProgress aria-label="Loading document" />}
+      <DialogContent sx={{ p: 0, flex: 1, minHeight: 0, overflow: 'auto', bgcolor: (theme) => theme.palette.mode === 'dark' ? '#273842' : '#e4e9ed' }}>
         {loading && (
           <Typography variant="body2" color="text.secondary" sx={{ p: 4, textAlign: 'center' }}>
             Loading document…
@@ -100,8 +112,8 @@ export function DocxViewerDialog({ open, onClose, title, fileUrl }: Props) {
             display: loading || error ? 'none' : 'block',
             // docx-preview renders each Word page as its own white sheet on this darker
             // background, matching how Word/Google Docs present a multi-page document.
-            '& .docx-wrapper': { bgcolor: 'grey.400', py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 },
-            '& .docx': { boxShadow: 3 },
+            '& .docx-wrapper': { bgcolor: 'transparent', minWidth: 'fit-content', py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 },
+            '& .docx': { boxShadow: 3, flexShrink: 0 },
           }}
         />
       </DialogContent>

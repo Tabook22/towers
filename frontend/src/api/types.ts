@@ -263,6 +263,7 @@ export interface OetcConsolidatedReportRequest {
 }
 
 export interface LineInspectionReportOut {
+  scope_towers?: { id: number; name: string }[] | null;
   id: number;
   team_id: number;
   team_name: string | null;

@@ -28,15 +28,36 @@ from __future__ import annotations
 
 import datetime as dt
 import io
+import random
+import re
+
+from sqlalchemy.orm import Session
 
 from app.config import BASE_DIR
-from app.models import IMAGE_TYPE_CHOICES, Position, Team, Tower, Visit
+from app.models import IMAGE_TYPE_CHOICES, LineInspectionReport, Position, Team, Tower, Visit
 from app.schemas import LineInspectionReportRequest
 from app.services.docx_reports import _inline_image
 from app.services.team_activity_report import _position_has_activity, _position_sort_key
 from app.services.tower_numbers import extract_tower_number
 
 TEMPLATE_PATH = BASE_DIR / "app" / "templates" / "oetc_line_report.docx"
+
+
+def generate_report_number(
+    db: Session, team_name: str, generated_at: dt.datetime, exclude: set[str] | None = None
+) -> str:
+    """Choose an unused suffix without probabilistic failures as the daily space fills up."""
+    safe_team = (re.sub(r"[^A-Za-z0-9]+", "", team_name) or "Team")[:66]
+    date_part = generated_at.strftime("%Y%m%d")
+    prefix = f"{safe_team}-{date_part}-"
+    used = set(exclude or ())
+    used.update(number for (number,) in db.query(LineInspectionReport.report_number)
+                .filter(LineInspectionReport.report_number.startswith(prefix)).all())
+    available = [f"{prefix}{suffix}" for suffix in range(1000, 10000) if f"{prefix}{suffix}" not in used]
+    if not available:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=409, detail="All automatic report numbers for this team and day are in use. Enter a custom report number.")
+    return random.choice(available)
 
 
 def _find_image(pos: Position, image_type: str):

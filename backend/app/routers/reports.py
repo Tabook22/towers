@@ -6,7 +6,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.config import settings
 from app.database import get_db
@@ -37,6 +37,7 @@ from app.schemas import (
     ReportCommentCreate,
     ReportCommentOut,
     ReportImageOut,
+    ReportTowerScope,
 )
 from app.services.docx_reports import render_visit_report_docx
 from app.services.field_execution_plan import render_field_execution_plan_docx
@@ -44,11 +45,10 @@ from app.services.oetc_grouped_report import (
     _visits_for_area,
     plan_area_report,
     plan_consolidated_report,
-    plan_report_numbers,
     render_area_report,
     render_consolidated_report,
 )
-from app.services.oetc_report import render_oetc_line_report_docx, used_image_ids
+from app.services.oetc_report import generate_report_number, render_oetc_line_report_docx, used_image_ids
 from app.services.pdf_form_reports import render_visit_report_pdf_form
 from app.services.reports import build_overall_report, build_visit_report
 from app.services.rollup import visit_rollup
@@ -97,6 +97,11 @@ def _persist_report_images(db: Session, report_id: int, visits: list[Visit]) -> 
     report-to-image link. Call after the LineInspectionReport row has an id (flush or commit)."""
     for position_id, image_id, image_type in used_image_ids(visits):
         db.add(ReportImage(report_id=report_id, position_id=position_id, image_id=image_id, image_type=image_type))
+
+
+def _report_tower_scope(visits: list[Visit]) -> list[dict]:
+    towers = {v.tower.id: v.tower.tower_id for v in visits}
+    return [{"id": pk, "name": name} for pk, name in sorted(towers.items(), key=lambda t: natural_sort_key(t[1]))]
 
 
 def _resolve_tower_team(db: Session, tower: Tower, start_date: dt.date, end_date: dt.date) -> int | None:
@@ -404,8 +409,13 @@ def oetc_line_report(
     team = db.get(Team, team_id)
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
-    if db.query(LineInspectionReport).filter(LineInspectionReport.report_number == payload.report_number).first():
-        raise HTTPException(status_code=400, detail=f"Report number '{payload.report_number}' already used")
+
+    generated_at = utcnow()
+    if payload.report_number:
+        if db.query(LineInspectionReport).filter(LineInspectionReport.report_number == payload.report_number).first():
+            raise HTTPException(status_code=400, detail=f"Report number '{payload.report_number}' already used")
+    else:
+        payload.report_number = generate_report_number(db, team.name, generated_at)
 
     visits_query = db.query(Visit).options(
         joinedload(Visit.positions).joinedload(Position.images), joinedload(Visit.tower)
@@ -423,7 +433,6 @@ def oetc_line_report(
 
     docx_bytes = render_oetc_line_report_docx(team, visits, payload, tower=tower)
 
-    generated_at = utcnow()
     record = LineInspectionReport(
         team_id=team.id,
         tower_id=tower.id if tower else None,
@@ -443,6 +452,7 @@ def oetc_line_report(
         line_sector=tower.line_sector if tower else None,
         file_path=_save_report_file(payload.report_number, generated_at, docx_bytes),
         report_type="tower" if tower else "team",
+        scope_towers=_report_tower_scope(visits),
     )
     db.add(record)
     db.flush()
@@ -457,15 +467,20 @@ def oetc_line_report(
     )
 
 
-def _persist_blocks(db: Session, blocks, user: User, payload, report_type: str) -> None:
+def _persist_blocks(
+    db: Session, blocks, user: User, payload, report_type: str, generated_at: dt.datetime | None = None
+) -> None:
     """One LineInspectionReport row per team-section in a grouped report — same traceability the
     single-team endpoint above gives, just one row per section instead of one for the whole file.
     The sign-off/condition fields are shared across every section of one grouped report (there's
     only one set of them on the request), so each row gets the same copy — needed so re-downloading
     any one section later reproduces it exactly, not just with the team/dates/number right. Each
     section's own standalone .docx is also archived (same as the single-team endpoint) and its
-    images snapshotted, so every section is independently traceable/downloadable later."""
-    generated_at = utcnow()
+    images snapshotted, so every section is independently traceable/downloadable later. `generated_at`
+    should be the same timestamp used to pick each block's auto report number (see
+    render_area_report/render_consolidated_report) — defaults to now for a caller that doesn't
+    already have one."""
+    generated_at = generated_at or utcnow()
     for b in blocks:
         dates = [v.inspection_date for v in b.visits if v.inspection_date]
         record = LineInspectionReport(
@@ -484,6 +499,7 @@ def _persist_blocks(db: Session, blocks, user: User, payload, report_type: str) 
             created_by=user.id,
             created_at=generated_at,
             report_type=report_type,
+            scope_towers=_report_tower_scope(b.visits),
             file_path=_save_report_file(b.report_number, generated_at, b.docx_bytes),
         )
         db.add(record)
@@ -509,22 +525,15 @@ def oetc_area_report(
     if not plan:
         raise HTTPException(status_code=400, detail=f"No visits found in '{payload.area}' for that date range")
 
-    numbers = plan_report_numbers(plan, payload.report_number)
-    dupes = [n for n in numbers if db.query(LineInspectionReport).filter(LineInspectionReport.report_number == n).first()]
-    if dupes:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Report number '{payload.report_number}' is already used for this area/date range — pick a different base number",
-        )
+    generated_at = utcnow()
+    docx_bytes, blocks = render_area_report(db, payload, generated_at)
+    _persist_blocks(db, blocks, user, payload, report_type="area", generated_at=generated_at)
 
-    docx_bytes, blocks = render_area_report(db, payload)
-    _persist_blocks(db, blocks, user, payload, report_type="area")
-
-    safe_number = payload.report_number.replace("/", "-")
+    stamp = generated_at.strftime("%Y%m%d")
     return Response(
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="{safe_number}-{payload.area.replace(" ", "-")}.docx"'},
+        headers={"Content-Disposition": f'attachment; filename="{payload.area.replace(" ", "-")}-{stamp}.docx"'},
     )
 
 
@@ -542,22 +551,15 @@ def oetc_consolidated_report(
     if not plan:
         raise HTTPException(status_code=400, detail="No visits found anywhere in that date range")
 
-    numbers = plan_report_numbers(plan, payload.report_number)
-    dupes = [n for n in numbers if db.query(LineInspectionReport).filter(LineInspectionReport.report_number == n).first()]
-    if dupes:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Report number '{payload.report_number}' is already used for that date range — pick a different base number",
-        )
+    generated_at = utcnow()
+    docx_bytes, blocks = render_consolidated_report(db, payload, generated_at)
+    _persist_blocks(db, blocks, user, payload, report_type="consolidated", generated_at=generated_at)
 
-    docx_bytes, blocks = render_consolidated_report(db, payload)
-    _persist_blocks(db, blocks, user, payload, report_type="consolidated")
-
-    safe_number = payload.report_number.replace("/", "-")
+    stamp = generated_at.strftime("%Y%m%d")
     return Response(
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="{safe_number}-consolidated.docx"'},
+        headers={"Content-Disposition": f'attachment; filename="consolidated-{stamp}.docx"'},
     )
 
 
@@ -583,15 +585,13 @@ def oetc_line_report_history(
     q = db.query(LineInspectionReport).options(
         joinedload(LineInspectionReport.team),
         joinedload(LineInspectionReport.tower),
-        joinedload(LineInspectionReport.images),
-        joinedload(LineInspectionReport.comments),
+        selectinload(LineInspectionReport.images).joinedload(ReportImage.position).joinedload(Position.visit).joinedload(Visit.tower),
+        selectinload(LineInspectionReport.comments),
     )
     if user.role == UserRole.TEAM_LEADER.value:
         q = q.filter(LineInspectionReport.team_id == user.team_id) if user.team_id else q.filter(False)
     elif team_id:
         q = q.filter(LineInspectionReport.team_id == team_id)
-    if tower_id:
-        q = q.filter(LineInspectionReport.tower_id == tower_id)
     if report_type:
         q = q.filter(LineInspectionReport.report_type == report_type)
     if line_sector:
@@ -602,13 +602,24 @@ def oetc_line_report_history(
         q = q.filter(LineInspectionReport.start_date <= end_date)
     if search:
         q = q.filter(LineInspectionReport.report_number.ilike(f"%{search}%"))
-    rows = q.order_by(LineInspectionReport.created_at.desc()).all()
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(status_code=422, detail="End date must be on or after start date")
+    rows = q.order_by(LineInspectionReport.created_at.desc(), LineInspectionReport.id.desc()).all()
     out = []
     for r in rows:
         item = LineInspectionReportOut.model_validate(r)
         item.team_name = r.team.name if r.team else None
         item.tower_name = r.tower.tower_id if r.tower else None
-        item.has_file = bool(r.file_path)
+        # Older reports have no scope snapshot. Only infer membership from recorded evidence,
+        # never today's team assignments, which could include towers absent from the report.
+        scope = r.scope_towers
+        if scope is None:
+            scope = ([{"id": r.tower.id, "name": r.tower.tower_id}] if r.tower else
+                     _report_tower_scope([image.position.visit for image in r.images if image.position and image.position.visit]))
+        if tower_id and not any(t["id"] == tower_id for t in scope):
+            continue
+        item.scope_towers = [ReportTowerScope.model_validate(t) for t in scope]
+        item.has_file = bool(r.file_path and (settings.reports_dir / r.file_path).is_file())
         item.image_count = len(r.images)
         item.comment_count = len(r.comments)
         out.append(item)
@@ -737,10 +748,49 @@ def update_oetc_line_report(
     item = LineInspectionReportOut.model_validate(record)
     item.team_name = record.team.name if record.team else None
     item.tower_name = record.tower.tower_id if record.tower else None
-    item.has_file = bool(record.file_path)
+    item.has_file = bool(record.file_path and (settings.reports_dir / record.file_path).is_file())
     item.image_count = len(record.images)
     item.comment_count = len(record.comments)
     return item
+
+
+@router.delete("/oetc-line-report/{report_id}", status_code=204)
+def delete_oetc_line_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Permanently removes a generated report — its row, its archived .docx on disk, and (via
+    cascade) its image-snapshot links and comment thread. Never touches the underlying field data
+    (Position/Visit/Image rows) the report was built from, only the report document itself, so this
+    is the right way to clear out a report that went out with wrong or stale information before
+    regenerating a corrected one. Same actor boundary as editing one: an admin needs
+    generate_reports at "full", a reviewer always, a team_leader only their own team's reports;
+    nobody else (team_member, client — a client can already remove individual images it's allowed
+    to, never a whole report) may call this."""
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if user.role == UserRole.ADMIN.value:
+        if not has_permission_level(user, "generate_reports", "full"):
+            raise HTTPException(status_code=403, detail="Not enough permissions")
+    elif user.role == UserRole.REVIEWER.value:
+        pass
+    elif user.role == UserRole.TEAM_LEADER.value:
+        if user.team_id != record.team_id:
+            raise HTTPException(status_code=403, detail="You don't have access to this team")
+    else:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+
+    if record.file_path:
+        path = settings.reports_dir / record.file_path
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail="Could not remove the archived file. The report has been retained; check storage permissions and retry.") from exc
+    db.delete(record)
+    db.commit()
+    return None
 
 
 @router.get("/oetc-line-report/{report_id}/file")
@@ -807,6 +857,8 @@ def redownload_oetc_line_report(
     )
     if tower is not None:
         visits_query = visits_query.filter(Visit.tower_id == tower.id)
+    elif record.scope_towers is not None:
+        visits_query = visits_query.filter(Visit.tower_id.in_([t["id"] for t in record.scope_towers]))
     visits = visits_query.all()
     if not visits:
         raise HTTPException(

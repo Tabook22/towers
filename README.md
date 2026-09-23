@@ -62,6 +62,23 @@ cd backend
 pytest                        # ID-generation and roll-up calculation tests
 ```
 
+## Report library
+
+The Reports page opens on saved official reports. Search by report number, team, tower or line;
+filter by team, tower, report type and overlapping inspection dates; and sort by creation date,
+inspection date, team, tower or report number. Open documents in the viewer, download Word files,
+or delete a report after confirmation if your role permits it. Deleting a report retains field
+inspections and original evidence images.
+
+New reports snapshot their tower membership so filters remain accurate after tower reassignment
+or renaming. Existing databases receive the nullable scope column through the startup migration.
+For older reports, tower membership is recovered from the selected tower or recorded evidence
+where available. Reports without an archived file are marked **Live regeneration**: those copies
+use current inspection data and may differ from the original. Line/project reports continue to
+archive each team section separately; the combined document downloads at generation time.
+
+Frontend filter/error regression tests: `cd frontend` then `npm test`.
+
 ## Deployment
 
 See [DEPLOY.md](DEPLOY.md) for step-by-step instructions to run this on a Hostinger VPS (or any Ubuntu server):

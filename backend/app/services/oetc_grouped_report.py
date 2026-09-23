@@ -13,16 +13,15 @@ from __future__ import annotations
 
 import datetime as dt
 import io
-import re
 
 from docx import Document as DocxDocument
 from docx.enum.text import WD_BREAK
 from docxcompose.composer import Composer
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import Area, Position, Team, Tower, Visit
+from app.models import Area, Position, Team, Tower, Visit, utcnow
 from app.schemas import LineInspectionReportRequest, OetcAreaReportRequest, OetcConsolidatedReportRequest
-from app.services.oetc_report import render_oetc_line_report_docx
+from app.services.oetc_report import generate_report_number, render_oetc_line_report_docx
 
 
 class GroupedReportBlock:
@@ -41,11 +40,6 @@ class GroupedReportBlock:
         # combined file, saved separately so this one team's report can be traced/redownloaded on
         # its own later, same as a plain single-team report.
         self.docx_bytes = docx_bytes
-
-
-def _slug(text: str) -> str:
-    s = re.sub(r"[^A-Za-z0-9]+", "-", text or "").strip("-").upper()
-    return s or "X"
 
 
 def _visits_for_area(db: Session, area: str, start_date: dt.date, end_date: dt.date) -> list[Visit]:
@@ -98,13 +92,21 @@ def _team_payload(base, team_id: int, report_number: str) -> LineInspectionRepor
     )
 
 
-def _render_merged(plan: list[tuple[str, Team, list[Visit]]], base, base_number: str) -> tuple[bytes, list[GroupedReportBlock]]:
-    """plan: (area, team, visits) tuples in the exact final order the merged file should have."""
+def _render_merged(
+    plan: list[tuple[str, Team, list[Visit]]], base, db: Session, generated_at: dt.datetime
+) -> tuple[bytes, list[GroupedReportBlock]]:
+    """plan: (area, team, visits) tuples in the exact final order the merged file should have. Each
+    section gets its own auto-generated report number (team name + `generated_at`'s date + a random
+    4-digit suffix — see services.oetc_report.generate_report_number), tracked in `used` so two
+    sections for the same team on the same day (a team working more than one area, in a
+    consolidated report) can never collide with each other, not just with already-saved reports."""
     master: DocxDocument | None = None
     composer: Composer | None = None
     blocks: list[GroupedReportBlock] = []
+    used: set[str] = set()
     for area, team, visits in plan:
-        sub_number = f"{base_number}-{_slug(area)}-{_slug(team.name)}"
+        sub_number = generate_report_number(db, team.name, generated_at, exclude=used)
+        used.add(sub_number)
         payload = _team_payload(base, team.id, sub_number)
         docx_bytes = render_oetc_line_report_docx(team, visits, payload)
         sub_doc = DocxDocument(io.BytesIO(docx_bytes))
@@ -135,21 +137,19 @@ def plan_consolidated_report(db: Session, payload: OetcConsolidatedReportRequest
     return plan
 
 
-def plan_report_numbers(plan: list[tuple[str, Team, list[Visit]]], base_number: str) -> list[str]:
-    """The report_number each team-section in `plan` will get, without rendering anything — lets the
-    router check every one is free before spending the time to build the actual documents."""
-    return [f"{base_number}-{_slug(area)}-{_slug(team.name)}" for area, team, _ in plan]
-
-
-def render_area_report(db: Session, payload: OetcAreaReportRequest) -> tuple[bytes | None, list[GroupedReportBlock]]:
+def render_area_report(
+    db: Session, payload: OetcAreaReportRequest, generated_at: dt.datetime | None = None
+) -> tuple[bytes | None, list[GroupedReportBlock]]:
     plan = plan_area_report(db, payload)
     if not plan:
         return None, []
-    return _render_merged(plan, payload, payload.report_number)
+    return _render_merged(plan, payload, db, generated_at or utcnow())
 
 
-def render_consolidated_report(db: Session, payload: OetcConsolidatedReportRequest) -> tuple[bytes | None, list[GroupedReportBlock]]:
+def render_consolidated_report(
+    db: Session, payload: OetcConsolidatedReportRequest, generated_at: dt.datetime | None = None
+) -> tuple[bytes | None, list[GroupedReportBlock]]:
     plan = plan_consolidated_report(db, payload)
     if not plan:
         return None, []
-    return _render_merged(plan, payload, payload.report_number)
+    return _render_merged(plan, payload, db, generated_at or utcnow())

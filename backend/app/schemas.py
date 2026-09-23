@@ -1336,7 +1336,10 @@ class LineInspectionReportRequest(BaseModel):
     tower_id: int | None = None
     start_date: dt.date
     end_date: dt.date
-    report_number: str = Field(min_length=1, max_length=80)
+    # Left unset (or blank), the router auto-generates one — team name + creation date + a random
+    # 4-digit suffix, guaranteed unique (see services.oetc_report.generate_report_number). Still
+    # settable explicitly for a caller that wants its own numbering convention.
+    report_number: str | None = Field(default=None, max_length=80)
     overall_condition: str | None = None
     probable_cause: str | None = None
     corrective_action: str | None = None
@@ -1371,7 +1374,6 @@ class OetcAreaReportRequest(BaseModel):
     area: str
     start_date: dt.date
     end_date: dt.date
-    report_number: str = Field(min_length=1, max_length=80)
     overall_condition: str | None = None
     probable_cause: str | None = None
     corrective_action: str | None = None
@@ -1392,7 +1394,6 @@ class OetcAreaReportRequest(BaseModel):
 class OetcConsolidatedReportRequest(BaseModel):
     start_date: dt.date
     end_date: dt.date
-    report_number: str = Field(min_length=1, max_length=80)
     overall_condition: str | None = None
     probable_cause: str | None = None
     corrective_action: str | None = None
@@ -1410,8 +1411,14 @@ class OetcConsolidatedReportRequest(BaseModel):
         return v
 
 
+class ReportTowerScope(BaseModel):
+    id: int
+    name: str
+
+
 class LineInspectionReportOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    scope_towers: list[ReportTowerScope] | None = None
     id: int
     team_id: int
     team_name: str | None = None

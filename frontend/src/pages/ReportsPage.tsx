@@ -11,6 +11,9 @@ import {
   MenuItem,
   Paper,
   Stack,
+  Tab,
+  Tabs,
+  Snackbar,
   Table,
   TableBody,
   TableCell,
@@ -27,6 +30,9 @@ import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import UploadFileIcon from '@mui/icons-material/UploadFileRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import FolderCopyRoundedIcon from '@mui/icons-material/FolderCopyRounded';
+import { ReportHistoryTable } from '../components/ReportHistoryTable';
 import {
   useAreas,
   useDashboardSummary,
@@ -42,20 +48,13 @@ import { FieldExecutionPlanForm } from '../components/FieldExecutionPlanForm';
 import { OfficialReportForm } from '../components/OfficialReportForm';
 import { useAuth } from '../auth/AuthContext';
 
-// A numbered, collapsible section with a one-line "use this when" callout right at the top, so each
-// one on this page answers "what is this for and when do I use it" before anything else — the page
-// has several different report types and that was the actual point of confusion, not any one form
-// being hard to fill in. Collapsible because with six of these the page got long: closed by default
-// except the one you almost always want (Section 1), so scanning down to the one you need doesn't
-// mean scrolling past five open forms first.
+// Secondary exports and template tools stay collapsed until needed.
 function ReportSection({
-  number,
   title,
   useWhen,
   defaultExpanded,
   children,
 }: {
-  number: number;
   title: string;
   useWhen: string;
   defaultExpanded?: boolean;
@@ -65,9 +64,6 @@ function ReportSection({
     <Accordion defaultExpanded={defaultExpanded} disableGutters>
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
         <Box>
-          <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 1 }}>
-            Section {number}
-          </Typography>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
             {title}
           </Typography>
@@ -209,6 +205,9 @@ export function ReportsPage() {
         : 'view';
   const canManageProjectPlans = reportsLevel === 'add' || reportsLevel === 'full';
   const canRemoveTemplate = reportsLevel === 'full';
+  const [tab, setTab] = useState('library');
+  const [created, setCreated] = useState(false);
+  const [libraryVersion, setLibraryVersion] = useState(0);
   const [area, setArea] = useState<string>('');
   const { data: areas } = useAreas();
   const { data, isLoading } = useDashboardSummary(area || undefined);
@@ -219,29 +218,27 @@ export function ReportsPage() {
 
   return (
     <Stack spacing={3}>
-      <Box>
-        <Typography variant="h4" sx={{ fontWeight: 800 }}>
-          Reports
-        </Typography>
-        <Typography color="text.secondary">
-          Every report on this page is numbered, with a "use this when" line at the top of each
-          section — skip straight to the one that matches what you need.
-        </Typography>
+      <Box sx={{ p: { xs: 3, md: 4 }, borderRadius: '22px', color: '#fff', position: 'relative', overflow: 'hidden', background: 'radial-gradient(ellipse at 95% 0%, #246d76 0%, transparent 55%), linear-gradient(115deg, #102c3b, #123c48)', '&::after': { content: '""', position: 'absolute', width: 280, height: 280, border: '1px solid #ffffff12', borderRadius: '50%', right: -90, bottom: -190, pointerEvents: 'none' } }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, position: 'relative', zIndex: 1 }}>
+          <Box>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}><FolderCopyRoundedIcon sx={{ fontSize: 19, color: '#76d5c6' }} /><Typography variant="overline" sx={{ color: '#9fe4da', letterSpacing: 2 }}>Inspection intelligence</Typography></Stack>
+            <Typography variant="h3" component="h1" sx={{ fontWeight: 750, letterSpacing: '-0.04em', fontSize: { xs: 32, md: 40 }, mb: 1 }}>Every inspection. Clearly reported.</Typography>
+            <Typography sx={{ color: '#bed3dc', maxWidth: 650 }}>Your reporting workspace. Create customer-ready documents and keep every saved report within reach.</Typography>
+          </Box>
+          {canManageProjectPlans && <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setTab('create')} sx={{ bgcolor: '#b9f2df', color: '#103b35', px: 2.5, py: 1.3, flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' }, '&:hover': { bgcolor: '#d6f9ed' } }}>Create report</Button>}
+        </Stack>
       </Box>
-
-      {canManageProjectPlans && (
-        <ReportSection
-          number={1}
-          title="Official report for the customer"
-          useWhen='you need the customer-format document — by tower, by team, by transmission line, or the overall final report covering everything. This is almost always the one you want.'
-          defaultExpanded
-        >
-          <OfficialReportForm />
-        </ReportSection>
-      )}
+      <Tabs value={tab} onChange={(_, value) => setTab(value)} aria-label="Reporting workspace" variant="scrollable" sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tab value="library" label="Report library" id="report-tab-library" aria-controls="report-panel-library" />
+        {canManageProjectPlans && <Tab value="create" label="Create report" id="report-tab-create" aria-controls="report-panel-create" />}
+        <Tab value="tools" label="Exports & templates" id="report-tab-tools" aria-controls="report-panel-tools" />
+      </Tabs>
+      <Box role="tabpanel" id="report-panel-library" aria-labelledby="report-tab-library" hidden={tab !== 'library'}><ReportHistoryTable key={libraryVersion} /></Box>
+      {canManageProjectPlans && <Box role="tabpanel" id="report-panel-create" aria-labelledby="report-tab-create" hidden={tab !== 'create'}><Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: '16px' }}><OfficialReportForm showHistory={false} onCreated={() => { setCreated(true); setLibraryVersion((n) => n + 1); setTab('library'); }} /></Paper></Box>}
+      <Box role="tabpanel" id="report-panel-tools" aria-labelledby="report-tab-tools" hidden={tab !== 'tools'}>
+      <Stack spacing={2}>
 
       <ReportSection
-        number={2}
         title="Team activity report"
         useWhen="you just want to see or export what a team has actually done so far — not the customer template, a plain internal breakdown you can filter and download as Excel."
       >
@@ -249,7 +246,6 @@ export function ReportsPage() {
       </ReportSection>
 
       <ReportSection
-        number={3}
         title="Overall summary (PDF)"
         useWhen="you want a quick internal snapshot PDF across all towers (optionally one area) — a fast status check for yourself, not something to hand the customer."
       >
@@ -284,7 +280,6 @@ export function ReportsPage() {
 
       {canManageProjectPlans && (
         <ReportSection
-          number={4}
           title="Field execution plan"
           useWhen="you're mobilizing and need a plan document showing tower/team counts and a day-by-day schedule — a planning tool, not an inspection report."
         >
@@ -294,9 +289,8 @@ export function ReportsPage() {
 
       {canManageProjectPlans && (
       <ReportSection
-        number={5}
         title="Custom report templates"
-        useWhen="you want reports in your own branded layout (logo, colors, fonts) instead of the built-in one — advanced, and not needed for the official customer report in Section 1, which already uses the customer's own fixed template."
+        useWhen="you want reports in your own branded layout (logo, colors, fonts) instead of the built-in one — advanced, and not needed for the official customer report in Create report, which already uses the customer's own fixed template."
       >
         <Stack spacing={2.5} divider={<Divider />}>
           <TemplateSlot
@@ -329,9 +323,8 @@ export function ReportsPage() {
       )}
 
       <ReportSection
-        number={6}
         title="Per-tower reports"
-        useWhen="you want a one-off PDF or Word download for a single tower's latest visit only — not the official customer report in Section 1."
+        useWhen="you want a one-off PDF or Word download for a single tower's latest visit only — not the official customer report in Create report."
       >
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
@@ -416,6 +409,9 @@ export function ReportsPage() {
           </Table>
         </TableContainer>
       </ReportSection>
+      </Stack>
+      </Box>
+      <Snackbar open={created} autoHideDuration={6000} onClose={() => setCreated(false)} message="Report created and saved to your library. Your download is ready." />
     </Stack>
   );
 }

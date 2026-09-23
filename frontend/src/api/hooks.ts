@@ -975,6 +975,18 @@ export function useOetcReportHistory(teamIdOrFilters?: number | OetcReportHistor
   });
 }
 
+export function useDeleteOetcReport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => apiClient.delete(`/api/reports/oetc-line-report/${id}`),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: ['oetc-report-images', id] });
+      qc.removeQueries({ queryKey: ['oetc-report-comments', id] });
+      return qc.invalidateQueries({ queryKey: ['oetc-report-history'] });
+    },
+  });
+}
+
 // Every image snapshotted into a report at generation time — the client portal's per-report image
 // archive (see backend models.ReportImage). Stays fixed even if the field data changes later.
 export function useReportImages(reportId?: number) {

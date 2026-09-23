@@ -55,18 +55,29 @@ export function getTheme(mode: PaletteMode): Theme {
       text: isDark ? { primary: '#e7eef2', secondary: '#9fb2bc' } : { primary: '#1c2733', secondary: '#5a6b78' },
       divider: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
     },
-    shape: { borderRadius: 10 },
+    shape: { borderRadius: 12 },
     typography: {
       fontFamily: '"Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       h1: { fontWeight: 700 },
       h2: { fontWeight: 700 },
-      h3: { fontWeight: 700 },
-      h4: { fontWeight: 700 },
+      h3: { fontWeight: 700, letterSpacing: '-0.035em' },
+      h4: { fontWeight: 700, letterSpacing: '-0.025em' },
       h5: { fontWeight: 600 },
       h6: { fontWeight: 600 },
       button: { textTransform: 'none', fontWeight: 600 },
     },
     components: {
+      MuiCssBaseline: {
+        styleOverrides: {
+          html: { colorScheme: mode },
+          body: { backgroundImage: isDark ? 'radial-gradient(ellipse at top right, rgba(45,108,122,0.08), transparent 60%)' : 'radial-gradient(ellipse at top right, rgba(45,108,122,0.05), transparent 60%)', backgroundAttachment: 'fixed' },
+          '*:focus-visible': { outline: '2px solid', outlineColor: isDark ? '#7cc4de' : '#287d91', outlineOffset: 3 },
+        },
+      },
+      MuiTabs: { styleOverrides: { indicator: { height: 3, borderRadius: '3px 3px 0 0' } } },
+      MuiTab: { styleOverrides: { root: { minHeight: 54, fontWeight: 650 } } },
+      MuiOutlinedInput: { styleOverrides: { root: { backgroundColor: isDark ? 'rgba(255,255,255,0.015)' : 'rgba(255,255,255,0.8)' } } },
+      MuiAccordion: { styleOverrides: { root: { border: `1px solid ${isDark ? 'rgba(255,255,255,0.09)' : 'rgba(16,44,59,0.09)'}`, boxShadow: 'none', '&::before': { display: 'none' } } } },
       MuiPaper: {
         styleOverrides: {
           root: { backgroundImage: 'none' },
@@ -81,7 +92,7 @@ export function getTheme(mode: PaletteMode): Theme {
       },
       MuiButton: {
         styleOverrides: {
-          root: { borderRadius: 8 },
+          root: { borderRadius: 9, boxShadow: 'none', paddingInline: 16 },
         },
       },
       MuiChip: {
@@ -100,6 +111,7 @@ export function getTheme(mode: PaletteMode): Theme {
       MuiTableCell: {
         styleOverrides: {
           root: { borderColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)' },
+          head: { backgroundColor: isDark ? '#1b2b35' : '#f1f5f7', color: isDark ? '#bdcdd5' : '#516776', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' },
         },
       },
     },
