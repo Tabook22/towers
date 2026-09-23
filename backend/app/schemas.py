@@ -299,6 +299,7 @@ class ImageOut(BaseModel):
     thumbnail_path: str | None
     original_filename: str | None
     file_size: int | None
+    checksum: str | None = None
     uploaded_at: dt.datetime | None
     annotated_path: str | None = None
     annotated_thumbnail_path: str | None = None

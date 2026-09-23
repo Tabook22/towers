@@ -94,6 +94,14 @@ clear the report filter to browse all uploads. References point to current image
 archived report document remains the record of the exact images embedded at generation time.
 Archive regression tests: `cd backend` then `pytest tests/test_archive_completeness.py`.
 
+Admins, reviewers and a visit's own team leader can use **Replace image** on an evidence card.
+Compare the current image with the selected file before saving. Replacement retains the image
+slot, category and insulator, refreshes the thumbnail, and clears markup tied to the old pixels.
+Previous files remain on disk for recovery. Primary slots are selected ahead of extra captures
+when generating reports. Generate a new report to include replacements; existing saved documents
+are unchanged. Invalid images and stale replacement requests are rejected.
+Replacement/report regression tests: `pytest tests/test_archive_replace.py`.
+
 ## Deployment
 
 See [DEPLOY.md](DEPLOY.md) for step-by-step instructions to run this on a Hostinger VPS (or any Ubuntu server):

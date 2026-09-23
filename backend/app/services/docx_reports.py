@@ -42,7 +42,8 @@ from app.services.rollup import visit_rollup
 
 def _pick_image(position: Position, primary: str, fallback: str):
     for image_type in (primary, fallback):
-        img = next((i for i in position.images if i.image_type == image_type and i.file_path), None)
+        img = min((i for i in position.images if i.image_type == image_type and i.file_path),
+                  key=lambda i: (i.sequence, i.id), default=None)
         if img:
             return img
     return None

@@ -492,6 +492,26 @@ export function useCreatePosition(visitId: number) {
 }
 
 // ---------- Images ----------
+export function useReplaceArchiveImage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ image, file }: { image: ImageRow; file: File }) => {
+      const form = new FormData();
+      form.set('file', file);
+      if (image.checksum) form.set('expected_checksum', image.checksum);
+      return (await apiClient.post<ImageRow>(`/api/images/${image.id}/replace`, form, { timeout: 120_000 })).data;
+    },
+    onSuccess: async (_, { image }) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['archive'] }),
+        qc.invalidateQueries({ queryKey: ['visit', image.visit_id] }),
+        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+        qc.invalidateQueries({ queryKey: ['towers'] }),
+      ]);
+    },
+  });
+}
+
 export function useUploadImage(visitId: number) {
   const qc = useQueryClient();
   return useMutation({

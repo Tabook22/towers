@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import base64
 import datetime as dt
+import io
+import uuid
 from pathlib import Path
 
 import cv2
 import numpy as np
+from PIL import Image as PILImage, UnidentifiedImageError
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
@@ -187,6 +190,8 @@ async def apply_upload(
     capture_time: str | None,
     latitude: float | None,
     longitude: float | None,
+    *,
+    new_revision: bool = False,
 ) -> None:
     """Validates and archives `raw` onto an already-created (and already `image_code`d) Image row —
     shared by the original upload endpoint and by positions.create_extra_image, which creates a new
@@ -214,7 +219,8 @@ async def apply_upload(
         raise HTTPException(status_code=400, detail="Image code could not be generated — check position fields")
 
     ext = file_extension(filename, content_type)
-    rel_path = archive_relative_path(tower.tower_id, cap_date, img.image_code, ext)
+    storage_code = f"{img.image_code}-revision-{uuid.uuid4().hex}" if new_revision else img.image_code
+    rel_path = archive_relative_path(tower.tower_id, cap_date, storage_code, ext)
     rel_path, size, checksum = save_upload(raw, rel_path)
     thumb_path = build_thumbnail(rel_path)
 
@@ -250,6 +256,49 @@ async def upload_image(
     raw = await file.read()
     await apply_upload(img, raw, file.filename, file.content_type, capture_date, capture_time, latitude, longitude)
 
+    db.commit()
+    db.refresh(img)
+    return img
+
+
+@router.post("/{image_id}/replace", response_model=ImageOut)
+async def replace_image(
+    image_id: int,
+    file: UploadFile = File(...),
+    expected_checksum: str | None = Form(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Replace the current evidence in-place logically, retaining the previous files on disk.
+
+    A fresh storage path means invalid files or a failed database commit cannot overwrite the
+    current original. Existing report documents are independent, already-rendered files.
+    """
+    if user.role not in (UserRole.ADMIN.value, UserRole.REVIEWER.value, UserRole.TEAM_LEADER.value):
+        raise HTTPException(status_code=403, detail="You cannot replace inspection evidence")
+    img = _load_image(db, image_id, user)
+    if not img.file_path:
+        raise HTTPException(status_code=400, detail="This image slot is empty. Upload evidence from the inspection first.")
+    if expected_checksum and expected_checksum != img.checksum:
+        raise HTTPException(status_code=409, detail="This image changed since you opened it. Refresh the archive before replacing it.")
+    raw = await file.read(settings.max_upload_size_mb * 1024 * 1024 + 1)
+    if len(raw) > settings.max_upload_size_mb * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File exceeds {settings.max_upload_size_mb} MB limit")
+    try:
+        with PILImage.open(io.BytesIO(raw)) as candidate:
+            if candidate.format not in ("JPEG", "PNG", "TIFF", "WEBP"):
+                raise ValueError("Unsupported image format")
+            candidate.verify()
+        with PILImage.open(io.BytesIO(raw)) as candidate:
+            candidate.load()
+    except (UnidentifiedImageError, OSError, ValueError, PILImage.DecompressionBombError):
+        raise HTTPException(status_code=400, detail="Choose a valid JPEG, PNG, TIFF or WebP image. The current image has not been replaced.")
+    await apply_upload(img, raw, file.filename, file.content_type, None, None, None, None, new_revision=True)
+    # Markup belongs to the old pixels. Keep its files for recovery, but never render it on the
+    # replacement or in a newly generated report.
+    img.annotated_path = None
+    img.annotated_thumbnail_path = None
+    img.annotated_uploaded_at = None
     db.commit()
     db.refresh(img)
     return img

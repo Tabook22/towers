@@ -61,7 +61,8 @@ def generate_report_number(
 
 
 def _find_image(pos: Position, image_type: str):
-    return next((i for i in pos.images if i.image_type == image_type and i.file_path), None)
+    return min((i for i in pos.images if i.image_type == image_type and i.file_path),
+               key=lambda i: (i.sequence, i.id), default=None)
 
 
 def used_image_ids(visits: list[Visit]) -> list[tuple[int, int, str]]:

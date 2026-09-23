@@ -59,6 +59,7 @@ export interface ImageRow {
   thumbnail_path: string | null;
   original_filename: string | null;
   file_size: number | null;
+  checksum?: string | null;
   uploaded_at: string | null;
   annotated_path: string | null;
   annotated_thumbnail_path: string | null;

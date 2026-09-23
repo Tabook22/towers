@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Autocomplete, Box, Button, Chip, IconButton, InputAdornment, LinearProgress, MenuItem, Paper, Skeleton, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Autocomplete, Box, Button, Chip, IconButton, InputAdornment, LinearProgress, MenuItem, Paper, Skeleton, Snackbar, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import CellTowerRoundedIcon from '@mui/icons-material/CellTowerRounded';
@@ -15,12 +16,18 @@ import { evidenceLabels, evidenceTypes, groupArchiveEvidence, naturalCompare } f
 import { reportError } from '../utils/reportLibrary';
 import { ImageLightbox } from './ImageLightbox';
 import { DocxViewerDialog } from './DocxViewerDialog';
+import { ReplaceEvidenceDialog } from './ReplaceEvidenceDialog';
+import { useAuth } from '../auth/AuthContext';
 
 interface Preview { url: string; title: string; subtitle: string }
 const emptyImages: ImageRow[] = [];
 const emptyPhotos: ArchiveVisitPhoto[] = [];
 
 function EvidencePhoto({ image, open, viewReport }: { image: ImageRow; open: (preview: Preview) => void; viewReport: (id: number) => void }) {
+  const { user } = useAuth();
+  const canReplace = ['admin', 'reviewer', 'team_leader'].includes(user?.role || '');
+  const [replacing, setReplacing] = useState(false);
+  const [replaced, setReplaced] = useState(false);
   const [failed, setFailed] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +56,7 @@ function EvidencePhoto({ image, open, viewReport }: { image: ImageRow; open: (pr
       </Stack>
       <Typography variant="caption" sx={{ display: 'block', overflowWrap: 'anywhere', mt: 0.75 }}>{image.original_filename || image.image_code || `Image ${image.id}`}</Typography>
       <Typography variant="caption" color="text.secondary">{image.archive_date || image.capture_date || 'Date unknown'}</Typography>
+      {canReplace && <Button size="small" fullWidth startIcon={<SwapHorizRoundedIcon />} sx={{ mt: 1 }} onClick={() => setReplacing(true)} aria-label={`Replace ${title}`}>Replace image</Button>}
       {image.annotated_path && <Button size="small" fullWidth sx={{ mt: 1 }} onClick={() => open({ url: mediaUrl(`/api/images/${image.id}/annotation`, image.annotated_uploaded_at), title: `${title} · Annotated`, subtitle })}>View annotation</Button>}
       {!!image.reports?.length && <Stack spacing={0.5} sx={{ mt: 1 }}>
         <Typography variant="caption" color="success.main">Linked to {image.reports.length} saved report{image.reports.length === 1 ? '' : 's'}</Typography>
@@ -56,6 +64,8 @@ function EvidencePhoto({ image, open, viewReport }: { image: ImageRow; open: (pr
       </Stack>}
       {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
     </Box>
+    {replacing && <ReplaceEvidenceDialog image={image} onClose={() => setReplacing(false)} onReplaced={() => { setReplacing(false); setReplaced(true); setFailed(false); }} />}
+    <Snackbar open={replaced} autoHideDuration={7000} onClose={() => setReplaced(false)} message="Image replaced. Generate a new report when your evidence is ready." />
   </Paper>;
 }
 
