@@ -7,6 +7,7 @@ from app.client_guard import client_role_route_guard
 from app.config import settings
 from app.database import Base, engine
 from app.migrations import (
+    allow_unassigned_channel_authors,
     add_missing_columns,
     backfill_areas_from_towers,
     backfill_menu_permissions,
@@ -21,6 +22,7 @@ from app.routers import (
     areas,
     auth,
     channel,
+    community,
     claims,
     dashboard,
     help_chat,
@@ -39,6 +41,7 @@ from app.routers import (
 )
 
 Base.metadata.create_all(bind=engine)
+allow_unassigned_channel_authors(engine)
 rebuild_images_table_for_multi_image_support(engine)
 rebuild_positions_table_for_multi_direction_support(engine)
 add_missing_columns(engine, Base)
@@ -79,6 +82,7 @@ app.include_router(lists.router)
 app.include_router(tracking.router)
 app.include_router(teams.router)
 app.include_router(channel.router)
+app.include_router(community.router)
 app.include_router(claims.router)
 app.include_router(help_chat.router)
 app.include_router(team_archive.router)

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Chip, Stack, Typography } from '@mui/material';
+import { Alert, Button, Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import MicIcon from '@mui/icons-material/MicRounded';
 import StopIcon from '@mui/icons-material/StopRounded';
 
@@ -28,12 +28,16 @@ export function VoiceNoteControls({
   disabled,
   saving,
   onRecorded,
+  compact = false,
 }: {
   disabled?: boolean;
   saving?: boolean;
+  compact?: boolean;
   onRecorded: (blob: Blob, durationSeconds: number, liveTranscript: string) => void;
 }) {
   const [recording, setRecording] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const mounted = useRef(true);
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
@@ -45,9 +49,14 @@ export function VoiceNoteControls({
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
+    mounted.current = true;
     return () => {
+      mounted.current = false;
       if (timerRef.current) window.clearInterval(timerRef.current);
-      recRef.current?.stop();
+      if (recRef.current) {
+        recRef.current.onstop = null;
+        if (recRef.current.state !== 'inactive') recRef.current.stop();
+      }
       streamRef.current?.getTracks().forEach((t) => t.stop());
       speechRef.current?.stop();
     };
@@ -63,14 +72,17 @@ export function VoiceNoteControls({
   };
 
   const start = async () => {
+    if (starting) return;
     setError(null);
     transcriptRef.current = '';
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setError('This browser cannot record audio. Type the note instead.');
       return;
     }
+    setStarting(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mounted.current) { stream.getTracks().forEach(t => t.stop()); return; }
       streamRef.current = stream;
       const mime = pickMime();
       const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
@@ -118,13 +130,19 @@ export function VoiceNoteControls({
       rec.start(250);
       setRecording(true);
     } catch {
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      if (timerRef.current) window.clearInterval(timerRef.current);
       setError('Microphone permission denied — allow the mic, or type the note.');
+    } finally {
+      if (mounted.current) setStarting(false);
     }
   };
 
   return (
     <Stack spacing={0.5} sx={{ flexShrink: 0 }}>
-      {recording ? (
+      {recording && compact ? (
+        <Stack sx={{ alignItems: 'center' }}><Tooltip title="Stop and preview recording"><IconButton aria-label="Stop and preview recording" color="error" onClick={stop}><StopIcon /></IconButton></Tooltip><Typography variant="caption" color="error" sx={{ fontSize: 10 }}>{seconds}s</Typography></Stack>
+      ) : recording ? (
         <Button
           variant="contained"
           color="error"
@@ -134,18 +152,20 @@ export function VoiceNoteControls({
         >
           Stop {seconds}s
         </Button>
+      ) : compact ? (
+        <Tooltip title="Record voice note"><span><IconButton aria-label="Record voice note" onClick={() => void start()} disabled={disabled || saving || starting} color="primary"><MicIcon /></IconButton></span></Tooltip>
       ) : (
         <Button
           variant="outlined"
           startIcon={<MicIcon />}
           onClick={() => void start()}
-          disabled={disabled || saving}
+          disabled={disabled || saving || starting}
         >
           {saving ? 'Saving…' : 'Record'}
         </Button>
       )}
-      {recording && (
-        <Chip size="small" color="error" label="Recording — speak the daily note" />
+      {recording && !compact && (
+        <Chip size="small" color="error" label={compact ? 'Recording… stop to preview' : 'Recording — speak the daily note'} />
       )}
       {error && (
         <Alert severity="warning" onClose={() => setError(null)} sx={{ py: 0 }}>

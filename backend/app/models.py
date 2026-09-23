@@ -744,7 +744,7 @@ class TeamChannelMessage(Base):
     __tablename__ = "team_channel_messages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"), nullable=True, index=True)
     field_date: Mapped[dt.date] = mapped_column(Date, index=True)
     kind: Mapped[str] = mapped_column(String(20), default="note", server_default="note")
     body: Mapped[str] = mapped_column(Text, default="", server_default="")
@@ -773,7 +773,7 @@ class TeamChannelMessage(Base):
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
-    team: Mapped["Team"] = relationship(back_populates="channel_messages")
+    team: Mapped["Team | None"] = relationship(back_populates="channel_messages")
     tower: Mapped["Tower | None"] = relationship(foreign_keys=[tower_pk])
     visit: Mapped["Visit | None"] = relationship(foreign_keys=[visit_id])
     author: Mapped["User | None"] = relationship(foreign_keys=[created_by])

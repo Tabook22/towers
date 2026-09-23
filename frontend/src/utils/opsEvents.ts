@@ -49,7 +49,7 @@ export function teamIdsWithKind(messages: ChannelMessage[], filter: OpsFilter): 
   if (filter === 'all') return null;
   const ids = new Set<number>();
   for (const m of messages) {
-    if (m.kind === filter) ids.add(m.team_id);
+    if (m.kind === filter && m.team_id != null) ids.add(m.team_id);
   }
   return ids;
 }

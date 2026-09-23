@@ -91,11 +91,11 @@ export function MessageBody({
   onTower?: (towerId: number, visitId: number | null) => void;
 }) {
   const photo = msg.has_photo
-    ? mediaUrl(`/api/teams/${msg.team_id}/channel/${msg.id}/photo?thumb=true`, msg.created_at)
+    ? mediaUrl(`/api/community/channel/${msg.id}/photo?thumb=true`, msg.created_at)
     : null;
-  const audio = msg.has_audio ? mediaUrl(`/api/teams/${msg.team_id}/channel/${msg.id}/audio`) : null;
-  const video = msg.has_video ? mediaUrl(`/api/teams/${msg.team_id}/channel/${msg.id}/video`, msg.created_at) : null;
-  const file = msg.has_file ? mediaUrl(`/api/teams/${msg.team_id}/channel/${msg.id}/file`, msg.created_at) : null;
+  const audio = msg.has_audio ? mediaUrl(`/api/community/channel/${msg.id}/audio`) : null;
+  const video = msg.has_video ? mediaUrl(`/api/community/channel/${msg.id}/video`, msg.created_at) : null;
+  const file = msg.has_file ? mediaUrl(`/api/community/channel/${msg.id}/file`, msg.created_at) : null;
   const hasLocation = msg.latitude != null && msg.longitude != null;
   return (
     <Box
@@ -180,7 +180,7 @@ export function MessageBody({
       {photo && (
         <Box
           component="a"
-          href={mediaUrl(`/api/teams/${msg.team_id}/channel/${msg.id}/photo`, msg.created_at)}
+          href={mediaUrl(`/api/community/channel/${msg.id}/photo`, msg.created_at)}
           target="_blank"
           rel="noreferrer"
           sx={{ display: 'block', mt: 0.75 }}
@@ -558,7 +558,7 @@ export function DispatchChannelFeed({
               key={msg.id}
               msg={msg}
               showTeam={!teamId}
-              onTower={(tid, vid) => onTower?.(tid, vid, msg.team_id)}
+              onTower={(tid, vid) => { if (msg.team_id != null) onTower?.(tid, vid, msg.team_id); }}
             />
           ))}
         </Box>

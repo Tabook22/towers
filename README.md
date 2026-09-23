@@ -102,6 +102,24 @@ when generating reports. Generate a new report to include replacements; existing
 are unchanged. Invalid images and stale replacement requests are rejected.
 Replacement/report regression tests: `pytest tests/test_archive_replace.py`.
 
+## Shared conversation
+
+Messages is a common internal conversation for admins, reviewers, team leaders and members,
+including accounts without a team assignment. Team filters only change the view: sending always
+uses the signed-in person's identity and own team, and every internal participant can read it.
+Client portal accounts remain excluded. Existing team messages and attachments are retained.
+
+The chat includes outgoing/incoming bubbles, dates, emoji insertion, photo viewing, video/audio
+players and document downloads. Attachments and voice recordings are reviewed before Send;
+connection failures queue messages and attachments on-device for automatic retry. Validation failures retain the draft. Location is attached only after the user chooses to share it.
+Tower assignment events are available using the Tower updates toggle. Search covers history,
+and Load earlier messages uses ID-based pagination across field dates. Messages refresh every
+eight seconds; the check mark means saved to the channel, not read by another participant.
+
+Startup migrates the channel's team reference to allow unassigned internal authors. The SQLite
+migration runs in an immediate transaction, preserves every existing column and rebuilds indexes.
+Regression coverage: `pytest tests/test_community_chat.py`.
+
 ## Deployment
 
 See [DEPLOY.md](DEPLOY.md) for step-by-step instructions to run this on a Hostinger VPS (or any Ubuntu server):

@@ -1,6 +1,7 @@
 /** Field work that must survive a dropped 4G link — stored on the phone until it can be sent. */
 
 export type OutboxKind =
+  | 'community-message'
   | 'ping'
   | 'visit-update'
   | 'position-update'

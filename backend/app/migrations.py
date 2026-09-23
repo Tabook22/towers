@@ -19,6 +19,33 @@ from sqlalchemy.schema import CreateColumn, CreateTable
 logger = logging.getLogger(__name__)
 
 
+def allow_unassigned_channel_authors(engine: Engine) -> None:
+    """Preserve message history while allowing staff without team assignments to participate."""
+    from app.models import TeamChannelMessage
+    with engine.connect() as conn:
+        if engine.dialect.name == 'sqlite':
+            conn.exec_driver_sql('BEGIN IMMEDIATE')
+        columns = inspect(conn).get_columns('team_channel_messages')
+        if next(c for c in columns if c['name'] == 'team_id')['nullable']:
+            conn.rollback()
+            return
+        try:
+            if engine.dialect.name != 'sqlite':
+                conn.execute(text('ALTER TABLE team_channel_messages ALTER COLUMN team_id DROP NOT NULL'))
+            else:
+                conn.execute(text('ALTER TABLE team_channel_messages RENAME TO channel_messages_before_shared'))
+                conn.execute(CreateTable(TeamChannelMessage.__table__))
+                names = ', '.join('"' + c['name'] + '"' for c in columns)
+                conn.execute(text(f'INSERT INTO team_channel_messages ({names}) SELECT {names} FROM channel_messages_before_shared'))
+                conn.execute(text('DROP TABLE channel_messages_before_shared'))
+                for index in TeamChannelMessage.__table__.indexes:
+                    index.create(conn)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
 def rebuild_images_table_for_multi_image_support(engine: Engine) -> None:
     """One-off structural migration for the `images` table.
 

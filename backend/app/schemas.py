@@ -1051,7 +1051,7 @@ class ChannelMessageCreate(BaseModel):
 
 class ChannelMessageOut(BaseModel):
     id: int
-    team_id: int
+    team_id: int | None
     team_name: str | None = None
     field_date: dt.date
     kind: str

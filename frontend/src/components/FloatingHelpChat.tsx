@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Box, Fab, IconButton, Paper, Stack, Tooltip, Typography, Zoom } from '@mui/material';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -27,6 +28,7 @@ type Axis = 'x' | 'y' | 'xy';
  * left edge (or the top-left corner) — mirrored from ResizableDialogPaper's top-left-anchored
  * dialogs, since this panel grows "backwards" from its bottom-right-docked default. */
 export function FloatingHelpChat() {
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -92,6 +94,9 @@ export function FloatingHelpChat() {
 
   const width = size?.width ?? DEFAULT_WIDTH;
   const height = size?.height ?? DEFAULT_HEIGHT;
+
+  // The launcher would cover the conversation's Send button on compact screens.
+  if (location.pathname === '/messages') return null;
 
   return (
     <>

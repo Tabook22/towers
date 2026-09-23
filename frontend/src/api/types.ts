@@ -999,7 +999,7 @@ export type ChannelKind = 'note' | 'dispatch' | 'access' | 'weather' | 'skip' | 
 
 export interface ChannelMessage {
   id: number;
-  team_id: number;
+  team_id: number | null;
   team_name: string | null;
   field_date: string;
   kind: ChannelKind;

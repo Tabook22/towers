@@ -10,6 +10,13 @@ function appendFile(form: FormData, field: string, file: OutboxFile) {
 
 async function sendItem(item: OutboxItem): Promise<void> {
   switch (item.kind) {
+    case 'community-message': {
+      const form = new FormData();
+      for (const [key, value] of Object.entries(item.json || {})) if (value != null) form.set(key, String(value));
+      if (item.file) appendFile(form, 'file', item.file);
+      await apiClient.post('/api/community/channel', form, { timeout: 180_000 });
+      return;
+    }
     case 'ping':
       await apiClient.post('/api/tracking/ping', item.json);
       return;
@@ -202,6 +209,10 @@ export function queryKeysTouched(items: OutboxItem[]): (string | number)[][] {
     keys.push(key);
   };
   for (const item of items) {
+    if (item.kind === 'community-message') {
+      add(['community-chat']); add(['team-channel']); add(['tracking-channel']); add(['channel-unread']);
+      continue;
+    }
     if (item.kind === 'ping') {
       add(['tracking']);
       continue;

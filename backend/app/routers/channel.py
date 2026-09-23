@@ -49,7 +49,7 @@ ACCEPTED_FILE = {
 
 
 def _load_team(db: Session, team_id: int) -> Team:
-    team = db.get(Team, team_id)
+    team = db.get(Team, team_id) if team_id is not None else None
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
     return team
@@ -89,7 +89,7 @@ def _schedule_push(background_tasks: BackgroundTasks, db: Session, team_id: int,
     """Pushes a lock-screen notification to every other signed-in user with the app open — see
     services/push.py. Computed synchronously here (while the request's session is still open) and
     handed to the background task as plain strings, since that task opens its own session."""
-    team = db.get(Team, team_id)
+    team = db.get(Team, team_id) if team_id is not None else None
     who = user.full_name or user.username
     title = f"{who} · {team.name}" if team else who
     body = row.body or "New message"
@@ -147,10 +147,14 @@ def _create_row(
     latitude: float | None,
     longitude: float | None,
     allow_empty: bool = False,
+    automatic_location: bool = True,
 ) -> TeamChannelMessage:
-    _load_team(db, team_id)
-    lat, lng = _fallback_gps(db, user, latitude, longitude)
-    tower_pk, visit_id, lat, lng = resolve_location(db, team_id, tower_id, lat, lng)
+    if team_id is not None:
+        _load_team(db, team_id)
+    lat, lng = _fallback_gps(db, user, latitude, longitude) if automatic_location else (latitude, longitude)
+    tower_pk, visit_id = None, None
+    if automatic_location:
+        tower_pk, visit_id, lat, lng = resolve_location(db, team_id, tower_id, lat, lng)
     row = TeamChannelMessage(
         team_id=team_id,
         field_date=current_field_date(),
