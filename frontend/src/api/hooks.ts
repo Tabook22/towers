@@ -20,6 +20,7 @@ import type {
   ImageRow,
   LineInspectionReportOut,
   LineInspectionReportRequest,
+  LineInspectionReportUpdate,
   LiveTeamMember,
   LoginResponse,
   MovementDayReport,
@@ -29,6 +30,7 @@ import type {
   OetcConsolidatedReportRequest,
   OetcReportPreview,
   Position,
+  ReportImageOut,
   ReportTemplate,
   ReportTemplatesActive,
   Team,
@@ -959,11 +961,62 @@ export function useGenerateOetcConsolidatedReport() {
   });
 }
 
-export function useOetcReportHistory(teamId?: number) {
+export interface OetcReportHistoryFilters {
+  team_id?: number;
+  tower_id?: number;
+  report_type?: string;
+  line_sector?: string;
+  start_date?: string;
+  end_date?: string;
+  search?: string;
+}
+
+// `teamId` (a bare number) kept for existing call sites; pass an OetcReportHistoryFilters object
+// instead for the fuller client-portal search (report number, tower, line, date range, type).
+export function useOetcReportHistory(teamIdOrFilters?: number | OetcReportHistoryFilters) {
+  const params: OetcReportHistoryFilters =
+    typeof teamIdOrFilters === 'number' ? { team_id: teamIdOrFilters } : teamIdOrFilters || {};
   return useQuery({
-    queryKey: ['oetc-report-history', teamId],
+    queryKey: ['oetc-report-history', params],
     queryFn: async () =>
-      (await apiClient.get<LineInspectionReportOut[]>('/api/reports/oetc-line-report/history', { params: { team_id: teamId } })).data,
+      (await apiClient.get<LineInspectionReportOut[]>('/api/reports/oetc-line-report/history', { params })).data,
+  });
+}
+
+// Every image snapshotted into a report at generation time — the client portal's per-report image
+// archive (see backend models.ReportImage). Stays fixed even if the field data changes later.
+export function useReportImages(reportId?: number) {
+  return useQuery({
+    queryKey: ['oetc-report-images', reportId],
+    queryFn: async () => (await apiClient.get<ReportImageOut[]>(`/api/reports/oetc-line-report/${reportId}/images`)).data,
+    enabled: !!reportId,
+  });
+}
+
+// Editing only the sign-off/assessment fields of an already-generated report — never the
+// underlying readings/images. Admin (with permission) or a client account with can_edit_reports.
+export function useUpdateOetcLineReport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: LineInspectionReportUpdate }) =>
+      (await apiClient.patch<LineInspectionReportOut>(`/api/reports/oetc-line-report/${id}`, payload)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['oetc-report-history'] });
+    },
+  });
+}
+
+// Deleting an image from a report's own image archive — only ever the extra/supplementary kind
+// (never a baseline evidence slot, see backend routers/images.py's delete_image), and only for a
+// client account with can_delete_report_images. Distinct from useDeleteImage (a Visit-scoped
+// hook) since this is invoked from the report-images view, with no Visit in scope to invalidate.
+export function useDeleteReportImage(reportId?: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (imageId: number) => apiClient.delete(`/api/images/${imageId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['oetc-report-images', reportId] });
+    },
   });
 }
 
@@ -1178,6 +1231,8 @@ export function useUpdateUser() {
           | 'job_type'
           | 'is_super_admin'
           | 'permissions'
+          | 'can_edit_reports'
+          | 'can_delete_report_images'
         >
       > & { password?: string };
     }) => (await apiClient.patch<AdminUser>(`/api/auth/users/${id}`, payload)).data,
@@ -1203,6 +1258,8 @@ export function useCreateUser() {
       team_id?: number | null;
       is_super_admin?: boolean;
       permissions?: string[];
+      can_edit_reports?: boolean;
+      can_delete_report_images?: boolean;
     }) => (await apiClient.post<AdminUser>('/api/auth/users', payload)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });

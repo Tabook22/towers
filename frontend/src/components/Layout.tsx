@@ -325,6 +325,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { mode, toggleMode } = useColorMode();
+  const isClient = user?.role === 'client';
   const isCrew = user?.role === 'team_member' || user?.role === 'team_leader';
   // Teams: admin/reviewer see every team; a crew login sees (and the backend scopes them to)
   // only their own. Field Tracker is the cross-team live board, so it stays admin/reviewer only.
@@ -352,7 +353,12 @@ export function Layout({ children }: { children: ReactNode }) {
     // chat assistant, which searches it regardless of this nav item.
     ...(user?.role === 'team_leader' ? [{ label: 'Knowledge base', to: '/knowledge-base', icon: <MenuBookRoundedIcon /> }] : []),
   ];
-  const items = isCrew
+  // A client (customer) login is locked to exactly this one page — see App.tsx's route guard for
+  // the server-side-equivalent enforcement (app/client_guard.py on the backend).
+  const clientNav = [{ label: 'Reports', to: '/client-reports', icon: <AssessmentIcon /> }];
+  const items = isClient
+    ? clientNav
+    : isCrew
     ? crewNav
     : [
         ...navItems,

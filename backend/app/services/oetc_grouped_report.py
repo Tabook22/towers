@@ -27,15 +27,20 @@ from app.services.oetc_report import render_oetc_line_report_docx
 
 class GroupedReportBlock:
     """One team's section within the merged file — everything the router needs to persist a
-    LineInspectionReport row for it afterwards, without re-deriving anything."""
+    LineInspectionReport row (and its own saved .docx + linked images) for it afterwards, without
+    re-deriving or re-rendering anything."""
 
-    __slots__ = ("area", "team", "visits", "report_number")
+    __slots__ = ("area", "team", "visits", "report_number", "docx_bytes")
 
-    def __init__(self, area: str, team: Team, visits: list[Visit], report_number: str):
+    def __init__(self, area: str, team: Team, visits: list[Visit], report_number: str, docx_bytes: bytes):
         self.area = area
         self.team = team
         self.visits = visits
         self.report_number = report_number
+        # This exact section's own standalone .docx (pre-merge) — the same bytes composed into the
+        # combined file, saved separately so this one team's report can be traced/redownloaded on
+        # its own later, same as a plain single-team report.
+        self.docx_bytes = docx_bytes
 
 
 def _slug(text: str) -> str:
@@ -109,7 +114,7 @@ def _render_merged(plan: list[tuple[str, Team, list[Visit]]], base, base_number:
         else:
             _add_page_break(master)
             composer.append(sub_doc)
-        blocks.append(GroupedReportBlock(area, team, visits, sub_number))
+        blocks.append(GroupedReportBlock(area, team, visits, sub_number, docx_bytes))
     buf = io.BytesIO()
     composer.save(buf)
     return buf.getvalue(), blocks

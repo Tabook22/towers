@@ -272,13 +272,44 @@ export interface LineInspectionReportOut {
   end_date: string;
   report_number: string;
   overall_condition: string | null;
+  probable_cause: string | null;
+  corrective_action: string | null;
+  additional_comments: string | null;
   prepared_by: string | null;
   reviewed_by: string | null;
   approved_by: string | null;
   approval_date: string | null;
   created_at: string;
   line_sector: string | null;
+  report_type: string | null;
   has_file: boolean;
+  image_count: number;
+}
+
+export interface LineInspectionReportUpdate {
+  overall_condition?: string | null;
+  probable_cause?: string | null;
+  corrective_action?: string | null;
+  additional_comments?: string | null;
+  prepared_by?: string | null;
+  reviewed_by?: string | null;
+  approved_by?: string | null;
+  approval_date?: string | null;
+}
+
+// One image snapshotted into a generated report at the time it was made (see backend
+// models.ReportImage) — the client portal's permanent, per-report image archive.
+export interface ReportImageOut {
+  id: number;
+  position_id: number;
+  image_id: number;
+  image_type: string;
+  position_code: string | null;
+  tower_id: number;
+  tower_code: string;
+  area: string | null;
+  capture_date: string | null;
+  capture_time: string | null;
 }
 
 // Live "what will this include" summary for the report form — see useOetcReportPreview.
@@ -302,6 +333,8 @@ export interface LoginResponse {
   team_id: number | null;
   is_super_admin: boolean;
   permissions: string[];
+  can_edit_reports: boolean;
+  can_delete_report_images: boolean;
 }
 
 export interface ReportTemplate {
@@ -447,6 +480,9 @@ export interface AdminUser {
   team_id: number | null;
   is_super_admin: boolean;
   permissions: string[];
+  // Only meaningful for role === 'client'.
+  can_edit_reports: boolean;
+  can_delete_report_images: boolean;
 }
 
 export const ADMIN_PERMISSIONS = [

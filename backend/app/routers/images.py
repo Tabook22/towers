@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.config import settings
 from app.database import get_db
 from app.deps import check_visit_team_access, get_current_user
-from app.models import Image, Position, User, Visit
+from app.models import Image, Position, ReportImage, User, UserRole, Visit
 from app.schemas import ImageOut, ImageRetype, ImageUpdate, PositionOut, SmartEnhanceOut
 from app.services.archive import (
     ACCEPTED_IMAGE_CONTENT_TYPES,
@@ -350,8 +350,16 @@ async def make_primary(image_id: int, db: Session = Depends(get_db), user: User 
 def delete_image(image_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Fully removes an image row — only ever allowed for sequence > 1 (extra gallery shots added
     beyond the original one-per-type baseline). The baseline 48 slots per visit are never deleted,
-    only cleared (see clear_image_file) — that's what the fixed Image ID scheme (§4) assumes."""
+    only cleared (see clear_image_file) — that's what the fixed Image ID scheme (§4) assumes. A
+    client account additionally needs User.can_delete_report_images, and only for an image that's
+    actually part of a report they can see (see models.ReportImage) — never a blanket delete right
+    over every image in the system."""
     img = _load_image(db, image_id, user)
+    if user.role == UserRole.CLIENT.value:
+        if not user.can_delete_report_images:
+            raise HTTPException(status_code=403, detail="Not enough permissions")
+        if not db.query(ReportImage).filter(ReportImage.image_id == image_id).first():
+            raise HTTPException(status_code=403, detail="Not enough permissions")
     if img.sequence == 1:
         raise HTTPException(
             status_code=400,

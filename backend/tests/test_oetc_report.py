@@ -468,6 +468,7 @@ def test_grouped_reports_persist_the_sign_off_fields_for_later_redownload():
             self.team = team
             self.visits = visits
             self.report_number = report_number
+            self.docx_bytes = b"fake docx bytes"
 
     engine = _engine()
     with Session(engine) as db:
@@ -486,11 +487,13 @@ def test_grouped_reports_persist_the_sign_off_fields_for_later_redownload():
             overall_condition="Acceptable",
             prepared_by="Ahmed",
         )
-        _persist_blocks(db, [block], admin, payload)
+        _persist_blocks(db, [block], admin, payload, report_type="area")
 
         record = db.query(LineInspectionReport).filter_by(report_number="GROUPED-0001").one()
         assert record.overall_condition == "Acceptable"
         assert record.prepared_by == "Ahmed"
+        assert record.report_type == "area"
+        assert record.file_path is not None
 
 
 def test_tower_proximity_is_derived_from_string_when_never_recorded_by_hand():

@@ -30,7 +30,7 @@ import datetime as dt
 import io
 
 from app.config import BASE_DIR
-from app.models import Position, Team, Tower, Visit
+from app.models import IMAGE_TYPE_CHOICES, Position, Team, Tower, Visit
 from app.schemas import LineInspectionReportRequest
 from app.services.docx_reports import _inline_image
 from app.services.team_activity_report import _position_has_activity, _position_sort_key
@@ -41,6 +41,24 @@ TEMPLATE_PATH = BASE_DIR / "app" / "templates" / "oetc_line_report.docx"
 
 def _find_image(pos: Position, image_type: str):
     return next((i for i in pos.images if i.image_type == image_type and i.file_path), None)
+
+
+def used_image_ids(visits: list[Visit]) -> list[tuple[int, int, str]]:
+    """(position_id, image_id, image_type) for every image that actually gets embedded when this
+    exact set of visits is rendered into a report — mirrors _finding_context's own selection
+    (the 4 baseline evidence types, on any position with real activity) without needing a
+    DocxTemplate or doing any actual rendering. Used to snapshot a report's ReportImage rows at
+    generation time (see routers/reports.py) — the client portal's permanent report-to-image link."""
+    out: list[tuple[int, int, str]] = []
+    for v in sorted(visits, key=_visit_sort_key):
+        for pos in sorted(v.positions, key=_position_sort_key):
+            if not _position_has_activity(pos):
+                continue
+            for image_type in IMAGE_TYPE_CHOICES:
+                img = _find_image(pos, image_type)
+                if img:
+                    out.append((pos.id, img.id, image_type))
+    return out
 
 
 def _derived_tower_proximity(pos: Position) -> str | None:

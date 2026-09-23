@@ -47,6 +47,14 @@ class UserRole(str, enum.Enum):
     # their team's visits, just narrowed to "assigned to me" instead of "belongs to my team". No
     # team/roster management, no cross-team or cross-member visibility.
     TEAM_MEMBER = "team_member"
+    # The customer's own login (OETC) — created by an admin, scoped to exactly one page: the
+    # generated-reports portal (routers/reports.py's oetc_line_report_history/images/update
+    # endpoints, see also frontend Layout.tsx's isClient nav branch and App.tsx's route guard).
+    # Sees every report/image regardless of team (this app serves one customer, not several tenants
+    # needing separation from each other) but can never generate, edit field data, or manage
+    # anything — only what User.can_edit_reports/can_delete_report_images explicitly grant on top of
+    # plain view/download.
+    CLIENT = "client"
 
 
 class User(Base):
@@ -91,6 +99,12 @@ class User(Base):
     # deps.has_permission() for how this is consumed; use the `permissions` property below, not this
     # column, everywhere else.
     permissions_csv: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Only meaningful for role == "client" — the two things a customer login can do beyond plain
+    # view/download in the reports portal. Both default to False (view-only) so a newly created
+    # client account never has more than read access until an admin explicitly grants it.
+    can_edit_reports: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    can_delete_report_images: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     # Teams also has a `created_by -> users.id` FK, so the join column has to be spelled out
     # explicitly here — otherwise SQLAlchemy can't tell which of the two FKs this relationship means.
@@ -459,12 +473,40 @@ class LineInspectionReport(Base):
     # download_saved_oetc_report. Null for a report generated before this column existed; that older
     # redownload path (regenerate-from-current-data) still works as a fallback.
     file_path: Mapped[str | None] = mapped_column(String(400), nullable=True)
+    # "tower" | "team" | "area" | "consolidated" — which generate endpoint made this row, for the
+    # client portal's report-type filter (see routers/reports.py). Nullable for a row from before
+    # this column existed; migrations.backfill_report_type backfills those from tower_id alone
+    # (imperfect for a pre-existing area/consolidated row, since that distinction wasn't tracked
+    # yet, but harmless — it only affects an old report's filter facet, never what it contains).
+    report_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
 
     team: Mapped["Team"] = relationship()
     tower: Mapped["Tower | None"] = relationship()
+    images: Mapped[list["ReportImage"]] = relationship(back_populates="report", cascade="all, delete-orphan")
+
+
+class ReportImage(Base):
+    """Snapshot of exactly which Image rows were embedded in a LineInspectionReport, taken at
+    generation time (see services/oetc_report.used_image_ids) — so "which photos back this report"
+    stays fixed and traceable for the client portal even if the underlying Position's images are
+    later replaced or deleted, or the report is downloaded long after the field data has moved on."""
+
+    __tablename__ = "report_images"
+    __table_args__ = (UniqueConstraint("report_id", "image_id", name="uq_report_image"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    report_id: Mapped[int] = mapped_column(ForeignKey("line_inspection_reports.id"), index=True)
+    position_id: Mapped[int] = mapped_column(ForeignKey("positions.id"), index=True)
+    image_id: Mapped[int] = mapped_column(ForeignKey("images.id"), index=True)
+    image_type: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+
+    report: Mapped["LineInspectionReport"] = relationship(back_populates="images")
+    position: Mapped["Position"] = relationship()
+    image: Mapped["Image"] = relationship()
 
 
 class LocationPing(Base):

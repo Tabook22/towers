@@ -11,14 +11,29 @@ from sqlalchemy.orm import Session, joinedload
 from app.config import settings
 from app.database import get_db
 from app.deps import check_visit_team_access, get_current_user, has_permission_level, require_permission_level
-from app.models import Area, LineInspectionReport, Position, ReportTemplate, Team, Tower, User, UserRole, Visit, utcnow
+from app.models import (
+    Area,
+    Image,
+    LineInspectionReport,
+    Position,
+    ReportImage,
+    ReportTemplate,
+    Team,
+    Tower,
+    User,
+    UserRole,
+    Visit,
+    utcnow,
+)
 from app.schemas import (
     FieldExecutionPlanRequest,
     LineInspectionReportOut,
     LineInspectionReportRequest,
+    LineInspectionReportUpdate,
     OetcAreaReportRequest,
     OetcConsolidatedReportRequest,
     OetcReportPreview,
+    ReportImageOut,
 )
 from app.services.docx_reports import render_visit_report_docx
 from app.services.field_execution_plan import render_field_execution_plan_docx
@@ -30,7 +45,7 @@ from app.services.oetc_grouped_report import (
     render_area_report,
     render_consolidated_report,
 )
-from app.services.oetc_report import render_oetc_line_report_docx
+from app.services.oetc_report import render_oetc_line_report_docx, used_image_ids
 from app.services.pdf_form_reports import render_visit_report_pdf_form
 from app.services.reports import build_overall_report, build_visit_report
 from app.services.rollup import visit_rollup
@@ -60,6 +75,14 @@ def _save_report_file(report_number: str, generated_at: dt.datetime, docx_bytes:
         filename = f"{safe_number}-{uuid.uuid4().hex[:8]}.docx"
     (subdir / filename).write_bytes(docx_bytes)
     return f"{generated_at.year:04d}/{generated_at.month:02d}/{filename}"
+
+
+def _persist_report_images(db: Session, report_id: int, visits: list[Visit]) -> None:
+    """Snapshots exactly which images this report's rendering actually embedded (see
+    services.oetc_report.used_image_ids) as ReportImage rows — the client portal's permanent
+    report-to-image link. Call after the LineInspectionReport row has an id (flush or commit)."""
+    for position_id, image_id, image_type in used_image_ids(visits):
+        db.add(ReportImage(report_id=report_id, position_id=position_id, image_id=image_id, image_type=image_type))
 
 
 def _resolve_tower_team(db: Session, tower: Tower, start_date: dt.date, end_date: dt.date) -> int | None:
@@ -357,8 +380,8 @@ def oetc_line_report(
                 detail=f"{tower.tower_id} isn't assigned to a team, and no visit in that date range has one either",
             )
 
-    if user.role == UserRole.TEAM_MEMBER.value:
-        raise HTTPException(status_code=403, detail="Not available for team-member accounts")
+    if user.role in (UserRole.TEAM_MEMBER.value, UserRole.CLIENT.value):
+        raise HTTPException(status_code=403, detail="Not available for this account")
     if user.role == UserRole.TEAM_LEADER.value and user.team_id != team_id:
         raise HTTPException(status_code=403, detail="You don't have access to this team")
     if user.role == UserRole.ADMIN.value and not has_permission_level(user, "generate_reports", "add"):
@@ -405,8 +428,11 @@ def oetc_line_report(
         created_at=generated_at,
         line_sector=tower.line_sector if tower else None,
         file_path=_save_report_file(payload.report_number, generated_at, docx_bytes),
+        report_type="tower" if tower else "team",
     )
     db.add(record)
+    db.flush()
+    _persist_report_images(db, record.id, visits)
     db.commit()
 
     safe_number = payload.report_number.replace("/", "-")
@@ -417,31 +443,38 @@ def oetc_line_report(
     )
 
 
-def _persist_blocks(db: Session, blocks, user: User, payload) -> None:
+def _persist_blocks(db: Session, blocks, user: User, payload, report_type: str) -> None:
     """One LineInspectionReport row per team-section in a grouped report — same traceability the
     single-team endpoint above gives, just one row per section instead of one for the whole file.
     The sign-off/condition fields are shared across every section of one grouped report (there's
     only one set of them on the request), so each row gets the same copy — needed so re-downloading
-    any one section later reproduces it exactly, not just with the team/dates/number right."""
+    any one section later reproduces it exactly, not just with the team/dates/number right. Each
+    section's own standalone .docx is also archived (same as the single-team endpoint) and its
+    images snapshotted, so every section is independently traceable/downloadable later."""
+    generated_at = utcnow()
     for b in blocks:
         dates = [v.inspection_date for v in b.visits if v.inspection_date]
-        db.add(
-            LineInspectionReport(
-                team_id=b.team.id,
-                start_date=min(dates) if dates else dt.date.today(),
-                end_date=max(dates) if dates else dt.date.today(),
-                report_number=b.report_number,
-                overall_condition=payload.overall_condition,
-                probable_cause=payload.probable_cause,
-                corrective_action=payload.corrective_action,
-                additional_comments=payload.additional_comments,
-                prepared_by=payload.prepared_by,
-                reviewed_by=payload.reviewed_by,
-                approved_by=payload.approved_by,
-                approval_date=payload.approval_date,
-                created_by=user.id,
-            )
+        record = LineInspectionReport(
+            team_id=b.team.id,
+            start_date=min(dates) if dates else dt.date.today(),
+            end_date=max(dates) if dates else dt.date.today(),
+            report_number=b.report_number,
+            overall_condition=payload.overall_condition,
+            probable_cause=payload.probable_cause,
+            corrective_action=payload.corrective_action,
+            additional_comments=payload.additional_comments,
+            prepared_by=payload.prepared_by,
+            reviewed_by=payload.reviewed_by,
+            approved_by=payload.approved_by,
+            approval_date=payload.approval_date,
+            created_by=user.id,
+            created_at=generated_at,
+            report_type=report_type,
+            file_path=_save_report_file(b.report_number, generated_at, b.docx_bytes),
         )
+        db.add(record)
+        db.flush()
+        _persist_report_images(db, record.id, b.visits)
     db.commit()
 
 
@@ -471,7 +504,7 @@ def oetc_area_report(
         )
 
     docx_bytes, blocks = render_area_report(db, payload)
-    _persist_blocks(db, blocks, user, payload)
+    _persist_blocks(db, blocks, user, payload, report_type="area")
 
     safe_number = payload.report_number.replace("/", "-")
     return Response(
@@ -504,7 +537,7 @@ def oetc_consolidated_report(
         )
 
     docx_bytes, blocks = render_consolidated_report(db, payload)
-    _persist_blocks(db, blocks, user, payload)
+    _persist_blocks(db, blocks, user, payload, report_type="consolidated")
 
     safe_number = payload.report_number.replace("/", "-")
     return Response(
@@ -517,19 +550,41 @@ def oetc_consolidated_report(
 @router.get("/oetc-line-report/history", response_model=list[LineInspectionReportOut])
 def oetc_line_report_history(
     team_id: int | None = None,
+    tower_id: int | None = None,
+    report_type: str | None = None,
+    line_sector: str | None = None,
+    start_date: dt.date | None = None,
+    end_date: dt.date | None = None,
+    search: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Past generated reports — for tracing/reprinting; see LineInspectionReport for what's kept."""
+    """Past generated reports — for tracing/reprinting, and the client portal's report library (see
+    LineInspectionReport for what's kept). A client account sees every report regardless of team —
+    this app serves one customer, not several tenants needing separation from each other — same as
+    admin/reviewer; only team_leader is narrowed to their own team, and team_member sees none of
+    this (their workspace is their own assigned missions, not team-wide reporting)."""
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
     q = db.query(LineInspectionReport).options(
-        joinedload(LineInspectionReport.team), joinedload(LineInspectionReport.tower)
+        joinedload(LineInspectionReport.team), joinedload(LineInspectionReport.tower), joinedload(LineInspectionReport.images)
     )
     if user.role == UserRole.TEAM_LEADER.value:
         q = q.filter(LineInspectionReport.team_id == user.team_id) if user.team_id else q.filter(False)
     elif team_id:
         q = q.filter(LineInspectionReport.team_id == team_id)
+    if tower_id:
+        q = q.filter(LineInspectionReport.tower_id == tower_id)
+    if report_type:
+        q = q.filter(LineInspectionReport.report_type == report_type)
+    if line_sector:
+        q = q.filter(LineInspectionReport.line_sector == line_sector)
+    if start_date:
+        q = q.filter(LineInspectionReport.end_date >= start_date)
+    if end_date:
+        q = q.filter(LineInspectionReport.start_date <= end_date)
+    if search:
+        q = q.filter(LineInspectionReport.report_number.ilike(f"%{search}%"))
     rows = q.order_by(LineInspectionReport.created_at.desc()).all()
     out = []
     for r in rows:
@@ -537,8 +592,97 @@ def oetc_line_report_history(
         item.team_name = r.team.name if r.team else None
         item.tower_name = r.tower.tower_id if r.tower else None
         item.has_file = bool(r.file_path)
+        item.image_count = len(r.images)
         out.append(item)
     return out
+
+
+@router.get("/oetc-line-report/{report_id}/images", response_model=list[ReportImageOut])
+def oetc_line_report_images(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Every image snapshotted into this report at generation time (see used_image_ids) — the
+    client portal's per-report image archive. Same access boundary as the report itself: a
+    team_leader only their own team's reports, team_member refused, everyone else (admin, reviewer,
+    client) sees any report."""
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if user.role == UserRole.TEAM_MEMBER.value:
+        raise HTTPException(status_code=403, detail="Not available for team-member accounts")
+    if user.role == UserRole.TEAM_LEADER.value and user.team_id != record.team_id:
+        raise HTTPException(status_code=403, detail="You don't have access to this team")
+
+    rows = (
+        db.query(ReportImage)
+        .options(joinedload(ReportImage.position).joinedload(Position.visit).joinedload(Visit.tower), joinedload(ReportImage.image))
+        .filter(ReportImage.report_id == report_id)
+        .all()
+    )
+    out = []
+    for ri in rows:
+        img = ri.image
+        if img is None:
+            # The snapshotted Image row was later deleted (only ever possible for a non-baseline
+            # extra — see routers/images.py's delete_image) — the snapshot itself stays as a
+            # permanent record that this image WAS part of the report, but there's nothing left to
+            # show for it, so skip rather than crash on a None image.
+            continue
+        pos = ri.position
+        tower = pos.visit.tower
+        out.append(
+            ReportImageOut(
+                id=ri.id,
+                position_id=ri.position_id,
+                image_id=ri.image_id,
+                image_type=ri.image_type,
+                position_code=pos.position_code,
+                tower_id=tower.id,
+                tower_code=tower.tower_id,
+                area=tower.area,
+                capture_date=img.capture_date,
+                capture_time=img.capture_time,
+            )
+        )
+    return out
+
+
+@router.patch("/oetc-line-report/{report_id}", response_model=LineInspectionReportOut)
+def update_oetc_line_report(
+    report_id: int,
+    payload: LineInspectionReportUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Edits only the sign-off/assessment fields (see LineInspectionReportUpdate) — never the
+    underlying readings, images, or the archived .docx itself, which stay exactly what was
+    generated. An admin needs the usual generate_reports permission; a client account needs
+    User.can_edit_reports; nobody else (reviewer included — sign-off is an admin/customer
+    conversation, not a field-report task) may call this."""
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if user.role == UserRole.ADMIN.value:
+        if not has_permission_level(user, "generate_reports", "full"):
+            raise HTTPException(status_code=403, detail="Not enough permissions")
+    elif user.role == UserRole.CLIENT.value:
+        if not user.can_edit_reports:
+            raise HTTPException(status_code=403, detail="Not enough permissions")
+    else:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(record, k, v)
+    db.commit()
+    db.refresh(record)
+    item = LineInspectionReportOut.model_validate(record)
+    item.team_name = record.team.name if record.team else None
+    item.tower_name = record.tower.tower_id if record.tower else None
+    item.has_file = bool(record.file_path)
+    item.image_count = len(record.images)
+    return item
 
 
 @router.get("/oetc-line-report/{report_id}/file")

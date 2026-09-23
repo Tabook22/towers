@@ -3,11 +3,13 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.client_guard import client_role_route_guard
 from app.config import settings
 from app.database import Base, engine
 from app.migrations import (
     add_missing_columns,
     backfill_areas_from_towers,
+    backfill_report_type,
     backfill_visit_team_id_from_towers,
     rebuild_images_table_for_multi_image_support,
     rebuild_positions_table_for_multi_direction_support,
@@ -41,6 +43,7 @@ rebuild_positions_table_for_multi_direction_support(engine)
 add_missing_columns(engine, Base)
 backfill_areas_from_towers(engine)
 backfill_visit_team_id_from_towers(engine)
+backfill_report_type(engine)
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
 
@@ -56,6 +59,7 @@ app.add_middleware(
     # (plain <a href> links) were never affected by this.
     expose_headers=["Content-Disposition"],
 )
+app.middleware("http")(client_role_route_guard)
 
 app.include_router(auth.router)
 app.include_router(app_settings.router)

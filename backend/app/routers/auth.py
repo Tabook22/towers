@@ -57,6 +57,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         team_id=team_id,
         is_super_admin=user.is_super_admin,
         permissions=user.permissions,
+        can_edit_reports=user.can_edit_reports,
+        can_delete_report_images=user.can_delete_report_images,
     )
 
 
@@ -87,7 +89,8 @@ def _require_can_manage(payload_role: str, payload_team_id: int | None, actor: U
       restricted or not.
     - a restricted admin (role=admin, is_super_admin=False): only with the "manage_users"
       permission, and only for non-admin roles — a restricted admin can never create or edit
-      another admin account, which would otherwise be a privilege-escalation path.
+      another admin account, which would otherwise be a privilege-escalation path. Also never a
+      client account — that's an external customer login, full-admin-only same as an admin account.
     - team_leader: only team_member accounts, only on their own team — they can grow their own
       roster but can't create another leader, an admin, or reach into a different team.
     - anyone else (team_member included): nothing here — see change_password for their one piece
@@ -95,8 +98,8 @@ def _require_can_manage(payload_role: str, payload_team_id: int | None, actor: U
     if actor.role == UserRole.ADMIN.value:
         if actor.is_super_admin:
             return
-        if payload_role == UserRole.ADMIN.value:
-            raise HTTPException(status_code=403, detail="Only a full admin can create or edit admin accounts")
+        if payload_role in (UserRole.ADMIN.value, UserRole.CLIENT.value):
+            raise HTTPException(status_code=403, detail="Only a full admin can create or edit admin or client accounts")
         if not has_permission_level(actor, "manage_users", "add"):
             raise HTTPException(status_code=403, detail="Not enough permissions")
         return
@@ -158,6 +161,8 @@ def create_user(
         team_id=payload.team_id,
         is_super_admin=is_super_admin,
         permissions_csv=permissions_csv,
+        can_edit_reports=payload.can_edit_reports if payload.role == UserRole.CLIENT.value else False,
+        can_delete_report_images=payload.can_delete_report_images if payload.role == UserRole.CLIENT.value else False,
     )
     db.add(user)
     db.commit()
@@ -193,10 +198,11 @@ def update_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if actor.role == UserRole.ADMIN.value and not actor.is_super_admin:
-        # A restricted admin needs "manage_users" to touch anyone, and can never edit an admin
-        # account (their own included) — same escalation concern as _require_can_manage's create path.
-        if user.role == UserRole.ADMIN.value:
-            raise HTTPException(status_code=403, detail="Only a full admin can edit admin accounts")
+        # A restricted admin needs "manage_users" to touch anyone, and can never edit an admin or
+        # client account (their own included) — same escalation concern as _require_can_manage's
+        # create path.
+        if user.role in (UserRole.ADMIN.value, UserRole.CLIENT.value):
+            raise HTTPException(status_code=403, detail="Only a full admin can edit admin or client accounts")
         if not has_permission_level(actor, "manage_users", "full"):
             raise HTTPException(status_code=403, detail="Not enough permissions")
         payload = UserUpdate(
@@ -268,9 +274,9 @@ def delete_user(
         raise HTTPException(status_code=404, detail="User not found")
     if user.id == actor.id:
         raise HTTPException(status_code=400, detail="You can't delete your own account")
-    if user.role == UserRole.ADMIN.value:
+    if user.role in (UserRole.ADMIN.value, UserRole.CLIENT.value):
         if not actor.is_super_admin:
-            raise HTTPException(status_code=403, detail="Only a full admin can delete an admin account")
+            raise HTTPException(status_code=403, detail="Only a full admin can delete an admin or client account")
     elif actor.role == UserRole.ADMIN.value:
         if not actor.is_super_admin and not has_permission_level(actor, "manage_users", "full"):
             raise HTTPException(status_code=403, detail="Not enough permissions")

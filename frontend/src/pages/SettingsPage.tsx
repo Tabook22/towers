@@ -1276,6 +1276,290 @@ function AdminAccountsSection() {
   );
 }
 
+interface ClientFormState {
+  username: string;
+  password: string;
+  full_name: string;
+  can_edit_reports: boolean;
+  can_delete_report_images: boolean;
+}
+
+const emptyClientForm: ClientFormState = { username: '', password: '', full_name: '', can_edit_reports: false, can_delete_report_images: false };
+
+/** The customer's own logins — each one sees only the Reports portal (Layout.tsx's isClient nav,
+ * App.tsx's route guard, and app/client_guard.py's server-side allowlist all key off role="client")
+ * and, by default, can only view/download reports and browse their linked images. The two toggles
+ * here are the only extra capabilities a client account can ever have — see routers/reports.py's
+ * update_oetc_line_report and routers/images.py's delete_image for exactly what each grants.
+ * Full-admin only, same boundary as creating/editing another admin account (see auth.py's
+ * _require_can_manage) — a restricted admin can never create an external customer login. */
+function ClientAccountsSection() {
+  const { data: users } = useUsers();
+  const createUser = useCreateUser();
+  const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
+  const clients = (users || []).filter((u) => u.role === 'client');
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [form, setForm] = useState<ClientFormState>(emptyClientForm);
+  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<AdminUser | null>(null);
+  const [editCanEdit, setEditCanEdit] = useState(false);
+  const [editCanDelete, setEditCanDelete] = useState(false);
+  const [editPassword, setEditPassword] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const openCreate = () => {
+    setForm(emptyClientForm);
+    setError(null);
+    setCreateOpen(true);
+  };
+
+  const submitCreate = () => {
+    setError(null);
+    if (form.username.trim().length < 3 || form.password.length < 6) {
+      setError('Username needs 3+ characters and password needs 6+ characters.');
+      return;
+    }
+    createUser.mutate(
+      {
+        username: form.username.trim(),
+        password: form.password,
+        full_name: form.full_name.trim() || undefined,
+        role: 'client',
+        can_edit_reports: form.can_edit_reports,
+        can_delete_report_images: form.can_delete_report_images,
+      },
+      {
+        onSuccess: () => setCreateOpen(false),
+        onError: (err: unknown) => {
+          const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+          setError(detail || 'Could not create this client account.');
+        },
+      },
+    );
+  };
+
+  const openEdit = (client: AdminUser) => {
+    setEditing(client);
+    setEditCanEdit(client.can_edit_reports);
+    setEditCanDelete(client.can_delete_report_images);
+    setEditPassword('');
+    setEditError(null);
+  };
+
+  const saveEdit = () => {
+    if (!editing) return;
+    setEditError(null);
+    if (editPassword && editPassword.length < 6) {
+      setEditError('New password needs at least 6 characters.');
+      return;
+    }
+    updateUser.mutate(
+      {
+        id: editing.id,
+        payload: {
+          can_edit_reports: editCanEdit,
+          can_delete_report_images: editCanDelete,
+          ...(editPassword ? { password: editPassword } : {}),
+        },
+      },
+      {
+        onSuccess: () => setEditing(null),
+        onError: (err: unknown) => {
+          const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+          setEditError(detail || 'Could not save these changes.');
+        },
+      },
+    );
+  };
+
+  const toggleActive = (client: AdminUser) => {
+    updateUser.mutate({ id: client.id, payload: { is_active: !client.is_active } });
+  };
+
+  const removeClient = (client: AdminUser) => {
+    setDeleteError(null);
+    if (!window.confirm(`Permanently delete the client account "${client.username}"? This can't be undone.`)) {
+      return;
+    }
+    deleteUser.mutate(client.id, {
+      onError: (err: unknown) => {
+        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+        setDeleteError(detail || `Could not delete "${client.username}".`);
+      },
+    });
+  };
+
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Client accounts
+          </Typography>
+          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>
+            New client
+          </Button>
+        </Stack>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          A login for the customer — sees only the Reports portal (every generated report and its
+          linked photos), read-only unless you grant one of the toggles below.
+        </Typography>
+        {deleteError && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDeleteError(null)}>
+            {deleteError}
+          </Alert>
+        )}
+
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Username</TableCell>
+                <TableCell>Full name</TableCell>
+                <TableCell>Extra permissions</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell align="right">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {clients.map((client) => (
+                <TableRow key={client.id} hover>
+                  <TableCell>{client.username}</TableCell>
+                  <TableCell>{client.full_name || '—'}</TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                      {client.can_edit_reports && <Chip size="small" variant="outlined" label="Can edit reports" />}
+                      {client.can_delete_report_images && <Chip size="small" variant="outlined" label="Can delete images" />}
+                      {!client.can_edit_reports && !client.can_delete_report_images && (
+                        <Chip size="small" variant="outlined" color="default" label="View / download only" />
+                      )}
+                    </Stack>
+                  </TableCell>
+                  <TableCell>
+                    <Chip size="small" color={client.is_active ? 'success' : 'default'} label={client.is_active ? 'Active' : 'Deactivated'} />
+                  </TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="Edit access">
+                      <IconButton size="small" onClick={() => openEdit(client)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Button size="small" onClick={() => toggleActive(client)}>
+                      {client.is_active ? 'Deactivate' : 'Reactivate'}
+                    </Button>
+                    <Tooltip title="Delete this client account">
+                      <IconButton size="small" color="error" onClick={() => removeClient(client)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {clients.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5}>
+                    <Typography variant="body2" color="text.secondary">
+                      No client accounts yet.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </CardContent>
+
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>New client account</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <TextField
+              label="Username"
+              fullWidth
+              autoFocus
+              value={form.username}
+              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+            />
+            <TextField
+              label="Full name / company contact"
+              fullWidth
+              value={form.full_name}
+              onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
+            />
+            <TextField
+              label="Password"
+              type="password"
+              fullWidth
+              helperText="At least 6 characters"
+              value={form.password}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={form.can_edit_reports}
+                  onChange={(e) => setForm((f) => ({ ...f, can_edit_reports: e.target.checked }))}
+                />
+              }
+              label="Can edit a report's sign-off / assessment"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={form.can_delete_report_images}
+                  onChange={(e) => setForm((f) => ({ ...f, can_delete_report_images: e.target.checked }))}
+                />
+              }
+              label="Can delete images from a report's archive"
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={submitCreate} disabled={createUser.isPending}>
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!editing} onClose={() => setEditing(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Edit access — {editing?.username}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {editError && <Alert severity="error">{editError}</Alert>}
+            <TextField
+              label="Reset password (optional)"
+              type="password"
+              fullWidth
+              helperText="Leave blank to keep their current password. At least 6 characters if set."
+              value={editPassword}
+              onChange={(e) => setEditPassword(e.target.value)}
+            />
+            <FormControlLabel
+              control={<Switch checked={editCanEdit} onChange={(e) => setEditCanEdit(e.target.checked)} />}
+              label="Can edit a report's sign-off / assessment"
+            />
+            <FormControlLabel
+              control={<Switch checked={editCanDelete} onChange={(e) => setEditCanDelete(e.target.checked)} />}
+              label="Can delete images from a report's archive"
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditing(null)}>Cancel</Button>
+          <Button variant="contained" onClick={saveEdit} disabled={updateUser.isPending}>
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Card>
+  );
+}
+
 export function SettingsPage() {
   const { user } = useAuth();
   const canManageSettings = user?.role === 'admin' && (user.is_super_admin || user.permissions.includes('manage_settings'));
@@ -1291,6 +1575,7 @@ export function SettingsPage() {
         {canManageSettings && <BrandingSection />}
         {canManageSettings && <OrganizationBrandingSection />}
         {isSuperAdmin && <AdminAccountsSection />}
+        {isSuperAdmin && <ClientAccountsSection />}
         {!canManageSettings && !isSuperAdmin && (
           <Alert severity="info">You don't have any settings permissions on this account yet — ask a full admin.</Alert>
         )}

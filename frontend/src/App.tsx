@@ -22,6 +22,7 @@ import { TeamDetailPage } from './pages/TeamDetailPage';
 import { HelpPage } from './pages/HelpPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
+import { ClientReportsPage } from './pages/ClientReportsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,9 +36,14 @@ const queryClient = new QueryClient({
   },
 });
 
-function ProtectedLayout({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+// A client (customer) login is locked to exactly one page — the reports portal. This is a UX
+// convenience (the backend's app/client_guard.py middleware is the real enforcement — every route
+// this would otherwise reveal 403s at the API layer regardless), so a client never lands on a blank
+// or broken admin page just because they typed/bookmarked a different URL.
+function ProtectedLayout({ children, clientAllowed = false }: { children: ReactNode; clientAllowed?: boolean }) {
+  const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role === 'client' && !clientAllowed) return <Navigate to="/client-reports" replace />;
   return <Layout>{children}</Layout>;
 }
 
@@ -56,7 +62,7 @@ function AppRoutes() {
 function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
   return (
     <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/login" element={isAuthenticated ? <CatchAllRedirect /> : <LoginPage />} />
       <Route
         path="/"
         element={
@@ -169,9 +175,22 @@ function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
           </ProtectedLayout>
         }
       />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route
+        path="/client-reports"
+        element={
+          <ProtectedLayout clientAllowed>
+            <ClientReportsPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route path="*" element={<CatchAllRedirect />} />
     </Routes>
   );
+}
+
+function CatchAllRedirect() {
+  const { user } = useAuth();
+  return <Navigate to={user?.role === 'client' ? '/client-reports' : '/'} replace />;
 }
 
 export default function App() {

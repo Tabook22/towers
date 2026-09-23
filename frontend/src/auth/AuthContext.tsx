@@ -10,6 +10,9 @@ interface AuthUser {
   team_id: number | null;
   is_super_admin: boolean;
   permissions: string[];
+  // Only meaningful for role === 'client' — see backend models.User.
+  can_edit_reports: boolean;
+  can_delete_report_images: boolean;
 }
 
 interface AuthContextValue {
@@ -47,6 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         team_id: number | null;
         is_super_admin: boolean;
         permissions: string[];
+        can_edit_reports: boolean;
+        can_delete_report_images: boolean;
       }>('/api/auth/me')
       .then(({ data }) => {
         const u: AuthUser = {
@@ -57,6 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           team_id: data.team_id ?? null,
           is_super_admin: data.is_super_admin,
           permissions: data.permissions,
+          can_edit_reports: data.can_edit_reports,
+          can_delete_report_images: data.can_delete_report_images,
         };
         localStorage.setItem('iip_user', JSON.stringify(u));
         setUser(u);
@@ -96,6 +103,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           team_id: data.team_id ?? null,
           is_super_admin: data.is_super_admin,
           permissions: data.permissions,
+          can_edit_reports: data.can_edit_reports,
+          can_delete_report_images: data.can_delete_report_images,
         };
         localStorage.setItem('iip_user', JSON.stringify(u));
         setUser(u);

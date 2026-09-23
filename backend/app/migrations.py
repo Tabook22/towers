@@ -136,6 +136,33 @@ def backfill_visit_team_id_from_towers(engine: Engine) -> None:
             logger.info("Auto-migration: backfilled team_id on %d visit(s) from their tower's assignment", result.rowcount)
 
 
+def backfill_report_type(engine: Engine) -> None:
+    """One-time fill-in for LineInspectionReport.report_type on rows generated before that column
+    existed — 'tower' when the row was scoped to one tower, otherwise 'team' (an older
+    area/consolidated section can't be told apart from a plain team report in hindsight, since that
+    distinction wasn't tracked yet; it just shows up under the wrong filter facet in the client
+    portal, never affecting what the report actually contains). Safe to call on every startup —
+    only touches rows where report_type is still NULL."""
+    inspector = inspect(engine)
+    if "line_inspection_reports" not in inspector.get_table_names():
+        return  # brand-new DB
+    existing_columns = {c["name"] for c in inspector.get_columns("line_inspection_reports")}
+    if "report_type" not in existing_columns:
+        return  # add_missing_columns hasn't added it yet this run — next startup will backfill
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                UPDATE line_inspection_reports
+                SET report_type = CASE WHEN tower_id IS NOT NULL THEN 'tower' ELSE 'team' END
+                WHERE report_type IS NULL
+                """
+            )
+        )
+        if result.rowcount:
+            logger.info("Auto-migration: backfilled report_type on %d report row(s)", result.rowcount)
+
+
 def dt_now_iso() -> str:
     import datetime as dt
 

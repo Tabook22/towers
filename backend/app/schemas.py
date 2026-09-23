@@ -39,6 +39,8 @@ class Token(BaseModel):
     team_id: int | None = None
     is_super_admin: bool = True
     permissions: list[str] = Field(default_factory=list)
+    can_edit_reports: bool = False
+    can_delete_report_images: bool = False
 
 
 class UserCreate(BaseModel):
@@ -57,6 +59,9 @@ class UserCreate(BaseModel):
     # branch of the router that honors these (see routers/auth.py's _require_can_manage).
     is_super_admin: bool = True
     permissions: list[str] = Field(default_factory=list)
+    # Only meaningful for role="client" — see models.User. Ignored for every other role.
+    can_edit_reports: bool = False
+    can_delete_report_images: bool = False
 
 
 class UserOut(BaseModel):
@@ -75,6 +80,8 @@ class UserOut(BaseModel):
     team_id: int | None = None
     is_super_admin: bool = True
     permissions: list[str] = Field(default_factory=list)
+    can_edit_reports: bool = False
+    can_delete_report_images: bool = False
 
 
 class UserUpdate(BaseModel):
@@ -95,6 +102,8 @@ class UserUpdate(BaseModel):
     team_id: int | None = None
     is_super_admin: bool | None = None
     permissions: list[str] | None = None
+    can_edit_reports: bool | None = None
+    can_delete_report_images: bool | None = None
     # Lets an admin/team_leader reset someone's password for them (e.g. they're locked out) —
     # separate from the self-service change-password flow. Handled specially in the router (hashed
     # into hashed_password), never applied via the generic setattr loop.
@@ -1413,13 +1422,59 @@ class LineInspectionReportOut(BaseModel):
     end_date: dt.date
     report_number: str
     overall_condition: str | None
+    probable_cause: str | None = None
+    corrective_action: str | None = None
+    additional_comments: str | None = None
     prepared_by: str | None
     reviewed_by: str | None
     approved_by: str | None
     approval_date: dt.date | None
     created_at: dt.datetime
     line_sector: str | None = None
+    report_type: str | None = None
     has_file: bool = False
+    image_count: int = 0
+
+
+class LineInspectionReportUpdate(BaseModel):
+    """Editing an already-generated report never touches the underlying readings/images — only the
+    sign-off/assessment fields that exist solely at report time (see models.LineInspectionReport).
+    Who may call this: an admin (with the usual generate_reports permission), or a client account
+    with User.can_edit_reports — see routers/reports.py's update_oetc_line_report."""
+
+    overall_condition: str | None = None
+    probable_cause: str | None = None
+    corrective_action: str | None = None
+    additional_comments: str | None = None
+    prepared_by: str | None = None
+    reviewed_by: str | None = None
+    approved_by: str | None = None
+    approval_date: dt.date | None = None
+
+    @field_validator("overall_condition")
+    @classmethod
+    def check_overall_condition(cls, v):
+        if v is not None and v not in OVERALL_CONDITION_CHOICES:
+            raise ValueError(f"overall_condition must be one of {OVERALL_CONDITION_CHOICES}")
+        return v
+
+
+class ReportImageOut(BaseModel):
+    """One image linked to a generated report (see models.ReportImage) — enough context for the
+    client portal's per-report image archive to group/label/link back to the field data without a
+    second round trip."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    position_id: int
+    image_id: int
+    image_type: str
+    position_code: str | None = None
+    tower_id: int
+    tower_code: str
+    area: str | None = None
+    capture_date: dt.date | None = None
+    capture_time: dt.time | None = None
 
 
 class OetcReportPreview(BaseModel):
