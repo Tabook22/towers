@@ -101,7 +101,10 @@ def _persist_report_images(db: Session, report_id: int, visits: list[Visit]) -> 
 
 def _report_tower_scope(visits: list[Visit]) -> list[dict]:
     towers = {v.tower.id: v.tower.tower_id for v in visits}
-    return [{"id": pk, "name": name} for pk, name in sorted(towers.items(), key=lambda t: natural_sort_key(t[1]))]
+    return [{"id": pk, "name": name, "visits": [
+        {"id": v.id, "inspection_date": v.inspection_date.isoformat() if v.inspection_date else None}
+        for v in visits if v.tower_id == pk
+    ]} for pk, name in sorted(towers.items(), key=lambda t: natural_sort_key(t[1]))]
 
 
 def _resolve_tower_team(db: Session, tower: Tower, start_date: dt.date, end_date: dt.date) -> int | None:

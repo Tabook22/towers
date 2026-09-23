@@ -53,6 +53,7 @@ import { useAuth } from '../auth/AuthContext';
 import { getPermissionLevel, type AdminUser, type Team } from '../api/types';
 import { TowerAssignmentPicker } from '../components/TowerAssignmentPicker';
 import { MenuPermissionsEditor } from '../components/MenuPermissionsEditor';
+import { TeamActivitySummary } from '../components/TeamActivitySummary';
 
 // Mirrors backend deps.default_menu_permissions_for_role("team_leader") — the starting grant a
 // new team-leader login gets before an admin customizes it in the editor below.
@@ -383,6 +384,8 @@ export function TeamsPage() {
           You don't have permission to view teams on this account — ask a full admin to grant it.
         </Alert>
       )}
+
+      {!blocked && <TeamActivitySummary />}
 
       {!blocked && (
       <TableContainer component={Paper} variant="outlined">

@@ -34,6 +34,7 @@ from app.routers import (
     report_templates,
     reports,
     team_archive,
+    team_activity,
     teams,
     towers,
     tracking,
@@ -81,6 +82,7 @@ app.include_router(report_templates.router)
 app.include_router(lists.router)
 app.include_router(tracking.router)
 app.include_router(teams.router)
+app.include_router(team_activity.router)
 app.include_router(channel.router)
 app.include_router(community.router)
 app.include_router(claims.router)

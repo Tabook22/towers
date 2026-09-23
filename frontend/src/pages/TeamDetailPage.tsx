@@ -357,6 +357,12 @@ export function TeamDetailPage() {
   const { user: currentUser } = useAuth();
   const { lastLatitude, lastLongitude } = useTracking();
   const { data: team, isLoading, isError, error: teamError } = useTeam(id);
+  const loadedTeamId = team?.id;
+  useEffect(() => {
+    if (loadedTeamId && window.location.hash === '#mission-plan') {
+      document.getElementById('mission-plan')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [loadedTeamId]);
   // `isError` alone isn't reliable here — under this app's `networkMode: 'offlineFirst'` query
   // default, a failed fetch can settle as fetchStatus "paused" rather than "error" depending on
   // the browser's online-detection, without `isError` ever flipping true (which would otherwise
@@ -1472,6 +1478,7 @@ export function TeamDetailPage() {
         )}
       </Grid>
 
+      <Box id="mission-plan" sx={{ scrollMarginTop: 90 }} />
       <MissionHistoryCard
         step={5}
         teamId={id}
