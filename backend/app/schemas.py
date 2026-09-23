@@ -314,12 +314,22 @@ class SmartEnhanceOut(BaseModel):
     confidence: Literal["estimated", "fallback"]
 
 
+class ArchiveReportReference(BaseModel):
+    id: int
+    report_number: str
+    image_type: str
+
+
 class ArchiveImageOut(ImageOut):
     """ImageOut plus the Team/Tower/Position context needed to group the Image Archive page by
-    team, then year/month, then line (Tower.area), then tower, then insulator (position) — nothing
+    team, then tower, then insulator inspection — nothing
     else needs this extra context, so it's kept off the shared ImageOut every other screen uses."""
 
     team_id: int | None = None
+    visit_id: int | None = None
+    inspection_date: dt.date | None = None
+    archive_date: dt.date | None = None
+    reports: list[ArchiveReportReference] = Field(default_factory=list)
     team_name: str | None = None
     tower_pk: int
     tower_code: str
@@ -1127,6 +1137,8 @@ class ArchiveVisitPhotoOut(VisitPhotoOut):
     checklist images (see routers/archive.browse_archive)."""
 
     team_id: int | None = None
+    inspection_date: dt.date | None = None
+    archive_date: dt.date | None = None
     team_name: str | None = None
     tower_pk: int
     tower_code: str
@@ -1145,6 +1157,11 @@ class ArchiveOut(BaseModel):
 
     images: list[ArchiveImageOut]
     photos: list[ArchiveVisitPhotoOut]
+    total_images: int = 0
+    total_photos: int = 0
+    has_more: bool = False
+    image_ceiling: int = 0
+    photo_ceiling: int = 0
 
 
 class TeamDayProgress(BaseModel):

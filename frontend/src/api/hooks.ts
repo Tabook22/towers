@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { collectArchivePages } from '../utils/archiveEvidence';
 import { asOutboxFile, sendOrQueue } from '../offline/enqueue';
 import { applyPositionPatch, applyQueuedExtraImage, applyQueuedImage, applyVisitPatch, patchVisitCache } from '../offline/optimistic';
 import { isQueued } from '../offline/types';
@@ -805,10 +806,10 @@ export function useDashboardSummary(area?: string, enabled = true) {
 }
 
 // ---------- Archive ----------
-export function useArchive(filters: { year?: number; month?: number; day?: number; tower_id?: number; team_id?: number }) {
+export function useArchive(filters: { year?: number; month?: number; day?: number; tower_id?: number; team_id?: number; report_id?: number }) {
   return useQuery({
     queryKey: ['archive', filters],
-    queryFn: async () => (await apiClient.get<ArchiveResponse>('/api/archive', { params: filters })).data,
+    queryFn: ({ signal }) => collectArchivePages(async (page) => (await apiClient.get<ArchiveResponse>('/api/archive', { params: { ...filters, ...page }, signal })).data),
   });
 }
 

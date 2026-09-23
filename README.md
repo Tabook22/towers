@@ -79,6 +79,21 @@ archive each team section separately; the combined document downloads at generat
 
 Frontend filter/error regression tests: `cd frontend` then `npm test`.
 
+## Image archive
+
+The archive collects every page of inspection images and field photos, grouped by team, tower,
+and insulator inspection. Thermal full, thermal close, RGB full and RGB close each have their
+own gallery, including supplementary captures, original downloads and available annotations.
+Capture months do not split one insulator's evidence into separate groups. Untagged field photos
+remain visible under their tower. Search, team/tower filters, capture dates and inspection order
+help navigate the collection; missing capture dates fall back to inspection or upload dates.
+
+The report library's image action opens the archive filtered to the image references recorded
+when that report was generated. Older reports without recorded references may show no matches;
+clear the report filter to browse all uploads. References point to current image rows, so the
+archived report document remains the record of the exact images embedded at generation time.
+Archive regression tests: `cd backend` then `pytest tests/test_archive_completeness.py`.
+
 ## Deployment
 
 See [DEPLOY.md](DEPLOY.md) for step-by-step instructions to run this on a Hostinger VPS (or any Ubuntu server):

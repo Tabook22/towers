@@ -10,6 +10,8 @@ import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import FolderOpenRoundedIcon from '@mui/icons-material/FolderOpenRounded';
+import PhotoLibraryRoundedIcon from '@mui/icons-material/PhotoLibraryRounded';
+import { Link } from 'react-router-dom';
 import { useDeleteOetcReport, useOetcReportHistory } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient, mediaUrl } from '../api/client';
@@ -79,6 +81,7 @@ export function ReportHistoryTable() {
     </TableCell>
   );
   const actions = (r: LineInspectionReportOut) => <>
+    <Tooltip title="Review report images"><IconButton component={Link} to={`/archive?report=${r.id}`} aria-label={`Images for ${r.report_number}`}><PhotoLibraryRoundedIcon fontSize="small" /></IconButton></Tooltip>
     <Tooltip title="View document"><IconButton aria-label={`View ${r.report_number}`} onClick={() => setViewing(r)}><VisibilityRoundedIcon fontSize="small" /></IconButton></Tooltip>
     <Tooltip title="Download Word document"><span><IconButton aria-label={`Download ${r.report_number}`} onClick={() => void download(r)} disabled={downloadId !== null}><DownloadRoundedIcon fontSize="small" /></IconButton></span></Tooltip>
     <Tooltip title="Comments"><IconButton aria-label={`Comments for ${r.report_number}`} onClick={() => setCommentingId(r.id)}><Badge badgeContent={r.comment_count} color="primary"><ChatBubbleOutlineRoundedIcon fontSize="small" /></Badge></IconButton></Tooltip>

@@ -63,10 +63,12 @@ export interface ImageRow {
   annotated_path: string | null;
   annotated_thumbnail_path: string | null;
   annotated_uploaded_at: string | null;
-  // Team/Tower/Position context — only the Image Archive page's browse endpoint fills these in, so
-  // it can group by team, then year/month, then line (area), then tower, then insulator (position).
-  // Optional: a plain Position's own `images` array (VisitDetail, offline queue placeholders, etc.)
-  // doesn't carry any of this — only /api/archive's response does.
+  // Team/Tower/Position context — only /api/archive fills these fields, grouping evidence by
+  // team, tower and insulator inspection. A Position's own images omit this context.
+  visit_id?: number;
+  inspection_date?: string | null;
+  archive_date?: string | null;
+  reports?: { id: number; report_number: string; image_type: string }[];
   team_id?: number | null;
   team_name?: string | null;
   tower_pk?: number;
@@ -1068,6 +1070,8 @@ export interface VisitPhoto {
 // VisitPhoto plus the Team/Tower context the Image Archive page needs to fold these free-form
 // photos into the same team/tower tree as the formal checklist images (ImageRow above).
 export interface ArchiveVisitPhoto extends VisitPhoto {
+  inspection_date?: string | null;
+  archive_date?: string | null;
   team_id: number | null;
   team_name: string | null;
   tower_pk: number;
@@ -1082,6 +1086,11 @@ export interface ArchiveVisitPhoto extends VisitPhoto {
 export interface ArchiveResponse {
   images: ImageRow[];
   photos: ArchiveVisitPhoto[];
+  total_images: number;
+  total_photos: number;
+  has_more: boolean;
+  image_ceiling: number;
+  photo_ceiling: number;
 }
 
 export interface TeamDayProgress {
