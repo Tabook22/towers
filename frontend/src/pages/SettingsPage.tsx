@@ -54,11 +54,13 @@ import {
 import { mediaUrl } from '../api/client';
 import { ImageCropDialog } from '../components/ImageCropDialog';
 import { BrandingBanner, BrandingLogoBlock, BrandingNameRow } from '../components/BrandingPreview';
+import { MenuPermissionsEditor } from '../components/MenuPermissionsEditor';
 import { useAuth } from '../auth/AuthContext';
 import {
   ADMIN_PERMISSION_LABELS,
   getPermissionLevel,
   LEVELED_PERMISSIONS,
+  MENU_ITEMS,
   PERMISSION_LEVEL_LABELS,
   PERMISSION_LEVELS,
   setPermissionLevel,
@@ -776,9 +778,23 @@ interface AdminFormState {
   full_name: string;
   fullAdmin: boolean;
   permissions: string[];
+  menu_permissions: Record<string, string>;
 }
 
-const emptyAdminForm: AdminFormState = { username: '', password: '', full_name: '', fullAdmin: true, permissions: [] };
+// Mirrors backend deps.default_menu_permissions_for_role("admin") — every menu item, granted —
+// the starting point for a new restricted admin before this editor customizes it. A full admin
+// always has every item regardless of this (see deps.require_menu_item), so it only matters once
+// "Full admin" is switched off below.
+const DEFAULT_ADMIN_MENU_PERMISSIONS: Record<string, string> = Object.fromEntries(MENU_ITEMS.map((item) => [item.id, 'full']));
+
+const emptyAdminForm: AdminFormState = {
+  username: '',
+  password: '',
+  full_name: '',
+  fullAdmin: true,
+  permissions: [],
+  menu_permissions: DEFAULT_ADMIN_MENU_PERMISSIONS,
+};
 
 /** Towers/Teams/Users/Reports/Knowledge base each get a View / Add / Full grant; branding settings
  * stays a plain on/off checkbox since it's a single form with no add-vs-edit distinction. */
@@ -990,6 +1006,7 @@ function AdminAccountsSection() {
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [editFullAdmin, setEditFullAdmin] = useState(false);
   const [editPerms, setEditPerms] = useState<string[]>([]);
+  const [editMenuPermissions, setEditMenuPermissions] = useState<Record<string, string>>(DEFAULT_ADMIN_MENU_PERMISSIONS);
   const [editUsername, setEditUsername] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
@@ -1015,6 +1032,7 @@ function AdminAccountsSection() {
         role: 'admin',
         is_super_admin: form.fullAdmin,
         permissions: form.fullAdmin ? [] : form.permissions,
+        menu_permissions: form.fullAdmin ? {} : form.menu_permissions,
       },
       {
         onSuccess: () => setCreateOpen(false),
@@ -1030,6 +1048,9 @@ function AdminAccountsSection() {
     setEditing(admin);
     setEditFullAdmin(admin.is_super_admin);
     setEditPerms(admin.permissions);
+    setEditMenuPermissions(
+      Object.keys(admin.menu_permissions || {}).length ? admin.menu_permissions : DEFAULT_ADMIN_MENU_PERMISSIONS,
+    );
     setEditUsername(admin.username);
     setEditPassword('');
     setEditError(null);
@@ -1053,6 +1074,7 @@ function AdminAccountsSection() {
           username: editUsername.trim(),
           is_super_admin: editFullAdmin,
           permissions: editFullAdmin ? [] : editPerms,
+          menu_permissions: editFullAdmin ? DEFAULT_ADMIN_MENU_PERMISSIONS : editMenuPermissions,
           ...(editPassword ? { password: editPassword } : {}),
         },
       },
@@ -1222,10 +1244,17 @@ function AdminAccountsSection() {
               label="Full admin (every permission)"
             />
             {!form.fullAdmin && (
-              <PermissionEditor
-                value={form.permissions}
-                onChange={(next) => setForm((f) => ({ ...f, permissions: next }))}
-              />
+              <>
+                <PermissionEditor
+                  value={form.permissions}
+                  onChange={(next) => setForm((f) => ({ ...f, permissions: next }))}
+                />
+                <Divider />
+                <MenuPermissionsEditor
+                  value={form.menu_permissions}
+                  onChange={(next) => setForm((f) => ({ ...f, menu_permissions: next }))}
+                />
+              </>
             )}
           </Stack>
         </DialogContent>
@@ -1262,7 +1291,13 @@ function AdminAccountsSection() {
               }
               label="Full admin (every permission)"
             />
-            {!editFullAdmin && <PermissionEditor value={editPerms} onChange={setEditPerms} />}
+            {!editFullAdmin && (
+              <>
+                <PermissionEditor value={editPerms} onChange={setEditPerms} />
+                <Divider />
+                <MenuPermissionsEditor value={editMenuPermissions} onChange={setEditMenuPermissions} />
+              </>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>

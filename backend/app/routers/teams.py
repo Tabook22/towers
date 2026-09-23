@@ -32,6 +32,7 @@ from app.deps import (
     effective_team_id,
     get_current_user,
     has_permission_level,
+    require_menu_item,
     require_permission_level,
     require_team_read,
     require_team_scope,
@@ -278,7 +279,7 @@ def _load_team(db: Session, team_id: int) -> Team:
 @router.get("", response_model=list[TeamOut])
 def list_teams(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_menu_item("teams")),
     include_inactive: bool = False,
 ):
     q = db.query(Team).options(joinedload(Team.members), joinedload(Team.users))
@@ -329,7 +330,12 @@ def create_team(
 
 
 @router.get("/{team_id}", response_model=TeamOut)
-def get_team(team_id: int, db: Session = Depends(get_db), _user: User = Depends(require_team_read())):
+def get_team(
+    team_id: int,
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_team_read()),
+    _menu: User = Depends(require_menu_item("teams")),
+):
     return _team_out(_load_team(db, team_id), db)
 
 

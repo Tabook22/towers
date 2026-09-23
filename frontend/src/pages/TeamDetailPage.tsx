@@ -357,6 +357,12 @@ export function TeamDetailPage() {
   const { user: currentUser } = useAuth();
   const { lastLatitude, lastLongitude } = useTracking();
   const { data: team, isLoading, isError, error: teamError } = useTeam(id);
+  // `isError` alone isn't reliable here — under this app's `networkMode: 'offlineFirst'` query
+  // default, a failed fetch can settle as fetchStatus "paused" rather than "error" depending on
+  // the browser's online-detection, without `isError` ever flipping true (which would otherwise
+  // leave this page stuck on the LinearProgress guard below forever instead of showing the 403
+  // message). `team` staying undefined once loading is done is a safe stand-in either way.
+  const teamBlocked = isError || (!isLoading && !team);
   const updateTeam = useUpdateTeam();
   const removeMember = useRemoveTeamMember(id);
   const addNote = useAddTeamNote(id);
@@ -680,15 +686,15 @@ export function TeamDetailPage() {
     );
   }, [progress]);
 
-  if (isError) {
+  if (teamBlocked) {
     const status = (teamError as { response?: { status?: number } })?.response?.status;
     return (
       <Stack spacing={2}>
         <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/teams')} sx={{ alignSelf: 'flex-start' }}>
           Back to teams
         </Button>
-        <Alert severity={status === 403 ? 'warning' : 'error'}>
-          {status === 403
+        <Alert severity={status === 403 || !status ? 'warning' : 'error'}>
+          {status === 403 || !status
             ? "You don't have access to this team."
             : 'Could not load this team.'}
         </Alert>

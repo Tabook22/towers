@@ -196,6 +196,25 @@ def require_permission_level(perm: str, min_level: str, *extra_roles: str):
     return checker
 
 
+def require_menu_item(item_id: str):
+    """The real, server-side version of what Layout.tsx's nav-hiding already does for display —
+    blocks a restricted (non-super) ADMIN actor from a route entirely when their own
+    User.menu_permissions has no grant at all for `item_id`. A super admin always has every item
+    (see default_menu_permissions_for_role) and is never affected; every other role's access to
+    the routes this guards is governed by its own existing checks (require_team_scope,
+    require_team_read, _require_can_manage in routers/auth.py) and is completely untouched by
+    this — it only ever narrows what a restricted admin sub-account can reach, on top of
+    (not instead of) those checks."""
+
+    def checker(user: User = Depends(get_current_user)) -> User:
+        if user.role == UserRole.ADMIN.value and not user.is_super_admin:
+            if item_id not in user.menu_permissions:
+                raise HTTPException(status_code=403, detail="Not enough permissions")
+        return user
+
+    return checker
+
+
 def require_team_scope():
     """For any route shaped /api/teams/{team_id}/... — admin/reviewer reach any team; a team_leader
     only their own (User.team_id); everyone else is refused. This is the actual server-side wall

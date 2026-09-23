@@ -103,7 +103,13 @@ const STATUS_COLORS: Record<string, 'success' | 'warning' | 'default'> = {
 };
 
 export function TeamsPage() {
-  const { data: teams, isLoading } = useTeams();
+  const { data: teams, isLoading, isError } = useTeams();
+  // `isError` alone isn't a reliable signal here — under this app's `networkMode: 'offlineFirst'`
+  // query default, a failed fetch can settle as fetchStatus "paused" rather than "error" depending
+  // on the browser's online-detection, without ever flipping `isError` true. `!teams` once loading
+  // is done is a safe stand-in either way: a genuine "zero teams" success resolves to `[]` (truthy),
+  // so `!teams` only ever happens on an actual failure to fetch.
+  const blocked = isError || (!isLoading && !teams);
   const createTeam = useCreateTeam();
   const updateTeam = useUpdateTeam();
   const deleteTeam = useDeleteTeam();
@@ -372,6 +378,13 @@ export function TeamsPage() {
         )}
       </Stack>
 
+      {blocked && (
+        <Alert severity="warning">
+          You don't have permission to view teams on this account — ask a full admin to grant it.
+        </Alert>
+      )}
+
+      {!blocked && (
       <TableContainer component={Paper} variant="outlined">
         <Table>
           <TableHead>
@@ -438,8 +451,9 @@ export function TeamsPage() {
           </TableBody>
         </Table>
       </TableContainer>
+      )}
 
-      {isAdmin && (
+      {isAdmin && !blocked && (
         <Card>
           <CardContent>
             <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>

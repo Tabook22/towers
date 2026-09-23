@@ -15,6 +15,7 @@ from app.deps import (
     effective_team_id,
     get_current_user,
     has_permission_level,
+    require_menu_item,
 )
 from app.models import LocationPing, Team, User, UserRole, Visit
 from app.schemas import ChangePasswordRequest, Token, UserCreate, UserOut, UserUpdate
@@ -190,11 +191,19 @@ def create_user(
 
 
 @router.get("/users", response_model=list[UserOut])
-def list_users(db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+def list_users(
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+    _menu: User = Depends(require_menu_item("teams")),
+):
     """admin: everyone. team_leader: just their own team's accounts (themself + their members) —
     used both for the admin's "Team leaders" list and a leader's own "Team members" roster; a
     team_member gets nothing here, they don't manage anyone (see routers/auth.py's _require_can_manage
-    and the frontend's own-workspace pages instead)."""
+    and the frontend's own-workspace pages instead). A restricted admin additionally needs the
+    "teams" menu item granted at all (see require_menu_item) — every account this returns for that
+    role is either a team leader or member, i.e. exactly the Teams page's own data; an admin/client
+    account list is never reached through this route for a restricted admin, since
+    AdminAccountsSection/ClientAccountsSection are already super-admin-only in the frontend."""
     if actor.role == UserRole.ADMIN.value:
         return db.query(User).order_by(User.username).all()
     if actor.role == UserRole.TEAM_LEADER.value:
