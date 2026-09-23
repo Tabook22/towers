@@ -127,7 +127,7 @@ import { ClaimTowerDialog } from '../components/ClaimTowerDialog';
 import { KpiTile } from '../components/KpiTile';
 import { StepBadge } from '../components/StepBadge';
 import { extractTowerNumber, numberedDotIcon, towerNumbersById } from '../components/towerMapPins';
-import type { AdminUser, LiveTeamMember, NextTowerStop, NightClaimStatus, TrackingMission } from '../api/types';
+import { getPermissionLevel, type AdminUser, type LiveTeamMember, type NextTowerStop, type NightClaimStatus, type TrackingMission } from '../api/types';
 
 const MISSION_STATUS_COLORS: Record<string, 'default' | 'info' | 'success'> = {
   planned: 'default',
@@ -417,6 +417,13 @@ export function TeamDetailPage() {
   const canManage = isAdmin || isTeamLeader;
   const canRecord = canManage || isTeamMember;
   const canLogNotes = canRecord;
+  // A restricted admin's "manage_users" level — routers/auth.py's create_user needs "add" to
+  // create a login here, update_user/delete_user need "full" to edit/unlink/deactivate/delete one.
+  // A team_leader is never limited by this (their own-team scope is the only check on the
+  // backend), only an admin sub-account can be — see _require_can_manage/update_user/delete_user.
+  const usersLevel = isAdmin ? (currentUser!.is_super_admin ? 'full' : getPermissionLevel(currentUser!.permissions, 'manage_users')) : 'full';
+  const canAddLogins = isTeamLeader || usersLevel === 'add' || usersLevel === 'full';
+  const canManageLogins = isTeamLeader || usersLevel === 'full';
   // The users-listing endpoint is admin-or-team_leader on the backend (a leader only ever gets
   // their own team's accounts back, never another team's) — team_member accounts get nothing here.
   const { data: enabledUsers } = useUsers(isAdmin || isTeamLeader);
@@ -1136,11 +1143,13 @@ export function TeamDetailPage() {
                       <Typography variant="caption" color="text.secondary">
                         {u.username}
                       </Typography>
-                      <Tooltip title="Unlink from this team">
-                        <IconButton size="small" onClick={() => updateUserMut.mutate({ id: u.id, payload: { team_id: null } })}>
-                          <LinkOffIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                      {canManageLogins && (
+                        <Tooltip title="Unlink from this team">
+                          <IconButton size="small" onClick={() => updateUserMut.mutate({ id: u.id, payload: { team_id: null } })}>
+                            <LinkOffIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </Stack>
                   ))}
                   {linkedUsers.length === 0 && (
@@ -1149,104 +1158,113 @@ export function TeamDetailPage() {
                     </Typography>
                   )}
                 </Stack>
-                <Stack direction="row" spacing={1}>
-                  <TextField
-                    select
-                    size="small"
-                    label="Link an existing account"
-                    sx={{ minWidth: 220 }}
-                    value={linkUserId}
-                    onChange={(e) => setLinkUserId(e.target.value)}
-                  >
-                    <MenuItem value="" disabled>
-                      {enabledUsers ? 'Choose a login' : 'Loading…'}
-                    </MenuItem>
-                    {unlinkedUsers.map((u) => (
-                      <MenuItem key={u.id} value={u.id}>
-                        {u.full_name || u.username} ({u.username})
+                {/* Linking an existing account, and creating a new one below, both go through
+                    update_user/create_user — a restricted admin needs "manage_users" at "full" /
+                    "add" respectively on the backend, so don't offer either control otherwise. */}
+                {canManageLogins && (
+                  <Stack direction="row" spacing={1}>
+                    <TextField
+                      select
+                      size="small"
+                      label="Link an existing account"
+                      sx={{ minWidth: 220 }}
+                      value={linkUserId}
+                      onChange={(e) => setLinkUserId(e.target.value)}
+                    >
+                      <MenuItem value="" disabled>
+                        {enabledUsers ? 'Choose a login' : 'Loading…'}
                       </MenuItem>
-                    ))}
-                  </TextField>
-                  <Button
-                    variant="outlined"
-                    startIcon={<LinkIcon />}
-                    disabled={!linkUserId}
-                    onClick={() => {
-                      updateUserMut.mutate(
-                        { id: Number(linkUserId), payload: { team_id: id } },
-                        { onSuccess: () => setLinkUserId('') },
-                      );
-                    }}
-                  >
-                    Link
-                  </Button>
-                </Stack>
-
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-                  Create a new team-leader login
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                  Gives this team leader their own username and password — signed in, they'll see and
-                  manage only this team's roster and missions, nothing from other teams.
-                </Typography>
-                {newLoginError && (
-                  <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setNewLoginError(null)}>
-                    {newLoginError}
-                  </Alert>
+                      {unlinkedUsers.map((u) => (
+                        <MenuItem key={u.id} value={u.id}>
+                          {u.full_name || u.username} ({u.username})
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <Button
+                      variant="outlined"
+                      startIcon={<LinkIcon />}
+                      disabled={!linkUserId}
+                      onClick={() => {
+                        updateUserMut.mutate(
+                          { id: Number(linkUserId), payload: { team_id: id } },
+                          { onSuccess: () => setLinkUserId('') },
+                        );
+                      }}
+                    >
+                      Link
+                    </Button>
+                  </Stack>
                 )}
-                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                  <TextField
-                    size="small"
-                    label="Username"
-                    value={newLoginForm.username}
-                    onChange={(e) => setNewLoginForm((f) => ({ ...f, username: e.target.value }))}
-                  />
-                  <TextField
-                    size="small"
-                    label="Password"
-                    type="password"
-                    value={newLoginForm.password}
-                    onChange={(e) => setNewLoginForm((f) => ({ ...f, password: e.target.value }))}
-                  />
-                  <TextField
-                    size="small"
-                    label="Full name"
-                    value={newLoginForm.full_name}
-                    onChange={(e) => setNewLoginForm((f) => ({ ...f, full_name: e.target.value }))}
-                  />
-                  <Button
-                    variant="outlined"
-                    startIcon={<PersonAddIcon />}
-                    disabled={!newLoginForm.username.trim() || newLoginForm.password.length < 6 || createUserMut.isPending}
-                    onClick={() => {
-                      setNewLoginError(null);
-                      createUserMut.mutate(
-                        {
-                          username: newLoginForm.username.trim(),
-                          password: newLoginForm.password,
-                          full_name: newLoginForm.full_name.trim() || undefined,
-                          role: 'team_leader',
-                          team_id: id,
-                        },
-                        {
-                          onSuccess: () => setNewLoginForm({ username: '', password: '', full_name: '' }),
-                          onError: (err: unknown) => {
-                            const message =
-                              (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-                              'Could not create the login';
-                            setNewLoginError(message);
-                          },
-                        },
-                      );
-                    }}
-                  >
-                    Create login
-                  </Button>
-                </Stack>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                  Password needs at least 6 characters.
-                </Typography>
+
+                {canAddLogins && (
+                  <>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                      Create a new team-leader login
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                      Gives this team leader their own username and password — signed in, they'll see and
+                      manage only this team's roster and missions, nothing from other teams.
+                    </Typography>
+                    {newLoginError && (
+                      <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setNewLoginError(null)}>
+                        {newLoginError}
+                      </Alert>
+                    )}
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                      <TextField
+                        size="small"
+                        label="Username"
+                        value={newLoginForm.username}
+                        onChange={(e) => setNewLoginForm((f) => ({ ...f, username: e.target.value }))}
+                      />
+                      <TextField
+                        size="small"
+                        label="Password"
+                        type="password"
+                        value={newLoginForm.password}
+                        onChange={(e) => setNewLoginForm((f) => ({ ...f, password: e.target.value }))}
+                      />
+                      <TextField
+                        size="small"
+                        label="Full name"
+                        value={newLoginForm.full_name}
+                        onChange={(e) => setNewLoginForm((f) => ({ ...f, full_name: e.target.value }))}
+                      />
+                      <Button
+                        variant="outlined"
+                        startIcon={<PersonAddIcon />}
+                        disabled={!newLoginForm.username.trim() || newLoginForm.password.length < 6 || createUserMut.isPending}
+                        onClick={() => {
+                          setNewLoginError(null);
+                          createUserMut.mutate(
+                            {
+                              username: newLoginForm.username.trim(),
+                              password: newLoginForm.password,
+                              full_name: newLoginForm.full_name.trim() || undefined,
+                              role: 'team_leader',
+                              team_id: id,
+                            },
+                            {
+                              onSuccess: () => setNewLoginForm({ username: '', password: '', full_name: '' }),
+                              onError: (err: unknown) => {
+                                const message =
+                                  (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+                                  'Could not create the login';
+                                setNewLoginError(message);
+                              },
+                            },
+                          );
+                        }}
+                      >
+                        Create login
+                      </Button>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                      Password needs at least 6 characters.
+                    </Typography>
+                  </>
+                )}
             </TeamSection>
           </Grid>
         )}
@@ -1271,15 +1289,17 @@ export function TeamDetailPage() {
                         {u.mobile ? ` · ${u.mobile}` : ''}
                       </Typography>
                       {!u.is_active && <Chip label="Deactivated" size="small" color="default" />}
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          setMemberMenuAnchor(e.currentTarget);
-                          setMemberMenuTarget(u);
-                        }}
-                      >
-                        <MoreVertIcon fontSize="small" />
-                      </IconButton>
+                      {canManageLogins && (
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            setMemberMenuAnchor(e.currentTarget);
+                            setMemberMenuTarget(u);
+                          }}
+                        >
+                          <MoreVertIcon fontSize="small" />
+                        </IconButton>
+                      )}
                     </Stack>
                   ))}
                   {teamMemberLogins.length === 0 && team.members.length === 0 && (
@@ -1303,20 +1323,22 @@ export function TeamDetailPage() {
                               {m.role_title}
                             </Typography>
                           )}
-                          <Button
-                            size="small"
-                            onClick={() => {
-                              setConvertingMemberId(m.id);
-                              setMemberLoginForm((f) => ({
-                                ...f,
-                                full_name: m.name,
-                                mobile: m.phone || '',
-                                job_type: m.role_title || '',
-                              }));
-                            }}
-                          >
-                            Give login →
-                          </Button>
+                          {canAddLogins && (
+                            <Button
+                              size="small"
+                              onClick={() => {
+                                setConvertingMemberId(m.id);
+                                setMemberLoginForm((f) => ({
+                                  ...f,
+                                  full_name: m.name,
+                                  mobile: m.phone || '',
+                                  job_type: m.role_title || '',
+                                }));
+                              }}
+                            >
+                              Give login →
+                            </Button>
+                          )}
                           <IconButton
                             size="small"
                             color="error"
@@ -1332,6 +1354,8 @@ export function TeamDetailPage() {
                   </>
                 )}
 
+                {canAddLogins && (
+                  <>
                 <Divider sx={{ my: 2 }} />
                 <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
                   Add a team member
@@ -1435,6 +1459,8 @@ export function TeamDetailPage() {
                   Password needs at least 6 characters — the member can change it themselves anytime once
                   signed in.
                 </Typography>
+                  </>
+                )}
             </TeamSection>
           </Grid>
         )}

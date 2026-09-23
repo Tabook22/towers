@@ -126,6 +126,14 @@ export function TeamsPage() {
   // Managing team-leader logins (creating them, seeing every username) is admin-only on the
   // backend — a reviewer can manage team fields but not accounts.
   const isAdmin = user?.role === 'admin';
+  // A restricted admin's "manage_users" level — routers/auth.py's create_user needs "add" to
+  // create a team leader, and update_user/delete_user need "full" to edit/deactivate/delete one.
+  // A super admin always has "full"; nobody else (reviewer, team_leader) reaches this section at
+  // all (see the isAdmin gate around the "Team leaders" card below), so this only ever matters for
+  // an admin sub-account.
+  const usersLevel = isAdmin ? (user!.is_super_admin ? 'full' : getPermissionLevel(user!.permissions, 'manage_users')) : 'view';
+  const canAddUsers = usersLevel === 'add' || usersLevel === 'full';
+  const canManageUsers = usersLevel === 'full';
   const { data: allUsers } = useUsers(isAdmin);
   const teamLeaders = (allUsers || []).filter((u) => u.role === 'team_leader');
   const teamById = new Map((teams || []).map((t) => [t.id, t.name]));
@@ -407,9 +415,11 @@ export function TeamsPage() {
                   <Chip size="small" label={t.status} color={STATUS_COLORS[t.status] || 'default'} />
                 </TableCell>
                 <TableCell align="right">
-                  <IconButton size="small" onClick={(e) => openMenu(e, `team:${t.id}`)}>
-                    <MoreVertIcon fontSize="small" />
-                  </IconButton>
+                  {canManageTeams && (
+                    <IconButton size="small" onClick={(e) => openMenu(e, `team:${t.id}`)}>
+                      <MoreVertIcon fontSize="small" />
+                    </IconButton>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -442,9 +452,11 @@ export function TeamsPage() {
                   editing a team. A leader who isn't leading a team yet shows as "Unassigned".
                 </Typography>
               </Box>
-              <Button variant="outlined" startIcon={<BadgeIcon />} onClick={openCreateLeader}>
-                Add team leader
-              </Button>
+              {canAddUsers && (
+                <Button variant="outlined" startIcon={<BadgeIcon />} onClick={openCreateLeader}>
+                  Add team leader
+                </Button>
+              )}
             </Stack>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
@@ -481,9 +493,11 @@ export function TeamsPage() {
                         <Chip size="small" color={u.is_active ? 'success' : 'default'} label={u.is_active ? 'Active' : 'Deactivated'} />
                       </TableCell>
                       <TableCell align="right">
-                        <IconButton size="small" onClick={(e) => openMenu(e, `leader:${u.id}`)}>
-                          <MoreVertIcon fontSize="small" />
-                        </IconButton>
+                        {canManageUsers && (
+                          <IconButton size="small" onClick={(e) => openMenu(e, `leader:${u.id}`)}>
+                            <MoreVertIcon fontSize="small" />
+                          </IconButton>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -509,18 +523,23 @@ export function TeamsPage() {
             const t = teams?.find((x) => x.id === Number(menuTarget!.slice(5)));
             if (!t) return null;
             return [
-              <MenuItem
-                key="edit"
-                onClick={(e) => {
-                  closeMenu();
-                  openEdit(t, e as unknown as React.MouseEvent);
-                }}
-              >
-                <ListItemIcon>
-                  <EditIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText>Edit team</ListItemText>
-              </MenuItem>,
+              // Editing an existing team's details needs "full" on the backend, same as deleting
+              // one (routers/teams.py's update_team) — a restricted admin with only "view" or "add"
+              // never gets past that PATCH, so don't offer a button that will just 403.
+              canManageTeams && (
+                <MenuItem
+                  key="edit"
+                  onClick={(e) => {
+                    closeMenu();
+                    openEdit(t, e as unknown as React.MouseEvent);
+                  }}
+                >
+                  <ListItemIcon>
+                    <EditIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>Edit team</ListItemText>
+                </MenuItem>
+              ),
               canManageTeams && <Divider key="div" />,
               canManageTeams && (
                 <MenuItem key="delete" onClick={() => handleDeleteTeam(t)} sx={{ color: 'error.main' }}>
