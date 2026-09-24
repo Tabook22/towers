@@ -52,6 +52,7 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5174",
     ]
 
+    thermal_bridge_secret: str = ""
     max_upload_size_mb: int = 40
 
     # Absolute (BASE_DIR-relative), not the bare ".env" this used to be — that resolved against

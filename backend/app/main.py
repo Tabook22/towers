@@ -17,6 +17,7 @@ from app.migrations import (
     rebuild_positions_table_for_multi_direction_support,
 )
 from app.routers import (
+    thermal_bridge,
     app_settings,
     archive,
     areas,
@@ -67,6 +68,7 @@ app.add_middleware(
 )
 app.middleware("http")(client_role_route_guard)
 
+app.include_router(thermal_bridge.router)
 app.include_router(auth.router)
 app.include_router(app_settings.router)
 app.include_router(push.router)

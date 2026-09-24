@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -13,6 +13,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthContext';
 import ArrowBackIcon from '@mui/icons-material/ArrowBackRounded';
 import DeleteIcon from '@mui/icons-material/DeleteRounded';
@@ -67,6 +68,13 @@ const THERMAL_MODE_OPTIONS = [
 export function VisitDetailPage() {
   const { visitId } = useParams();
   const id = Number(visitId);
+  const queryClient=useQueryClient();
+  useEffect(()=>{
+    if(!('BroadcastChannel' in window))return;
+    const channel=new BroadcastChannel('thermal-inspection-saved');
+    channel.onmessage=()=>{void queryClient.invalidateQueries({queryKey:['visit',id]})};
+    return()=>channel.close();
+  },[id,queryClient]);
   const navigate = useNavigate();
   const { user } = useAuth();
   const isTeamMember = user?.role === 'team_member';

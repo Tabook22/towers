@@ -1030,3 +1030,16 @@ class KnowledgeDocument(Base):
     uploaded_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
 
     team: Mapped["Team | None"] = relationship()
+
+
+class ThermalEditGrant(Base):
+    """Short-lived, single-use editor launch; original evidence is never overwritten."""
+    __tablename__ = "thermal_edit_grants"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    image_id: Mapped[int] = mapped_column(ForeignKey("images.id", ondelete="CASCADE"), index=True)
+    expected_revision: Mapped[dt.datetime] = mapped_column(DateTime)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime)
+    edit_expires_at: Mapped[dt.datetime] = mapped_column(DateTime)
+    claimed_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    result_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)

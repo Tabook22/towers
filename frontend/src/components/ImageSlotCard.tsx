@@ -33,6 +33,7 @@ import { ImageAnnotator } from './ImageAnnotator';
 import { mediaUrl } from '../api/client';
 import { ResizableDialogPaper } from './ResizableDialogPaper';
 import { useOffline } from '../offline/OfflineProvider';
+import { ThermalProcessButton } from './ThermalProcessButton';
 import { LOCAL_FILE_SENTINEL } from '../offline/types';
 
 interface Props {
@@ -259,6 +260,7 @@ export function ImageSlotCard({
             {image.latitude != null ? `${image.latitude.toFixed(5)}, ${image.longitude?.toFixed(5)}` : 'Set GPS location'}
           </Button>
 
+          {isThermal && image.file_path && !queuedOnPhone && <ThermalProcessButton imageId={image.id} disabled={disabled}/>}
           <input
             ref={fileRef}
             type="file"

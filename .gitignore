@@ -47,3 +47,6 @@ Thumbs.db
 
 # ---------- Claude Code local session state ----------
 .claude/settings.local.json
+
+# Isolated frontend output used during a live deployment
+dist-bridge-staging/
