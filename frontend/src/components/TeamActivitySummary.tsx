@@ -12,14 +12,10 @@ import DescriptionRounded from '@mui/icons-material/DescriptionRounded';
 import { apiClient, mediaUrl } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { DocxViewerDialog } from './DocxViewerDialog';
+import { ActivityOverviewCharts, TeamProgressCharts } from './TeamProgressCharts';
+import { categoryTowers, teamFieldStats } from '../utils/teamActivityCharts';
+import type { CountKey, Counts, ActivityReport as Report, ActivityTower as Tower, TeamActivity as Activity } from '../api/teamActivityTypes';
 
-type CountKey = 'planned' | 'visited' | 'recorded' | 'finished' | 'reported';
-type Counts = Record<CountKey, number>;
-interface Report { id: number; number: string; start_date: string; end_date: string; has_file: boolean }
-interface Tower { id: number; name: string; planned?: boolean; visited?: boolean; recorded?: boolean; finished?: boolean; reported?: boolean; visit_ids?: number[]; reports: Report[] }
-interface Day { date: string; mission_name: string | null; has_mission: boolean; mission_ended: boolean; counts: Counts; towers: Tower[] }
-interface Team { id: number; name: string; is_active: boolean; mission_count: number; counts: Counts; days: Day[]; reports: Report[]; report_towers: Tower[]; undated_report_towers: number; unknown_scope_reports: number }
-interface Activity { start_date: string; end_date: string; teams: Team[] }
 const labels: Record<CountKey, string> = { planned: 'Mission towers', visited: 'Visited', recorded: 'Recorded', finished: 'Finished', reported: 'In reports' };
 const definitions: Record<CountKey, string> = {
   planned: 'Towers selected in a saved daily mission plan.',
@@ -46,7 +42,7 @@ export function TeamActivitySummary() {
   const [viewReport, setViewReport] = useState<Report | null>(null);
   const valid = Boolean(dates.start && dates.end && dates.start <= dates.end && (Date.parse(dates.end) - Date.parse(dates.start)) / 86400000 <= 366);
   const query = useQuery({
-    queryKey: ['team-activity-summary', dates.start, dates.end],
+    queryKey: ['team-activity-summary', user?.id, dates.start, dates.end],
     queryFn: async ({ signal }) => (await apiClient.get<Activity>('/api/team-activity', { params: { start_date: dates.start, end_date: dates.end }, signal })).data,
     enabled: valid,
     refetchInterval: 60000,
@@ -86,6 +82,7 @@ export function TeamActivitySummary() {
         </Paper></Tooltip>)}
       </Box>
       <Typography variant="caption" color="text.secondary">Totals count each tower once per team in this date range. Daily rows count it once each day, so repeat visits can make daily sums higher. Report dates refer to the inspection period, not the document creation date.</Typography>
+      {teams.length > 0 && <ActivityOverviewCharts teams={teams} start={query.data.start_date} end={query.data.end_date} selectTeam={id => setTeamId(String(id))} />}
       <Accordion disableGutters elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '12px !important', '&:before': { display: 'none' } }}>
         <AccordionSummary expandIcon={<ExpandMoreRounded />}><Typography variant="body2" sx={{ fontWeight: 600 }}>How these numbers are counted</Typography></AccordionSummary>
         <AccordionDetails><Stack spacing={1}>{keys.map(k => <Typography key={k} variant="body2"><b>{labels[k]}:</b> {definitions[k]}</Typography>)}<Typography variant="body2">Mission plans and field check-ins use their saved field date; inspection records use their entered inspection date. Missing plans are shown explicitly. An empty checklist is not proof of a visit.</Typography></Stack></AccordionDetails>
@@ -96,13 +93,14 @@ export function TeamActivitySummary() {
         return <Paper key={team.id} variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden' }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ p: 2.5, bgcolor: '#f6f9fa', justifyContent: 'space-between' }}>
             <Box><Typography variant="h6" sx={{ fontWeight: 800 }}>{team.name} {!team.is_active && <Chip size="small" label="Archived" />}</Typography>
-              <Typography variant="body2" color="text.secondary">{team.mission_count} daily missions · {team.counts.visited} towers visited · {team.counts.finished} finished</Typography>
+              <Typography variant="body2" color="text.secondary">{team.mission_count} daily missions · {teamFieldStats(team).visitDays} visit days · {team.counts.visited} towers visited · {team.counts.finished} finished</Typography>
             </Box>
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
               <Button variant="outlined" startIcon={<DescriptionRounded />} onClick={() => setDetail({ title: `${team.name} · Towers in saved reports`, towers: team.report_towers, reportsOnly: true })}>{team.counts.reported} towers in {team.reports.length} reports</Button>
               <Button component={Link} to={`/teams/${team.id}#mission-plan`}>Open missions</Button>
             </Stack>
           </Stack>
+          <TeamProgressCharts team={team} onCategory={key => setDetail({ title: `${team.name} · ${labels[key]}`, towers: categoryTowers(team, key), reportsOnly: key === 'reported' })} />
           {(team.undated_report_towers > 0 || team.unknown_scope_reports > 0) && <Alert severity="info" sx={{ m: 2 }}>
             {team.undated_report_towers > 0 && `${team.undated_report_towers} reported towers have no exact day saved. They are included in the team report total, but not assigned to a daily row. `}
             {team.unknown_scope_reports > 0 && `${team.unknown_scope_reports} older reports have no traceable tower list and are excluded from tower counts.`}
