@@ -1,9 +1,10 @@
 """Scoped field announcements with explicit receipts and reversible task/archive states."""
 import datetime as dt
+import json
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import case, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
@@ -85,6 +86,7 @@ def status(row):
 def output(row, user):
     acks = [a for a in row.acknowledgements if a.revision == row.revision]
     return {"id": row.id, "title": row.title, "body": row.body, "category": row.category,
+        "appearance": read_appearance(row).model_dump(),
         "team_id": row.team_id, "team_name": row.team.name if row.team else None,
         "tower_id": row.tower_id, "tower_name": row.tower.tower_id if row.tower else None,
         "owner_id": row.owner_id, "owner_name": name(row.owner), "author_name": name(row.author),
@@ -97,6 +99,28 @@ def output(row, user):
             (manageable(row, user) or row.owner_id in (None, user.id))}
 
 
+class NoticeAppearance(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    language: Literal["auto", "en", "ar"] = "auto"
+    direction: Literal["auto", "ltr", "rtl"] = "auto"
+    font: Literal["sans", "serif", "handwritten", "arabic"] = "sans"
+    font_size: int = Field(default=16, ge=14, le=28)
+    paper: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    ink: str = Field(default="#24343c", pattern=r"^#[0-9a-fA-F]{6}$")
+    marker: str = Field(default="", max_length=16)
+
+
+def read_appearance(row):
+    # Legacy notices inherit readable defaults, including automatic text direction.
+    return NoticeAppearance.model_validate_json(row.appearance_json) if row.appearance_json else NoticeAppearance()
+
+
+def stored_values(payload):
+    values = payload.model_dump(exclude={"expected_version", "appearance"})
+    values["appearance_json"] = json.dumps(payload.appearance.model_dump(), ensure_ascii=False)
+    return values
+
+
 class NoticeInput(BaseModel):
     title: str = Field(min_length=1, max_length=160)
     body: str = Field(min_length=1, max_length=4000)
@@ -106,6 +130,7 @@ class NoticeInput(BaseModel):
     owner_id: int | None = None
     due_on: dt.date | None = None
     expires_on: dt.date | None = None
+    appearance: NoticeAppearance = Field(default_factory=NoticeAppearance)
 
     @field_validator("title", "body", mode="before")
     @classmethod
@@ -210,7 +235,7 @@ def history(state: Literal["active", "history"] = "active", search: str = "", ca
 @router.post("", status_code=201)
 def create(payload: NoticeInput, db: Session = Depends(get_db), user: User = Depends(staff)):
     validate_target(db, user, payload)
-    row = FieldNotice(**payload.model_dump(), created_by=user.id)
+    row = FieldNotice(**stored_values(payload), created_by=user.id)
     db.add(row); db.commit()
     return output(get_notice(db, user, row.id), user)
 
@@ -231,7 +256,13 @@ def edit(notice_id: int, payload: NoticeEdit, db: Session = Depends(get_db), use
     if not manageable(row, user):
         raise HTTPException(403, "You cannot edit this notice")
     validate_target(db, user, payload)
-    change(db, row, payload.expected_version, {**payload.model_dump(exclude={"expected_version"}), "revision": FieldNotice.revision + 1})
+    values = stored_values(payload)
+    # Cosmetic changes do not make a previously read instruction unread again.
+    # Markers can convey new urgency, so changing one starts a new reading round.
+    content_changed = any(getattr(row, key) != value for key, value in values.items() if key != "appearance_json")
+    if content_changed or read_appearance(row).marker != payload.appearance.marker:
+        values["revision"] = FieldNotice.revision + 1
+    change(db, row, payload.expected_version, values)
     return output(get_notice(db, user, notice_id), user)
 
 

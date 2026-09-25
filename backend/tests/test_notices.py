@@ -254,3 +254,42 @@ def test_http_routes_validate_and_serialize_the_complete_workflow(setup):
     done = client.post(f"/api/notices/{item['id']}/state", json={'action': 'complete', 'expected_version': 1})
     assert done.status_code == 200 and done.json()['status'] == 'completed'
     assert client.get('/api/notices?state=history').json()['total'] == 1
+
+
+def test_appearance_round_trip_preserves_arabic_and_receipts(setup):
+    db, admin, _, crew, *_ = setup
+    note = publish(setup, category='urgent')
+    ack(db, crew, note)
+    updated = edit(db, admin, note, appearance={'language': 'ar', 'direction': 'rtl',
+        'font': 'arabic', 'font_size': 24, 'paper': '#fff0a6', 'ink': '#24343c'})
+    assert updated['appearance']['direction'] == 'rtl'
+    assert updated['appearance']['font_size'] == 24
+    assert updated['revision'] == 1 and updated['version'] == 2
+    assert listing(db, crew)['urgent'] is None
+    assert listing(db, crew)['items'][0]['acknowledged']
+    marked = edit(db, admin, updated, title='جودة الصور الحرارية',
+        appearance={**updated['appearance'], 'marker': '⚠️'})
+    assert marked['title'] == 'جودة الصور الحرارية'
+    assert marked['appearance']['marker'] == '⚠️'
+    assert marked['revision'] == 2
+    assert listing(db, crew)['urgent']['id'] == note['id']
+
+
+def test_legacy_notice_appearance_defaults_and_stale_design_updates(setup):
+    db, admin, *_ = setup
+    note = publish(setup)
+    row = db.get(FieldNotice, note['id']); row.appearance_json = None; db.commit()
+    assert n.output(row, admin)['appearance']['direction'] == 'auto'
+    updated = edit(db, admin, note, appearance={'paper': '#ffffff'})
+    with pytest.raises(HTTPException) as error:
+        edit(db, admin, note, appearance={'paper': '#000000'})
+    assert error.value.status_code == 409
+    assert listing(db, admin)['items'][0]['appearance'] == updated['appearance']
+
+
+@pytest.mark.parametrize('appearance', [dict(font_size=4), dict(font_size=1000),
+    dict(paper='url(https://example.com)'), dict(ink='red'), dict(direction='sideways'),
+    dict(font='untrusted-font'), dict(language='xx'), dict(marker='x' * 17), dict(css='position:fixed')])
+def test_appearance_rejects_invalid_values(appearance):
+    with pytest.raises(ValidationError):
+        n.NoticeInput(title='Title', body='Body', appearance=appearance)

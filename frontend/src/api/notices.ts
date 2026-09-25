@@ -3,9 +3,16 @@ import { apiClient } from './client';
 import { useAuth } from '../auth/AuthContext';
 
 export type NoticeCategory = 'urgent' | 'action' | 'update';
+export interface NoticeAppearance {
+  language: 'auto' | 'en' | 'ar'; direction: 'auto' | 'ltr' | 'rtl';
+  font: 'sans' | 'serif' | 'handwritten' | 'arabic'; font_size: number;
+  paper: string | null; ink: string; marker: string;
+}
+export const defaultNoticeAppearance: NoticeAppearance = { language: 'auto', direction: 'auto', font: 'sans', font_size: 16, paper: null, ink: '#24343c', marker: '' };
 export interface NoticeBody {
   title: string; body: string; category: NoticeCategory; team_id: number | null;
   tower_id: number | null; owner_id: number | null; due_on: string | null; expires_on: string | null;
+  appearance: NoticeAppearance;
 }
 export interface FieldNotice extends NoticeBody {
   id: number; team_name: string | null; tower_name: string | null; owner_name: string | null;
