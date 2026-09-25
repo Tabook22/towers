@@ -72,3 +72,11 @@ screen/camera/microphone start and stop, minimized status, fullscreen, pointing,
 and loss of connection. Also test across two different networks to exercise the relay.
 Use test accounts and a non-sensitive window; never automatically capture an operator's
 desktop or microphone during deployment verification.
+
+Local QA on 25 September 2026 verified two independent Chrome logins, invitation acceptance,
+bidirectional private chat, navigation while minimized, remote hangup, and mobile picker layout.
+A separate local-only harness substituted a generated canvas video and silent audio for device
+capture and verified decoded video frames and received audio samples in both directions, including
+sharing by the invited participant, then stopping capture and ending the call. This verifies the
+media path without capturing a real desktop or microphone. A production relay/cross-network test
+still requires the VPS relay to be installed and enabled.

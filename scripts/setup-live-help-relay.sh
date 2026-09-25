@@ -77,6 +77,7 @@ os.chown(path, 0, grp.getgrnam('turnserver').gr_gid)
 os.chmod(path, 0o640)
 PY
 # Copy renewed certificates without exposing the Let's Encrypt private-key directory.
+install -d -m 755 /etc/letsencrypt/renewal-hooks/deploy
 cat > /etc/letsencrypt/renewal-hooks/deploy/insulator-turn <<EOF
 #!/bin/sh
 set -eu

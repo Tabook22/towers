@@ -40,7 +40,7 @@ export function useLiveHelp(userId: number) {
     const r = runtime.current;
     if (r) { r.alive = false; r.screen?.getTracks().forEach(t => t.stop()); r.mic?.getTracks().forEach(t => t.stop()); r.pc?.close(); r.channel?.close(); }
     runtime.current = null;
-    setLocal(null); setRemote(null); setSource(''); setRemoteSource(''); setMic(false); setRemoteMic(false); setPoint(null); setLines([]); setError('');
+    setLocal(null); setRemote(null); setSource(''); setRemoteSource(''); setMic(false); setRemoteMic(false); setPoint(null); setLines([]); setError(''); setConnection('Not connected');
   };
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; cleanup(); }; }, []);
 
@@ -125,7 +125,12 @@ export function useLiveHelp(userId: number) {
               await r.pc.setRemoteDescription(payload);
               for (const candidate of r.pending) await r.pc.addIceCandidate(candidate);
               r.pending = [];
-              if (s.kind === 'offer') { await r.pc.setLocalDescription(await r.pc.createAnswer()); await sendSignal('answer', r.pc.localDescription); }
+              if (s.kind === 'offer') {
+                // Offer-created transceivers start recvonly. Reserve both sending directions
+                // now so the invited person can later share without another negotiation.
+                r.pc.getTransceivers().forEach(t => { t.direction = 'sendrecv'; });
+                await r.pc.setLocalDescription(await r.pc.createAnswer()); await sendSignal('answer', r.pc.localDescription);
+              }
             } else if (r.pc.remoteDescription) await r.pc.addIceCandidate(payload); else r.pending.push(payload);
             r.after = s.id;
           }

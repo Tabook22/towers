@@ -164,3 +164,22 @@ def test_directory_only_exposes_staff_identity_and_availability(setup):
     assert target['team'] == 'Field crew' and target['online']
     assert all(i['name'] != 'customer' for i in items)
     assert set(target) == {'id', 'name', 'team', 'role', 'online', 'busy'}
+
+
+@pytest.mark.parametrize('payload', ['not json', '[]', 'null', '{}', '{"candidate": 123}'])
+def test_malformed_signals_are_refused_without_persistence(setup, payload):
+    db, a, _, _ = setup
+    room = invite(setup); accept(setup, room)
+    with pytest.raises(HTTPException) as exc:
+        live.signal(room['id'], live.Signal(device='caller-tab', nonce=uuid.uuid4(), kind='candidate', payload=payload), db=db, user=a)
+    assert exc.value.status_code == 400
+    assert db.query(live.LiveSignal).count() == 0
+
+
+def test_invitations_are_rate_limited_even_after_cancellation(setup):
+    db, a, _, _ = setup
+    for _ in range(8):
+        room = invite(setup)
+        live.action(room['id'], live.Action(device='caller-tab', action='end'), db=db, user=a)
+    with pytest.raises(HTTPException) as exc: invite(setup)
+    assert exc.value.status_code == 429
