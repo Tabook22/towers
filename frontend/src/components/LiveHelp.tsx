@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Alert, Avatar, Badge, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, LinearProgress, MenuItem, Paper, Portal, Stack, TextField, Tooltip, Typography, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ScreenShareRounded from '@mui/icons-material/ScreenShareRounded';
@@ -13,6 +13,8 @@ import OpenInFullRounded from '@mui/icons-material/OpenInFullRounded';
 import SendRounded from '@mui/icons-material/SendRounded';
 import SearchRounded from '@mui/icons-material/SearchRounded';
 import TouchAppRounded from '@mui/icons-material/TouchAppRounded';
+import { LiveWorkspace } from '../utils/liveWorkspace';
+import { LiveWorkspacePanel } from './LiveWorkspacePanel';
 import { apiClient } from '../api/client';
 import { helpError, useLiveHelp, type HelpContact } from '../hooks/useLiveHelp';
 
@@ -35,6 +37,17 @@ function ShareVideo({ stream, label, onPoint, point }: { stream: MediaStream | n
 
 export function LiveHelp({ userId }: { userId: number }) {
   const help = useLiveHelp(userId);
+  const [workspace] = useState(() => new LiveWorkspace());
+  const work = useSyncExternalStore(workspace.subscribe, workspace.getSnapshot);
+  useEffect(() => { if (help.channel) workspace.connect(help.channel); else workspace.disconnect(); return () => workspace.disconnect(); }, [help.channel, workspace]);
+  useEffect(() => { workspace.setInputs({ local: help.local, localAudio: help.localAudio, remote: help.remote, localVisible: !!help.source, remoteVisible: !!help.remoteSource, mic: help.mic, remoteMic: help.remoteMic, marks: work.marks, peer: help.room?.peer_name || 'Colleague' }); }, [workspace, help.local, help.localAudio, help.remote, help.source, help.remoteSource, help.mic, help.remoteMic, work.marks, help.room?.peer_name]);
+  const recording = work.phase === 'recording' || work.phase === 'peer-recording';
+  const hasDownloads = work.recordings.length > 0 || work.files.some(f => !!f.blob);
+  useEffect(() => {
+    if (!recording && !hasDownloads) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn);
+  }, [recording, hasDownloads]);
   const [open, setOpen] = useState(false);
   const [contacts, setContacts] = useState<HelpContact[]>([]);
   const [loading, setLoading] = useState(false);
@@ -69,6 +82,11 @@ export function LiveHelp({ userId }: { userId: number }) {
   return <>
     <Tooltip title={help.room ? 'Return to your live session' : 'Ask a colleague for live guidance'}><Button color="inherit" aria-label="Live help" onClick={() => setOpen(true)} sx={{ minWidth: { xs: 38, md: 100 }, px: 1.25, borderRadius: 5, bgcolor: help.room ? '#21816f' : 'rgba(255,255,255,.12)' }}><Badge variant="dot" color="warning" invisible={!help.incoming && !help.room}><HeadsetMicRounded /></Badge><Box component="span" sx={{ display: { xs: 'none', md: 'inline' }, ml: 1 }}>{help.room ? 'Live session' : 'Live help'}</Box></Button></Tooltip>
     <audio ref={audio} autoPlay />
+    <Dialog open={work.phase === 'requested'} aria-labelledby="recording-consent-title" sx={{ zIndex: 1400 }} fullWidth maxWidth="sm">
+      <DialogTitle id="recording-consent-title">Allow this session to be recorded?</DialogTitle>
+      <DialogContent><Stack spacing={2}><Typography><strong>{help.room?.peer_name}</strong> would like to record your session.</Typography><Alert severity="info">The video includes both shared views, the drawing pad and any enabled microphones. It is saved on your colleague’s device and can be downloaded or shared by them.</Alert><Typography variant="body2">Your camera and microphone stay under your control. A visible recording indicator appears for both people. You can stop the recording at any time.</Typography></Stack></DialogContent>
+      <DialogActions sx={{ p: 2 }}><Button onClick={() => workspace.answerRecording(false)}>Decline recording</Button><Button variant="contained" onClick={() => { try { workspace.answerRecording(true); } catch { workspace.message('The connection changed. Try again.'); } }}>Allow recording</Button></DialogActions>
+    </Dialog>
     <Dialog open={!!help.incoming} fullWidth maxWidth="xs" aria-labelledby="live-invitation-title">
       <DialogTitle id="live-invitation-title">Someone needs your guidance</DialogTitle><DialogContent><Stack spacing={2}><Avatar sx={{ width: 64, height: 64, bgcolor: '#187c73' }}><HeadsetMicRounded fontSize="large" /></Avatar><Typography variant="h6">{help.incoming?.peer_name}</Typography><Typography>{help.incoming?.subject || 'Invited you to a private live-help session.'}</Typography><Alert severity="info">Accept to connect. Your microphone, camera and screen stay off until you choose to share them.</Alert><Typography variant="caption" color="text.secondary">Invitation expires after 90 seconds. Only the two of you can join.</Typography>{help.error && <Alert severity="error">{help.error}</Alert>}</Stack></DialogContent><DialogActions sx={{ p: 2 }}><Button disabled={busy} onClick={() => void perform(() => help.answer(false))}>Decline</Button><Button variant="contained" disabled={busy} startIcon={<HeadsetMicRounded />} onClick={() => { setOpen(true); void perform(() => help.answer(true)); }}>Accept invitation</Button></DialogActions>
     </Dialog>
@@ -76,8 +94,11 @@ export function LiveHelp({ userId }: { userId: number }) {
       <DialogTitle component="div" sx={{ bgcolor: '#123f4d', color: 'white', p: 2.5 }}><Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}><Avatar sx={{ bgcolor: '#28766f' }}><HeadsetMicRounded /></Avatar><Box sx={{ flex: 1 }}><Typography id="live-help-title" variant="h6" sx={{ fontWeight: 800 }}>{help.room ? `Live with ${help.room.peer_name}` : 'A colleague, right beside you'}</Typography><Typography variant="caption" sx={{ color: '#cbe5e5' }}>{help.room ? help.room.subject || 'Private live guidance' : 'Screen sharing · voice · private chat'}</Typography></Box><IconButton aria-label={help.room ? 'Minimize live session' : 'Close live help'} sx={{ color: 'white' }} onClick={() => setOpen(false)}><CloseRounded /></IconButton></Stack></DialogTitle>
       <DialogContent ref={content} sx={{ p: { xs: 2, sm: 3 }, bgcolor: 'background.default' }}>
         <Stack spacing={2} sx={{ pt: 2 }}>
-          {help.error && <Alert severity="warning" onClose={() => help.setError('')}>{help.error}</Alert>}
+          {recording && <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => workspace.stopRecording()}>Stop recording</Button>}>{work.phase === 'recording' ? 'You are recording this session.' : 'Your colleague is recording this session.'} Shared views, the drawing pad and enabled microphones are included.</Alert>}
+          {work.phase === 'approved' && <Alert severity="success" action={<Button color="inherit" size="small" onClick={() => { try { workspace.startRecording(); } catch (e) { workspace.message(e instanceof Error ? e.message : 'Recording could not start.'); } }}>Start recording</Button>}>Your colleague agreed. You can now start recording.</Alert>}
+          {help.error && <Alert severity="warning"  onClose={() => help.setError('')}>{help.error}</Alert>}
           {help.notice && <Alert severity="info" onClose={() => help.setNotice('')}>{help.notice}</Alert>}
+          {!help.room && (hasDownloads || work.marks.length > 0 || work.files.length > 0 || !!work.message) && <LiveWorkspacePanel workspace={workspace} state={work} connected={false} />}
           {!help.room ? <>
             <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}><Typography sx={{ fontWeight: 700, mb: .75 }}>Choose a person. Ask permission. Work through it together.</Typography><Typography variant="body2" color="text.secondary">Filter by team or Administration, then invite a colleague. They will see the request anywhere in this app while it is open. Each session is private to two people.</Typography></Paper>
             {help.elsewhere && <Alert severity="info">You already have a session in another tab or device. End it there before starting another.</Alert>}
@@ -85,7 +106,7 @@ export function LiveHelp({ userId }: { userId: number }) {
             <TextField label="What do you need help with? (optional)" placeholder="For example: checking a thermal image on tower ARSD-93" value={subject} onChange={e => setSubject(e.target.value)} slotProps={{ htmlInput: { maxLength: 160 } }} size="small" />
             {loading && <LinearProgress />}
             <Stack spacing={1} sx={{ maxHeight: 350, overflowY: 'auto' }}>{filtered.map(c => <Paper variant="outlined" key={c.id} sx={{ p: 1.75, borderRadius: 2.5 }}><Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}><Avatar sx={{ bgcolor: c.online ? '#d9eee7' : 'action.hover', color: '#226b5b' }}>{c.name.slice(0, 1).toUpperCase()}</Avatar><Box sx={{ flex: 1, minWidth: 0 }}><Typography sx={{ fontWeight: 700, overflowWrap: 'anywhere' }}>{c.name}</Typography><Typography variant="caption" color="text.secondary">{c.team} · {c.role.replace(/_/g, ' ')}</Typography><Typography variant="caption" sx={{ display: 'block', color: c.busy ? 'warning.main' : c.online ? 'success.main' : 'text.secondary' }}>{c.busy ? 'In a session' : c.online ? 'App recently active' : 'Not recently active — ask them to open the app'}</Typography></Box><Button variant={c.online ? 'contained' : 'outlined'} size="small" disabled={busy || c.busy || help.elsewhere} aria-label={`Invite ${c.name}`} onClick={() => void perform(() => help.invite(c, subject))}>Invite</Button></Stack></Paper>)}{!loading && filtered.length === 0 && <Typography color="text.secondary">No staff match your search. Try another team or name.</Typography>}</Stack>
-            <Typography variant="caption" color="text.secondary">You choose a browser tab, window or screen each time. On phones that cannot share a screen, use the camera to show the field situation, or watch your colleague’s screen. Live sessions are not recorded by this app and do not provide remote control.</Typography>
+            <Typography variant="caption" color="text.secondary">You choose a browser tab, window or screen each time. On phones that cannot share a screen, use the camera to show the field situation, or watch your colleague’s screen. Recording requires both participants’ agreement. Live sessions do not provide remote control.</Typography>
           </> : <>
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}><Chip color={connected ? 'success' : 'default'} size="small" label={help.connection} /><Chip size="small" variant="outlined" label={help.source ? `You are sharing your ${help.source}` : 'Your screen & camera are off'} /><Typography variant="caption" color="text.secondary">{help.mic ? 'Your microphone is on' : 'Your microphone is off'}</Typography></Stack>
             {!active ? <Paper variant="outlined" sx={{ p: 5, textAlign: 'center', borderRadius: 3 }}><HeadsetMicRounded sx={{ color: '#238b7c', fontSize: 60 }} /><Typography variant="h6" sx={{ mt: 2 }}>Waiting for {help.room.peer_name}</Typography><Typography color="text.secondary" sx={{ mt: 1 }}>They need to accept your invitation. Nothing is being captured.</Typography><Typography variant="caption">No answer? The invitation expires automatically after 90 seconds.</Typography></Paper> : <>
@@ -98,6 +119,7 @@ export function LiveHelp({ userId }: { userId: number }) {
                 </Stack>
                 <Paper variant="outlined" sx={{ borderRadius: 3, p: 2, display: 'flex', flexDirection: 'column', minHeight: 320, maxHeight: 520 }}><Typography sx={{ fontWeight: 800 }}>Session chat</Typography><Typography variant="caption" color="text.secondary">{help.remoteMic ? 'Colleague’s microphone is on' : 'Colleague’s microphone is off'} · not saved</Typography><Stack role="log" aria-label="Private session chat" aria-live="polite" spacing={1} sx={{ flex: 1, overflowY: 'auto', my: 2 }}>{help.lines.length === 0 && <Typography variant="body2" color="text.secondary">Use this private chat for a tower number, a question, or a short instruction.</Typography>}{help.lines.map(line => <Box key={line.id} sx={{ p: 1.25, borderRadius: 2, bgcolor: line.own ? 'primary.main' : 'action.hover', color: line.own ? 'primary.contrastText' : 'text.primary', alignSelf: line.own ? 'flex-end' : 'flex-start', maxWidth: '95%' }}><Typography variant="caption" sx={{ fontWeight: 700 }}>{line.own ? 'You' : help.room?.peer_name}</Typography><Typography variant="body2" dir="auto" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{line.text}</Typography></Box>)}<div ref={chatEnd} /></Stack><Stack direction="row" spacing={1}><TextField size="small" fullWidth multiline maxRows={3} label="Private message" value={message} disabled={!connected} onChange={e => setMessage(e.target.value)} slotProps={{ htmlInput: { maxLength: 2000 } }} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} /><IconButton aria-label="Send private message" color="primary" disabled={!connected || !message.trim()} onClick={send}><SendRounded /></IconButton></Stack></Paper>
               </Box>
+              <LiveWorkspacePanel workspace={workspace} state={work} connected={connected} />
               <Typography variant="caption" color="text.secondary">Only share what is needed. Stop sharing at any time. Sessions end after 45 minutes; leaving or losing the connection stops capture. For urgent safety instructions, confirm them verbally.</Typography>
             </>}
           </>}
@@ -105,6 +127,6 @@ export function LiveHelp({ userId }: { userId: number }) {
       </DialogContent>
       <DialogActions sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>{help.room ? <><Button onClick={() => setOpen(false)}>Minimize</Button><Button variant="contained" color="error" startIcon={<CallEndRounded />} onClick={() => void help.end()}>{active ? 'End session' : 'Cancel invitation'}</Button></> : <Button onClick={() => setOpen(false)}>Close</Button>}</DialogActions>
     </Dialog>
-    {help.room && !open && <Portal><Paper elevation={5} sx={{ position: 'fixed', top: { xs: 62, sm: 72 }, right: 12, left: { xs: 12, sm: 'auto' }, zIndex: 1290, p: 1.25, borderRadius: 2, border: '1px solid #55a68f' }}><Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}><Chip size="small" color={help.source ? 'success' : 'default'} label={help.source ? `Sharing ${help.source}` : 'Live help'} /><Typography variant="caption">{help.room.peer_name} · {help.mic ? 'Mic on' : 'Mic off'}</Typography><Button size="small" onClick={() => setOpen(true)}>Open</Button>{help.source && <Button color="error" size="small" onClick={() => void perform(help.stopSharing)}>Stop sharing</Button>}<IconButton color="error" size="small" aria-label="End live session" onClick={() => void help.end()}><CallEndRounded /></IconButton></Stack></Paper></Portal>}
+    {help.room && !open && <Portal><Paper elevation={5} sx={{ position: 'fixed', top: { xs: 62, sm: 72 }, right: 12, left: { xs: 12, sm: 'auto' }, zIndex: 1290, p: 1.25, borderRadius: 2, border: '1px solid #55a68f' }}><Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}><Chip size="small" color={help.source ? 'success' : 'default'} label={help.source ? `Sharing ${help.source}` : 'Live help'} /><Typography variant="caption">{help.room.peer_name} · {help.mic ? 'Mic on' : 'Mic off'}</Typography>{recording && <Chip size="small" color="error" label={work.phase === 'recording' ? 'Recording' : 'Colleague recording'} />}{work.phase !== 'idle' && <Button color="error" size="small" onClick={() => workspace.stopRecording()}>Stop recording</Button>}<Button size="small" onClick={() => setOpen(true)}>Open</Button>{help.source && <Button color="error" size="small" onClick={() => void perform(help.stopSharing)}>Stop sharing</Button>}<IconButton color="error" size="small" aria-label="End live session" onClick={() => void help.end()}><CallEndRounded /></IconButton></Stack></Paper></Portal>}
   </>;
 }

@@ -78,5 +78,41 @@ bidirectional private chat, navigation while minimized, remote hangup, and mobil
 A separate local-only harness substituted a generated canvas video and silent audio for device
 capture and verified decoded video frames and received audio samples in both directions, including
 sharing by the invited participant, then stopping capture and ending the call. This verifies the
-media path without capturing a real desktop or microphone. A production relay/cross-network test
-still requires the VPS relay to be installed and enabled.
+media path without capturing a real desktop or microphone. The VPS relay was deployed on 25 September 2026; authenticated UDP, TCP and TLS packet
+relay tests passed, and external connectivity and TLS certificate validation were verified.
+Actual field-device calls across mobile networks still need a practical check.
+
+
+## Shared workspace and recording
+
+Both participants must refresh to load the workspace update. Once the encrypted data channel
+connects, the tools handshake enables the pad, documents and recording controls. Older clients
+can still call but cannot use the new workspace until refreshed.
+
+- The drawing pad supports mouse, pen and touch, five ink colors, three widths, English/Arabic
+  text labels, undo of your own marks, zoom and PNG export. Strokes synchronize on pointer release.
+  Marks have a deterministic order for simultaneous drawing and bounded sizes/counts.
+- Documents use a recipient Accept/Decline flow, ordered 12 KB chunks, sequence/length validation,
+  acknowledgement, progress, cancellation and backpressure. Each person can offer five files up
+  to 20 MB each per call. Files remain in browser memory and are downloaded only on request;
+  active HTML/SVG/documents are never rendered inline or uploaded to the backend.
+- Recording requires a request, explicit agreement and a separate Start recording click.
+  Both participants see a red indicator and can stop, including from the minimized call bar.
+  Consent expires if not used, cannot carry across sessions and is revoked on disconnection.
+  Recorder/participant heartbeats stop the recording on loss of the peer.
+- The recorder composites the two already-shared video streams plus the pad at 1280×960/10 fps,
+  and mixes enabled microphones. It never requests another device or records the whole desktop.
+  Private chat and document contents are excluded unless visible in a shared screen.
+- Videos remain on the recording participant's device, with a Download video action that survives
+  ending the call. Save before closing/refreshing; a browser exit warning protects unsaved files.
+  They are not archived on the VPS. A capture stops at 20 minutes or 150 MB; three saved captures
+  can be held before downloading/removing one. Either person can record once permission is given.
+- Keep the recording tab visible. Browser background suspension, screen locking and memory limits
+  can interrupt canvas recording, particularly on mobile. Unsupported recording browsers can still
+  participate in calls, use the pad, receive files and approve another participant's recording.
+
+Workspace QA: automated tests exercise concurrent drawing/undo, malicious or oversized inputs,
+acceptance before file bytes, exact multi-chunk delivery, out-of-order rejection, interrupted transfers,
+recording consent/revocation and simultaneous requests. Local Chrome testing used actual WebRTC
+data channels with synthetic video/audio, verified a bilingual pad and drawn stroke on both sides,
+exact transferred document bytes, peer-controlled recording stop and playable 1280×960 video.

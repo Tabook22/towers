@@ -30,6 +30,8 @@ export function useLiveHelp(userId: number) {
   const [source, setSource] = useState('');
   const [remoteSource, setRemoteSource] = useState('');
   const [mic, setMic] = useState(false);
+  const [localAudio, setLocalAudio] = useState<MediaStream | null>(null);
+  const [channel, setChannel] = useState<RTCDataChannel | null>(null);
   const [remoteMic, setRemoteMic] = useState(false);
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [point, setPoint] = useState<{ x: number; y: number; at: number } | null>(null);
@@ -40,7 +42,7 @@ export function useLiveHelp(userId: number) {
     const r = runtime.current;
     if (r) { r.alive = false; r.screen?.getTracks().forEach(t => t.stop()); r.mic?.getTracks().forEach(t => t.stop()); r.pc?.close(); r.channel?.close(); }
     runtime.current = null;
-    setLocal(null); setRemote(null); setSource(''); setRemoteSource(''); setMic(false); setRemoteMic(false); setPoint(null); setLines([]); setError(''); setConnection('Not connected');
+    setChannel(null); setLocalAudio(null); setLocal(null); setRemote(null); setSource(''); setRemoteSource(''); setMic(false); setRemoteMic(false); setPoint(null); setLines([]); setError(''); setConnection('Not connected');
   };
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; cleanup(); }; }, []);
 
@@ -77,7 +79,7 @@ export function useLiveHelp(userId: number) {
     };
     const bindChannel = (channel: RTCDataChannel) => {
       r.channel = channel;
-      channel.onopen = () => { if (r.alive) { setConnection('Connected'); channel.send(JSON.stringify({ type: 'state', source: r.source, mic: false })); } };
+      channel.onopen = () => { if (r.alive) { setChannel(channel); setConnection('Connected'); channel.send(JSON.stringify({ type: 'state', source: r.source, mic: false })); } };
       channel.onmessage = event => {
         if (!r.alive || typeof event.data !== 'string' || event.data.length > 5000) return;
         try {
@@ -185,7 +187,7 @@ export function useLiveHelp(userId: number) {
   const toggleMic = async () => {
     const r = runtime.current; if (!r?.pc || connection !== 'Connected') return;
     setError('');
-    if (r.mic) { r.mic.getTracks().forEach(t => t.stop()); r.mic = null; setMic(false); state(); await r.pc.getTransceivers().find(t => t.receiver.track.kind === 'audio')?.sender.replaceTrack(null); return; }
+    if (r.mic) { r.mic.getTracks().forEach(t => t.stop()); r.mic = null; setLocalAudio(null); setMic(false); state(); await r.pc.getTransceivers().find(t => t.receiver.track.kind === 'audio')?.sender.replaceTrack(null); return; }
     let stream: MediaStream | undefined;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
@@ -194,8 +196,8 @@ export function useLiveHelp(userId: number) {
       if (!sender) throw new Error('Audio channel unavailable');
       await sender.replaceTrack(stream.getAudioTracks()[0]);
       if (!r.alive) { stream.getTracks().forEach(t => t.stop()); return; }
-      r.mic = stream; setMic(true); state();
-      stream.getAudioTracks()[0].onended = () => { if (r.alive) { r.mic = null; setMic(false); state(); } };
+      r.mic = stream; setLocalAudio(stream); setMic(true); state();
+      stream.getAudioTracks()[0].onended = () => { if (r.alive) { r.mic = null; setLocalAudio(null); setMic(false); state(); } };
     } catch (e) { stream?.getTracks().forEach(t => t.stop()); if (r.alive) setError(helpError(e)); }
   };
   const invite = async (contact: HelpContact, subject: string) => {
@@ -213,5 +215,5 @@ export function useLiveHelp(userId: number) {
     if (current) await apiClient.post(`/api/live-help/rooms/${current.id}/action`, { device, action: 'end' }, { timeout: 10000 }).catch(() => setNotice('Sharing stopped on this device. The offline session will expire automatically.'));
   };
   const chat = (text: string) => { const trimmed = text.trim().slice(0, 2000); if (!trimmed) return; send({ type: 'chat', text: trimmed }); setLines(old => [...old.slice(-199), { id: crypto.randomUUID(), text: trimmed, own: true }]); };
-  return { room, incoming, elsewhere, error, setError, notice, setNotice, connection, local, remote, source, remoteSource, mic, remoteMic, lines, point, invite, answer, end, share, stopSharing, toggleMic, chat, pointAt: (x: number, y: number) => send({ type: 'point', x, y }) };
+  return { channel, localAudio, room, incoming, elsewhere, error, setError, notice, setNotice, connection, local, remote, source, remoteSource, mic, remoteMic, lines, point, invite, answer, end, share, stopSharing, toggleMic, chat, pointAt: (x: number, y: number) => send({ type: 'point', x, y }) };
 }
