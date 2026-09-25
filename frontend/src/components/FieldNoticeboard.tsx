@@ -41,7 +41,7 @@ function NoteCard({ note, open }: { note: FieldNotice; open: () => void }) {
   return <Box component="button" type="button" onClick={open} aria-label={`Open notice: ${note.title}`} sx={{
     ...paperStyle(design.paper), display: 'block', width: '100%', textAlign: 'start', font: 'inherit', cursor: 'pointer',
     color: '#24343c', p: 2.25, pt: 5, pb: 3,
-    transition: 'box-shadow .18s, transform .18s', '&:hover': { transform: 'translateY(-3px)', boxShadow: '3px 15px 20px -7px rgba(35,38,25,.3)' },
+    transition: 'filter .18s, transform .18s', '&:hover': { transform: 'translateY(-3px)', filter: 'drop-shadow(3px 11px 8px rgba(35,38,25,.28))' },
     '@media (prefers-reduced-motion: reduce)': { transition: 'none', '&:hover': { transform: 'none' } },
     '&:focus-visible': { outline: '3px solid', outlineColor: 'primary.main', outlineOffset: 3 },
   }}>

@@ -18,11 +18,17 @@ export function noteTextStyle(note: Pick<NoticeBody, 'category' | 'appearance'>,
 }
 export function paperStyle(paper: string) {
   return {
-    backgroundColor: paper, backgroundImage: 'linear-gradient(180deg, rgba(0,0,0,.055), transparent 38px, transparent 75%, rgba(255,255,255,.2))',
-    border: '1px solid rgba(60,45,20,.1)', borderRadius: '3px 3px 28px 3px', position: 'relative' as const,
-    boxShadow: '2px 10px 13px -7px rgba(35,38,25,.34), 0 2px 3px rgba(35,38,25,.08)',
-    '&:after': { content: '""', position: 'absolute', pointerEvents: 'none', right: 0, bottom: 0, width: 27, height: 27,
-      background: `linear-gradient(135deg, ${paper} 22%, rgba(255,255,255,.82) 48%, rgba(45,40,20,.18) 51%, transparent 55%)`, borderRadius: '0 0 27px 0' },
+    backgroundColor: 'transparent', border: 0, borderRadius: 3, position: 'relative' as const, isolation: 'isolate',
+    filter: 'drop-shadow(2px 7px 5px rgba(35,38,25,.2)) drop-shadow(0 1px 1px rgba(35,38,25,.12))',
+    // Cut the paper itself, rather than painting a fold over an opaque rectangle.
+    // Keeping the cut on a separate layer leaves the pin and focus ring unclipped.
+    '&:before': { content: '""', position: 'absolute', inset: 0, zIndex: -1, pointerEvents: 'none',
+      backgroundColor: paper, backgroundImage: 'linear-gradient(180deg, rgba(0,0,0,.055), transparent 38px, transparent 75%, rgba(255,255,255,.2))',
+      border: '1px solid rgba(60,45,20,.1)', borderRadius: '3px',
+      clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 28px), calc(100% - 28px) 100%, 0 100%)' },
+    '&:after': { content: '""', position: 'absolute', pointerEvents: 'none', right: 0, bottom: 0, width: 28, height: 28,
+      background: `linear-gradient(135deg, ${paper} 8%, rgba(45,40,20,.18) 20%, rgba(255,255,255,.9) 46%, ${paper} 52%)`,
+      clipPath: 'polygon(0 0, 100% 0, 0 100%)', borderRadius: '3px 0 0 0' },
   };
 }
 
