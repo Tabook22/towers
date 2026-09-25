@@ -1,29 +1,22 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material';
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded';
 import CellTowerRounded from '@mui/icons-material/CellTowerRounded';
 import GroupsRounded from '@mui/icons-material/GroupsRounded';
 import RefreshRounded from '@mui/icons-material/RefreshRounded';
-import RouteRounded from '@mui/icons-material/RouteRounded';
-import TaskAltRounded from '@mui/icons-material/TaskAltRounded';
 import DescriptionRounded from '@mui/icons-material/DescriptionRounded';
 import { apiClient, mediaUrl } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { DocxViewerDialog } from './DocxViewerDialog';
 import { ActivityOverviewCharts, TeamProgressCharts } from './TeamProgressCharts';
+import { TeamMetricInfo } from './TeamMetricInfo';
+import { teamMetricHelp } from '../utils/teamMetricHelp';
 import { categoryTowers, teamFieldStats } from '../utils/teamActivityCharts';
 import type { CountKey, Counts, ActivityReport as Report, ActivityTower as Tower, TeamActivity as Activity } from '../api/teamActivityTypes';
 
 const labels: Record<CountKey, string> = { planned: 'Mission towers', visited: 'Visited', recorded: 'Recorded', finished: 'Finished', reported: 'In reports' };
-const definitions: Record<CountKey, string> = {
-  planned: 'Towers selected in a saved daily mission plan.',
-  visited: 'An on-site or done check-in, an in-progress or completed inspection, or saved photos / screening results. Planned records alone do not count.',
-  recorded: 'Towers with a saved inspection record, including records still planned or in draft.',
-  finished: 'Towers marked done in the field, with a completed mission, or with a closed inspection record. This does not mean the report is approved.',
-  reported: 'Distinct towers captured in saved official reports. Multiple reports for one tower count once. Old reports may not identify an exact day.',
-};
 const keys = Object.keys(labels) as CountKey[];
 function initialDates() {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Muscat', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -49,7 +42,6 @@ export function TeamActivitySummary() {
   });
   const teams = (query.data?.teams || []).filter(t => !teamId || t.id === Number(teamId));
   const totals = Object.fromEntries(keys.map(k => [k, teams.reduce((sum, t) => sum + t.counts[k], 0)])) as Counts;
-  const icons = [<RouteRounded key="planned" />, <CellTowerRounded key="visited" />, <DescriptionRounded key="recorded" />, <TaskAltRounded key="finished" />, <DescriptionRounded key="reported" />];
 
   return <Stack spacing={2}>
     <Paper variant="outlined" sx={{ overflow: 'hidden', borderRadius: 3 }}>
@@ -69,6 +61,7 @@ export function TeamActivitySummary() {
         </TextField>
         <Button onClick={() => setDates(initialDates())}>This month</Button>
         <Button startIcon={<RefreshRounded />} disabled={!valid || query.isFetching} onClick={() => void query.refetch()}>Refresh</Button>
+        <Stack direction="row" sx={{ alignItems: 'center', gap: .5 }}><TeamMetricInfo topic="filters" /><Typography variant="caption" color="text.secondary">Dates & counting</Typography></Stack>
       </Stack>
       {query.isFetching && <LinearProgress aria-label="Loading team activity" />}
     </Paper>
@@ -76,16 +69,16 @@ export function TeamActivitySummary() {
     {query.isError && <Alert severity="error" action={<Button onClick={() => void query.refetch()}>Retry</Button>}>Team activity could not be loaded. Please try again.</Alert>}
     {valid && query.data && <>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' }, gap: 1.5 }}>
-        {keys.map((key, i) => <Tooltip key={key} describeChild title={definitions[key]}><Paper variant="outlined" sx={{ p: 2, borderRadius: 3, bgcolor: key === 'reported' ? '#edf7f1' : 'background.paper' }}>
-          <Stack direction="row" sx={{ justifyContent: 'space-between', color: key === 'reported' ? '#21714c' : '#286779' }}><Typography variant="body2" sx={{ fontWeight: 700 }}>{labels[key]}</Typography>{icons[i]}</Stack>
+        {keys.map(key => <Paper key={key} variant="outlined" sx={{ p: 2, borderRadius: 3, bgcolor: key === 'reported' ? '#edf7f1' : 'background.paper' }}>
+          <Stack direction="row" sx={{ alignItems: 'center', gap: .5, color: key === 'reported' ? '#21714c' : '#286779' }}><TeamMetricInfo topic={key} current={`${totals[key]} ${labels[key].toLowerCase()} across ${teams.length} selected team(s). Each team’s unique towers are counted separately.`} /><Typography variant="body2" sx={{ fontWeight: 700 }}>{labels[key]}</Typography></Stack>
           <Typography variant="h4" sx={{ mt: 1, fontWeight: 800 }}>{totals[key]}</Typography>
-        </Paper></Tooltip>)}
+        </Paper>)}
       </Box>
       <Typography variant="caption" color="text.secondary">Totals count each tower once per team in this date range. Daily rows count it once each day, so repeat visits can make daily sums higher. Report dates refer to the inspection period, not the document creation date.</Typography>
       {teams.length > 0 && <ActivityOverviewCharts teams={teams} start={query.data.start_date} end={query.data.end_date} selectTeam={id => setTeamId(String(id))} />}
       <Accordion disableGutters elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '12px !important', '&:before': { display: 'none' } }}>
         <AccordionSummary expandIcon={<ExpandMoreRounded />}><Typography variant="body2" sx={{ fontWeight: 600 }}>How these numbers are counted</Typography></AccordionSummary>
-        <AccordionDetails><Stack spacing={1}>{keys.map(k => <Typography key={k} variant="body2"><b>{labels[k]}:</b> {definitions[k]}</Typography>)}<Typography variant="body2">Mission plans and field check-ins use their saved field date; inspection records use their entered inspection date. Missing plans are shown explicitly. An empty checklist is not proof of a visit.</Typography></Stack></AccordionDetails>
+        <AccordionDetails><Stack spacing={1}>{keys.map(k => <Typography key={k} variant="body2"><b>{labels[k]}:</b> {teamMetricHelp[k].meaning} {teamMetricHelp[k].calculation}</Typography>)}<Typography variant="body2">Mission plans and field check-ins use their saved field date; inspection records use their entered inspection date. Missing plans are shown explicitly. An empty checklist is not proof of a visit. Select an information icon for examples and a detailed explanation.</Typography></Stack></AccordionDetails>
       </Accordion>
       {teams.length === 0 && <Alert severity="info">No accessible teams match this selection.</Alert>}
       {teams.map(team => {
@@ -96,7 +89,7 @@ export function TeamActivitySummary() {
               <Typography variant="body2" color="text.secondary">{team.mission_count} daily missions · {teamFieldStats(team).visitDays} visit days · {team.counts.visited} towers visited · {team.counts.finished} finished</Typography>
             </Box>
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-              <Button variant="outlined" startIcon={<DescriptionRounded />} onClick={() => setDetail({ title: `${team.name} · Towers in saved reports`, towers: team.report_towers, reportsOnly: true })}>{team.counts.reported} towers in {team.reports.length} reports</Button>
+              <Stack direction="row" sx={{ alignItems: 'center', gap: .5 }}><TeamMetricInfo topic="reportCount" current={`${team.name}: ${team.counts.reported} towers in ${team.reports.length} saved reports`} /><Button variant="outlined" startIcon={<DescriptionRounded />} onClick={() => setDetail({ title: `${team.name} · Towers in saved reports`, towers: team.report_towers, reportsOnly: true })}>{team.counts.reported} towers in {team.reports.length} reports</Button></Stack>
               <Button component={Link} to={`/teams/${team.id}#mission-plan`}>Open missions</Button>
             </Stack>
           </Stack>
@@ -106,7 +99,7 @@ export function TeamActivitySummary() {
             {team.unknown_scope_reports > 0 && `${team.unknown_scope_reports} older reports have no traceable tower list and are excluded from tower counts.`}
           </Alert>}
           <TableContainer><Table size="small" aria-label={`${team.name} daily tower activity`}>
-            <TableHead><TableRow><TableCell>Day / mission</TableCell>{keys.map(k => <TableCell key={k} align="center"><Tooltip describeChild title={definitions[k]}><span>{labels[k]}</span></Tooltip></TableCell>)}<TableCell /></TableRow></TableHead>
+            <TableHead><TableRow><TableCell><Stack direction="row" sx={{ alignItems: 'center', gap: .5 }}><TeamMetricInfo topic="dayMission" /><span>Day / mission</span></Stack></TableCell>{keys.map(k => <TableCell key={k} align="center"><Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'center', gap: .5 }}><TeamMetricInfo topic={k} daily /><span>{labels[k]}</span></Stack></TableCell>)}<TableCell /></TableRow></TableHead>
             <TableBody>{days.map(day => <TableRow key={day.date} hover>
               <TableCell sx={{ minWidth: 185, py: 1.5 }}><Typography variant="body2" sx={{ fontWeight: 700 }}>{dateLabel(day.date)}</Typography><Typography variant="caption" color={day.has_mission ? 'text.secondary' : 'warning.main'}>{day.has_mission ? day.mission_name || 'Daily mission' : 'No saved mission plan'}{day.mission_ended ? ' · Ended' : ''}</Typography></TableCell>
               {keys.map(k => <TableCell key={k} align="center"><Button size="small" aria-label={`${labels[k]} on ${day.date}`} onClick={() => setDetail({ title: `${team.name} · ${dateLabel(day.date)} · ${labels[k]}`, towers: day.towers.filter(t => t[k]) })} sx={{ minWidth: 32, fontWeight: 800, color: k === 'reported' ? 'success.main' : 'primary.main' }}>{day.counts[k]}</Button></TableCell>)}

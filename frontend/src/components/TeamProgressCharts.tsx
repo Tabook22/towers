@@ -5,6 +5,8 @@ import InsightsRounded from '@mui/icons-material/InsightsRounded';
 import CalendarMonthRounded from '@mui/icons-material/CalendarMonthRounded';
 import type { ActivityTeam, CountKey } from '../api/teamActivityTypes';
 import { activityTrend, teamFieldStats } from '../utils/teamActivityCharts';
+import { TeamMetricInfo } from './TeamMetricInfo';
+import type { TeamMetricTopic } from '../utils/teamMetricHelp';
 
 const metrics: { key: CountKey; label: string; colour: string }[] = [
   { key: 'planned', label: 'Mission towers', colour: '#8b7bb4' },
@@ -41,13 +43,13 @@ function DailyTrend({ teams, start, end }: { teams: ActivityTeam[]; start: strin
   const y = (n: number) => bottom - n / max * (bottom - top);
   const ticks = [...new Set(Array.from({ length: width < 420 ? 3 : 5 }, (_, i) => Math.round(i * (rows.length - 1) / (width < 420 ? 2 : 4))))];
   return <Box sx={{ minWidth: 0 }}>
-    <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Daily tower activity</Typography>
+    <Typography component="div" variant="subtitle1" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: .75 }}><TeamMetricInfo topic="daily" />Daily tower activity</Typography>
     <Typography variant="caption" color="text.secondary">Towers per day · toggle a series to compare</Typography>
     <Stack direction="row" sx={{ gap: .5, flexWrap: 'wrap', mt: 1 }}>
-      {trendMetrics.map(m => <Button key={m.key} size="small" aria-pressed={visible.includes(m.key)} onClick={() => setVisible(v => v.includes(m.key) ? v.length > 1 ? v.filter(k => k !== m.key) : v : [...v, m.key])}
+      {trendMetrics.map(m => <Box key={m.key} sx={{ display: 'flex', alignItems: 'center', gap: .25 }}><TeamMetricInfo topic={m.key} daily /><Button size="small" aria-pressed={visible.includes(m.key)} onClick={() => setVisible(v => v.includes(m.key) ? v.length > 1 ? v.filter(k => k !== m.key) : v : [...v, m.key])}
         sx={{ color: 'text.primary', bgcolor: visible.includes(m.key) ? alpha(m.colour, .13) : undefined, opacity: visible.includes(m.key) ? 1 : .55 }}>
         <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: m.colour, mr: .75 }} />{m.label}
-      </Button>)}
+      </Button></Box>)}
     </Stack>
     <Box ref={container} sx={{ mt: 1, width: '100%' }}>
       <svg role="img" aria-label={`Daily visited, recorded and finished towers from ${start} to ${end}. Use the date slider below for exact values.`} width="100%" height="202" viewBox={`0 0 ${width} 202`}
@@ -79,12 +81,12 @@ export function ActivityOverviewCharts({ teams, start, end, selectTeam }: { team
     <Stack direction="row" sx={{ p: 2.5, pb: 2, gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
       <Box sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', borderRadius: 2, p: 1, display: 'flex' }}><InsightsRounded /></Box>
       <Box sx={{ flex: 1 }}><Typography variant="h6" sx={{ fontWeight: 800 }}>Progress at a glance</Typography><Typography variant="body2" color="text.secondary">{teams.length === 1 ? teams[0].name : `${teams.length} teams`} · {shortDate(start)} – {shortDate(end)}</Typography></Box>
-      <Chip icon={<CalendarMonthRounded />} label={`${visitDays} team visit-days`} variant="outlined" />
+      <Stack direction="row" sx={{ alignItems: 'center', gap: .5 }}><TeamMetricInfo topic="teamDays" current={`${visitDays} team visit-days across ${teams.length} selected team(s)`} /><Chip icon={<CalendarMonthRounded />} label={`${visitDays} team visit-days`} variant="outlined" /></Stack>
     </Stack>
     <Box sx={{ px: 2.5, pb: 2.5, display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 1.7fr) minmax(240px, 1fr)' }, gap: 3 }}>
       <DailyTrend teams={teams} start={start} end={end} />
       <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 2, minWidth: 0 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Days in the field</Typography>
+        <Typography component="div" variant="subtitle1" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: .75 }}><TeamMetricInfo topic="fieldDays" />Days in the field</Typography>
         <Typography variant="caption" color="text.secondary">A day counts when the team visited at least one tower.</Typography>
         <Stack spacing={1.75} sx={{ mt: 2, maxHeight: 288, overflowY: 'auto' }}>{ranked.map(({ team, stats }) => <ButtonBase key={team.id} onClick={() => selectTeam(team.id)} aria-label={`Show ${team.name}: ${stats.visitDays} visit days`} sx={{ display: 'block', width: '100%', textAlign: 'start', borderRadius: 1, p: .5, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' } }}>
           <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: .7 }}><Typography variant="body2" sx={{ fontWeight: 700, overflowWrap: 'anywhere' }}>{team.name}</Typography><Typography variant="body2" sx={{ fontWeight: 800, flexShrink: 0 }}>{stats.visitDays} <Box component="span" sx={{ fontWeight: 400 }}>days</Box></Typography></Stack>
@@ -105,19 +107,19 @@ export function TeamProgressCharts({ team, onCategory }: { team: ActivityTeam; o
   const arc = stats.visited ? stats.finishedVisits / stats.visited * circumference : 0;
   return <Box sx={{ px: 2.5, py: 2.5, borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' }, gap: 1.5, mb: 2.5 }}>
-      {[{ label: 'Visit days', value: stats.visitDays, detail: 'Actual field activity' }, { label: 'Recording days', value: stats.recordingDays, detail: 'Saved inspection dates' }, { label: 'Mission days', value: stats.missionDays, detail: 'Saved daily plans' }, { label: 'Towers / visit-day', value: stats.visitsPerDay.toFixed(1), detail: 'Includes repeat visits' }].map(item => <Box key={item.label} sx={{ bgcolor: 'action.hover', borderRadius: 2, p: 1.5 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{item.label}</Typography><Typography variant="h5" sx={{ fontWeight: 800, my: .4 }}>{item.value}</Typography><Typography variant="caption" color="text.secondary">{item.detail}</Typography>
+      {[{ topic: 'visitDays', label: 'Visit days', value: stats.visitDays, detail: 'Actual field activity' }, { topic: 'recordingDays', label: 'Recording days', value: stats.recordingDays, detail: 'Saved inspection dates' }, { topic: 'missionDays', label: 'Mission days', value: stats.missionDays, detail: 'Saved daily plans' }, { topic: 'average', label: 'Towers / visit-day', value: stats.visitsPerDay.toFixed(1), detail: 'Includes repeat visits' }].map(item => <Box key={item.label} sx={{ bgcolor: 'action.hover', borderRadius: 2, p: 1.5 }}>
+        <Stack direction="row" sx={{ alignItems: 'center', gap: .5 }}><TeamMetricInfo topic={item.topic as TeamMetricTopic} current={item.topic === 'average' ? !stats.visitDays ? 'No visit days in this period; the average is shown as 0.0.' : `${team.name}: ${stats.visitTotal} daily tower visits ÷ ${stats.visitDays} visit days = ${stats.visitsPerDay.toFixed(1)}` : `${team.name}: ${item.value} ${item.label.toLowerCase()}`} /><Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{item.label}</Typography></Stack><Typography variant="h5" sx={{ fontWeight: 800, my: .4 }}>{item.value}</Typography><Typography variant="caption" color="text.secondary">{item.detail}</Typography>
       </Box>)}
     </Box>
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1.5fr) minmax(220px, 1fr)' }, gap: 3 }}>
-      <Box><Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Tower progress</Typography><Typography variant="caption" color="text.secondary">Unique towers in the selected period · select a bar to view towers</Typography>
-        <Stack spacing={1} sx={{ mt: 1.5 }}>{metrics.map(m => <ButtonBase key={m.key} aria-label={`${team.name}: ${team.counts[m.key]} ${m.label.toLowerCase()}, view towers`} onClick={() => onCategory(m.key)} sx={{ width: '100%', display: 'grid', gridTemplateColumns: '100px minmax(0, 1fr) 30px', gap: 1.25, textAlign: 'start', p: .5, borderRadius: 1, '&:hover': { bgcolor: 'action.hover' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' } }}>
+      <Box><Typography component="div" variant="subtitle1" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: .75 }}><TeamMetricInfo topic="progress" />Tower progress</Typography><Typography variant="caption" color="text.secondary">Unique towers in the selected period · select a bar to view towers</Typography>
+        <Stack spacing={1} sx={{ mt: 1.5 }}>{metrics.map(m => <Stack key={m.key} direction="row" sx={{ alignItems: 'center', gap: .5 }}><TeamMetricInfo topic={m.key} current={`${team.name}: ${team.counts[m.key]} ${m.label.toLowerCase()} in this period`} /><ButtonBase aria-label={`${team.name}: ${team.counts[m.key]} ${m.label.toLowerCase()}, view towers`} onClick={() => onCategory(m.key)} sx={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr) 30px', gap: 1, textAlign: 'start', p: .5, borderRadius: 1, '&:hover': { bgcolor: 'action.hover' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' } }}>
           <Typography variant="caption" sx={{ fontWeight: 700 }}>{m.label}</Typography><Box sx={{ height: 15, borderRadius: '4px', bgcolor: alpha(m.colour, .1), overflow: 'hidden' }}><Box sx={{ width: `${team.counts[m.key] / maxCount * 100}%`, height: '100%', bgcolor: m.colour, borderRadius: '4px' }} /></Box><Typography variant="body2" sx={{ fontWeight: 800, textAlign: 'end' }}>{team.counts[m.key]}</Typography>
-        </ButtonBase>)}</Stack>
+        </ButtonBase></Stack>)}</Stack>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>These categories overlap. A saved record can be a draft, and a finished visit can still need its report.</Typography>
       </Box>
       <Box sx={{ textAlign: 'center', bgcolor: 'action.hover', borderRadius: 2, p: 2 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Visited towers · completion</Typography>
+        <Typography component="div" variant="subtitle1" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: .5 }}><TeamMetricInfo topic="completion" current={stats.visited ? `${team.name}: ${stats.finishedVisits} finished ÷ ${stats.visited} visited × 100 = ${stats.completion}% (rounded)` : `${team.name}: no visits in this period, so a completion percentage is not available.`} />Visited towers · completion</Typography>
         <svg role="img" aria-label={`${team.name}: ${stats.finishedVisits} finished and ${stats.unfinishedVisits} not finished out of ${stats.visited} visited towers`} width="174" height="174" viewBox="0 0 174 174" style={{ display: 'block', margin: '4px auto' }}>
           <circle cx="87" cy="87" r="58" fill="none" stroke={stats.visited ? '#e5b861' : theme.palette.divider} strokeWidth="18" />
           {arc > 0 && <circle cx="87" cy="87" r="58" fill="none" stroke="#249b73" strokeWidth="18" strokeDasharray={`${arc} ${circumference - arc}`} transform="rotate(-90 87 87)" />}
