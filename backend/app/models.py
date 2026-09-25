@@ -1032,6 +1032,45 @@ class KnowledgeDocument(Base):
     team: Mapped["Team | None"] = relationship()
 
 
+class FieldNotice(Base):
+    """A persistent instruction, separate from conversational messages."""
+    __tablename__ = "field_notices"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(160))
+    body: Mapped[str] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(String(20), index=True)
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"), nullable=True, index=True)
+    tower_id: Mapped[int | None] = mapped_column(ForeignKey("towers.id"), nullable=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    due_on: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+    expires_on: Mapped[dt.date | None] = mapped_column(Date, nullable=True, index=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+    archived_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    team: Mapped["Team | None"] = relationship(foreign_keys=[team_id])
+    tower: Mapped["Tower | None"] = relationship(foreign_keys=[tower_id])
+    owner: Mapped["User | None"] = relationship(foreign_keys=[owner_id])
+    author: Mapped["User"] = relationship(foreign_keys=[created_by])
+    finisher: Mapped["User | None"] = relationship(foreign_keys=[completed_by])
+    acknowledgements: Mapped[list["NoticeAcknowledgement"]] = relationship(back_populates="notice", cascade="all, delete-orphan")
+
+
+class NoticeAcknowledgement(Base):
+    __tablename__ = "notice_acknowledgements"
+    __table_args__ = (UniqueConstraint("notice_id", "user_id", "revision", name="uq_notice_reader_revision"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    notice_id: Mapped[int] = mapped_column(ForeignKey("field_notices.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    acknowledged_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+    notice: Mapped["FieldNotice"] = relationship(back_populates="acknowledgements")
+
+
 class ThermalEditGrant(Base):
     """Short-lived, single-use editor launch; original evidence is never overwritten."""
     __tablename__ = "thermal_edit_grants"

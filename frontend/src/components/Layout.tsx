@@ -60,6 +60,7 @@ import { OfflineBanner, OfflineChip } from '../offline/OfflineStatus';
 import { useColorMode } from '../theme/ColorModeContext';
 import { SplashScreen } from './SplashScreen';
 import { FloatingHelpChat } from './FloatingHelpChat';
+import { FieldNoticeboard } from './FieldNoticeboard';
 
 const drawerWidth = 232;
 
@@ -555,7 +556,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <OfflineBanner />
           <LocationBanner />
         </Box>
-        {children}
+        <FieldNoticeboard>{children}</FieldNoticeboard>
       </Box>
       <ChangePasswordDialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)} />
       <SplashScreen />
