@@ -7,6 +7,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
+    live_turn_urls: list[str] = []
+    live_turn_secret: str = ''
     app_name: str = "Insulator Inspector Pro"
     database_url: str = f"sqlite:///{BASE_DIR / 'storage' / 'insulator_inspector.db'}"
     storage_dir: Path = BASE_DIR / "storage"

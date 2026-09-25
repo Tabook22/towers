@@ -24,6 +24,7 @@ from app.routers import (
     auth,
     channel,
     community,
+    live_help,
     notices,
     claims,
     dashboard,
@@ -88,6 +89,7 @@ app.include_router(teams.router)
 app.include_router(team_activity.router)
 app.include_router(channel.router)
 app.include_router(community.router)
+app.include_router(live_help.router)
 app.include_router(notices.router)
 app.include_router(claims.router)
 app.include_router(help_chat.router)

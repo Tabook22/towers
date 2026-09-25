@@ -61,6 +61,7 @@ import { useColorMode } from '../theme/ColorModeContext';
 import { SplashScreen } from './SplashScreen';
 import { FloatingHelpChat } from './FloatingHelpChat';
 import { FieldNoticeboard } from './FieldNoticeboard';
+import { LiveHelp } from './LiveHelp';
 
 const drawerWidth = 232;
 
@@ -425,6 +426,7 @@ export function Layout({ children }: { children: ReactNode }) {
             Insulator Inspector Pro
           </Typography>
           <Box sx={{ flexGrow: { xs: 1, sm: 0 } }} />
+          {user?.id && !isClient && user.menu_permissions?.messages && <LiveHelp key={user.id} userId={user.id} />}
 
           {/* Desktop: every status/action visible inline, unchanged from before. */}
           <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1.5 }}>
