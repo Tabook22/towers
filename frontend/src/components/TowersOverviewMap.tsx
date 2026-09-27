@@ -135,6 +135,8 @@ export function TowersOverviewMap({
                   mapNumber: mapNumbers.get(row.tower.id),
                   completed,
                 })}
+                title={row.tower.tower_id}
+                alt={row.tower.tower_id}
                 interactive
                 bubblingMouseEvents={false}
                 zIndexOffset={free ? 400 : 200}
@@ -165,12 +167,12 @@ export function TowersOverviewMap({
                   {row.tower.assigned_team_name ? (
                     <>
                       <br />
-                      Assigned to {row.tower.assigned_team_name} — click to unassign
+                      Assigned to {row.tower.assigned_team_name} — click for tower actions
                     </>
                   ) : (
                     <>
                       <br />
-                      Free — click to assign
+                      Free — click for tower actions
                     </>
                   )}
                   {row.rollup && (
