@@ -4,8 +4,17 @@ export const reportTypes: Record<string, string> = {
   tower: 'Tower report', team: 'Team report', area: 'Line section', consolidated: 'Project section',
 };
 export type ReportSortKey = 'created_at' | 'report_number' | 'team_name' | 'tower_name' | 'start_date';
-export interface ReportFilters { search: string; team: string; tower: string; type: string; from: string; to: string }
-export const emptyReportFilters: ReportFilters = { search: '', team: '', tower: '', type: '', from: '', to: '' };
+export interface ReportFilters { search: string; team: string; tower: string; line: string; type: string; from: string; to: string }
+export const emptyReportFilters: ReportFilters = { search: '', team: '', tower: '', line: '', type: '', from: '', to: '' };
+export function reportFilterAvailability(type: string) {
+  return { team: !type || type === 'team', tower: !type || type === 'tower', line: !type || type === 'area' };
+}
+export function updateReportFilter(filters: ReportFilters, key: keyof ReportFilters, value: string): ReportFilters {
+  const next = { ...filters, [key]: value };
+  const enabled = reportFilterAvailability(next.type);
+  return { ...next, team: enabled.team ? next.team : '', tower: enabled.tower ? next.tower : '', line: enabled.line ? next.line : '' };
+}
+const lineKey = (value: string) => value.trim().replace(/\s*[-–—]\s*/g, '-').toLocaleLowerCase();
 
 // The API stores naive UTC timestamps; do not interpret them in the browser's local timezone.
 export function reportTimestamp(value: string): Date {
@@ -17,10 +26,12 @@ export function reportTowers(report: LineInspectionReportOut) {
 }
 export function selectReports(rows: LineInspectionReportOut[], filters: ReportFilters, key: ReportSortKey, direction: 'asc' | 'desc') {
   const query = filters.search.trim().toLocaleLowerCase();
+  const enabled = reportFilterAvailability(filters.type);
   return rows.filter((r) => {
     const towers = reportTowers(r);
-    if (filters.team && String(r.team_id) !== filters.team) return false;
-    if (filters.tower && !towers.some((t) => String(t.id) === filters.tower)) return false;
+    if (enabled.team && filters.team && String(r.team_id) !== filters.team) return false;
+    if (enabled.tower && filters.tower && !towers.some((t) => String(t.id) === filters.tower)) return false;
+    if (enabled.line && filters.line && lineKey(r.line_sector || '') !== lineKey(filters.line)) return false;
     if (filters.type && r.report_type !== filters.type) return false;
     // Date range means inspection coverage, including reports which overlap either boundary.
     if (filters.from && r.end_date < filters.from) return false;

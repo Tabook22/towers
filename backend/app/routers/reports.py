@@ -107,6 +107,18 @@ def _report_tower_scope(visits: list[Visit]) -> list[dict]:
     ]} for pk, name in sorted(towers.items(), key=lambda t: natural_sort_key(t[1]))]
 
 
+def _saved_scope_line(scope: list[dict], lines: list[str]) -> str | None:
+    """Recover legacy grouped-section labels only from unambiguous saved tower names.
+
+    Never infer report membership from today's assignments or silently label a mixed scope.
+    """
+    matches = [{line for line in lines if tower.get('name', '').startswith(f'{line}-')} for tower in scope]
+    if not matches or any(len(match) != 1 for match in matches):
+        return None
+    names = set.union(*matches)
+    return next(iter(names)) if len(names) == 1 else None
+
+
 def _resolve_tower_team(db: Session, tower: Tower, start_date: dt.date, end_date: dt.date) -> int | None:
     """Which team a "by tower" report/preview should use when the caller didn't say — the tower's
     current catalog assignment (Tower.assigned_team_id) is only a hint, never a hard requirement,
@@ -502,6 +514,7 @@ def _persist_blocks(
             created_by=user.id,
             created_at=generated_at,
             report_type=report_type,
+            line_sector=b.area,
             scope_towers=_report_tower_scope(b.visits),
             file_path=_save_report_file(b.report_number, generated_at, b.docx_bytes),
         )
@@ -597,8 +610,6 @@ def oetc_line_report_history(
         q = q.filter(LineInspectionReport.team_id == team_id)
     if report_type:
         q = q.filter(LineInspectionReport.report_type == report_type)
-    if line_sector:
-        q = q.filter(LineInspectionReport.line_sector == line_sector)
     if start_date:
         q = q.filter(LineInspectionReport.end_date >= start_date)
     if end_date:
@@ -608,6 +619,7 @@ def oetc_line_report_history(
     if start_date and end_date and start_date > end_date:
         raise HTTPException(status_code=422, detail="End date must be on or after start date")
     rows = q.order_by(LineInspectionReport.created_at.desc(), LineInspectionReport.id.desc()).all()
+    lines = [name for (name,) in db.query(Area.name).all()]
     out = []
     for r in rows:
         item = LineInspectionReportOut.model_validate(r)
@@ -620,6 +632,10 @@ def oetc_line_report_history(
             scope = ([{"id": r.tower.id, "name": r.tower.tower_id}] if r.tower else
                      _report_tower_scope([image.position.visit for image in r.images if image.position and image.position.visit]))
         if tower_id and not any(t["id"] == tower_id for t in scope):
+            continue
+        if not item.line_sector and r.report_type in ('area', 'consolidated'):
+            item.line_sector = _saved_scope_line(scope, lines)
+        if line_sector and item.line_sector != line_sector:
             continue
         item.scope_towers = [ReportTowerScope.model_validate(t) for t in scope]
         item.has_file = bool(r.file_path and (settings.reports_dir / r.file_path).is_file())

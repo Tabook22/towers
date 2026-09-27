@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import Session
 
 from app.database import Base
-from app.models import LineInspectionReport, Team, Tower, User, Visit
+from app.models import Area, LineInspectionReport, Team, Tower, User, Visit
 from app.routers import reports
 from app.schemas import LineInspectionReportRequest
 from app.services.oetc_report import generate_report_number
@@ -116,3 +116,35 @@ def test_scope_column_is_added_to_existing_databases_without_losing_reports():
     assert 'scope_towers' in {column['name'] for column in inspect(engine).get_columns('line_inspection_reports')}
     with engine.connect() as conn:
         assert conn.execute(text('SELECT report_number, scope_towers FROM line_inspection_reports')).one() == ('OLD-1', None)
+
+
+def test_legacy_line_filter_uses_saved_tower_names_not_current_assignments(library):
+    db, _, tower, admin = library
+    db.add_all([Area(name='Ashoor-Saada'), Area(name='Ittin-Thumrait')])
+    record = db.query(LineInspectionReport).one()
+    record.report_type = 'area'
+    record.scope_towers = [{'id': tower.id, 'name': 'Ashoor-Saada-29'}]
+    tower.tower_id = 'Ittin-Thumrait-99'
+    db.commit()
+    rows = reports.oetc_line_report_history(line_sector='Ashoor-Saada', db=db, user=admin)
+    assert len(rows) == 1 and rows[0].line_sector == 'Ashoor-Saada'
+    assert reports.oetc_line_report_history(line_sector='Ittin-Thumrait', db=db, user=admin) == []
+    assert record.line_sector is None  # Read-time compatibility does not rewrite old reports.
+
+
+def test_legacy_line_labels_do_not_guess_mixed_or_unknown_scopes():
+    lines = ['Ashoor-Saada', 'Ittin-Thumrait']
+    assert reports._saved_scope_line([], lines) is None
+    assert reports._saved_scope_line([{'name': 'Unknown-1'}], lines) is None
+    assert reports._saved_scope_line([{'name': 'Ashoor-Saada-1'}, {'name': 'Ittin-Thumrait-2'}], lines) is None
+
+
+def test_grouped_report_saves_its_line_label(library):
+    from app.services.oetc_grouped_report import GroupedReportBlock
+    from app.schemas import OetcAreaReportRequest
+    db, team, _, admin = library
+    visits = db.query(Visit).all()
+    block = GroupedReportBlock('Saada-Shahaon', team, visits, 'LINE-TEST', b'line section')
+    payload = OetcAreaReportRequest(area='Saada-Shahaon', start_date=dt.date(2026, 9, 1), end_date=dt.date(2026, 9, 30))
+    reports._persist_blocks(db, [block], admin, payload, report_type='area')
+    assert db.query(LineInspectionReport).filter_by(report_number='LINE-TEST').one().line_sector == 'Saada-Shahaon'

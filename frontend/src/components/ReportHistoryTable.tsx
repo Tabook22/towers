@@ -12,11 +12,11 @@ import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import FolderOpenRoundedIcon from '@mui/icons-material/FolderOpenRounded';
 import PhotoLibraryRoundedIcon from '@mui/icons-material/PhotoLibraryRounded';
 import { Link } from 'react-router-dom';
-import { useDeleteOetcReport, useOetcReportHistory } from '../api/hooks';
+import { useAreas, useDeleteOetcReport, useOetcReportHistory } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient, mediaUrl } from '../api/client';
 import { getPermissionLevel, type LineInspectionReportOut } from '../api/types';
-import { emptyReportFilters, reportError, reportTimestamp, reportTowers, reportTypes, selectReports, type ReportFilters, type ReportSortKey } from '../utils/reportLibrary';
+import { emptyReportFilters, reportError, reportFilterAvailability, reportTimestamp, reportTowers, reportTypes, selectReports, updateReportFilter, type ReportFilters, type ReportSortKey } from '../utils/reportLibrary';
 import { DocxViewerDialog } from './DocxViewerDialog';
 import { ReportCommentsSection } from './ReportCommentsSection';
 
@@ -25,9 +25,15 @@ const sortOptions = [ ['created_at:desc', 'Newest first'], ['created_at:asc', 'O
 
 export function ReportHistoryTable() {
   const { data: rows = [], isLoading, isError, isFetching, refetch } = useOetcReportHistory();
+  const { data: areas } = useAreas();
   const { user } = useAuth();
   const remove = useDeleteOetcReport();
   const [filters, setFilters] = useState<ReportFilters>(emptyReportFilters);
+  const enabled = reportFilterAvailability(filters.type);
+  const lines = useMemo(() => Array.from(new Set([
+    ...(areas || ['Ashoor-Saada', 'Ittin-Thumrait', 'Saada-Shahaon']),
+    ...rows.filter(r => r.report_type === 'area').map(r => r.line_sector).filter((line): line is string => !!line),
+  ])).sort((a, b) => a.localeCompare(b)), [areas, rows]);
   const [sortKey, setSortKey] = useState<ReportSortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(0);
@@ -49,7 +55,7 @@ export function ReportHistoryTable() {
   const sorted = useMemo(() => invalidDates ? [] : selectReports(rows, filters, sortKey, sortDir), [rows, filters, sortKey, sortDir, invalidDates]);
   const currentPage = Math.min(page, Math.max(0, Math.ceil(sorted.length / pageSize) - 1));
   const activeFilters = Object.values(filters).some(Boolean);
-  const setFilter = (key: keyof ReportFilters, value: string) => { setFilters((old) => ({ ...old, [key]: value })); setPage(0); };
+  const setFilter = (key: keyof ReportFilters, value: string) => { setFilters((old) => updateReportFilter(old, key, value)); setPage(0); };
   const clearFilters = () => { setFilters(emptyReportFilters); setPage(0); };
   const filePath = (r: LineInspectionReportOut) => `/api/reports/oetc-line-report/${r.id}/${r.has_file ? 'file' : 'redownload'}`;
   const download = async (r: LineInspectionReportOut) => {
@@ -109,14 +115,24 @@ export function ReportHistoryTable() {
             <Box><Typography variant="h6">Report library</Typography><Typography variant="body2" color="text.secondary">Find the inspection. Open the evidence. Share the report.</Typography></Box>
             <Tooltip title="Refresh library"><span><IconButton aria-label="Refresh report library" onClick={() => void refetch()} disabled={isFetching}><RefreshRoundedIcon /></IconButton></span></Tooltip>
           </Stack>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: '2fr 1fr 1fr' }, gap: 2 }}>
-            <TextField label="Search reports" placeholder="Report number, team, tower or line…" size="small" value={filters.search} onChange={(e) => setFilter('search', e.target.value)} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> } }} />
-            <Autocomplete options={teams} getOptionLabel={(t) => t.name} isOptionEqualToValue={(a, b) => a.id === b.id} value={teams.find((t) => String(t.id) === filters.team) || null} onChange={(_, t) => setFilter('team', t ? String(t.id) : '')} renderInput={(params) => <TextField {...params} label="Team" placeholder="All teams" size="small" />} />
-            <Autocomplete options={towers} getOptionLabel={(t) => t.name} isOptionEqualToValue={(a, b) => a.id === b.id} value={towers.find((t) => String(t.id) === filters.tower) || null} onChange={(_, t) => setFilter('tower', t ? String(t.id) : '')} renderInput={(params) => <TextField {...params} label="Tower" placeholder="All towers" size="small" />} />
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 2 }}>
             <TextField select label="Report type" size="small" value={filters.type} onChange={(e) => setFilter('type', e.target.value)}><MenuItem value="">All report types</MenuItem>{Object.entries(reportTypes).map(([key, name]) => <MenuItem key={key} value={key}>{name}</MenuItem>)}</TextField>
+            <Autocomplete disabled={!enabled.line} options={lines} value={filters.line || null} onChange={(_, line) => setFilter('line', line || '')} renderInput={(params) => <TextField {...params} label="Line section" placeholder="All lines" size="small" />} />
+            <Autocomplete disabled={!enabled.team} options={teams} getOptionLabel={(t) => t.name} isOptionEqualToValue={(a, b) => a.id === b.id} value={teams.find((t) => String(t.id) === filters.team) || null} onChange={(_, t) => setFilter('team', t ? String(t.id) : '')} renderInput={(params) => <TextField {...params} label="Team" placeholder="All teams" size="small" />} />
+            <Autocomplete disabled={!enabled.tower} options={towers} getOptionLabel={(t) => t.name} isOptionEqualToValue={(a, b) => a.id === b.id} value={towers.find((t) => String(t.id) === filters.tower) || null} onChange={(_, t) => setFilter('tower', t ? String(t.id) : '')} renderInput={(params) => <TextField {...params} label="Tower" placeholder="All towers" size="small" />} />
+            <Box sx={{ gridColumn: { xs: 'auto', sm: '1 / -1', lg: 'span 2' }, '& .MuiTextField-root': { width: '100%' } }}>
+              <TextField label="Search reports" placeholder="Report number, team, tower or line…" size="small" value={filters.search} onChange={(e) => setFilter('search', e.target.value)} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> } }} />
+            </Box>
             <TextField type="date" label="Inspection from" size="small" value={filters.from} onChange={(e) => setFilter('from', e.target.value)} slotProps={{ inputLabel: { shrink: true } }} error={invalidDates} />
             <TextField type="date" label="Inspection to" size="small" value={filters.to} onChange={(e) => setFilter('to', e.target.value)} slotProps={{ inputLabel: { shrink: true } }} error={invalidDates} helperText={invalidDates ? 'End date must be on or after start date.' : undefined} />
           </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.25 }} aria-live="polite">
+            {filters.type === 'area' ? 'Line section selected: choose a line. Team and Tower filters are disabled.'
+              : filters.type === 'team' ? 'Team report selected: choose a team. Line section and Tower filters are disabled.'
+              : filters.type === 'tower' ? 'Tower report selected: choose a tower. Line section and Team filters are disabled.'
+              : filters.type === 'consolidated' ? 'Project sections cover the project. Line section, Team and Tower filters are disabled.'
+              : 'Choose a report type to enable its matching filter, or browse all report types.'}
+          </Typography>
           <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 2, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
             <Typography variant="caption" color="text.secondary" aria-live="polite">{isLoading ? 'Loading your reports…' : `${sorted.length} of ${rows.length} reports`} · Dates filter inspection coverage</Typography>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -135,7 +151,7 @@ export function ReportHistoryTable() {
           <Box sx={{ textAlign: 'center', px: 3, py: 7 }}>
             <FolderOpenRoundedIcon sx={{ fontSize: 54, color: 'primary.main', mb: 1.5 }} />
             <Typography variant="h6">{rows.length ? 'No reports match your filters' : 'Your report library starts here'}</Typography>
-            <Typography color="text.secondary" sx={{ mt: 1 }}>{rows.length ? 'Try a different team, tower or inspection period.' : 'Generate an official report to save a copy here for future viewing and downloads.'}</Typography>
+            <Typography color="text.secondary" sx={{ mt: 1 }}>{rows.length ? 'Try a different line, team, tower or inspection period.' : 'Generate an official report to save a copy here for future viewing and downloads.'}</Typography>
             {activeFilters && <Button onClick={clearFilters} sx={{ mt: 2 }}>Clear all filters</Button>}
           </Box>
         ) : (
