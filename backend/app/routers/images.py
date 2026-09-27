@@ -27,6 +27,7 @@ from app.services.archive import (
     save_upload,
 )
 from app.services.id_gen import image_code as compute_image_code
+from app.services.report_images import selected_images
 from app.services.smart_enhance import smart_enhance
 
 router = APIRouter(prefix="/api/images", tags=["images"])
@@ -141,6 +142,7 @@ def retype_image(
             settings.thumbnails_dir, img.annotated_thumbnail_path, _with_jpg_suffix(new_ann_rel)
         )
 
+    dest.include_in_report = img in selected_images(pos)
     dest.file_path = moved_file
     dest.thumbnail_path = moved_thumb
     dest.original_filename = img.original_filename
@@ -354,6 +356,9 @@ async def make_primary(image_id: int, db: Session = Depends(get_db), user: User 
     if baseline is None:
         raise HTTPException(status_code=404, detail="This position's baseline slot for that type is missing")
 
+    chosen = {image.id for image in selected_images(pos)}
+    baseline.include_in_report = extra.id in chosen
+    extra.include_in_report = baseline.id in chosen
     extra_raw = extra_path.read_bytes()
     extra_meta = _snapshot_upload_meta(extra)
 

@@ -12,6 +12,7 @@ from app.migrations import (
     backfill_areas_from_towers,
     backfill_menu_permissions,
     backfill_report_type,
+    backfill_report_image_selection,
     backfill_visit_team_id_from_towers,
     rebuild_images_table_for_multi_image_support,
     rebuild_positions_table_for_multi_direction_support,
@@ -49,6 +50,7 @@ allow_unassigned_channel_authors(engine)
 rebuild_images_table_for_multi_image_support(engine)
 rebuild_positions_table_for_multi_direction_support(engine)
 add_missing_columns(engine, Base)
+backfill_report_image_selection(engine)
 backfill_areas_from_towers(engine)
 backfill_visit_team_id_from_towers(engine)
 backfill_report_type(engine)

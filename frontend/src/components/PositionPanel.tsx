@@ -38,7 +38,7 @@ interface Props {
   towerArea?: string | null;
   onUpdate: (payload: Partial<Position>) => void;
   onUploadImage: (imageId: number, file: File, meta: Record<string, unknown>) => void;
-  onUpdateImage: (imageId: number, payload: Partial<ImageRow>) => void;
+  onUpdateImage: (imageId: number, payload: Partial<ImageRow>) => void | Promise<unknown>;
   onClearImageFile: (imageId: number) => void;
   onSaveAnnotation: (imageId: number, blob: Blob) => Promise<void> | void;
   /** Adds a supplementary image beyond the one-per-type baseline slot — used once that slot already
@@ -633,7 +633,8 @@ export function PositionPanel({
             </Stack>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
               Every uploaded image for this position, grouped by type below — pick a type above before "Add images"
-              to say what the next upload(s) should be tagged as. Deleting one removes it from this list.
+              to tag the next uploads. Check "Include in report" on every image you want in the next report — you can
+              choose more than one per type. Unchecked images remain supporting evidence. Saved reports are unchanged.
             </Typography>
             {uploadedImages.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
@@ -645,6 +646,7 @@ export function PositionPanel({
                   <Grid key={img.id} size={{ xs: 12, sm: 6, md: 3 }}>
                     <ImageSlotCard
                       image={img}
+                      reportIncluded={img.include_in_report ?? (uploadedImages.filter(i => i.image_type === img.image_type).sort((a, b) => a.sequence - b.sequence || a.id - b.id)[0]?.id === img.id)}
                       disabled={!position.direction}
                       onUpload={(file, meta) => onUploadImage(img.id, file, meta)}
                       onUpdate={(payload) => onUpdateImage(img.id, payload)}

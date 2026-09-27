@@ -573,9 +573,10 @@ export function useUpdateImage(visitId: number) {
   return useMutation({
     mutationFn: async ({ id, payload }: { id: number; payload: Partial<ImageRow> }) =>
       (await apiClient.patch<ImageRow>(`/api/images/${id}`, payload)).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['visit', visitId] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['visit', visitId] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['archive'] });
     },
   });
 }

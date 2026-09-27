@@ -38,11 +38,12 @@ from docx.shared import Mm, Pt
 from app.config import settings
 from app.models import Position, Visit
 from app.services.rollup import visit_rollup
+from app.services.report_images import selected_images, InlineImageGroup
 
 
 def _pick_image(position: Position, primary: str, fallback: str):
     for image_type in (primary, fallback):
-        img = min((i for i in position.images if i.image_type == image_type and i.file_path),
+        img = min((i for i in selected_images(position, image_type)),
                   key=lambda i: (i.sequence, i.id), default=None)
         if img:
             return img
@@ -91,6 +92,11 @@ def _inline_image(tpl, img):
         return None  # e.g. a corrupt/unreadable image file — blank rather than fail the whole report
 
 
+def _inline_images(tpl, images):
+    rendered = [image for item in images if (image := _inline_image(tpl, item)) is not None]
+    return InlineImageGroup(rendered) if rendered else None
+
+
 def _position_context(tpl, position: Position) -> dict:
     visual = _pick_image(position, "RGB Full", "RGB Close")
     thermal = _pick_image(position, "TH Full", "TH Close")
@@ -111,10 +117,10 @@ def _position_context(tpl, position: Position) -> dict:
         "confidence": position.confidence,
         "inspector_notes": position.inspector_notes,
         "observation": position.inspector_notes,
-        "visual_image": _inline_image(tpl, visual),
+        "visual_image": _inline_images(tpl, selected_images(position, "RGB Full", "RGB Close")),
         "visual_image_name": visual.image_code if visual else "",
         "visual_timestamp": _timestamp_text(visual),
-        "thermal_image": _inline_image(tpl, thermal),
+        "thermal_image": _inline_images(tpl, selected_images(position, "TH Full", "TH Close")),
         "thermal_image_name": thermal.image_code if thermal else "",
         "thermal_timestamp": _timestamp_text(thermal),
     }

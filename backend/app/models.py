@@ -392,6 +392,9 @@ class Image(Base):
     image_type: Mapped[str] = mapped_column(String(20))
     image_code: Mapped[str | None] = mapped_column(String(180), nullable=True, unique=True, index=True)
     sequence: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    include_in_report: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, default=lambda context: context.get_current_parameters().get("sequence", 1) == 1,
+    )
 
     capture_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
     capture_time: Mapped[dt.time | None] = mapped_column(Time, nullable=True)

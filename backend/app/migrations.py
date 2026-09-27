@@ -258,3 +258,19 @@ def add_missing_columns(engine: Engine, base: type[DeclarativeBase]) -> None:
                     logger.info("Auto-migration: added column %s.%s", table.name, column.name)
                 except Exception:
                     logger.exception("Auto-migration failed for %s.%s", table.name, column.name)
+
+
+def backfill_report_image_selection(engine: Engine) -> None:
+    """Freeze old automatic choices so later deletion/reordering cannot select unchecked photos."""
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE images SET include_in_report = CASE WHEN id = (
+                SELECT candidate.id FROM images AS candidate
+                WHERE candidate.position_id = images.position_id
+                  AND candidate.image_type = images.image_type
+                ORDER BY CASE WHEN candidate.file_path IS NOT NULL AND candidate.file_path <> '' THEN 0 ELSE 1 END,
+                         candidate.sequence, candidate.id
+                LIMIT 1
+            ) THEN TRUE ELSE FALSE END
+            WHERE include_in_report IS NULL
+        """))

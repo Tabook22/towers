@@ -555,7 +555,7 @@ export function VisitDetailPage() {
                   longitude: meta.longitude as number | undefined,
                 })
               }
-              onUpdateImage={(imageId, payload) => updateImage.mutate({ id: imageId, payload })}
+              onUpdateImage={(imageId, payload) => payload.include_in_report !== undefined ? updateImage.mutateAsync({ id: imageId, payload }) : updateImage.mutate({ id: imageId, payload })}
               onClearImageFile={(imageId) => clearImageFile.mutate(imageId)}
               onSaveAnnotation={async (imageId, blob) => {
                 await saveAnnotation.mutateAsync({ imageId, blob });

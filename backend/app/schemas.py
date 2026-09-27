@@ -258,6 +258,7 @@ class TowerImportResult(BaseModel):
 
 # ---------- Image ----------
 class ImageUpdate(BaseModel):
+    include_in_report: bool = True
     capture_date: dt.date | None = None
     capture_time: dt.time | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
@@ -290,6 +291,7 @@ class ImageOut(BaseModel):
     image_type: str
     image_code: str | None
     sequence: int = 1
+    include_in_report: bool | None = None
     capture_date: dt.date | None
     capture_time: dt.time | None
     latitude: float | None

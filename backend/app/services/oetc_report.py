@@ -36,7 +36,8 @@ from sqlalchemy.orm import Session
 from app.config import BASE_DIR
 from app.models import IMAGE_TYPE_CHOICES, LineInspectionReport, Position, Team, Tower, Visit
 from app.schemas import LineInspectionReportRequest
-from app.services.docx_reports import _inline_image
+from app.services.docx_reports import _inline_images
+from app.services.report_images import selected_images
 from app.services.team_activity_report import _position_has_activity, _position_sort_key
 from app.services.tower_numbers import extract_tower_number
 
@@ -61,14 +62,14 @@ def generate_report_number(
 
 
 def _find_image(pos: Position, image_type: str):
-    return min((i for i in pos.images if i.image_type == image_type and i.file_path),
+    return min((i for i in selected_images(pos, image_type)),
                key=lambda i: (i.sequence, i.id), default=None)
 
 
 def used_image_ids(visits: list[Visit]) -> list[tuple[int, int, str]]:
     """(position_id, image_id, image_type) for every image that actually gets embedded when this
     exact set of visits is rendered into a report — mirrors _finding_context's own selection
-    (the 4 baseline evidence types, on any position with real activity) without needing a
+    (all checked photos in the 4 evidence types, on any position with real activity) without needing a
     DocxTemplate or doing any actual rendering. Used to snapshot a report's ReportImage rows at
     generation time (see routers/reports.py) — the client portal's permanent report-to-image link."""
     out: list[tuple[int, int, str]] = []
@@ -77,8 +78,7 @@ def used_image_ids(visits: list[Visit]) -> list[tuple[int, int, str]]:
             if not _position_has_activity(pos):
                 continue
             for image_type in IMAGE_TYPE_CHOICES:
-                img = _find_image(pos, image_type)
-                if img:
+                for img in selected_images(pos, image_type):
                     out.append((pos.id, img.id, image_type))
     return out
 
@@ -120,13 +120,11 @@ def _finding_context(tpl, seq: int, visit: Visit, pos: Position) -> dict:
         "tower_proximity": _derived_tower_proximity(pos),
         "manufacturer": pos.manufacturer,
         "year_installed": pos.year_installed,
-        # All 4 of the position's baseline evidence slots, shown independently rather than picking
-        # just one thermal + one visual — a report reviewer needs to see everything that was
-        # actually captured, not the app's own "prefer Full, fall back to Close" internal choice.
-        "thermal_full_image": _inline_image(tpl, _find_image(pos, "TH Full")),
-        "thermal_close_image": _inline_image(tpl, _find_image(pos, "TH Close")),
-        "visual_full_image": _inline_image(tpl, _find_image(pos, "RGB Full")),
-        "visual_close_image": _inline_image(tpl, _find_image(pos, "RGB Close")),
+        # Keep the four evidence categories, with every selected photo inside its category.
+        "thermal_full_image": _inline_images(tpl, selected_images(pos, "TH Full")),
+        "thermal_close_image": _inline_images(tpl, selected_images(pos, "TH Close")),
+        "visual_full_image": _inline_images(tpl, selected_images(pos, "RGB Full")),
+        "visual_close_image": _inline_images(tpl, selected_images(pos, "RGB Close")),
         "pollution_condition": pos.pollution_condition,
         "thermal_indication": pos.thermal_indication,
         "visual_indications": pos.visual_indications,

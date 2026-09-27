@@ -469,6 +469,7 @@ def test_grouped_reports_persist_the_sign_off_fields_for_later_redownload():
             self.visits = visits
             self.report_number = report_number
             self.docx_bytes = b"fake docx bytes"
+            self.area = "Ashoor-Saada"
 
     engine = _engine()
     with Session(engine) as db:

@@ -50,6 +50,7 @@ export interface ImageRow {
   image_type: 'TH Full' | 'TH Close' | 'RGB Full' | 'RGB Close';
   image_code: string | null;
   sequence: number;
+  include_in_report?: boolean | null;
   capture_date: string | null;
   capture_time: string | null;
   latitude: number | null;

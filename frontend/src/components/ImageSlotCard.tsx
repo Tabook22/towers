@@ -3,6 +3,9 @@ import {
   Box,
   Button,
   Chip,
+  Checkbox,
+  FormControlLabel,
+  Alert,
   Dialog,
   DialogActions,
   DialogContent,
@@ -39,7 +42,8 @@ import { LOCAL_FILE_SENTINEL } from '../offline/types';
 interface Props {
   image: ImageRow;
   onUpload: (file: File, meta: { captureDate?: string; captureTime?: string; latitude?: number; longitude?: number }) => void;
-  onUpdate: (payload: Partial<ImageRow>) => void;
+  onUpdate: (payload: Partial<ImageRow>) => void | Promise<unknown>;
+  reportIncluded?: boolean;
   onClearFile: () => void;
   onSaveAnnotation: (blob: Blob) => Promise<void> | void;
   annotationSaving?: boolean;
@@ -60,6 +64,7 @@ interface Props {
 
 export function ImageSlotCard({
   image,
+  reportIncluded = false,
   onUpload,
   onUpdate,
   onClearFile,
@@ -71,6 +76,8 @@ export function ImageSlotCard({
   otherTypes,
   onMakePrimary,
 }: Props) {
+  const [reportSaving, setReportSaving] = useState(false);
+  const [reportError, setReportError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const [mapOpen, setMapOpen] = useState(false);
   const [annotatorOpen, setAnnotatorOpen] = useState(false);
@@ -192,7 +199,7 @@ export function ImageSlotCard({
               </Tooltip>
             )}
             {onMakePrimary && image.sequence > 1 && (
-              <Tooltip title="Make this the chosen image for this slot">
+              <Tooltip title="Use as primary evidence (report checkbox follows the photo)">
                 <IconButton size="small" onClick={onMakePrimary} sx={{ bgcolor: 'rgba(255,255,255,0.85)' }}>
                   <StarRoundedIcon fontSize="small" sx={{ color: '#f5a623' }} />
                 </IconButton>
@@ -214,6 +221,17 @@ export function ImageSlotCard({
           </Typography>
           <EvidenceChip status={image.evidence_status} />
         </Stack>
+        <Tooltip title={queuedOnPhone ? 'Sync this image before choosing it for a report.' : 'Checked images appear in newly generated reports. Unchecked images stay as supporting evidence.'}>
+          <span><FormControlLabel sx={{ m: 0, mb: 0.5 }} control={<Checkbox size="small" checked={reportIncluded} disabled={disabled || reportSaving || queuedOnPhone || !image.file_path}
+            onChange={async (_, checked) => {
+              setReportSaving(true); setReportError('');
+              try { await onUpdate({ include_in_report: checked }); }
+              catch { setReportError('Could not save report selection. Please try again.'); }
+              finally { setReportSaving(false); }
+            }} />} label={<Typography variant="caption" sx={{ fontWeight: 700 }}>{reportSaving ? 'Saving selection…' : 'Include in report'}</Typography>} /></span>
+        </Tooltip>
+        {!reportIncluded && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>Supporting evidence only</Typography>}
+        {reportError && <Alert severity="error" sx={{ mb: 1 }}>{reportError}</Alert>}
         {image.image_code && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, wordBreak: 'break-all' }}>
             {image.image_code}
