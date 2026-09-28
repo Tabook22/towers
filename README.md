@@ -37,6 +37,19 @@ pending offline work for that visit. Failed requests retain the draft and show a
 status. Tower-report downloads are disabled while position fields have unsaved edits. Confirmed
 changes affect future reports; previously generated documents must be regenerated when needed.
 
+## Dashboard tower history
+
+Click **Towers** in **At a glance** to see visited towers and their visit history, including
+the recorded team, inspector, inspection date, screening progress, hotspots, and pending images.
+Search by tower, area, team, or inspector; switch to **All towers** to include planned-only and
+unvisited towers. Each visit has a link to its inspection, and tower IDs open tower details.
+The popup respects the selected dashboard area and the crew's tower/team access.
+
+“Visited” means a mission is in progress/completed, has a start time or closed inspection, or
+has recorded photos, position direction, screening, or uploaded evidence. A scheduled date alone
+does not count. This is recorded activity, not GPS verification. Missing dates/teams are shown
+explicitly; the tower's current team assignment never substitutes for the team on a visit.
+
 ## Setup
 
 ### Backend

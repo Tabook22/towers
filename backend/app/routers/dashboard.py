@@ -1,20 +1,19 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.database import get_db
 from app.deps import effective_team_id, get_current_user
 from app.models import Position, Tower, User, UserRole, Visit
-from app.schemas import DashboardSummary, DashboardTowerRow, VisitOut, VisitRollup
+from app.schemas import DashboardSummary, DashboardTowerRow, DashboardTowerHistory, DashboardVisitRecord, VisitOut, VisitRollup
 from app.services.rollup import visit_rollup
 from app.utils import natural_sort_key
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
-@router.get("/summary", response_model=DashboardSummary)
-def dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_current_user), area: str | None = None):
+def _dashboard_towers(db: Session, user: User, area: str | None):
     # A team_member's whole app is "my missions" (see routers/visits.py's list_visits) — this
     # cross-tower/cross-team summary isn't part of that narrower workspace.
     is_crew = user.role in (UserRole.TEAM_LEADER.value, UserRole.TEAM_MEMBER.value)
@@ -29,6 +28,42 @@ def dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_cu
         else:
             q = q.filter(Tower.assigned_team_id == leader_team_id)
     towers = sorted(q.all(), key=lambda t: natural_sort_key(t.tower_id))
+    return towers, is_crew, leader_team_id
+
+
+@router.get("/tower-history", response_model=list[DashboardTowerHistory])
+def dashboard_tower_history(db: Session = Depends(get_db), user: User = Depends(get_current_user), area: str | None = None):
+    towers, is_crew, team_id = _dashboard_towers(db, user, area)
+    if not towers:
+        return []
+    query = db.query(Visit).filter(Visit.tower_id.in_([tower.id for tower in towers]))
+    if is_crew:
+        query = query.filter(Visit.team_id == team_id)
+    visits = query.options(
+        joinedload(Visit.team), selectinload(Visit.photos),
+        selectinload(Visit.positions).selectinload(Position.images),
+    ).order_by(Visit.inspection_date.desc().nullslast(), Visit.id.desc()).all()
+    by_tower: dict[int, list[DashboardVisitRecord]] = {}
+    for visit in visits:
+        # A scheduled date and untouched baseline positions alone do not establish field work.
+        active = bool(
+            visit.mission_status in ("in_progress", "completed") or visit.start_time
+            or visit.status == "closed" or visit.photos
+            or any(p.direction or p.screening_result not in (None, "Not inspected")
+                   or any(image.file_path for image in p.images) for p in visit.positions)
+        )
+        by_tower.setdefault(visit.tower_id, []).append(DashboardVisitRecord(
+            id=visit.id, team_name=visit.team.name if visit.team else None,
+            inspector_name=visit.inspector_name, inspection_date=visit.inspection_date,
+            mission_status=visit.mission_status, has_field_activity=active,
+            rollup=VisitRollup(**visit_rollup(visit)),
+        ))
+    return [DashboardTowerHistory(tower=tower, visits=by_tower.get(tower.id, [])) for tower in towers]
+
+
+@router.get("/summary", response_model=DashboardSummary)
+def dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_current_user), area: str | None = None):
+    towers, is_crew, leader_team_id = _dashboard_towers(db, user, area)
 
     rows: list[DashboardTowerRow] = []
     total_hotspots = 0

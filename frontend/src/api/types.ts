@@ -182,6 +182,21 @@ export interface DashboardTowerRow {
   rollup: VisitRollup | null;
 }
 
+export interface DashboardVisitRecord {
+  id: number;
+  team_name: string | null;
+  inspector_name: string | null;
+  inspection_date: string | null;
+  mission_status: string;
+  has_field_activity: boolean;
+  rollup: VisitRollup;
+}
+
+export interface DashboardTowerHistory {
+  tower: Tower;
+  visits: DashboardVisitRecord[];
+}
+
 export interface DashboardSummary {
   tower_count: number;
   visit_count: number;

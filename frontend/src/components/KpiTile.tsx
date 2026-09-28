@@ -1,4 +1,4 @@
-import { Card, CardContent, Stack, Typography } from '@mui/material';
+import { Card, CardActionArea, CardContent, Stack, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 
 export function KpiTile({
@@ -6,14 +6,17 @@ export function KpiTile({
   value,
   icon,
   color = '#0d475c',
+  onClick,
+  hint,
 }: {
   label: string;
   value: ReactNode;
   icon?: ReactNode;
   color?: string;
+  onClick?: () => void;
+  hint?: string;
 }) {
-  return (
-    <Card sx={{ height: '100%' }}>
+  const content = (
       <CardContent>
         <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
           {icon && (
@@ -39,9 +42,12 @@ export function KpiTile({
             <Typography variant="body2" color="text.secondary">
               {label}
             </Typography>
+            {hint && <Typography variant="caption" color="primary">{hint}</Typography>}
           </Stack>
         </Stack>
       </CardContent>
-    </Card>
   );
+  return <Card sx={{ height: '100%' }}>
+    {onClick ? <CardActionArea onClick={onClick} sx={{ height: '100%' }} aria-label={`${label}: ${value}. ${hint || 'View details'}`}>{content}</CardActionArea> : content}
+  </Card>;
 }

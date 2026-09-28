@@ -17,6 +17,7 @@ import type {
   ChannelMessage,
   ChoiceLists,
   DashboardSummary,
+  DashboardTowerHistory,
   FieldExecutionPlanRequest,
   ArchiveResponse,
   ImageRow,
@@ -856,6 +857,15 @@ export function useClearAnnotation(visitId: number) {
 }
 
 // ---------- Dashboard ----------
+export function useDashboardTowerHistory(area?: string, enabled = false) {
+  return useQuery({
+    queryKey: ['dashboard', 'tower-history', area],
+    queryFn: async ({ signal }) => (await apiClient.get<DashboardTowerHistory[]>('/api/dashboard/tower-history', { params: { area }, signal })).data,
+    enabled,
+    refetchInterval: 30000,
+  });
+}
+
 export function useDashboardSummary(area?: string, enabled = true) {
   return useQuery({
     queryKey: ['dashboard', area],

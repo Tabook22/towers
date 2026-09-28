@@ -668,6 +668,21 @@ class ReportTemplatesActive(BaseModel):
 
 
 # ---------- Dashboard ----------
+class DashboardVisitRecord(BaseModel):
+    id: int
+    team_name: str | None = None
+    inspector_name: str | None = None
+    inspection_date: dt.date | None = None
+    mission_status: str
+    has_field_activity: bool
+    rollup: VisitRollup
+
+
+class DashboardTowerHistory(BaseModel):
+    tower: TowerOut
+    visits: list[DashboardVisitRecord]
+
+
 class DashboardTowerRow(BaseModel):
     tower: TowerOut
     latest_visit: VisitOut | None = None

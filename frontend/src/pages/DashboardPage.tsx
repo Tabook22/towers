@@ -38,6 +38,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAreas, useClaimTowerForTeam, useDashboardSummary, useLiveTeams, useOutingPlan, useReleaseTower, useShiftInfo, useTeamJobMap, useTeamLive, useTeams, useTeamTrails, useTowers, useVisit } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { KpiTile } from '../components/KpiTile';
+import { DashboardTowersDialog } from '../components/DashboardTowersDialog';
 import { TowersOverviewMap } from '../components/TowersOverviewMap';
 import { TeamSiteMap } from '../components/TeamSiteMap';
 import { OutingPlanCard } from '../components/OutingPlanCard';
@@ -85,6 +86,7 @@ function DashboardSection({
 
 export function DashboardPage() {
   const [area, setArea] = useState<string>('');
+  const [towerHistoryOpen, setTowerHistoryOpen] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: areas } = useAreas();
@@ -219,7 +221,7 @@ export function DashboardPage() {
           >
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <KpiTile label="Towers" value={data.tower_count} icon={<CellTowerIcon />} color="#0d475c" />
+                <KpiTile label="Towers" value={data.tower_count} icon={<CellTowerIcon />} color="#0d475c" onClick={() => setTowerHistoryOpen(true)} hint="View towers & visit history →" />
               </Grid>
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <KpiTile label="Visits recorded" value={data.visit_count} icon={<FactCheckIcon />} color="#3a6f84" />
@@ -457,6 +459,7 @@ export function DashboardPage() {
         </>
       )}
 
+      {towerHistoryOpen && <DashboardTowersDialog open area={area || undefined} onClose={() => setTowerHistoryOpen(false)} />}
       <Dialog open={!!incompleteDetail} onClose={() => setIncompleteDetail(null)} maxWidth="xs" fullWidth>
         <DialogTitle>What's missing — {incompleteDetail?.towerId}</DialogTitle>
         <DialogContent>
