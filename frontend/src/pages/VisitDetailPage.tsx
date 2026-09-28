@@ -153,22 +153,20 @@ export function VisitDetailPage() {
     visit.positions.filter((p) => !isPositionActive(p) && !addedIds.has(p.id)).map((p) => p.id),
   );
 
-  const handleAddPosition = (position: Position, direction: string, mountType: string) => {
-    setAddedIds((prev) => new Set(prev).add(position.id));
-    const payload: Partial<Position> = {};
+  const handleAddPosition = async (position: Position, direction: string, mountType: string, stringCount: string) => {
+    const payload: Partial<Position> = { string_count: stringCount, tower_proximity: stringCount === 'Double' ? (position.string === 'S1' ? 'Outer' : 'Inner') : null };
     if (direction) payload.direction = direction;
     if (mountType) payload.mount_type = mountType;
     if (Object.keys(payload).length > 0) {
-      updatePosition.mutate({ id: position.id, payload });
+      await updatePosition.mutateAsync({ id: position.id, payload });
     }
+    setAddedIds((prev) => new Set(prev).add(position.id));
   };
 
-  // Only reached for a Tension tower's second (or further) Direction on an OHL/phase/string whose
-  // one baseline slot is already claimed by a different direction — see AddPositionBar. The new row
-  // arrives with its direction already set, so it's immediately "active" (isPositionActive above)
-  // once the visit refetches; no addedIds bookkeeping needed the way handleAddPosition needs it.
-  const handleCreatePosition = (ohl: string, phase: string, string_: string, direction: string, mountType: string) => {
-    createPosition.mutate({ ohl, phase, string: string_, direction, mount_type: mountType || undefined });
+  // Create an additional direction or restore a slot freed by editing a string identity.
+  // The saved direction makes the new row active when the visit refetches.
+  const handleCreatePosition = async (ohl: string, phase: string, string_: string, direction: string, mountType: string, stringCount: string) => {
+    await createPosition.mutateAsync({ ohl, phase, string: string_, direction, mount_type: mountType || undefined, string_count: stringCount });
   };
 
   const handleRemovePosition = (positionId: number) => {
@@ -541,6 +539,7 @@ export function VisitDetailPage() {
             <PositionPanel
               key={p.id}
               position={p}
+              onSaveConfiguration={(payload) => updatePosition.mutateAsync({ id: p.id, payload })}
               lists={lists}
               towerArea={visit.tower?.area}
               defaultExpanded

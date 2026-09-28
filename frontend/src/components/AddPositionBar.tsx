@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlineRounded';
 import type { ChoiceLists, Position } from '../api/types';
 import { deriveDirectionFromArea, deriveDirectionsFromArea } from '../utils/direction';
@@ -24,10 +24,9 @@ interface Props {
   /** The tower's own line/area name — used to auto-fill Direction for Suspension, and to offer
    * only this tower's own line directions (e.g. "Ashoor-Saada" -> Ashoor, Saada) for Tension. */
   towerArea?: string | null;
-  onAdd: (position: Position, direction: string, mountType: string) => void;
-  /** Only called for a Tension tower's second (or further) Direction on an OHL/phase/string whose
-   * one baseline slot is already claimed by a different direction — see handleCreatePosition. */
-  onCreate: (ohl: string, phase: string, string_: string, direction: string, mountType: string) => void;
+  onAdd: (position: Position, direction: string, mountType: string, stringCount: string) => Promise<void>;
+  /** Creates a missing slot after a string edit, or an additional Tension direction. */
+  onCreate: (ohl: string, phase: string, string_: string, direction: string, mountType: string, stringCount: string) => Promise<void>;
 }
 
 export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, onCreate }: Props) {
@@ -36,6 +35,9 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
   const [direction, setDirection] = useState('');
   const [phase, setPhase] = useState('');
   const [stringVal, setStringVal] = useState('');
+  const [stringCount, setStringCount] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const isTension = mountType === 'Tension';
   const hidden = positions.filter((p) => hiddenIds.has(p.id));
@@ -56,8 +58,12 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
     tensionDirections.flatMap((d) => lists.phase.flatMap((p) => lists.string.map((s) => ({ ohl: o, direction: d, phase: p, string: s })))),
   );
   const tensionRemaining = tensionCombos.filter((c) => !claimed.has(comboKey(c.ohl, c.phase, c.string, c.direction)));
+  // Editing S1 to S2 can free a canonical slot without leaving a hidden baseline row.
+  const remaining = lists.ohl.flatMap(o => lists.phase.flatMap(p => lists.string.map(s => ({ ohl: o, phase: p, string: s }))))
+    .filter(c => !positions.some(p => !hiddenIds.has(p.id) && p.ohl === c.ohl && p.phase === c.phase && p.string === c.string));
 
   const reset = () => {
+    setStringCount('');
     setMountType('');
     setOhl('');
     setDirection('');
@@ -65,7 +71,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
     setStringVal('');
   };
 
-  if (hidden.length === 0 && tensionRemaining.length === 0) {
+  if (remaining.length === 0 && tensionRemaining.length === 0) {
     return (
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography color="text.secondary">All positions have been added.</Typography>
@@ -73,32 +79,33 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
     );
   }
 
-  const ohlOptions = isTension ? [...new Set(tensionRemaining.map((c) => c.ohl))] : [...new Set(hidden.map((p) => p.ohl))];
+  const ohlOptions = isTension ? [...new Set(tensionRemaining.map((c) => c.ohl))] : [...new Set(remaining.map((p) => p.ohl))];
   const directionOptions = isTension
     ? [...new Set(tensionRemaining.filter((c) => c.ohl === ohl).map((c) => c.direction))]
     : lists.direction;
   const phaseOptions = isTension
     ? [...new Set(tensionRemaining.filter((c) => c.ohl === ohl && c.direction === direction).map((c) => c.phase))]
-    : [...new Set(hidden.filter((p) => p.ohl === ohl).map((p) => p.phase))];
-  const stringOptions = isTension
+    : [...new Set(remaining.filter((p) => p.ohl === ohl).map((p) => p.phase))];
+  const availableStrings = isTension
     ? tensionRemaining.filter((c) => c.ohl === ohl && c.direction === direction && c.phase === phase).map((c) => c.string)
-    : [...new Set(hidden.filter((p) => p.ohl === ohl && p.phase === phase).map((p) => p.string))];
+    : [...new Set(remaining.filter((p) => p.ohl === ohl && p.phase === phase).map((p) => p.string))];
 
-  const handleAdd = () => {
-    if (isTension) {
-      if (!ohl || !direction || !phase || !stringVal) return;
-      // The one baseline slot for this (ohl, phase, string) might still be free (direction unset) —
-      // reuse it, same as any other tower type, before ever creating a brand new extra row.
+  const stringOptions = availableStrings.filter(s => stringCount === 'Double' || (stringCount === 'Single' && s === 'S1'));
+  const handleAdd = async () => {
+    if (saving || !mountType || !stringCount || !stringOptions.includes(stringVal)) return;
+    setSaving(true); setError('');
+    try {
+      if (!ohl || !phase || !stringVal || (isTension && !direction)) return;
       if (match) {
-        onAdd(match, direction, mountType);
+        await onAdd(match, direction, mountType, stringCount);
       } else {
-        onCreate(ohl, phase, stringVal, direction, mountType);
+        await onCreate(ohl, phase, stringVal, direction, mountType, stringCount);
       }
-    } else {
-      if (!match) return;
-      onAdd(match, direction, mountType);
-    }
-    reset();
+      reset();
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Could not add this position. Please check the fields and try again.');
+    } finally { setSaving(false); }
   };
 
   return (
@@ -106,12 +113,12 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
       elevation={4}
       sx={{
         p: 2,
-        bgcolor: '#e8f5e9',
+        bgcolor: 'background.paper',
         border: '1px solid',
         borderColor: 'success.light',
       }}
     >
-      <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+      <Stack component="fieldset" disabled={saving} direction="row" spacing={2} sx={{ m: 0, p: 0, border: 0, alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Typography sx={{ fontWeight: 700 }}>Add position</Typography>
         <TextField
           select
@@ -123,6 +130,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
             setMountType(value);
             setOhl('');
             setPhase('');
+            setStringCount('');
             setStringVal('');
             // Suspension runs straight through — no direction to record. Auto-fill it from the
             // tower's own line so the position still gets a valid image code. Tension needs a real
@@ -147,6 +155,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
             setOhl(e.target.value);
             if (isTension) setDirection('');
             setPhase('');
+            setStringCount('');
             setStringVal('');
           }}
           sx={{ minWidth: 110 }}
@@ -166,6 +175,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
             onChange={(e) => {
               setDirection(e.target.value);
               setPhase('');
+              setStringCount('');
               setStringVal('');
             }}
             disabled={!ohl}
@@ -184,7 +194,10 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
           label="Phase"
           value={phase}
           onChange={(e) => {
-            setPhase(e.target.value);
+            const nextPhase = e.target.value;
+            setPhase(nextPhase);
+            const saved = positions.find(p => !hiddenIds.has(p.id) && p.ohl === ohl && p.phase === nextPhase && p.direction === direction && p.mount_type === mountType && p.string_count);
+            setStringCount(saved?.string_count || '');
             setStringVal('');
           }}
           disabled={isTension ? !ohl || !direction : !ohl}
@@ -196,18 +209,22 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
             </MenuItem>
           ))}
         </TextField>
+        <TextField select size="small" label="Number of strings" value={stringCount}
+          disabled={!phase} onChange={e => { setStringCount(e.target.value); setStringVal(''); }} sx={{ minWidth: 160 }}>
+          <MenuItem value="Single">1</MenuItem><MenuItem value="Double">2</MenuItem>
+        </TextField>
         <TextField
           select
           size="small"
           label="String"
           value={stringVal}
           onChange={(e) => setStringVal(e.target.value)}
-          disabled={!phase}
+          disabled={!phase || !stringCount}
           sx={{ minWidth: 150 }}
         >
           {stringOptions.map((v) => (
             <MenuItem key={v} value={v}>
-              {STRING_LABELS[v] || v}
+              {stringCount === 'Double' ? STRING_LABELS[v] || v : v}
             </MenuItem>
           ))}
         </TextField>
@@ -233,12 +250,17 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
         <Button
           variant="contained"
           startIcon={<AddCircleOutlineIcon />}
-          disabled={isTension ? !(ohl && direction && phase && stringVal) : !match}
-          onClick={handleAdd}
+          disabled={saving || !mountType || !stringCount || !stringOptions.includes(stringVal) || !(ohl && phase && stringVal) || (!match && !direction) || (isTension && !direction)}
+          onClick={() => void handleAdd()}
         >
-          Add
+          {saving ? 'Saving…' : 'Add'}
         </Button>
       </Stack>
+      {mountType && phase && stringCount && <Typography variant="body2" sx={{ mt: 1.5 }}>
+        {mountType} · {ohl} · Phase {phase} · {stringCount === 'Single' ? '1 string' : '2 strings'} · {stringVal ? (stringCount === 'Double' ? STRING_LABELS[stringVal] : stringVal) : 'Choose a string'}
+      </Typography>}
+      {phase && stringCount && !stringOptions.length && <Alert severity="info" sx={{ mt: 1 }}>The matching string positions have already been added. Edit their inspection cards below.</Alert>}
+      {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
     </Paper>
   );
 }

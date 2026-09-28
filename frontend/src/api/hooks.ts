@@ -467,9 +467,9 @@ export function useUpdatePosition(visitId: number) {
       }
       return result;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (isQueued(data)) return;
-      qc.invalidateQueries({ queryKey: ['visit', visitId] });
+      await qc.invalidateQueries({ queryKey: ['visit', visitId] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['towers'] });
     },
@@ -481,10 +481,10 @@ export function useUpdatePosition(visitId: number) {
 export function useCreatePosition(visitId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { ohl: string; phase: string; string: string; direction: string; mount_type?: string }) =>
+    mutationFn: async (payload: { ohl: string; phase: string; string: string; direction: string; mount_type?: string; string_count?: string }) =>
       (await apiClient.post<Position>(`/api/visits/${visitId}/positions`, payload)).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['visit', visitId] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['visit', visitId] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['towers'] });
     },

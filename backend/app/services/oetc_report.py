@@ -84,7 +84,7 @@ def used_image_ids(visits: list[Visit]) -> list[tuple[int, int, str]]:
 
 
 def _derived_tower_proximity(pos: Position) -> str | None:
-    """A double-string Tension position's Inner/Outer field is easy to leave unset — it's a
+    """A double-string Tension or Suspension position's Inner/Outer field is easy to leave unset — it's a
     separate manual dropdown, easy to forget — even though the app already labels the String
     picker itself "S1 — Outer" / "S2 — Inner" as a fixed convention (see frontend's
     AddPositionBar.STRING_LABELS) so the field crew never has to guess which physical string is
@@ -94,7 +94,7 @@ def _derived_tower_proximity(pos: Position) -> str | None:
     the naming convention, for the rare tower where a slot doesn't quite follow it."""
     if pos.tower_proximity:
         return pos.tower_proximity
-    if pos.mount_type != "Tension" or pos.string_count != "Double":
+    if pos.mount_type not in ("Tension", "Suspension") or pos.string_count != "Double":
         return None
     if pos.string == "S1":
         return "Outer"

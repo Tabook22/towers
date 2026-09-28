@@ -25,7 +25,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SubtitlesRoundedIcon from '@mui/icons-material/SubtitlesRounded';
 import { mediaUrl } from '../api/client';
 import type { ChoiceLists, ImageRow, Position } from '../api/types';
-import { deriveDirectionFromArea } from '../utils/direction';
+import { PositionConfiguration } from './PositionConfiguration';
 import { HotspotChip, ScreeningChip, SeverityChip } from './Badges';
 import { ImageSlotCard } from './ImageSlotCard';
 import { VoiceNoteControls, VoiceNotePlayer } from './VoiceNoteControls';
@@ -37,6 +37,7 @@ interface Props {
    * moment Tower type is set to Suspension (see utils/direction.ts). */
   towerArea?: string | null;
   onUpdate: (payload: Partial<Position>) => void;
+  onSaveConfiguration: (payload: Partial<Position>) => Promise<unknown>;
   onUploadImage: (imageId: number, file: File, meta: Record<string, unknown>) => void;
   onUpdateImage: (imageId: number, payload: Partial<ImageRow>) => void | Promise<unknown>;
   onClearImageFile: (imageId: number) => void;
@@ -67,6 +68,7 @@ export function PositionPanel({
   lists,
   towerArea,
   onUpdate,
+  onSaveConfiguration,
   onUploadImage,
   onUpdateImage,
   onClearImageFile,
@@ -143,7 +145,7 @@ export function PositionPanel({
             <Grid size={{ xs: 12, sm: 3 }}>
               <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
                 <Typography sx={{ fontWeight: 700 }}>
-                  {position.ohl} · {position.phase} · {position.string}
+                  {position.ohl} · {position.phase} · {position.string_count === 'Double' ? `${position.string} — ${position.string === 'S1' ? 'Outer' : 'Inner'}` : position.string}
                 </Typography>
                 {position.tower_proximity && (
                   <Chip
@@ -155,7 +157,7 @@ export function PositionPanel({
                 )}
               </Stack>
               <Typography variant="caption" color="text.secondary">
-                {position.position_code || 'Direction not set'}
+                {position.mount_type || 'Tower type not set'} · {position.string_count === 'Double' ? '2 strings' : position.string_count === 'Single' ? '1 string' : 'String count not set'} · {position.position_code || 'Direction not set'}
               </Typography>
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
@@ -192,6 +194,7 @@ export function PositionPanel({
       </AccordionSummary>
       <AccordionDetails>
         <Stack spacing={2}>
+          <PositionConfiguration position={position} lists={lists} towerArea={towerArea} onSave={onSaveConfiguration} />
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 4, md: 2 }}>
               <FormControlLabel
@@ -229,6 +232,7 @@ export function PositionPanel({
                 label="Inner / Outer"
                 fullWidth
                 helperText="Only if this slot has two insulator strings"
+                disabled={position.string_count === 'Single'}
                 value={position.tower_proximity || ''}
                 onChange={(e) => onUpdate({ tower_proximity: e.target.value || null })}
               >
@@ -461,36 +465,7 @@ export function PositionPanel({
                   ))}
                 </TextField>
               </Grid>
-              <Grid size={{ xs: 12, sm: 4, md: 2.5 }}>
-                <TextField
-                  select
-                  size="small"
-                  label="Tower type"
-                  fullWidth
-                  value={position.mount_type || ''}
-                  onChange={(e) => {
-                    const mountType = e.target.value || null;
-                    const payload: Partial<Position> = { mount_type: mountType };
-                    // Suspension runs straight through — no direction to record. Auto-fill it from
-                    // the tower's own line so evidence/image codes still generate, but never
-                    // overwrite a direction the user already picked.
-                    if (mountType === 'Suspension' && !position.direction) {
-                      const derived = deriveDirectionFromArea(towerArea, lists.direction);
-                      if (derived) payload.direction = derived;
-                    }
-                    onUpdate(payload);
-                  }}
-                >
-                  <MenuItem value="">
-                    <em>Not set</em>
-                  </MenuItem>
-                  {lists.mount_type.map((t) => (
-                    <MenuItem key={t} value={t}>
-                      {t}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
+
               {position.mount_type === 'Tension' && (
                 <Grid size={{ xs: 12, sm: 4, md: 2.5 }}>
                   <TextField
@@ -502,25 +477,7 @@ export function PositionPanel({
                   />
                 </Grid>
               )}
-              <Grid size={{ xs: 12, sm: 4, md: 2.5 }}>
-                <TextField
-                  select
-                  size="small"
-                  label="String count"
-                  fullWidth
-                  value={position.string_count || ''}
-                  onChange={(e) => onUpdate({ string_count: e.target.value || null })}
-                >
-                  <MenuItem value="">
-                    <em>Not set</em>
-                  </MenuItem>
-                  {lists.string_count.map((t) => (
-                    <MenuItem key={t} value={t}>
-                      {t}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
+
               <Grid size={{ xs: 12, sm: 4, md: 2.5 }}>
                 <TextField
                   select

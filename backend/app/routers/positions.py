@@ -44,7 +44,21 @@ def update_position(
     position_id: int, payload: PositionUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
     pos = _load_position(db, position_id, user)
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    string = data.get("string", pos.string)
+    count = data.get("string_count", pos.string_count)
+    if ("string" in data or "string_count" in data) and (string not in ("S1", "S2") or (count == "Single" and string != "S1")):
+        raise HTTPException(status_code=422, detail="A one-string position must use S1. Choose a valid string before saving.")
+    direction = data.get("direction", pos.direction)
+    if string != pos.string or direction != pos.direction:
+        conflict = db.query(Position).filter(Position.visit_id == pos.visit_id, Position.ohl == pos.ohl,
+            Position.phase == pos.phase, Position.string == string, Position.direction == direction,
+            Position.id != pos.id).first()
+        if conflict:
+            raise HTTPException(status_code=409, detail="This phase, string and direction already have a position. Open that position instead; no data has been overwritten.")
+    if "string" in data or "string_count" in data:
+        data["tower_proximity"] = ("Outer" if string == "S1" else "Inner") if count == "Double" else None
+    for k, v in data.items():
         setattr(pos, k, v)
     db.flush()
     refresh_position_codes(pos)

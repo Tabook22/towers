@@ -179,10 +179,9 @@ def get_visit(visit_id: int, db: Session = Depends(get_db), user: User = Depends
 def add_extra_position(
     visit_id: int, payload: PositionCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
-    """Adds a position beyond the visit's 12 baseline slots — only needed for a Tension-type tower
-    carrying the same OHL/phase/string out toward a second line Direction (see AddPositionBar.tsx):
-    the first direction for a slot reuses the matching baseline row via PATCH /api/positions/{id}
-    as before, and only a second (or further) direction for that same slot lands here."""
+    """Add an additional direction or a canonical slot freed by editing a string.
+    Unused matching baseline rows are reused by the client through the position PATCH.
+    """
     visit = _load_visit(db, visit_id)
     check_visit_team_access(visit, user)
     exists = (
@@ -206,6 +205,8 @@ def add_extra_position(
         string=payload.string,
         direction=payload.direction,
         mount_type=payload.mount_type,
+        string_count=payload.string_count,
+        tower_proximity=("Outer" if payload.string == "S1" else "Inner") if payload.string_count == "Double" else None,
     )
     db.add(pos)
     db.flush()

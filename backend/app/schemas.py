@@ -346,6 +346,7 @@ class ArchiveImageOut(ImageOut):
 
 # ---------- Position ----------
 class PositionUpdate(BaseModel):
+    string: Literal["S1", "S2"] | None = None
     direction: str | None = None
     tower_proximity: str | None = None
     installed: bool | None = None
@@ -457,16 +458,22 @@ class PositionUpdate(BaseModel):
 
 
 class PositionCreate(BaseModel):
-    """Adds an *extra* position beyond a visit's 12 baseline slots — only ever needed for a
-    Tension-type tower carrying the same OHL/phase/string out toward a second line Direction (see
-    models.Position and routers/visits.py's add_extra_position). Rejected if this exact
-    (ohl, phase, string, direction) already exists on the visit."""
+    """Adds a missing string slot or another Tension direction.
+    Rejected if this exact (ohl, phase, string, direction) already exists on the visit.
+    """
 
     ohl: str
     phase: str
     string: str
     direction: str
     mount_type: str | None = None
+    string_count: Literal["Single", "Double"] | None = None
+
+    @model_validator(mode="after")
+    def valid_string_configuration(self):
+        if self.string_count == "Single" and self.string != "S1":
+            raise ValueError("A one-string position must use S1")
+        return self
 
     @field_validator("ohl")
     @classmethod

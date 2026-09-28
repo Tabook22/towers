@@ -520,11 +520,11 @@ def test_tower_proximity_manual_value_always_wins_over_the_derived_one():
     assert _derived_tower_proximity(pos) == "Inner"  # the crew's own read of the hardware, not S1's usual "Outer"
 
 
-def test_tower_proximity_is_not_derived_outside_double_tension():
+def test_tower_proximity_supports_double_suspension_but_not_single_strings():
     from app.services.oetc_report import _derived_tower_proximity
 
     suspension = Position(ohl="OHL1", phase="R", string="S1", mount_type="Suspension", string_count="Double")
-    assert _derived_tower_proximity(suspension) is None
+    assert _derived_tower_proximity(suspension) == "Outer"
 
     single = Position(ohl="OHL1", phase="R", string="S1", mount_type="Tension", string_count="Single")
     assert _derived_tower_proximity(single) is None
