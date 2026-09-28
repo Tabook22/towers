@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -6,6 +6,10 @@ import {
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Grid,
   LinearProgress,
   MenuItem,
@@ -52,6 +56,7 @@ import CellTowerIcon from '@mui/icons-material/CellTowerRounded';
 import FactCheckIcon from '@mui/icons-material/FactCheckRounded';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartmentRounded';
 import PendingActionsIcon from '@mui/icons-material/PendingActionsRounded';
+import { positionLabel } from '../utils/positionChanges';
 
 // Not part of the workbook's Lists sheet (Thermal mode was free text there) — this is a curated set
 // of the modes field crews actually report on radiometric thermal cameras (FLIR/DJI H20T etc.).
@@ -82,7 +87,7 @@ export function VisitDetailPage() {
   const { data: visit, isLoading, isError, error: visitError } = useVisit(id);
   const { data: lists } = useChoiceLists();
   const updateVisit = useUpdateVisit();
-  const updatePosition = useUpdatePosition(id);
+  const updatePosition = useUpdatePosition(id, true);
   const deletePosition = useDeletePosition(id);
   const createPosition = useCreatePosition(id);
   const uploadImage = useUploadImage(id);
@@ -99,6 +104,33 @@ export function VisitDetailPage() {
   const deleteVoiceNote = useDeletePositionVoiceNote(id);
 
   const [headerDraft, setHeaderDraft] = useState<Record<string, unknown> | null>(null);
+  const [receipt, setReceipt] = useState<{ title: string; message: string; time: string } | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [dirtyPositions, setDirtyPositions] = useState<Set<number>>(new Set());
+  const handleDirtyChange = useCallback((positionId: number, dirty: boolean) => {
+    setDirtyPositions(current => {
+      if (current.has(positionId) === dirty) return current;
+      const next = new Set(current);
+      if (dirty) next.add(positionId); else next.delete(positionId);
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    if (!dirtyPositions.size) return;
+    const confirmLeave = (event: MouseEvent) => {
+      const link = (event.target as Element)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!link || link.target === '_blank' || link.hasAttribute('download') || link.href === window.location.href || event.ctrlKey || event.metaKey) return;
+      if (!window.confirm('Leave this inspection and discard unsaved position changes? Save them first if they must appear in reports.')) {
+        event.preventDefault(); event.stopPropagation();
+      }
+    };
+    document.addEventListener('click', confirmLeave, true);
+    return () => document.removeEventListener('click', confirmLeave, true);
+  }, [dirtyPositions.size]);
+  const confirmSaved = (title: string, message: string) => {
+    setReceipt({ title, message, time: new Date().toLocaleString() });
+    setReceiptOpen(true);
+  };
   // Positions manually revealed this session via "Add position" but that don't have real data yet —
   // isPositionActive() below already covers everything with data, this only plugs the gap between
   // clicking Add and actually filling something in (and lets a mis-click be undone).
@@ -164,12 +196,14 @@ export function VisitDetailPage() {
       await updatePosition.mutateAsync({ id: position.id, payload });
     }
     setAddedIds((prev) => new Set(prev).add(position.id));
+    confirmSaved('Position added and saved', `${positionLabel({ ...position, direction })} was added. The server confirmed the save.`);
   };
 
   // Create an additional direction or restore a slot freed by editing a string identity.
   // The saved direction makes the new row active when the visit refetches.
   const handleCreatePosition = async (ohl: string, phase: string, string_: string, direction: string, mountType: string, stringCount: string) => {
     await createPosition.mutateAsync({ ohl, phase, string: string_, direction, mount_type: mountType || undefined, string_count: stringCount });
+    confirmSaved('Position added and saved', `${positionLabel({ ohl, phase, string: string_, direction })} was added. The server confirmed the save.`);
   };
 
   const handleRemovePosition = (positionId: number) => {
@@ -185,7 +219,10 @@ export function VisitDetailPage() {
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Button
           startIcon={<ArrowBackIcon />}
-          onClick={() => navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`)}
+          onClick={() => {
+            if (dirtyPositions.size && !window.confirm('Discard unsaved position changes and leave this inspection?')) return;
+            navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`);
+          }}
         >
           {visit.team_id ? 'Back to team' : 'Back to tower'}
         </Button>
@@ -193,6 +230,7 @@ export function VisitDetailPage() {
           <Button
             variant="outlined"
             startIcon={<PictureAsPdfIcon />}
+            disabled={dirtyPositions.size > 0}
             component="a"
             href={mediaUrl(`/api/reports/visits/${id}.pdf`)}
             target="_blank"
@@ -525,6 +563,11 @@ export function VisitDetailPage() {
           Inspection positions
         </Typography>
         <Stack spacing={1.5}>
+          <Alert severity="info">Inspection field changes stay in a draft until you review and confirm saving. An internet connection is required for server confirmation. Saved changes affect future reports; regenerate earlier documents when needed.</Alert>
+          {dirtyPositions.size > 0 && <Alert severity="warning">{dirtyPositions.size} position(s) have unsaved changes. Save or discard these changes before downloading the tower report.</Alert>}
+          {receipt && <Alert severity="success" onClose={() => setReceipt(null)}>
+            <strong>{receipt.title}.</strong> {receipt.message} Confirmed at {receipt.time}.
+          </Alert>}
           <AddPositionBar
             positions={visit.positions}
             hiddenIds={hiddenIds}
@@ -542,11 +585,14 @@ export function VisitDetailPage() {
             <PositionPanel
               key={p.id}
               position={p}
-              onSaveConfiguration={(payload) => updatePosition.mutateAsync({ id: p.id, payload })}
+              onDirtyChange={handleDirtyChange}
+              onSave={async (payload) => {
+                await updatePosition.mutateAsync({ id: p.id, payload });
+                confirmSaved('Inspection changes saved', `${positionLabel({ ...p, ...payload })} was updated. The server confirmed the save.`);
+              }}
               lists={lists}
               towerArea={visit.tower?.area}
               defaultExpanded
-              onUpdate={(payload) => updatePosition.mutate({ id: p.id, payload })}
               onUploadImage={(imageId, file, meta) =>
                 uploadImage.mutate({
                   imageId,
@@ -580,6 +626,7 @@ export function VisitDetailPage() {
               onDelete={async () => {
                 await deletePosition.mutateAsync(p.id);
                 handleRemovePosition(p.id);
+                confirmSaved('Deletion saved', `${positionLabel(p)} was permanently deleted. The server confirmed the deletion; this position will no longer be included in future reports.`);
               }}
               onRecordVoiceNote={(blob, durationSeconds) =>
                 addVoiceNote.mutate({ positionId: p.id, file: blob, durationSeconds })
@@ -594,6 +641,15 @@ export function VisitDetailPage() {
       </Box>
 
       <VisitPhotosSection visitId={id} positions={visit.positions} />
+      <Dialog open={receiptOpen && !!receipt} onClose={() => setReceiptOpen(false)} aria-labelledby="position-operation-receipt">
+        <DialogTitle id="position-operation-receipt">{receipt?.title}</DialogTitle>
+        <DialogContent>
+          <Alert severity="success">{receipt?.message}</Alert>
+          <Typography variant="body2" sx={{ mt: 2 }}>Confirmed at {receipt?.time}.</Typography>
+          <Typography variant="body2" sx={{ mt: 1 }}>Previously generated report documents are unchanged. Regenerate them if this change must be reflected.</Typography>
+        </DialogContent>
+        <DialogActions><Button autoFocus variant="contained" onClick={() => setReceiptOpen(false)}>OK — understood</Button></DialogActions>
+      </Dialog>
     </Stack>
   );
 }

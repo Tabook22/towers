@@ -24,6 +24,19 @@ Data flow: a Tower has many Visits; each Visit auto-creates its 12 fixed Positio
 2 strings); each Position has exactly 4 Images (`TH Full` / `TH Close` / `RGB Full` / `RGB Close`). Position and
 Image IDs are generated server-side from the workbook's original formulas and are never user-editable.
 
+## Confirming inspection-position changes
+
+Position fields are edited as an unsaved draft. Use **Review and save changes** to compare the
+saved and proposed values, then **Confirm and save changes**. Adding a position also requires a
+review and confirmation. Deletion identifies the position and affected evidence, requires an
+acknowledgment of permanent deletion, and then a final confirmation.
+
+A success dialog and timestamped alert appear only after the server acknowledges the operation.
+Position additions, edits, and deletions require an internet connection and completion of any
+pending offline work for that visit. Failed requests retain the draft and show an unconfirmed
+status. Tower-report downloads are disabled while position fields have unsaved edits. Confirmed
+changes affect future reports; previously generated documents must be regenerated when needed.
+
 ## Setup
 
 ### Backend

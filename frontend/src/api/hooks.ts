@@ -4,6 +4,7 @@ import { collectArchivePages } from '../utils/archiveEvidence';
 import { asOutboxFile, sendOrQueue } from '../offline/enqueue';
 import { applyPositionPatch, applyQueuedExtraImage, applyQueuedImage, applyVisitPatch, patchVisitCache } from '../offline/optimistic';
 import { isQueued } from '../offline/types';
+import { listOutbox } from '../offline/db';
 import type {
   AdminUser,
   Area,
@@ -448,10 +449,22 @@ export function useDeleteVisit() {
 }
 
 // ---------- Positions ----------
+async function requireConfirmedPositionWrite(visitId: number) {
+  let message = '';
+  if (!navigator.onLine) message = 'You are offline. Connect to the internet to confirm this operation. Your draft has not been sent.';
+  else if ((await listOutbox()).some(item => Number(item.path.visitId) === visitId)) {
+    message = 'This visit has earlier changes or evidence waiting to sync. Complete the pending sync before saving or deleting a position.';
+  }
+  if (message) throw Object.assign(new Error(message), { userMessage: message });
+}
+
 export function useDeletePosition(visitId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => { await apiClient.delete(`/api/positions/${id}`); },
+    mutationFn: async (id: number) => {
+      await requireConfirmedPositionWrite(visitId);
+      await apiClient.delete(`/api/positions/${id}`, { timeout: 30_000 });
+    },
     onSuccess: async (_, id) => {
       await qc.cancelQueries({ queryKey: ['visit', visitId] });
       patchVisitCache(qc, visitId, visit => ({ ...visit, positions: visit.positions.filter(p => p.id !== id) }));
@@ -464,10 +477,16 @@ export function useDeletePosition(visitId: number) {
   });
 }
 
-export function useUpdatePosition(visitId: number) {
+export function useUpdatePosition(visitId: number, requireServerConfirmation = false) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, payload }: { id: number; payload: Partial<Position> }) => {
+      if (requireServerConfirmation) {
+        // Report-critical confirmations must represent an acknowledged server write.
+        // Keep the caller's draft on any failure instead of silently queuing a save.
+        await requireConfirmedPositionWrite(visitId);
+        return (await apiClient.patch<Position>(`/api/positions/${id}`, payload, { timeout: 30_000 })).data;
+      }
       const result = await sendOrQueue(
         async () => (await apiClient.patch<Position>(`/api/positions/${id}`, payload)).data,
         {
@@ -485,6 +504,7 @@ export function useUpdatePosition(visitId: number) {
     },
     onSuccess: async (data) => {
       if (isQueued(data)) return;
+      patchVisitCache(qc, visitId, visit => ({ ...visit, positions: visit.positions.map(position => position.id === data.id ? data : position) }));
       await qc.invalidateQueries({ queryKey: ['visit', visitId] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['towers'] });
@@ -498,8 +518,10 @@ export function useUpdatePosition(visitId: number) {
 export function useCreatePosition(visitId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { ohl: string; phase: string; string: string; direction: string; mount_type?: string; string_count?: string }) =>
-      (await apiClient.post<Position>(`/api/visits/${visitId}/positions`, payload)).data,
+    mutationFn: async (payload: { ohl: string; phase: string; string: string; direction: string; mount_type?: string; string_count?: string }) => {
+      await requireConfirmedPositionWrite(visitId);
+      return (await apiClient.post<Position>(`/api/visits/${visitId}/positions`, payload, { timeout: 30_000 })).data;
+    },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['visit', visitId] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });

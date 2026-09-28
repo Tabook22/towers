@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Accordion,
   AccordionDetails,
@@ -20,6 +20,11 @@ import {
   MenuItem,
   Select,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   Switch,
   TextField,
   Tooltip,
@@ -37,6 +42,7 @@ import { PositionConfiguration } from './PositionConfiguration';
 import { HotspotChip, ScreeningChip, SeverityChip } from './Badges';
 import { ImageSlotCard } from './ImageSlotCard';
 import { VoiceNoteControls, VoiceNotePlayer } from './VoiceNoteControls';
+import { positionChangeRows, positionError, positionLabel as formatPositionLabel, positionPatch } from '../utils/positionChanges';
 
 interface Props {
   position: Position;
@@ -44,8 +50,8 @@ interface Props {
   /** The tower's own line/area name (e.g. "Ashoor-Saada") — used only to auto-fill Direction the
    * moment Tower type is set to Suspension (see utils/direction.ts). */
   towerArea?: string | null;
-  onUpdate: (payload: Partial<Position>) => void;
-  onSaveConfiguration: (payload: Partial<Position>) => Promise<unknown>;
+  onSave: (payload: Partial<Position>) => Promise<unknown>;
+  onDirtyChange?: (id: number, dirty: boolean) => void;
   onUploadImage: (imageId: number, file: File, meta: Record<string, unknown>) => void;
   onUpdateImage: (imageId: number, payload: Partial<ImageRow>) => void | Promise<unknown>;
   onClearImageFile: (imageId: number) => void;
@@ -70,11 +76,11 @@ interface Props {
 }
 
 export function PositionPanel({
-  position,
+  position: savedPosition,
   lists,
   towerArea,
-  onUpdate,
-  onSaveConfiguration,
+  onSave,
+  onDirtyChange,
   onUploadImage,
   onUpdateImage,
   onClearImageFile,
@@ -92,6 +98,45 @@ export function PositionPanel({
   voiceNoteSaving,
   voiceNoteTranscribing,
 }: Props) {
+  const [draft, setDraft] = useState<Partial<Position>>({});
+  const patch = positionPatch(savedPosition, draft);
+  const position = { ...savedPosition, ...draft, ...patch };
+  const dirty = Object.keys(patch).length > 0;
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [lastSaved, setLastSaved] = useState('');
+  const [review, setReview] = useState<{ before: Position; patch: Partial<Position> } | null>(null);
+  const saveLock = useRef(false);
+  const onUpdate = (payload: Partial<Position>) => {
+    setDraft(current => ({ ...current, ...payload }));
+    setSaveError('');
+  };
+  useEffect(() => {
+    onDirtyChange?.(savedPosition.id, dirty);
+    return () => onDirtyChange?.(savedPosition.id, false);
+  }, [savedPosition.id, dirty, onDirtyChange]);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+  const confirmSave = async () => {
+    if (!review || saveLock.current) return;
+    saveLock.current = true; setSaving(true); setSaveError('');
+    try {
+      await onSave(review.patch);
+      setDraft({}); setReview(null); setLastSaved(new Date().toLocaleString());
+    } catch (err) {
+      setSaveError(positionError(err, 'Save not confirmed. Your changes remain in this draft. Check your connection and retry; do not rely on these changes in a report yet.'));
+    } finally { saveLock.current = false; setSaving(false); }
+  };
+  const reviewChanges = () => { setSaveError(''); setReview({ before: savedPosition, patch }); };
+  const discard = () => {
+    if (window.confirm('Discard these unsaved position changes? The saved inspection will stay unchanged.')) {
+      setDraft({}); setSaveError('');
+    }
+  };
   const pendingCount = position.images.filter((i) => i.evidence_status === 'PENDING CAPTURE' || i.evidence_status === 'RECAPTURE REQUIRED').length;
   const [selectedType, setSelectedType] = useState<string>(lists.image_type[0]);
   const addImagesRef = useRef<HTMLInputElement>(null);
@@ -100,28 +145,24 @@ export function PositionPanel({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
-  const positionLabel = `${position.ohl} · ${position.phase} · ${position.string}${position.direction ? ` · ${position.direction}` : ''}`;
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
+  const deleteLock = useRef(false);
+  const positionLabel = formatPositionLabel(savedPosition);
   const confirmDelete = async () => {
-    if (deleting) return;
+    if (!deleteAcknowledged || deleteLock.current) return;
+    deleteLock.current = true;
     setDeleting(true); setDeleteError('');
     try {
       await onDelete();
       setDeleteOpen(false);
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
-      setDeleteError(typeof detail === 'string' ? detail : 'Could not delete this position. Check your connection and try again.');
-    } finally { setDeleting(false); }
+      setDeleteError(positionError(err, 'Deletion not confirmed. Check your connection and reload the visit to verify whether the server received the deletion before trying again.'));
+    } finally { deleteLock.current = false; setDeleting(false); }
   };
 
-  // Tmax/Tref/notes are free-typing fields. Committing on every keystroke (like the select fields
-  // below do) would fire a PATCH — and the resulting full visit refetch/re-render of all 12
-  // position panels — per character, which is what caused the typing lag: draft locally instead
-  // and commit once on blur. This component instance stays bound to one position.id for its whole
-  // life (parent renders it with `key={p.id}`), so seeding local state from props only on mount is
-  // safe — it never needs to resync from a later prop change.
-  const [tmaxDraft, setTmaxDraft] = useState<number | null>(position.tmax_c);
-  const [trefDraft, setTrefDraft] = useState<number | null>(position.tref_c);
-  const [notesDraft, setNotesDraft] = useState(position.inspector_notes || '');
+  const tmaxDraft = position.tmax_c;
+  const trefDraft = position.tref_c;
+  const notesDraft = position.inspector_notes || '';
   const deltaT = tmaxDraft != null && trefDraft != null ? (tmaxDraft - trefDraft).toFixed(1) : null;
 
   // "Add images" fills the pre-existing empty baseline slot (sequence 1, seeded for every position
@@ -168,7 +209,7 @@ export function PositionPanel({
         requestAnimationFrame(() => configurationRef.current?.focus());
       }}>Edit</Button>
       <Button size="small" color="error" startIcon={<DeleteRoundedIcon />} aria-label={`Delete position ${positionLabel}`} onClick={() => {
-        setDeleteError(''); setDeleteOpen(true);
+        setDeleteError(''); setDeleteAcknowledged(false); setDeleteOpen(true);
       }}>Delete</Button>
     </Stack>
     <Accordion expanded={expanded} onChange={(_, value) => setExpanded(value)} disableGutters variant="outlined" sx={{ '&:before': { display: 'none' } }}>
@@ -178,29 +219,30 @@ export function PositionPanel({
             <Grid size={{ xs: 12, sm: 3 }}>
               <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
                 <Typography sx={{ fontWeight: 700 }}>
-                  {position.ohl} · {position.phase} · {position.string_count === 'Double' ? `${position.string} — ${position.string === 'S1' ? 'Outer' : 'Inner'}` : position.string}
+                  {savedPosition.ohl} · {savedPosition.phase} · {savedPosition.string_count === 'Double' ? `${savedPosition.string} — ${savedPosition.string === 'S1' ? 'Outer' : 'Inner'}` : savedPosition.string}
                 </Typography>
-                {position.tower_proximity && (
+                {savedPosition.tower_proximity && (
                   <Chip
                     size="small"
                     variant="outlined"
-                    color={position.tower_proximity === 'Inner' ? 'info' : 'secondary'}
-                    label={position.tower_proximity}
+                    color={savedPosition.tower_proximity === 'Inner' ? 'info' : 'secondary'}
+                    label={savedPosition.tower_proximity}
                   />
                 )}
               </Stack>
               <Typography variant="caption" color="text.secondary">
-                {position.mount_type || 'Tower type not set'} · {position.string_count === 'Double' ? '2 strings' : position.string_count === 'Single' ? '1 string' : 'String count not set'} · {position.position_code || 'Direction not set'}
+                {savedPosition.mount_type || 'Tower type not set'} · {savedPosition.string_count === 'Double' ? '2 strings' : savedPosition.string_count === 'Single' ? '1 string' : 'String count not set'} · {savedPosition.position_code || 'Direction not set'}
+                {dirty && <Chip size="small" color="warning" label="Unsaved changes" sx={{ ml: 1 }} />}
               </Typography>
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
-              <ScreeningChip result={position.screening_result} />
+              <ScreeningChip result={savedPosition.screening_result} />
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
-              <HotspotChip value={position.hotspot} />
+              <HotspotChip value={savedPosition.hotspot} />
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
-              <SeverityChip severity={position.severity} />
+              <SeverityChip severity={savedPosition.severity} />
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
               {pendingCount > 0 ? (
@@ -213,9 +255,16 @@ export function PositionPanel({
         </Box>
       </AccordionSummary>
       <AccordionDetails>
-        <Stack spacing={2}>
+        <Stack component="fieldset" disabled={saving || deleting} spacing={2} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
+          <Alert severity={dirty ? 'warning' : lastSaved ? 'success' : 'info'}>
+            {dirty ? 'Unsaved changes — review and confirm saving before using these changes in a report.' : lastSaved ? `Saved on the server. Confirmed at ${lastSaved}.` : 'No unsaved field edits in this card. Changes require review and confirmation before saving.'}
+          </Alert>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+            <Button variant="contained" disabled={!dirty || saving} onClick={reviewChanges}>Review and save changes</Button>
+            <Button disabled={!dirty || saving} onClick={discard}>Discard changes</Button>
+          </Stack>
           <Box ref={configurationRef} tabIndex={-1} sx={{ outline: 'none', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', borderRadius: 2 } }}>
-            <PositionConfiguration position={position} lists={lists} towerArea={towerArea} onSave={onSaveConfiguration} />
+            <PositionConfiguration position={position} lists={lists} towerArea={towerArea} onChange={onUpdate} />
           </Box>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 4, md: 2 }}>
@@ -333,10 +382,7 @@ export function PositionPanel({
                 fullWidth
                 autoComplete="off"
                 value={tmaxDraft ?? ''}
-                onChange={(e) => setTmaxDraft(e.target.value ? Number(e.target.value) : null)}
-                onBlur={() => {
-                  if (tmaxDraft !== position.tmax_c) onUpdate({ tmax_c: tmaxDraft });
-                }}
+                onChange={(e) => onUpdate({ tmax_c: e.target.value ? Number(e.target.value) : null })}
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3, md: 2 }}>
@@ -347,10 +393,7 @@ export function PositionPanel({
                 fullWidth
                 autoComplete="off"
                 value={trefDraft ?? ''}
-                onChange={(e) => setTrefDraft(e.target.value ? Number(e.target.value) : null)}
-                onBlur={() => {
-                  if (trefDraft !== position.tref_c) onUpdate({ tref_c: trefDraft });
-                }}
+                onChange={(e) => onUpdate({ tref_c: e.target.value ? Number(e.target.value) : null })}
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3, md: 2 }}>
@@ -363,10 +406,7 @@ export function PositionPanel({
                 fullWidth
                 autoComplete="off"
                 value={notesDraft}
-                onChange={(e) => setNotesDraft(e.target.value)}
-                onBlur={() => {
-                  if (notesDraft !== (position.inspector_notes || '')) onUpdate({ inspector_notes: notesDraft });
-                }}
+                onChange={(e) => onUpdate({ inspector_notes: e.target.value })}
               />
             </Grid>
           </Grid>
@@ -624,9 +664,35 @@ export function PositionPanel({
               </Grid>
             )}
           </Box>
+          <Stack direction="row" spacing={1}>
+            <Button variant="contained" disabled={!dirty || saving} onClick={reviewChanges}>Review and save changes</Button>
+            <Button disabled={!dirty || saving} onClick={discard}>Discard changes</Button>
+          </Stack>
         </Stack>
       </AccordionDetails>
     </Accordion>
+    <Dialog open={!!review} onClose={() => { if (!saving) setReview(null); }} fullWidth maxWidth="md" aria-labelledby={`save-position-${position.id}`}>
+      <DialogTitle id={`save-position-${position.id}`}>Confirm inspection changes</DialogTitle>
+      <DialogContent>
+        <DialogContentText sx={{ mb: 2 }}>
+          Review changes to {positionLabel}. Confirming updates the saved inspection used in future reports.
+          Already generated report documents will not change; regenerate them if these corrections must be included.
+        </DialogContentText>
+        <Box sx={{ overflowX: 'auto' }}>
+          <Table size="small" aria-label="Position changes to confirm">
+            <TableHead><TableRow><TableCell>Field</TableCell><TableCell>Currently saved</TableCell><TableCell>New value</TableCell></TableRow></TableHead>
+            <TableBody>{review && positionChangeRows(review.before, review.patch).map(row => <TableRow key={row.key}>
+              <TableCell>{row.label}</TableCell><TableCell sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{row.before}</TableCell><TableCell sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{row.after}</TableCell>
+            </TableRow>)}</TableBody>
+          </Table>
+        </Box>
+        {saveError && <Alert severity="error" sx={{ mt: 2 }}>{saveError}</Alert>}
+      </DialogContent>
+      <DialogActions>
+        <Button autoFocus disabled={saving} onClick={() => setReview(null)}>Back to editing</Button>
+        <Button variant="contained" disabled={saving} onClick={() => void confirmSave()}>{saving ? 'Saving — waiting for server…' : 'Confirm and save changes'}</Button>
+      </DialogActions>
+    </Dialog>
     <Dialog open={deleteOpen} onClose={() => { if (!deleting) setDeleteOpen(false); }} aria-labelledby={`delete-position-${position.id}`}>
       <DialogTitle id={`delete-position-${position.id}`}>Delete inspection position?</DialogTitle>
       <DialogContent>
@@ -635,11 +701,17 @@ export function PositionPanel({
           annotations and voice note. You can add this position again to repeat the inspection.
           General visit photos and saved report documents are kept. This cannot be undone.
         </DialogContentText>
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          This removes {savedPosition.images.filter(image => image.file_path).length} evidence image(s) and {savedPosition.voice_note_path ? '1 voice recording' : 'no voice recordings'}.
+          Future reports will exclude this position. Previously generated documents are unchanged and may need to be regenerated.
+        </Alert>
+        {dirty && <Alert severity="warning" sx={{ mt: 1 }}>This position also has unsaved changes. Deleting it discards those changes.</Alert>}
+        <FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={deleteAcknowledged} disabled={deleting} onChange={event => setDeleteAcknowledged(event.target.checked)} />} label="I have checked this position and understand that deletion is permanent." />
         {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
       </DialogContent>
       <DialogActions>
         <Button autoFocus disabled={deleting} onClick={() => setDeleteOpen(false)}>Cancel</Button>
-        <Button color="error" variant="contained" disabled={deleting} onClick={() => void confirmDelete()}>{deleting ? 'Deleting…' : 'Delete position'}</Button>
+        <Button color="error" variant="contained" disabled={deleting || !deleteAcknowledged} onClick={() => void confirmDelete()}>{deleting ? 'Deleting — waiting for server…' : 'Confirm permanent deletion'}</Button>
       </DialogActions>
     </Dialog>
     </Box>
