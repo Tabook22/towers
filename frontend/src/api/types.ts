@@ -184,6 +184,7 @@ export interface DashboardTowerRow {
 
 export interface DashboardVisitRecord {
   id: number;
+  team_id: number | null;
   team_name: string | null;
   inspector_name: string | null;
   inspection_date: string | null;

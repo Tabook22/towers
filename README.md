@@ -44,6 +44,10 @@ the recorded team, inspector, inspection date, screening progress, hotspots, and
 Search by tower, area, team, or inspector; switch to **All towers** to include planned-only and
 unvisited towers. Each visit has a link to its inspection, and tower IDs open tower details.
 The popup respects the selected dashboard area and the crew's tower/team access.
+Use **Line** and **Visiting team** together to narrow the list. **Sort by** orders records by line,
+visiting team, or tower number. Selecting a team shows only that team's visits and evaluates
+recorded field activity for that team; sorting by team groups repeat visits under their actual
+visiting teams. Rows are paginated after sorting, and missing dates appear last in each group.
 
 “Visited” means a mission is in progress/completed, has a start time or closed inspection, or
 has recorded photos, position direction, screening, or uploaded evidence. A scheduled date alone

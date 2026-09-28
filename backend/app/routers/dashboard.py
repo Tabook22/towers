@@ -53,7 +53,7 @@ def dashboard_tower_history(db: Session = Depends(get_db), user: User = Depends(
                    or any(image.file_path for image in p.images) for p in visit.positions)
         )
         by_tower.setdefault(visit.tower_id, []).append(DashboardVisitRecord(
-            id=visit.id, team_name=visit.team.name if visit.team else None,
+            id=visit.id, team_id=visit.team_id, team_name=visit.team.name if visit.team else None,
             inspector_name=visit.inspector_name, inspection_date=visit.inspection_date,
             mission_status=visit.mission_status, has_field_activity=active,
             rollup=VisitRollup(**visit_rollup(visit)),

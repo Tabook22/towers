@@ -38,6 +38,7 @@ def test_history_preserves_visit_teams_dates_and_all_visits(db):
     rows = dashboard_tower_history(db, User(role='admin'), 'North')
     assert [r.tower.tower_id for r in rows] == ['T2', 'T10']
     assert [v.team_name for v in rows[1].visits] == ['Second crew', 'First crew']
+    assert [v.team_id for v in rows[1].visits] == [b.id, a.id]
     assert [v.inspection_date for v in rows[1].visits] == [dt.date(2026, 9, 21), dt.date(2026, 9, 20)]
     assert all(v.has_field_activity for v in rows[1].visits)
     assert not rows[0].visits[0].has_field_activity  # a scheduled date alone is not a visit

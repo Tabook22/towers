@@ -670,6 +670,7 @@ class ReportTemplatesActive(BaseModel):
 # ---------- Dashboard ----------
 class DashboardVisitRecord(BaseModel):
     id: int
+    team_id: int | None = None
     team_name: str | None = None
     inspector_name: str | None = None
     inspection_date: dt.date | None = None
