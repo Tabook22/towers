@@ -448,6 +448,22 @@ export function useDeleteVisit() {
 }
 
 // ---------- Positions ----------
+export function useDeletePosition(visitId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => { await apiClient.delete(`/api/positions/${id}`); },
+    onSuccess: async (_, id) => {
+      await qc.cancelQueries({ queryKey: ['visit', visitId] });
+      patchVisitCache(qc, visitId, visit => ({ ...visit, positions: visit.positions.filter(p => p.id !== id) }));
+      await Promise.all([
+        ['visit', visitId], ['visits'], ['dashboard'], ['towers'], ['archive'],
+        ['visit-photos', visitId], ['team-missions'], ['team-progress'],
+        ['team-archive-images'], ['oetc-report-images'],
+      ].map(queryKey => qc.invalidateQueries({ queryKey })));
+    },
+  });
+}
+
 export function useUpdatePosition(visitId: number) {
   const qc = useQueryClient();
   return useMutation({
@@ -472,12 +488,13 @@ export function useUpdatePosition(visitId: number) {
       await qc.invalidateQueries({ queryKey: ['visit', visitId] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['towers'] });
+      qc.invalidateQueries({ queryKey: ['archive'] });
+      qc.invalidateQueries({ queryKey: ['oetc-report-images'] });
     },
   });
 }
 
-// Adds a position beyond a visit's 12 baseline slots — only needed for a Tension-type tower
-// carrying the same OHL/phase/string out toward a second line Direction (see AddPositionBar).
+// Adds an additional direction or recreates a slot freed by editing/deleting a position.
 export function useCreatePosition(visitId: number) {
   const qc = useQueryClient();
   return useMutation({

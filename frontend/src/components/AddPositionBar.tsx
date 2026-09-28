@@ -14,10 +14,8 @@ function comboKey(ohl: string, phase: string, string_: string, direction: string
 }
 
 interface Props {
-  /** All baseline positions for this visit (the 12 canonical (OHL, phase, string) slots always
-   * exist server-side — see BUILD_PROMPT's fixed ID scheme — plus any extra Tension-direction rows
-   * already created). Only the ones in `hiddenIds` are offered here; everything else is already on
-   * screen. */
+  /** All existing positions. Hidden baseline slots can be activated; slots freed by an
+   * edit or deletion can be created again. */
   positions: Position[];
   hiddenIds: Set<number>;
   lists: ChoiceLists;
@@ -25,7 +23,7 @@ interface Props {
    * only this tower's own line directions (e.g. "Ashoor-Saada" -> Ashoor, Saada) for Tension. */
   towerArea?: string | null;
   onAdd: (position: Position, direction: string, mountType: string, stringCount: string) => Promise<void>;
-  /** Creates a missing slot after a string edit, or an additional Tension direction. */
+  /** Creates a missing slot after an edit/deletion, or an additional Tension direction. */
   onCreate: (ohl: string, phase: string, string_: string, direction: string, mountType: string, stringCount: string) => Promise<void>;
 }
 

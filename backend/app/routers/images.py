@@ -86,6 +86,9 @@ def _move_archived_file(base_dir: Path, old_rel: str | None, new_rel: str) -> st
     new_path = base_dir / new_rel
     if old_path == new_path:
         return old_rel
+    if new_path.exists():
+        new_path = new_path.with_name(f"{new_path.stem}-revision-{uuid.uuid4().hex}{new_path.suffix}")
+        new_rel = new_path.relative_to(base_dir).as_posix()
     new_path.parent.mkdir(parents=True, exist_ok=True)
     old_path.replace(new_path)
     return new_rel
@@ -223,6 +226,11 @@ async def apply_upload(
     ext = file_extension(filename, content_type)
     storage_code = f"{img.image_code}-revision-{uuid.uuid4().hex}" if new_revision else img.image_code
     rel_path = archive_relative_path(tower.tower_id, cap_date, storage_code, ext)
+    # A position may have been renamed, freeing its old code while its evidence still
+    # lives at this path. Re-adding that slot must never overwrite the older evidence.
+    if (settings.images_dir / rel_path).exists():
+        storage_code = f"{img.image_code}-revision-{uuid.uuid4().hex}"
+        rel_path = archive_relative_path(tower.tower_id, cap_date, storage_code, ext)
     rel_path, size, checksum = save_upload(raw, rel_path)
     thumb_path = build_thumbnail(rel_path)
 
@@ -516,6 +524,8 @@ async def save_annotation(
     cap_date = img.capture_date or dt.date.today()
     ext = file_extension(file.filename, file.content_type)
     rel_path = archive_relative_path(tower.tower_id, cap_date, f"{img.image_code}-annotated", ext)
+    if (settings.images_dir / rel_path).exists():
+        rel_path = archive_relative_path(tower.tower_id, cap_date, f"{img.image_code}-annotated-{uuid.uuid4().hex}", ext)
     rel_path, _size, _checksum = save_upload(raw, rel_path)
     thumb_path = build_thumbnail(rel_path)
 

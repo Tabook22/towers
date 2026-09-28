@@ -27,6 +27,7 @@ import {
   useClearImageFile,
   useCreatePosition,
   useDeleteImage,
+  useDeletePosition,
   useDeletePositionVoiceNote,
   useDeleteVisit,
   useMakePrimaryImage,
@@ -82,6 +83,7 @@ export function VisitDetailPage() {
   const { data: lists } = useChoiceLists();
   const updateVisit = useUpdateVisit();
   const updatePosition = useUpdatePosition(id);
+  const deletePosition = useDeletePosition(id);
   const createPosition = useCreatePosition(id);
   const uploadImage = useUploadImage(id);
   const updateImage = useUpdateImage(id);
@@ -139,11 +141,12 @@ export function VisitDetailPage() {
     .flatMap((p) => p.images.map((img) => ({ position: p, image: img })))
     .filter(({ image }) => image.evidence_status === 'PENDING CAPTURE' || image.evidence_status === 'RECAPTURE REQUIRED');
 
-  // All 12 canonical (OHL, phase, string) slots always exist server-side (the fixed ID scheme
-  // depends on it — see BUILD_PROMPT), but a slot only counts as "real" once it has actual data:
+  // Visits start with 12 canonical slots; edited/deleted slots can be added again.
+  // A slot only counts as "real" once it has actual data:
   // a direction set, a screening result recorded, an uploaded photo, or a voice note recorded for
   // it. Everything else stays hidden until the inspector explicitly adds it below.
   const isPositionActive = (p: Position) =>
+    !!p.mount_type || !!p.string_count || !!p.inspector_notes ||
     !!p.direction ||
     p.screening_result !== 'Not inspected' ||
     p.images.some((img) => !!img.file_path) ||
@@ -574,7 +577,10 @@ export function VisitDetailPage() {
               onRetypeImage={(imageId, newType) => retypeImage.mutate({ id: imageId, newType })}
               onMakePrimaryImage={(imageId) => makePrimaryImage.mutate(imageId)}
               annotationSaving={saveAnnotation.isPending}
-              onRemove={addedIds.has(p.id) && !isPositionActive(p) ? () => handleRemovePosition(p.id) : undefined}
+              onDelete={async () => {
+                await deletePosition.mutateAsync(p.id);
+                handleRemovePosition(p.id);
+              }}
               onRecordVoiceNote={(blob, durationSeconds) =>
                 addVoiceNote.mutate({ positionId: p.id, file: blob, durationSeconds })
               }

@@ -346,6 +346,8 @@ class ArchiveImageOut(ImageOut):
 
 # ---------- Position ----------
 class PositionUpdate(BaseModel):
+    ohl: Literal["OHL1", "OHL2"] | None = None
+    phase: Literal["R", "Y", "B"] | None = None
     string: Literal["S1", "S2"] | None = None
     direction: str | None = None
     tower_proximity: str | None = None
@@ -368,6 +370,13 @@ class PositionUpdate(BaseModel):
     pollution_condition: str | None = None
     thermal_indication: str | None = None
     visual_indications: str | None = None  # comma-joined subset of VISUAL_INDICATION_CHOICES
+
+    @field_validator("ohl", "phase")
+    @classmethod
+    def required_identity(cls, v):
+        if v is None:
+            raise ValueError("OHL and phase cannot be cleared")
+        return v
 
     @field_validator("direction")
     @classmethod

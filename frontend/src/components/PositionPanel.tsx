@@ -3,10 +3,16 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
+  Alert,
   Box,
   Button,
   Checkbox,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   FormControlLabel,
   Grid,
   IconButton,
@@ -23,6 +29,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMoreRounded';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternateRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SubtitlesRoundedIcon from '@mui/icons-material/SubtitlesRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import { mediaUrl } from '../api/client';
 import type { ChoiceLists, ImageRow, Position } from '../api/types';
 import { PositionConfiguration } from './PositionConfiguration';
@@ -51,9 +59,7 @@ interface Props {
   onMakePrimaryImage: (imageId: number) => void;
   annotationSaving?: boolean;
   defaultExpanded?: boolean;
-  /** Only supplied for a position that was just added this session and still has no data — lets the
-   * user back out of an add-by-mistake. Nothing to un-save server-side since nothing was committed. */
-  onRemove?: () => void;
+  onDelete: () => Promise<void>;
   /** This position's own voice note — recording again replaces it; see backend
    * routers/positions.py's /voice endpoints for why it can never land on another position. */
   onRecordVoiceNote: (blob: Blob, durationSeconds: number) => void;
@@ -79,7 +85,7 @@ export function PositionPanel({
   onMakePrimaryImage,
   annotationSaving,
   defaultExpanded,
-  onRemove,
+  onDelete,
   onRecordVoiceNote,
   onTranscribeVoiceNote,
   onDeleteVoiceNote,
@@ -89,6 +95,23 @@ export function PositionPanel({
   const pendingCount = position.images.filter((i) => i.evidence_status === 'PENDING CAPTURE' || i.evidence_status === 'RECAPTURE REQUIRED').length;
   const [selectedType, setSelectedType] = useState<string>(lists.image_type[0]);
   const addImagesRef = useRef<HTMLInputElement>(null);
+  const configurationRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(!!defaultExpanded);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const positionLabel = `${position.ohl} · ${position.phase} · ${position.string}${position.direction ? ` · ${position.direction}` : ''}`;
+  const confirmDelete = async () => {
+    if (deleting) return;
+    setDeleting(true); setDeleteError('');
+    try {
+      await onDelete();
+      setDeleteOpen(false);
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+      setDeleteError(typeof detail === 'string' ? detail : 'Could not delete this position. Check your connection and try again.');
+    } finally { setDeleting(false); }
+  };
 
   // Tmax/Tref/notes are free-typing fields. Committing on every keystroke (like the select fields
   // below do) would fire a PATCH — and the resulting full visit refetch/re-render of all 12
@@ -138,8 +161,18 @@ export function PositionPanel({
     });
 
   return (
-    <Accordion defaultExpanded={defaultExpanded} disableGutters variant="outlined" sx={{ '&:before': { display: 'none' } }}>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+    <Box sx={{ position: 'relative' }}>
+    <Stack direction="row" spacing={0.5} sx={{ position: 'absolute', right: 40, top: 12, zIndex: 1 }}>
+      <Button size="small" startIcon={<EditRoundedIcon />} aria-label={`Edit position ${positionLabel}`} onClick={() => {
+        setExpanded(true);
+        requestAnimationFrame(() => configurationRef.current?.focus());
+      }}>Edit</Button>
+      <Button size="small" color="error" startIcon={<DeleteRoundedIcon />} aria-label={`Delete position ${positionLabel}`} onClick={() => {
+        setDeleteError(''); setDeleteOpen(true);
+      }}>Delete</Button>
+    </Stack>
+    <Accordion expanded={expanded} onChange={(_, value) => setExpanded(value)} disableGutters variant="outlined" sx={{ '&:before': { display: 'none' } }}>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ '& .MuiAccordionSummary-content': { pr: { sm: 20 }, pt: { xs: 4, sm: 0 }, minHeight: 48, alignItems: 'center' } }}>
         <Box sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 1 }}>
           <Grid container spacing={2} sx={{ flex: 1, pr: 2, alignItems: 'center' }}>
             <Grid size={{ xs: 12, sm: 3 }}>
@@ -177,24 +210,13 @@ export function PositionPanel({
               )}
             </Grid>
           </Grid>
-          {onRemove && (
-            <Tooltip title="Remove — nothing has been filled in yet">
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove();
-                }}
-              >
-                <CloseRoundedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
         </Box>
       </AccordionSummary>
       <AccordionDetails>
         <Stack spacing={2}>
-          <PositionConfiguration position={position} lists={lists} towerArea={towerArea} onSave={onSaveConfiguration} />
+          <Box ref={configurationRef} tabIndex={-1} sx={{ outline: 'none', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', borderRadius: 2 } }}>
+            <PositionConfiguration position={position} lists={lists} towerArea={towerArea} onSave={onSaveConfiguration} />
+          </Box>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 4, md: 2 }}>
               <FormControlLabel
@@ -206,24 +228,6 @@ export function PositionPanel({
                 }
                 label="Installed"
               />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4, md: 2 }}>
-              <TextField
-                select
-                size="small"
-                label="Direction"
-                fullWidth
-                value={position.direction || ''}
-                onChange={(e) => onUpdate({ direction: e.target.value })}
-                disabled={position.mount_type === 'Suspension'}
-                helperText={position.mount_type === 'Suspension' ? 'Not needed for Suspension' : undefined}
-              >
-                {lists.direction.map((d) => (
-                  <MenuItem key={d} value={d}>
-                    {d}
-                  </MenuItem>
-                ))}
-              </TextField>
             </Grid>
             <Grid size={{ xs: 12, sm: 4, md: 2 }}>
               <TextField
@@ -623,5 +627,21 @@ export function PositionPanel({
         </Stack>
       </AccordionDetails>
     </Accordion>
+    <Dialog open={deleteOpen} onClose={() => { if (!deleting) setDeleteOpen(false); }} aria-labelledby={`delete-position-${position.id}`}>
+      <DialogTitle id={`delete-position-${position.id}`}>Delete inspection position?</DialogTitle>
+      <DialogContent>
+        <DialogContentText>
+          Delete {positionLabel}? This permanently removes its inspection results, evidence images,
+          annotations and voice note. You can add this position again to repeat the inspection.
+          General visit photos and saved report documents are kept. This cannot be undone.
+        </DialogContentText>
+        {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
+      </DialogContent>
+      <DialogActions>
+        <Button autoFocus disabled={deleting} onClick={() => setDeleteOpen(false)}>Cancel</Button>
+        <Button color="error" variant="contained" disabled={deleting} onClick={() => void confirmDelete()}>{deleting ? 'Deleting…' : 'Delete position'}</Button>
+      </DialogActions>
+    </Dialog>
+    </Box>
   );
 }

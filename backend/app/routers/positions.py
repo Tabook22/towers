@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.config import settings
 from app.database import get_db
 from app.deps import check_visit_team_access, get_current_user
-from app.models import IMAGE_TYPE_CHOICES, Image, Position, User, Visit
+from app.models import IMAGE_TYPE_CHOICES, Image, Position, ReportImage, ThermalEditGrant, User, Visit, VisitPhoto
 from app.routers.images import apply_upload
 from app.routers.teams import ACCEPTED_AUDIO_TYPES
 from app.schemas import ImageOut, PositionOut, PositionUpdate
@@ -50,12 +51,14 @@ def update_position(
     if ("string" in data or "string_count" in data) and (string not in ("S1", "S2") or (count == "Single" and string != "S1")):
         raise HTTPException(status_code=422, detail="A one-string position must use S1. Choose a valid string before saving.")
     direction = data.get("direction", pos.direction)
-    if string != pos.string or direction != pos.direction:
-        conflict = db.query(Position).filter(Position.visit_id == pos.visit_id, Position.ohl == pos.ohl,
-            Position.phase == pos.phase, Position.string == string, Position.direction == direction,
+    ohl = data.get("ohl", pos.ohl)
+    phase = data.get("phase", pos.phase)
+    if (ohl, phase, string, direction) != (pos.ohl, pos.phase, pos.string, pos.direction):
+        conflict = db.query(Position).filter(Position.visit_id == pos.visit_id, Position.ohl == ohl,
+            Position.phase == phase, Position.string == string, Position.direction == direction,
             Position.id != pos.id).first()
         if conflict:
-            raise HTTPException(status_code=409, detail="This phase, string and direction already have a position. Open that position instead; no data has been overwritten.")
+            raise HTTPException(status_code=409, detail="This OHL, phase, string and direction already have a position. Open that position instead; no data has been overwritten.")
     if "string" in data or "string_count" in data:
         data["tower_proximity"] = ("Outer" if string == "S1" else "Inner") if count == "Double" else None
     for k, v in data.items():
@@ -65,6 +68,41 @@ def update_position(
     db.commit()
     db.refresh(pos)
     return pos
+
+
+@router.delete("/{position_id}", status_code=204)
+def delete_position(position_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Delete one inspection and its evidence, allowing its slot to be added again."""
+    pos = _load_position(db, position_id, user)
+    files = [(settings.voice_notes_dir, pos.voice_note_path)]
+    for img in pos.images:
+        files.extend([
+            (settings.images_dir, img.file_path),
+            (settings.thumbnails_dir, img.thumbnail_path),
+            (settings.images_dir, img.annotated_path),
+            (settings.thumbnails_dir, img.annotated_thumbnail_path),
+        ])
+    image_ids = [img.id for img in pos.images]
+    # Saved report documents remain intact; remove their links to deleted live evidence.
+    db.query(ReportImage).filter(ReportImage.position_id == pos.id).delete(synchronize_session="fetch")
+    db.query(ThermalEditGrant).filter(ThermalEditGrant.image_id.in_(image_ids)).delete(synchronize_session="fetch")
+    # Ad-hoc visit photos belong to the visit. Keep them, removing only the optional tag.
+    db.query(VisitPhoto).filter(VisitPhoto.position_id == pos.id).update(
+        {VisitPhoto.position_id: None}, synchronize_session="fetch"
+    )
+    db.delete(pos)
+    db.commit()
+    # Only remove files after a successful commit, and only within their storage roots.
+    for base, relative in files:
+        if not relative:
+            continue
+        path = (base / relative).resolve()
+        if not path.is_relative_to(base.resolve()):
+            continue
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            logging.getLogger(__name__).warning("Could not remove deleted position file %s", path, exc_info=True)
 
 
 @router.post("/{position_id}/images", response_model=ImageOut, status_code=201)
