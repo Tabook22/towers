@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import io
+import hashlib
 import uuid
 from pathlib import Path
 
@@ -11,6 +12,7 @@ import numpy as np
 from PIL import Image as PILImage, UnidentifiedImageError
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy import update
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
@@ -26,7 +28,6 @@ from app.services.archive import (
     file_extension,
     save_upload,
 )
-from app.services.id_gen import image_code as compute_image_code
 from app.services.report_images import selected_images
 from app.services.smart_enhance import smart_enhance
 
@@ -124,7 +125,8 @@ def retype_image(
     if dest is None:
         existing = [i for i in pos.images if i.image_type == payload.new_type]
         next_seq = max((i.sequence for i in existing), default=0) + 1
-        base_code = compute_image_code(pos.position_code, pos.ohl, pos.phase, pos.string, pos.direction, payload.new_type)
+        from app.services.codes import position_image_code
+        base_code = position_image_code(pos, payload.new_type)
         new_code = base_code if next_seq == 1 else f"{base_code}-{next_seq}"
         dest = Image(position_id=pos.id, image_type=payload.new_type, image_code=new_code, sequence=next_seq)
         db.add(dest)
@@ -258,13 +260,26 @@ async def upload_image(
     longitude: float | None = Form(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    request_token: str | None = Form(default=None, max_length=64),
 ):
     img = _load_image(db, image_id, user)
+    token = request_token if isinstance(request_token, str) else None
+    raw = await file.read()
+    db.execute(update(Position).where(Position.id == img.position_id).values(updated_at=Position.updated_at))
+    db.refresh(img.position)
+    db.refresh(img)
+    if not img.position.in_scope:
+        raise HTTPException(409, 'This position is outside the prepared layout. Include it before uploading evidence.')
+    if token and img.file_path:
+        if img.upload_token == token and img.checksum == hashlib.sha256(raw).hexdigest():
+            db.commit()
+            return img
+        raise HTTPException(409, 'This evidence slot was filled while you were uploading. Reload and add the file as supplementary evidence; the saved image was preserved.')
     if not img.position.direction:
         raise HTTPException(status_code=400, detail="Set the position's Direction before uploading images")
 
-    raw = await file.read()
     await apply_upload(img, raw, file.filename, file.content_type, capture_date, capture_time, latitude, longitude)
+    img.upload_token = token
 
     db.commit()
     db.refresh(img)

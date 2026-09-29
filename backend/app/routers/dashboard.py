@@ -49,8 +49,9 @@ def dashboard_tower_history(db: Session = Depends(get_db), user: User = Depends(
         active = bool(
             visit.mission_status in ("in_progress", "completed") or visit.start_time
             or visit.status == "closed" or visit.photos
-            or any(p.direction or p.screening_result not in (None, "Not inspected")
-                   or any(image.file_path for image in p.images) for p in visit.positions)
+            or any((p.in_scope is not False) and (
+                (p.direction and not p.prepared_only) or p.screening_result not in (None, "Not inspected")
+                or any(image.file_path for image in p.images)) for p in visit.positions)
         )
         by_tower.setdefault(visit.tower_id, []).append(DashboardVisitRecord(
             id=visit.id, team_id=visit.team_id, team_name=visit.team.name if visit.team else None,

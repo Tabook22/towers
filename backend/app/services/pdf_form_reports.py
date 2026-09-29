@@ -67,6 +67,8 @@ def build_field_values(visit: Visit) -> dict[str, str]:
     # for that slot off this particular export; the dynamic Word/other reports show every row.
     by_slot: dict[tuple[str, str, str], object] = {}
     for p in sorted(visit.positions, key=lambda p: p.id):
+        if getattr(p, 'in_scope', True) is False:
+            continue
         by_slot.setdefault((p.ohl, p.phase, p.string), p)
     for i, combo in enumerate(POSITION_SLOT_ORDER, start=1):
         p = by_slot.get(combo)

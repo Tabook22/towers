@@ -136,7 +136,7 @@ def render_visit_report_docx(visit: Visit, template_path) -> bytes:
         "tower": visit.tower,
         "visit": visit,
         "rollup": visit_rollup(visit),
-        "positions": [_position_context(tpl, p) for p in visit.positions],
+        "positions": [_position_context(tpl, p) for p in visit.positions if getattr(p, 'in_scope', True) is not False],
         "generated_date": dt.date.today().isoformat(),
     }
     # Plenty of fields here are legitimately unset (a position not yet screened, a visit header

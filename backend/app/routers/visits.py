@@ -26,6 +26,8 @@ from app.routers.images import apply_upload
 from app.schemas import (
     ImageOut,
     PositionCreate,
+    PositionBatchUpdate,
+    PreparePositions,
     PositionOut,
     VisitCreate,
     VisitDetail,
@@ -173,6 +175,105 @@ def get_visit(visit_id: int, db: Session = Depends(get_db), user: User = Depends
     visit = _load_visit(db, visit_id)
     check_visit_team_access(visit, user)
     return attach_rollup(visit, detail=True)
+
+
+def _check_workflow_access(visit: Visit, user: User):
+    if user.role not in ('admin', 'reviewer', 'inspector', 'team_leader', 'team_member'):
+        raise HTTPException(403, 'Not enough permissions')
+    check_visit_team_access(visit, user)
+    if user.role == 'team_member' and visit.assigned_member_id not in (None, user.id):
+        raise HTTPException(403, 'This visit is assigned to another inspector')
+
+
+@router.patch('/{visit_id}/positions/batch', response_model=VisitDetail)
+def update_positions_batch(visit_id: int, payload: PositionBatchUpdate,
+                           db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.routers.positions import apply_position_update
+    visit = _load_visit(db, visit_id)
+    _check_workflow_access(visit, user)
+    by_id = {p.id: p for p in visit.positions}
+    ids = [item.id for item in payload.items]
+    if len(set(ids)) != len(ids) or any(pid not in by_id for pid in ids):
+        raise HTTPException(422, 'Select each position once, from this visit only')
+    try:
+        for item in payload.items:
+            changes = item.changes.model_copy(update={'expected_updated_at': item.expected_updated_at})
+            apply_position_update(db, by_id[item.id], changes)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.expire_all()
+    return attach_rollup(_load_visit(db, visit_id), detail=True)
+
+
+@router.post('/{visit_id}/positions/prepare', response_model=VisitDetail)
+def prepare_positions(visit_id: int, payload: PreparePositions,
+                      db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.routers.positions import claim_position_version
+    from app.services.position_workflow import has_observations
+    visit = _load_visit(db, visit_id)
+    _check_workflow_access(visit, user)
+    if payload.save_template and user.role == 'team_member':
+        raise HTTPException(403, 'A team leader must save the tower template')
+    def key(p):
+        return (p.ohl, p.phase, p.string, p.direction)
+    keys = [key(slot) for slot in payload.slots]
+    if len(set(keys)) != len(keys):
+        raise HTTPException(422, 'The layout contains duplicate positions')
+    if any(not slot.mount_type or not slot.string_count for slot in payload.slots):
+        raise HTTPException(422, 'Each position needs tower type and string count')
+    if set(payload.expected_versions) != {p.id for p in visit.positions}:
+        raise HTTPException(409, 'The position list changed. Reload the visit before preparing its layout.')
+    try:
+        # Claim all rows before modifying any: a stale preview rolls back the whole operation.
+        for pos in visit.positions:
+            claim_position_version(db, pos, payload.expected_versions[pos.id])
+        db.flush()
+        # Re-read evidence after acquiring the transaction's write lock.
+        current_ids = {row[0] for row in db.query(Position.id).filter(Position.visit_id == visit_id).all()}
+        if current_ids != set(payload.expected_versions):
+            raise HTTPException(409, 'The position list changed. Reload the visit before preparing its layout.')
+        for pos in visit.positions:
+            db.expire(pos, ['images'])
+        remaining = list(visit.positions)
+        for slot in payload.slots:
+            pos = next((p for p in remaining if key(p) == key(slot)), None)
+            if pos is None:
+                pos = next((p for p in remaining if (p.ohl, p.phase, p.string) == (slot.ohl, slot.phase, slot.string)
+                            and not p.direction and not has_observations(p)), None)
+            if pos is not None:
+                remaining.remove(pos)
+                # Recorded configuration/evidence is never overwritten by a template.
+                if has_observations(pos) or (pos.direction and not pos.prepared_only):
+                    pos.in_scope = True
+                    continue
+            else:
+                pos = Position(visit=visit, ohl=slot.ohl, phase=slot.phase, string=slot.string)
+                db.add(pos)
+                db.flush()
+                pos.images = [Image(image_type=kind, evidence_status='NOT REQUIRED') for kind in IMAGE_TYPE_CHOICES]
+                db.flush()
+            for field in ('direction', 'mount_type', 'string_count'):
+                setattr(pos, field, getattr(slot, field))
+            pos.in_scope = True
+            pos.prepared_only = True
+            pos.tower_proximity = ('Outer' if pos.string == 'S1' else 'Inner') if slot.string_count == 'Double' else None
+            refresh_position_codes(pos)
+            db.flush()
+        for pos in remaining:
+            if has_observations(pos) or (pos.direction and not pos.prepared_only):
+                raise HTTPException(409, f'The layout omits recorded position {pos.ohl} {pos.phase} {pos.string} {pos.direction or ""}. Include it; existing work cannot be hidden by a template.')
+            pos.in_scope = False
+            pos.prepared_only = True
+        if payload.save_template:
+            visit.tower.inspection_layout = [slot.model_dump() for slot in payload.slots]
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.expire_all()
+    return attach_rollup(_load_visit(db, visit_id), detail=True)
 
 
 @router.post("/{visit_id}/positions", response_model=PositionOut, status_code=201)

@@ -5,10 +5,29 @@ or when a Visit's 12 positions (and their 4 image slots each) are first created.
 """
 from __future__ import annotations
 
-from app.models import IMAGE_TYPE_CHOICES, Position
+from sqlalchemy.orm import object_session
+from app.models import IMAGE_TYPE_CHOICES, Image, Position
 from app.services.id_gen import image_code, position_code
 
 CLOSE_TYPES = {"TH Close", "RGB Close"}
+
+
+def prepare_image_namespace(position: Position) -> None:
+    """Keep existing codes; disambiguate a repeat visit without renaming old evidence."""
+    db = object_session(position)
+    if position.image_namespace or not db or not position.direction:
+        return
+    codes = [image_code(position.position_code, position.ohl, position.phase, position.string,
+                        position.direction, kind) for kind in IMAGE_TYPE_CHOICES]
+    with db.no_autoflush:
+        conflict = db.query(Image.id).filter(Image.image_code.in_(codes), Image.position_id != position.id).first()
+    if conflict:
+        position.image_namespace = f'V{position.visit_id}-P{position.id}'
+
+
+def position_image_code(position: Position, image_type: str) -> str | None:
+    base = image_code(position.position_code, position.ohl, position.phase, position.string, position.direction, image_type)
+    return f'{base}-{position.image_namespace}' if base and position.image_namespace else base
 
 
 def refresh_position_codes(position: Position) -> None:
@@ -37,6 +56,7 @@ def refresh_position_codes(position: Position) -> None:
     tower_id = position.visit.tower.tower_id
     pcode = position_code(tower_id, position.ohl, position.phase, position.string, position.direction)
     position.position_code = pcode
+    prepare_image_namespace(position)
 
     # Only the baseline (sequence == 1) image of each type feeds evidence-status/roll-up counting
     # (see models.Image) — filter to it explicitly rather than picking whichever image of that type
@@ -47,7 +67,7 @@ def refresh_position_codes(position: Position) -> None:
         img = baseline_by_type.get(img_type)
         if img is None:
             continue
-        img.image_code = image_code(pcode, position.ohl, position.phase, position.string, position.direction, img_type)
+        img.image_code = position_image_code(position, img_type)
         _apply_default_evidence_status(position, img)
 
     # Extra gallery images (sequence > 1) aren't part of the required checklist, but their code
@@ -56,7 +76,7 @@ def refresh_position_codes(position: Position) -> None:
     for img in position.images:
         if img.sequence == 1:
             continue
-        base = image_code(pcode, position.ohl, position.phase, position.string, position.direction, img.image_type)
+        base = position_image_code(position, img.image_type)
         img.image_code = base if base is None else f"{base}-{img.sequence}"
 
 

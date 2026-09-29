@@ -7,7 +7,7 @@ POSSIBLE_POSITIONS = 12  # 2 OHL circuits x 3 phases x 2 strings
 
 
 def visit_rollup(visit: Visit) -> dict:
-    positions: list[Position] = visit.positions
+    positions: list[Position] = [p for p in visit.positions if getattr(p, 'in_scope', True) is not False]
     installed = [p for p in positions if p.installed]
     screened = [p for p in installed if p.screening_result not in (None, "Not inspected")]
     hotspots = [p for p in positions if p.hotspot == "Yes"]

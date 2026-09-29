@@ -35,7 +35,8 @@ def _image_sort_key(img: Image):
 
 
 def _position_has_activity(pos: Position) -> bool:
-    return bool(pos.direction) or any(img.file_path for img in pos.images)
+    from app.services.position_workflow import reportable_position
+    return reportable_position(pos)
 
 
 def query_team_activity_visits(

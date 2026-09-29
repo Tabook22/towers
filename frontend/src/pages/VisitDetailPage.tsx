@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -6,10 +6,6 @@ import {
   Card,
   CardContent,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Grid,
   LinearProgress,
   MenuItem,
@@ -57,6 +53,9 @@ import FactCheckIcon from '@mui/icons-material/FactCheckRounded';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartmentRounded';
 import PendingActionsIcon from '@mui/icons-material/PendingActionsRounded';
 import { positionLabel } from '../utils/positionChanges';
+import { VisitWorkflowToolbar } from '../components/VisitWorkflowToolbar';
+import { VisitEquipmentPreset } from '../components/VisitEquipmentPreset';
+import { mergePositionDraft, restorePositionDrafts, type PositionDrafts } from '../utils/visitWorkflow';
 
 // Not part of the workbook's Lists sheet (Thermal mode was free text there) — this is a curated set
 // of the modes field crews actually report on radiometric thermal cameras (FLIR/DJI H20T etc.).
@@ -72,6 +71,11 @@ const THERMAL_MODE_OPTIONS = [
 ];
 
 export function VisitDetailPage() {
+  const { visitId } = useParams();
+  return <VisitDetailWorkspace key={visitId} />;
+}
+
+function VisitDetailWorkspace() {
   const { visitId } = useParams();
   const id = Number(visitId);
   const queryClient=useQueryClient();
@@ -103,33 +107,48 @@ export function VisitDetailPage() {
   const transcribeVoiceNote = useTranscribePositionVoiceNote(id);
   const deleteVoiceNote = useDeletePositionVoiceNote(id);
 
+  const [headerError, setHeaderError] = useState('');
   const [headerDraft, setHeaderDraft] = useState<Record<string, unknown> | null>(null);
   const [receipt, setReceipt] = useState<{ title: string; message: string; time: string } | null>(null);
-  const [receiptOpen, setReceiptOpen] = useState(false);
-  const [dirtyPositions, setDirtyPositions] = useState<Set<number>>(new Set());
-  const handleDirtyChange = useCallback((positionId: number, dirty: boolean) => {
-    setDirtyPositions(current => {
-      if (current.has(positionId) === dirty) return current;
-      const next = new Set(current);
-      if (dirty) next.add(positionId); else next.delete(positionId);
-      return next;
-    });
-  }, []);
+  const draftStorageKey = `iip-visit-drafts:${user?.username}:${id}`;
+  const [drafts, setDrafts] = useState<PositionDrafts>(() => {
+    try { return restorePositionDrafts(sessionStorage.getItem(draftStorageKey), id); } catch { return {}; }
+  });
+  const [draftStorageError, setDraftStorageError] = useState(false);
   useEffect(() => {
-    if (!dirtyPositions.size) return;
+    try {
+      if (Object.keys(drafts).length) sessionStorage.setItem(draftStorageKey, JSON.stringify(drafts));
+      else sessionStorage.removeItem(draftStorageKey);
+      // Reflect the outcome of synchronizing drafts with browser storage.
+      // oxlint-disable-next-line react/set-state-in-effect
+      setDraftStorageError(false);
+    } catch { setDraftStorageError(true); }
+  }, [drafts, draftStorageKey]);
+  const [selectedPositionId, setSelectedPositionId] = useState<number | null>(null);
+  const [batchSaving, setBatchSaving] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const dirtyPositions = new Set(Object.keys(drafts).map(Number));
+  useEffect(() => {
+    if (!Object.keys(drafts).length && !headerDraft) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [drafts, headerDraft]);
+  useEffect(() => {
+    if (!dirtyPositions.size && !uploadBusy && !headerDraft) return;
     const confirmLeave = (event: MouseEvent) => {
       const link = (event.target as Element)?.closest?.('a[href]') as HTMLAnchorElement | null;
       if (!link || link.target === '_blank' || link.hasAttribute('download') || link.href === window.location.href || event.ctrlKey || event.metaKey) return;
-      if (!window.confirm('Leave this inspection and discard unsaved position changes? Save them first if they must appear in reports.')) {
+      if (!window.confirm('Leave this inspection and discard unsaved inspection changes? Save them first if they must appear in reports.')) {
         event.preventDefault(); event.stopPropagation();
       }
     };
     document.addEventListener('click', confirmLeave, true);
     return () => document.removeEventListener('click', confirmLeave, true);
-  }, [dirtyPositions.size]);
+  }, [dirtyPositions.size, uploadBusy, headerDraft]);
   const confirmSaved = (title: string, message: string) => {
     setReceipt({ title, message, time: new Date().toLocaleString() });
-    setReceiptOpen(true);
+
   };
   // Positions manually revealed this session via "Add position" but that don't have real data yet —
   // isPositionActive() below already covers everything with data, this only plugs the gap between
@@ -162,14 +181,19 @@ export function VisitDetailPage() {
     setHeaderDraft((d) => ({ ...(d || {}), [field]: value }));
   };
 
-  const commitHeader = () => {
-    if (headerDraft && Object.keys(headerDraft).length > 0) {
-      updateVisit.mutate({ id, payload: headerDraft });
-      setHeaderDraft(null);
-    }
+  const commitHeader = async () => {
+    if (!headerDraft || updateVisit.isPending) return;
+    const submitted = { ...headerDraft }; setHeaderError('');
+    try {
+      await updateVisit.mutateAsync({ id, payload: submitted });
+      setHeaderDraft(current => {
+        const remaining = Object.fromEntries(Object.entries(current || {}).filter(([key, value]) => value !== submitted[key]));
+        return Object.keys(remaining).length ? remaining : null;
+      });
+    } catch { setHeaderError('Visit details were not saved. Your entries are retained; check the connection and retry.'); }
   };
 
-  const pendingEvidence = visit.positions
+  const pendingEvidence = visit.positions.filter(p => p.in_scope !== false)
     .flatMap((p) => p.images.map((img) => ({ position: p, image: img })))
     .filter(({ image }) => image.evidence_status === 'PENDING CAPTURE' || image.evidence_status === 'RECAPTURE REQUIRED');
 
@@ -183,9 +207,9 @@ export function VisitDetailPage() {
     p.screening_result !== 'Not inspected' ||
     p.images.some((img) => !!img.file_path) ||
     !!p.voice_note_path;
-  const visiblePositions = visit.positions.filter((p) => isPositionActive(p) || addedIds.has(p.id));
+  const visiblePositions = visit.positions.filter((p) => p.in_scope !== false && (isPositionActive(p) || addedIds.has(p.id)));
   const hiddenIds = new Set(
-    visit.positions.filter((p) => !isPositionActive(p) && !addedIds.has(p.id)).map((p) => p.id),
+    visit.positions.filter((p) => p.in_scope === false || (!isPositionActive(p) && !addedIds.has(p.id))).map((p) => p.id),
   );
 
   const handleAddPosition = async (position: Position, direction: string, mountType: string, stringCount: string) => {
@@ -196,13 +220,15 @@ export function VisitDetailPage() {
       await updatePosition.mutateAsync({ id: position.id, payload });
     }
     setAddedIds((prev) => new Set(prev).add(position.id));
+    setSelectedPositionId(position.id);
     confirmSaved('Position added and saved', `${positionLabel({ ...position, direction })} was added. The server confirmed the save.`);
   };
 
   // Create an additional direction or restore a slot freed by editing a string identity.
   // The saved direction makes the new row active when the visit refetches.
   const handleCreatePosition = async (ohl: string, phase: string, string_: string, direction: string, mountType: string, stringCount: string) => {
-    await createPosition.mutateAsync({ ohl, phase, string: string_, direction, mount_type: mountType || undefined, string_count: stringCount });
+    const created = await createPosition.mutateAsync({ ohl, phase, string: string_, direction, mount_type: mountType || undefined, string_count: stringCount });
+    setSelectedPositionId(created.id);
     confirmSaved('Position added and saved', `${positionLabel({ ohl, phase, string: string_, direction })} was added. The server confirmed the save.`);
   };
 
@@ -214,13 +240,16 @@ export function VisitDetailPage() {
     });
   };
 
+  const focusedPosition = visiblePositions.find(p => p.id === selectedPositionId) || visiblePositions[0];
+  const focusedIndex = visiblePositions.findIndex(p => p.id === focusedPosition?.id);
+
   return (
     <Stack spacing={3}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Button
           startIcon={<ArrowBackIcon />}
           onClick={() => {
-            if (dirtyPositions.size && !window.confirm('Discard unsaved position changes and leave this inspection?')) return;
+            if ((dirtyPositions.size || headerDraft || uploadBusy) && !window.confirm('Discard unsaved inspection changes and leave this inspection?')) return;
             navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`);
           }}
         >
@@ -230,7 +259,7 @@ export function VisitDetailPage() {
           <Button
             variant="outlined"
             startIcon={<PictureAsPdfIcon />}
-            disabled={dirtyPositions.size > 0}
+            disabled={dirtyPositions.size > 0 || uploadBusy || updateVisit.isPending || !!headerDraft}
             component="a"
             href={mediaUrl(`/api/reports/visits/${id}.pdf`)}
             target="_blank"
@@ -269,7 +298,7 @@ export function VisitDetailPage() {
           {visit.team_id && (
             <Chip
               icon={<GroupsIcon />}
-              label={`${visit.team_name} — Mission ${visit.mission_seq}`}
+              label={visit.mission_seq == null ? visit.team_name : `${visit.team_name} — Mission ${visit.mission_seq}`}
               component={RouterLink}
               to={`/teams/${visit.team_id}`}
               clickable
@@ -286,7 +315,7 @@ export function VisitDetailPage() {
       {visit.rollup && (
         <Grid container spacing={2}>
           <Grid size={{ xs: 6, sm: 3 }}>
-            <KpiTile label="Installed / Screened" value={`${visit.rollup.screened}/${visit.rollup.installed}`} icon={<CellTowerIcon />} />
+            <KpiTile label="Screened / Installed" value={`${visit.rollup.screened}/${visit.rollup.installed}`} icon={<CellTowerIcon />} />
           </Grid>
           <Grid size={{ xs: 6, sm: 3 }}>
             <KpiTile label="Completion" value={`${visit.rollup.completion_pct}%`} icon={<FactCheckIcon />} color="#3a6f84" />
@@ -300,11 +329,14 @@ export function VisitDetailPage() {
         </Grid>
       )}
 
-      <Card>
+      <Card component="details">
+        <Box component="summary" sx={{ p: 2, cursor: 'pointer', fontWeight: 700 }}>Visit details · {header.inspection_date as string || 'Date not set'} · {header.inspector_name as string || 'Set inspector and equipment'}</Box>
         <CardContent>
           <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
             Visit header
           </Typography>
+          <VisitEquipmentPreset visit={visit} userId={String(user?.id || user?.username)} inspectorName={user?.full_name || user?.username || ''}
+            onApply={payload => updateVisit.mutateAsync({ id, payload })} />
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
@@ -315,7 +347,6 @@ export function VisitDetailPage() {
                 slotProps={{ inputLabel: { shrink: true } }}
                 value={(header.inspection_date as string) || ''}
                 onChange={(e) => saveHeaderField('inspection_date', e.target.value)}
-                onBlur={commitHeader}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -325,7 +356,6 @@ export function VisitDetailPage() {
                 fullWidth
                 value={(header.inspector_name as string) || ''}
                 onChange={(e) => saveHeaderField('inspector_name', e.target.value)}
-                onBlur={commitHeader}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -335,7 +365,6 @@ export function VisitDetailPage() {
                 fullWidth
                 value={(header.permit_job_no as string) || ''}
                 onChange={(e) => saveHeaderField('permit_job_no', e.target.value)}
-                onBlur={commitHeader}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -345,7 +374,6 @@ export function VisitDetailPage() {
                 fullWidth
                 value={(header.weather_wind as string) || ''}
                 onChange={(e) => saveHeaderField('weather_wind', e.target.value)}
-                onBlur={commitHeader}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -355,7 +383,6 @@ export function VisitDetailPage() {
                 fullWidth
                 value={(header.electrical_load as string) || ''}
                 onChange={(e) => saveHeaderField('electrical_load', e.target.value)}
-                onBlur={commitHeader}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -365,7 +392,6 @@ export function VisitDetailPage() {
                 fullWidth
                 value={(header.camera_drone as string) || ''}
                 onChange={(e) => saveHeaderField('camera_drone', e.target.value)}
-                onBlur={commitHeader}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -375,7 +401,7 @@ export function VisitDetailPage() {
                 label="Thermal mode"
                 fullWidth
                 value={(header.thermal_mode as string) || ''}
-                onChange={(e) => updateVisit.mutate({ id, payload: { thermal_mode: e.target.value || null } })}
+                onChange={(e) => saveHeaderField('thermal_mode', e.target.value || null)}
               >
                 <MenuItem value="">—</MenuItem>
                 {THERMAL_MODE_OPTIONS.map((m) => (
@@ -396,7 +422,6 @@ export function VisitDetailPage() {
                 fullWidth
                 value={(header.emissivity as number) ?? ''}
                 onChange={(e) => saveHeaderField('emissivity', e.target.value ? Number(e.target.value) : null)}
-                onBlur={commitHeader}
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
@@ -407,7 +432,6 @@ export function VisitDetailPage() {
                 fullWidth
                 value={(header.reflected_temp as number) ?? ''}
                 onChange={(e) => saveHeaderField('reflected_temp', e.target.value ? Number(e.target.value) : null)}
-                onBlur={commitHeader}
               />
             </Grid>
           </Grid>
@@ -423,7 +447,6 @@ export function VisitDetailPage() {
                 fullWidth
                 value={(header.camera_serial_no as string) || ''}
                 onChange={(e) => saveHeaderField('camera_serial_no', e.target.value)}
-                onBlur={commitHeader}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -433,7 +456,6 @@ export function VisitDetailPage() {
                 fullWidth
                 value={(header.calibration_cert_no as string) || ''}
                 onChange={(e) => saveHeaderField('calibration_cert_no', e.target.value)}
-                onBlur={commitHeader}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -445,7 +467,6 @@ export function VisitDetailPage() {
                 slotProps={{ inputLabel: { shrink: true } }}
                 value={(header.calibration_due_date as string) || ''}
                 onChange={(e) => saveHeaderField('calibration_due_date', e.target.value || null)}
-                onBlur={commitHeader}
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
@@ -456,7 +477,6 @@ export function VisitDetailPage() {
                 fullWidth
                 value={(header.distance_to_target_m as number) ?? ''}
                 onChange={(e) => saveHeaderField('distance_to_target_m', e.target.value ? Number(e.target.value) : null)}
-                onBlur={commitHeader}
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
@@ -467,7 +487,6 @@ export function VisitDetailPage() {
                 fullWidth
                 value={(header.ambient_temp_c as number) ?? ''}
                 onChange={(e) => saveHeaderField('ambient_temp_c', e.target.value ? Number(e.target.value) : null)}
-                onBlur={commitHeader}
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
@@ -478,7 +497,6 @@ export function VisitDetailPage() {
                 fullWidth
                 value={(header.humidity_pct as number) ?? ''}
                 onChange={(e) => saveHeaderField('humidity_pct', e.target.value ? Number(e.target.value) : null)}
-                onBlur={commitHeader}
               />
             </Grid>
           </Grid>
@@ -498,8 +516,7 @@ export function VisitDetailPage() {
                     slotProps={{ inputLabel: { shrink: true } }}
                     value={(header.start_time as string)?.slice(0, 5) || ''}
                     onChange={(e) => saveHeaderField('start_time', e.target.value || null)}
-                    onBlur={commitHeader}
-                  />
+                      />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
                   <TextField
@@ -510,8 +527,7 @@ export function VisitDetailPage() {
                     slotProps={{ inputLabel: { shrink: true } }}
                     value={(header.end_time as string)?.slice(0, 5) || ''}
                     onChange={(e) => saveHeaderField('end_time', e.target.value || null)}
-                    onBlur={commitHeader}
-                  />
+                      />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 4 }}>
                   <TextField
@@ -520,7 +536,7 @@ export function VisitDetailPage() {
                     label="Mission status"
                     fullWidth
                     value={(header.mission_status as string) || 'planned'}
-                    onChange={(e) => updateVisit.mutate({ id, payload: { mission_status: e.target.value } })}
+                    onChange={(e) => saveHeaderField('mission_status', e.target.value)}
                   >
                     <MenuItem value="planned">Planned</MenuItem>
                     <MenuItem value="in_progress">In progress</MenuItem>
@@ -543,11 +559,14 @@ export function VisitDetailPage() {
             // map always shows the right tower instead of a blank/generic view when a visit has no GPS yet.
             latitude={(header.latitude as number) ?? visit.latitude ?? visit.tower?.latitude ?? null}
             longitude={(header.longitude as number) ?? visit.longitude ?? visit.tower?.longitude ?? null}
-            onChange={(lat, lng) => updateVisit.mutate({ id, payload: { latitude: lat, longitude: lng } })}
+            onChange={(lat, lng) => setHeaderDraft(current => ({ ...current, latitude: lat, longitude: lng }))}
             height={320}
             label={visit.tower?.tower_id}
             highlight
           />
+          {headerError && <Alert severity="error" sx={{ mt: 2 }}>{headerError}</Alert>}
+          <Button sx={{ mt: 2 }} variant="contained" disabled={!headerDraft || updateVisit.isPending} onClick={() => void commitHeader()}>{updateVisit.isPending ? 'Saving visit details…' : 'Save visit details'}</Button>
+          {headerDraft && <Typography variant="caption" sx={{ ml: 2 }}>Unsaved visit details</Typography>}
         </CardContent>
       </Card>
 
@@ -565,9 +584,15 @@ export function VisitDetailPage() {
         <Stack spacing={1.5}>
           <Alert severity="info">Inspection field changes stay in a draft until you review and confirm saving. An internet connection is required for server confirmation. Saved changes affect future reports; regenerate earlier documents when needed.</Alert>
           {dirtyPositions.size > 0 && <Alert severity="warning">{dirtyPositions.size} position(s) have unsaved changes. Save or discard these changes before downloading the tower report.</Alert>}
+          {draftStorageError && <Alert severity="warning">This browser could not keep a recovery copy of your position drafts. Keep this page open until they are saved.</Alert>}
           {receipt && <Alert severity="success" onClose={() => setReceipt(null)}>
             <strong>{receipt.title}.</strong> {receipt.message} Confirmed at {receipt.time}.
           </Alert>}
+          <VisitWorkflowToolbar visit={visit} positions={visiblePositions} lists={lists} drafts={drafts}
+            onDraftsChange={setDrafts} selectedId={focusedPosition?.id ?? null} onSelect={setSelectedPositionId}
+            canSaveTemplate={!isTeamMember} onBusyChange={setBatchSaving} disabled={uploadBusy || updatePosition.isPending}
+            onSaved={message => confirmSaved('Visit updated', message)} />
+          <Box component="details"><Typography component="summary" sx={{ cursor: 'pointer' }}>Add an individual position or exception</Typography>
           <AddPositionBar
             positions={visit.positions}
             hiddenIds={hiddenIds}
@@ -576,27 +601,40 @@ export function VisitDetailPage() {
             onAdd={handleAddPosition}
             onCreate={handleCreatePosition}
           />
+          </Box>
           {visiblePositions.length === 0 && (
             <Alert severity="info">
-              No positions added yet — use "Add position" above to start recording an insulator string.
+              Start with “Prepare tower positions” to build the checklist, or add an individual position.
             </Alert>
           )}
-          {visiblePositions.map((p) => (
+          {focusedPosition && <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Button disabled={focusedIndex <= 0 || batchSaving || uploadBusy} onClick={() => setSelectedPositionId(visiblePositions[focusedIndex - 1].id)}>Previous position</Button>
+            <Typography variant="body2">Position {focusedIndex + 1} of {visiblePositions.length}</Typography>
+            <Button disabled={focusedIndex >= visiblePositions.length - 1 || batchSaving || uploadBusy} onClick={() => setSelectedPositionId(visiblePositions[focusedIndex + 1].id)}>Next position</Button>
+          </Stack>}
+          {(focusedPosition ? [focusedPosition] : []).map((p) => (
             <PositionPanel
               key={p.id}
-              position={p}
-              onDirtyChange={handleDirtyChange}
+              position={drafts[p.id] ? { ...drafts[p.id].before, images: p.images } : p}
+              draftValue={drafts[p.id]?.changes || {}}
+              externalSaving={batchSaving}
+              onUploadBusyChange={setUploadBusy}
+              onDraftChange={changes => setDrafts(current => {
+                if (!Object.keys(changes).length) { const next = { ...current }; delete next[p.id]; return next; }
+                return mergePositionDraft(current, p, changes);
+              })}
               onSave={async (payload) => {
-                await updatePosition.mutateAsync({ id: p.id, payload });
+                await updatePosition.mutateAsync({ id: p.id, payload: { ...payload, expected_updated_at: drafts[p.id]?.before.updated_at || p.updated_at } });
                 confirmSaved('Inspection changes saved', `${positionLabel({ ...p, ...payload })} was updated. The server confirmed the save.`);
               }}
               lists={lists}
               towerArea={visit.tower?.area}
               defaultExpanded
               onUploadImage={(imageId, file, meta) =>
-                uploadImage.mutate({
+                uploadImage.mutateAsync({
                   imageId,
                   file,
+                  requestToken: meta.requestToken as string | undefined,
                   captureDate: meta.captureDate as string | undefined,
                   captureTime: meta.captureTime as string | undefined,
                   latitude: meta.latitude as number | undefined,
@@ -609,10 +647,11 @@ export function VisitDetailPage() {
                 await saveAnnotation.mutateAsync({ imageId, blob });
               }}
               onAddExtraImage={(imageType, file, meta) =>
-                addExtraImage.mutate({
+                addExtraImage.mutateAsync({
                   positionId: p.id,
                   imageType,
                   file,
+                  requestToken: meta.requestToken as string | undefined,
                   captureDate: meta.captureDate as string | undefined,
                   captureTime: meta.captureTime as string | undefined,
                   latitude: meta.latitude as number | undefined,
@@ -626,6 +665,7 @@ export function VisitDetailPage() {
               onDelete={async () => {
                 await deletePosition.mutateAsync(p.id);
                 handleRemovePosition(p.id);
+                setDrafts(current => { const next = { ...current }; delete next[p.id]; return next; });
                 confirmSaved('Deletion saved', `${positionLabel(p)} was permanently deleted. The server confirmed the deletion; this position will no longer be included in future reports.`);
               }}
               onRecordVoiceNote={(blob, durationSeconds) =>
@@ -641,15 +681,7 @@ export function VisitDetailPage() {
       </Box>
 
       <VisitPhotosSection visitId={id} positions={visit.positions} />
-      <Dialog open={receiptOpen && !!receipt} onClose={() => setReceiptOpen(false)} aria-labelledby="position-operation-receipt">
-        <DialogTitle id="position-operation-receipt">{receipt?.title}</DialogTitle>
-        <DialogContent>
-          <Alert severity="success">{receipt?.message}</Alert>
-          <Typography variant="body2" sx={{ mt: 2 }}>Confirmed at {receipt?.time}.</Typography>
-          <Typography variant="body2" sx={{ mt: 1 }}>Previously generated report documents are unchanged. Regenerate them if this change must be reflected.</Typography>
-        </DialogContent>
-        <DialogActions><Button autoFocus variant="contained" onClick={() => setReceiptOpen(false)}>OK — understood</Button></DialogActions>
-      </Dialog>
+
     </Stack>
   );
 }

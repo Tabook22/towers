@@ -160,6 +160,7 @@ class Tower(Base):
     tower_id: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     voltage: Mapped[str | None] = mapped_column(String(40), nullable=True)
     tower_type: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    inspection_layout: Mapped[list | None] = mapped_column(JSON, nullable=True)
     area: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     # A named line segment this tower belongs to (e.g. "Ittin - Thumrait") — coarser than `area`,
     # used to group towers for project planning documents (see services/field_execution_plan.py),
@@ -324,6 +325,9 @@ class Position(Base):
     tower_proximity: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     installed: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Preparation never counts as an observation. Excluded slots remain recoverable.
+    in_scope: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    prepared_only: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     screening_result: Mapped[str] = mapped_column(String(40), default="Not inspected")
     hotspot: Mapped[str | None] = mapped_column(String(20), nullable=True)
     tmax_c: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -357,6 +361,7 @@ class Position(Base):
     visual_indications: Mapped[str | None] = mapped_column(String(200), nullable=True)  # comma-joined subset
 
     position_code: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    image_namespace: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
@@ -390,6 +395,7 @@ class Image(Base):
     position_id: Mapped[int] = mapped_column(ForeignKey("positions.id"), index=True)
 
     image_type: Mapped[str] = mapped_column(String(20))
+    upload_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
     image_code: Mapped[str | None] = mapped_column(String(180), nullable=True, unique=True, index=True)
     sequence: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     include_in_report: Mapped[bool | None] = mapped_column(

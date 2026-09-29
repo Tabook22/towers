@@ -189,6 +189,7 @@ class TowerUpdate(BaseModel):
 
 
 class TowerOut(TowerBase):
+    inspection_layout: list[dict] | None = None
     model_config = ConfigDict(from_attributes=True)
     id: int
     is_active: bool
@@ -346,6 +347,8 @@ class ArchiveImageOut(ImageOut):
 
 # ---------- Position ----------
 class PositionUpdate(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+    expected_updated_at: dt.datetime | None = None
     ohl: Literal["OHL1", "OHL2"] | None = None
     phase: Literal["R", "Y", "B"] | None = None
     string: Literal["S1", "S2"] | None = None
@@ -521,6 +524,9 @@ class PositionCreate(BaseModel):
 
 
 class PositionOut(BaseModel):
+    in_scope: bool = True
+    prepared_only: bool = False
+    updated_at: dt.datetime
     model_config = ConfigDict(from_attributes=True)
     id: int
     visit_id: int
@@ -562,6 +568,22 @@ class PositionOut(BaseModel):
 
 
 # ---------- Visit ----------
+class PositionBatchItem(BaseModel):
+    id: int
+    expected_updated_at: dt.datetime
+    changes: PositionUpdate
+
+
+class PositionBatchUpdate(BaseModel):
+    items: list[PositionBatchItem] = Field(min_length=1, max_length=100)
+
+
+class PreparePositions(BaseModel):
+    slots: list[PositionCreate] = Field(min_length=1, max_length=60)
+    expected_versions: dict[int, dt.datetime]
+    save_template: bool = False
+
+
 class VisitBase(BaseModel):
     tower_id: int
     inspection_date: dt.date | None = None

@@ -9,6 +9,7 @@ export interface Area {
 }
 
 export interface Tower {
+  inspection_layout?: PositionSlot[] | null;
   id: number;
   tower_id: string;
   voltage: string | null;
@@ -84,6 +85,9 @@ export interface ImageRow {
 }
 
 export interface Position {
+  in_scope?: boolean;
+  prepared_only?: boolean;
+  updated_at: string;
   id: number;
   visit_id: number;
   ohl: string;
@@ -118,6 +122,15 @@ export interface Position {
   voice_note_duration_seconds: number | null;
   voice_note_transcript: string | null;
   images: ImageRow[];
+}
+
+export interface PositionSlot {
+  ohl: string;
+  phase: string;
+  string: string;
+  direction: string;
+  mount_type: string;
+  string_count: string;
 }
 
 export interface VisitRollup {

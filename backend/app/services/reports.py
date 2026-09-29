@@ -172,6 +172,8 @@ def build_visit_report(visit: Visit, db: Session | None = None) -> bytes:
     pdf.set_font("Helvetica", "", 7)
     fill = False
     for p in visit.positions:
+        if getattr(p, 'in_scope', True) is False:
+            continue
         row = [
             p.position_code or "-",
             p.ohl,

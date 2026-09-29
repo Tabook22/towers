@@ -450,7 +450,7 @@ export function useDeleteVisit() {
 }
 
 // ---------- Positions ----------
-async function requireConfirmedPositionWrite(visitId: number) {
+export async function requireConfirmedPositionWrite(visitId: number) {
   let message = '';
   if (!navigator.onLine) message = 'You are offline. Connect to the internet to confirm this operation. Your draft has not been sent.';
   else if ((await listOutbox()).some(item => Number(item.path.visitId) === visitId)) {
@@ -481,7 +481,7 @@ export function useDeletePosition(visitId: number) {
 export function useUpdatePosition(visitId: number, requireServerConfirmation = false) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, payload }: { id: number; payload: Partial<Position> }) => {
+    mutationFn: async ({ id, payload }: { id: number; payload: Partial<Position> & { expected_updated_at?: string } }) => {
       if (requireServerConfirmation) {
         // Report-critical confirmations must represent an acknowledged server write.
         // Keep the caller's draft on any failure instead of silently queuing a save.
@@ -558,6 +558,7 @@ export function useUploadImage(visitId: number) {
     mutationFn: async ({
       imageId,
       file,
+      requestToken,
       captureDate,
       captureTime,
       latitude,
@@ -565,6 +566,7 @@ export function useUploadImage(visitId: number) {
     }: {
       imageId: number;
       file: File;
+      requestToken?: string;
       captureDate?: string;
       captureTime?: string;
       latitude?: number;
@@ -572,6 +574,7 @@ export function useUploadImage(visitId: number) {
     }) => {
       const form = new FormData();
       form.set('file', file);
+      if (requestToken) form.set('request_token', requestToken);
       if (captureDate) form.set('capture_date', captureDate);
       if (captureTime) form.set('capture_time', captureTime);
       if (latitude !== undefined) form.set('latitude', String(latitude));
@@ -588,7 +591,7 @@ export function useUploadImage(visitId: number) {
           kind: 'image-upload',
           label: `Photo · ${file.name}`,
           path: { imageId, visitId },
-          json: { capture_date: captureDate, capture_time: captureTime, latitude, longitude },
+          json: { request_token: requestToken, capture_date: captureDate, capture_time: captureTime, latitude, longitude },
           file: asOutboxFile(file),
         },
       );
@@ -695,6 +698,7 @@ export function useAddExtraImage(visitId: number) {
       positionId,
       imageType,
       file,
+      requestToken,
       captureDate,
       captureTime,
       latitude,
@@ -703,6 +707,7 @@ export function useAddExtraImage(visitId: number) {
       positionId: number;
       imageType: string;
       file: File;
+      requestToken?: string;
       captureDate?: string;
       captureTime?: string;
       latitude?: number;
@@ -711,6 +716,7 @@ export function useAddExtraImage(visitId: number) {
       const form = new FormData();
       form.set('image_type', imageType);
       form.set('file', file);
+      if (requestToken) form.set('request_token', requestToken);
       if (captureDate) form.set('capture_date', captureDate);
       if (captureTime) form.set('capture_time', captureTime);
       if (latitude !== undefined) form.set('latitude', String(latitude));
@@ -728,7 +734,7 @@ export function useAddExtraImage(visitId: number) {
           kind: 'extra-image',
           label: `Extra photo · ${imageType}`,
           path: { positionId, visitId, imageId: localId },
-          json: { image_type: imageType, capture_date: captureDate, capture_time: captureTime, latitude, longitude },
+          json: { request_token: requestToken, image_type: imageType, capture_date: captureDate, capture_time: captureTime, latitude, longitude },
           file: asOutboxFile(file),
         },
       );

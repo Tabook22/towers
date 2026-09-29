@@ -49,7 +49,7 @@ export function HotspotChip({ value }: { value: string | null | undefined }) {
   if (value === 'Unconfirmed') {
     return <Chip size="small" icon={<WarningAmberIcon fontSize="small" />} label="Unconfirmed" color="warning" />;
   }
-  return <Chip size="small" label="No" variant="outlined" />;
+  return <Chip size="small" label={value === 'No' ? 'No' : 'Not assessed'} variant="outlined" />;
 }
 
 export function VisitStatusChip({ status }: { status: string | null | undefined }) {

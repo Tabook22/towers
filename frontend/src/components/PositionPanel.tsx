@@ -31,7 +31,6 @@ import {
   Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMoreRounded';
-import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternateRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SubtitlesRoundedIcon from '@mui/icons-material/SubtitlesRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
@@ -39,12 +38,17 @@ import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import { mediaUrl } from '../api/client';
 import type { ChoiceLists, ImageRow, Position } from '../api/types';
 import { PositionConfiguration } from './PositionConfiguration';
+import { PositionEvidenceUpload } from './PositionEvidenceUpload';
 import { HotspotChip, ScreeningChip, SeverityChip } from './Badges';
 import { ImageSlotCard } from './ImageSlotCard';
 import { VoiceNoteControls, VoiceNotePlayer } from './VoiceNoteControls';
 import { positionChangeRows, positionError, positionLabel as formatPositionLabel, positionPatch } from '../utils/positionChanges';
 
 interface Props {
+  draftValue?: Partial<Position>;
+  onDraftChange?: (draft: Partial<Position>) => void;
+  externalSaving?: boolean;
+  onUploadBusyChange?: (busy: boolean) => void;
   position: Position;
   lists: ChoiceLists;
   /** The tower's own line/area name (e.g. "Ashoor-Saada") — used only to auto-fill Direction the
@@ -52,13 +56,13 @@ interface Props {
   towerArea?: string | null;
   onSave: (payload: Partial<Position>) => Promise<unknown>;
   onDirtyChange?: (id: number, dirty: boolean) => void;
-  onUploadImage: (imageId: number, file: File, meta: Record<string, unknown>) => void;
+  onUploadImage: (imageId: number, file: File, meta: Record<string, unknown>) => Promise<unknown>;
   onUpdateImage: (imageId: number, payload: Partial<ImageRow>) => void | Promise<unknown>;
   onClearImageFile: (imageId: number) => void;
   onSaveAnnotation: (imageId: number, blob: Blob) => Promise<void> | void;
   /** Adds a supplementary image beyond the one-per-type baseline slot — used once that slot already
    * has a file (see the "Add images" handler below for exactly when this fires vs. onUploadImage). */
-  onAddExtraImage: (imageType: string, file: File, meta: Record<string, unknown>) => void;
+  onAddExtraImage: (imageType: string, file: File, meta: Record<string, unknown>) => Promise<unknown>;
   onDeleteImage: (imageId: number) => void;
   onRetypeImage: (imageId: number, newType: string) => void;
   /** Extras only: swaps this photo's content with its type's current primary image. */
@@ -76,6 +80,10 @@ interface Props {
 }
 
 export function PositionPanel({
+  draftValue,
+  onDraftChange,
+  externalSaving = false,
+  onUploadBusyChange,
   position: savedPosition,
   lists,
   towerArea,
@@ -98,7 +106,12 @@ export function PositionPanel({
   voiceNoteSaving,
   voiceNoteTranscribing,
 }: Props) {
-  const [draft, setDraft] = useState<Partial<Position>>({});
+  const [localDraft, setLocalDraft] = useState<Partial<Position>>({});
+  const draft = draftValue ?? localDraft;
+  const setDraft = (value: Partial<Position> | ((current: Partial<Position>) => Partial<Position>)) => {
+    const next = typeof value === 'function' ? value(draft) : value;
+    if (onDraftChange) onDraftChange(next); else setLocalDraft(next);
+  };
   const patch = positionPatch(savedPosition, draft);
   const position = { ...savedPosition, ...draft, ...patch };
   const dirty = Object.keys(patch).length > 0;
@@ -138,8 +151,6 @@ export function PositionPanel({
     }
   };
   const pendingCount = position.images.filter((i) => i.evidence_status === 'PENDING CAPTURE' || i.evidence_status === 'RECAPTURE REQUIRED').length;
-  const [selectedType, setSelectedType] = useState<string>(lists.image_type[0]);
-  const addImagesRef = useRef<HTMLInputElement>(null);
   const configurationRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(!!defaultExpanded);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -164,23 +175,6 @@ export function PositionPanel({
   const trefDraft = position.tref_c;
   const notesDraft = position.inspector_notes || '';
   const deltaT = tmaxDraft != null && trefDraft != null ? (tmaxDraft - trefDraft).toFixed(1) : null;
-
-  // "Add images" fills the pre-existing empty baseline slot (sequence 1, seeded for every position
-  // at visit-creation) first — that's the row images_pending/rollup counts. Only once it already has
-  // a file does a further upload of the same type become a supplementary sequence>1 row.
-  const handleAddImages = (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const baseline = position.images.find((i) => i.image_type === selectedType && i.sequence === 1);
-    let baselineFilled = !!baseline?.file_path;
-    Array.from(files).forEach((file) => {
-      if (baseline && !baselineFilled) {
-        onUploadImage(baseline.id, file, {});
-        baselineFilled = true;
-      } else {
-        onAddExtraImage(selectedType, file, {});
-      }
-    });
-  };
 
   // Show every UPLOADED image for this position, not just the currently-selected type — the type
   // picker only controls what new uploads get tagged as. Grouped by image type (in the fixed list
@@ -255,7 +249,7 @@ export function PositionPanel({
         </Box>
       </AccordionSummary>
       <AccordionDetails>
-        <Stack component="fieldset" disabled={saving || deleting} spacing={2} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
+        <Stack component="fieldset" disabled={saving || deleting || externalSaving} spacing={2} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
           <Alert severity={dirty ? 'warning' : lastSaved ? 'success' : 'info'}>
             {dirty ? 'Unsaved changes — review and confirm saving before using these changes in a report.' : lastSaved ? `Saved on the server. Confirmed at ${lastSaved}.` : 'No unsaved field edits in this card. Changes require review and confirmation before saving.'}
           </Alert>
@@ -314,7 +308,11 @@ export function PositionPanel({
                       : undefined
                 }
                 value={position.screening_result}
-                onChange={(e) => onUpdate({ screening_result: e.target.value })}
+                onChange={(e) => {
+                  const screening_result = e.target.value;
+                  const hotspot = ({ Normal: 'No', 'Hotspot detected': 'Yes', Inconclusive: 'Unconfirmed' } as Record<string, string>)[screening_result];
+                  onUpdate({ screening_result, ...(hotspot ? { hotspot } : {}) });
+                }}
               >
                 {lists.screening_result.map((s) => (
                   <MenuItem key={s} value={s}>
@@ -330,7 +328,11 @@ export function PositionPanel({
                 label="Hotspot?"
                 fullWidth
                 value={position.hotspot || ''}
-                onChange={(e) => onUpdate({ hotspot: e.target.value })}
+                onChange={(e) => {
+                  const hotspot = e.target.value;
+                  const screening_result = ({ No: 'Normal', Yes: 'Hotspot detected', Unconfirmed: 'Inconclusive' } as Record<string, string>)[hotspot];
+                  onUpdate({ hotspot, ...(['Not inspected', 'Normal', 'Hotspot detected', 'Inconclusive'].includes(position.screening_result) && screening_result ? { screening_result } : {}) });
+                }}
               >
                 {lists.hotspot.map((h) => (
                   <MenuItem key={h} value={h}>
@@ -595,51 +597,15 @@ export function PositionPanel({
           </Box>
 
           <Box>
-            <Stack direction="row" spacing={1.5} sx={{ mb: 0.5, alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-              <Typography variant="subtitle2">Evidence</Typography>
-              <TextField
-                select
-                size="small"
-                label="Add as type"
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                sx={{ minWidth: 150 }}
-              >
-                {lists.image_type.map((t) => (
-                  <MenuItem key={t} value={t}>
-                    {t}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <input
-                ref={addImagesRef}
-                type="file"
-                accept="image/*"
-                multiple
-                hidden
-                onChange={(e) => {
-                  handleAddImages(e.target.files);
-                  e.target.value = '';
-                }}
-              />
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<AddPhotoAlternateIcon fontSize="small" />}
-                onClick={() => addImagesRef.current?.click()}
-                disabled={!position.direction}
-              >
-                Add images
-              </Button>
-            </Stack>
+            <PositionEvidenceUpload position={savedPosition} types={lists.image_type}
+              disabled={saving || externalSaving} onUpload={onUploadImage} onExtra={onAddExtraImage} onBusyChange={onUploadBusyChange} />
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-              Every uploaded image for this position, grouped by type below — pick a type above before "Add images"
-              to tag the next uploads. Check "Include in report" on every image you want in the next report — you can
+              Every uploaded image for this position is grouped by type below. Check "Include in report" on every image you want in the next report — you can
               choose more than one per type. Unchecked images remain supporting evidence. Saved reports are unchanged.
             </Typography>
             {uploadedImages.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
-                No images uploaded yet — pick a type above and use "Add images".
+                No images uploaded yet — use one of the four evidence buttons above.
               </Typography>
             ) : (
               <Grid container spacing={1.5}>

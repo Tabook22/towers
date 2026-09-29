@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import hashlib
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy import update
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
@@ -15,8 +17,7 @@ from app.routers.images import apply_upload
 from app.routers.teams import ACCEPTED_AUDIO_TYPES
 from app.schemas import ImageOut, PositionOut, PositionUpdate
 from app.services.archive import file_extension, save_upload
-from app.services.codes import refresh_position_codes
-from app.services.id_gen import image_code as compute_image_code
+from app.services.codes import refresh_position_codes, position_image_code
 from app.services.transcribe import transcribe_audio
 
 router = APIRouter(prefix="/api/positions", tags=["positions"])
@@ -45,12 +46,41 @@ def update_position(
     position_id: int, payload: PositionUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
     pos = _load_position(db, position_id, user)
+    try:
+        apply_position_update(db, pos, payload)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(pos)
+    return pos
+
+
+def claim_position_version(db: Session, pos: Position, expected: dt.datetime) -> None:
+    """Atomic compare-and-set also acquires SQLite's write lock for the whole batch."""
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    result = db.execute(update(Position).where(Position.id == pos.id, Position.updated_at == expected)
+                        .values(updated_at=now).execution_options(synchronize_session=False))
+    if result.rowcount != 1:
+        raise HTTPException(409, 'This inspection changed since you opened it. Reload and review your draft before saving; nothing in this batch was saved.')
+    pos.updated_at = now
+
+
+def apply_position_update(db: Session, pos: Position, payload: PositionUpdate) -> None:
     data = payload.model_dump(exclude_unset=True)
+    expected = data.pop('expected_updated_at', None)
+    if expected is not None:
+        claim_position_version(db, pos, expected)
     string = data.get("string", pos.string)
     count = data.get("string_count", pos.string_count)
     if ("string" in data or "string_count" in data) and (string not in ("S1", "S2") or (count == "Single" and string != "S1")):
         raise HTTPException(status_code=422, detail="A one-string position must use S1. Choose a valid string before saving.")
     direction = data.get("direction", pos.direction)
+    if 'hotspot' in data or 'screening_result' in data:
+        result = data.get('screening_result', pos.screening_result)
+        hotspot = data.get('hotspot', pos.hotspot)
+        if (result == 'Normal' and hotspot == 'Yes') or (result == 'Hotspot detected' and hotspot == 'No'):
+            raise HTTPException(422, 'Screening result and hotspot determination disagree. Review both before saving.')
     ohl = data.get("ohl", pos.ohl)
     phase = data.get("phase", pos.phase)
     if (ohl, phase, string, direction) != (pos.ohl, pos.phase, pos.string, pos.direction):
@@ -63,11 +93,9 @@ def update_position(
         data["tower_proximity"] = ("Outer" if string == "S1" else "Inner") if count == "Double" else None
     for k, v in data.items():
         setattr(pos, k, v)
+    pos.in_scope = True
     db.flush()
     refresh_position_codes(pos)
-    db.commit()
-    db.refresh(pos)
-    return pos
 
 
 @router.delete("/{position_id}", status_code=204)
@@ -116,11 +144,26 @@ async def add_extra_image(
     longitude: float | None = Form(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    request_token: str | None = Form(default=None, max_length=64),
 ):
     """Adds a supplementary image of `image_type` beyond the position's original one-per-type
     baseline (sequence 1) — e.g. a second TH Close shot from another angle. Doesn't touch the
     baseline slot or evidence/roll-up counting (see visit_rollup); purely additional evidence."""
     pos = _load_position(db, position_id, user)
+    token = request_token if isinstance(request_token, str) else None
+    raw = await file.read()
+    # Serialize sequence allocation with other uploads/preparation without invalidating field drafts.
+    db.execute(update(Position).where(Position.id == pos.id).values(updated_at=Position.updated_at))
+    db.refresh(pos)
+    if not pos.in_scope:
+        raise HTTPException(409, 'This position is outside the prepared layout. Include it before uploading evidence.')
+    if token:
+        prior = db.query(Image).filter(Image.position_id == pos.id, Image.upload_token == token).first()
+        if prior:
+            if prior.checksum != hashlib.sha256(raw).hexdigest() or prior.image_type != image_type:
+                raise HTTPException(409, 'This upload token belongs to different evidence')
+            db.commit()
+            return prior
     if image_type not in IMAGE_TYPE_CHOICES:
         raise HTTPException(status_code=400, detail=f"image_type must be one of {IMAGE_TYPE_CHOICES}")
     if not pos.direction:
@@ -128,16 +171,15 @@ async def add_extra_image(
 
     existing = [i for i in pos.images if i.image_type == image_type]
     next_seq = max((i.sequence for i in existing), default=0) + 1
-    base_code = compute_image_code(pos.position_code, pos.ohl, pos.phase, pos.string, pos.direction, image_type)
+    base_code = position_image_code(pos, image_type)
     new_code = base_code if next_seq == 1 else f"{base_code}-{next_seq}"
 
-    img = Image(position_id=pos.id, image_type=image_type, image_code=new_code, sequence=next_seq)
+    img = Image(position_id=pos.id, image_type=image_type, image_code=new_code, sequence=next_seq, upload_token=token)
     db.add(img)
     db.flush()
     db.refresh(img)
     img.position = pos  # apply_upload needs img.position.visit.tower without an extra query
 
-    raw = await file.read()
     await apply_upload(img, raw, file.filename, file.content_type, capture_date, capture_time, latitude, longitude)
 
     db.commit()

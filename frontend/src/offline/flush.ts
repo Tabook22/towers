@@ -31,6 +31,7 @@ async function sendItem(item: OutboxItem): Promise<void> {
       const form = new FormData();
       appendFile(form, 'file', item.file);
       const json = item.json || {};
+      if (json.request_token) form.set('request_token', String(json.request_token));
       if (json.capture_date) form.set('capture_date', String(json.capture_date));
       if (json.capture_time) form.set('capture_time', String(json.capture_time));
       if (json.latitude !== undefined && json.latitude !== null) form.set('latitude', String(json.latitude));
@@ -47,6 +48,7 @@ async function sendItem(item: OutboxItem): Promise<void> {
       form.set('image_type', String(item.json?.image_type || ''));
       appendFile(form, 'file', item.file);
       const json = item.json || {};
+      if (json.request_token) form.set('request_token', String(json.request_token));
       if (json.capture_date) form.set('capture_date', String(json.capture_date));
       if (json.capture_time) form.set('capture_time', String(json.capture_time));
       if (json.latitude !== undefined && json.latitude !== null) form.set('latitude', String(json.latitude));
