@@ -22,10 +22,8 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import {
   useAddExtraImage,
-  useAddPositionVoiceNote,
   useChoiceLists,
   useClearImageFile,
-  useCreatePosition,
   useDeleteImage,
   useDeletePosition,
   useDeletePositionVoiceNote,
@@ -35,13 +33,11 @@ import {
   useSaveAnnotation,
   useTranscribePositionVoiceNote,
   useUpdateImage,
-  useUpdatePosition,
-  useUpdateVisit,
   useUploadImage,
   useVisit,
 } from '../api/hooks';
 import { mediaUrl } from '../api/client';
-import type { Position } from '../api/types';
+import type { Position, PositionSlot } from '../api/types';
 import { KpiTile } from '../components/KpiTile';
 import { VisitStatusChip } from '../components/Badges';
 import { MapPicker } from '../components/MapPicker';
@@ -53,9 +49,11 @@ import FactCheckIcon from '@mui/icons-material/FactCheckRounded';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartmentRounded';
 import PendingActionsIcon from '@mui/icons-material/PendingActionsRounded';
 import { positionLabel } from '../utils/positionChanges';
-import { VisitWorkflowToolbar } from '../components/VisitWorkflowToolbar';
+import { VisitEntryToolbar } from '../components/VisitEntryToolbar';
+import { useVisitEntry } from '../api/visitEntry';
+import { addEntryPosition, entryHasChanges, entryPositions, prepareEntryLayout } from '../utils/visitEntry';
 import { VisitEquipmentPreset } from '../components/VisitEquipmentPreset';
-import { mergePositionDraft, restorePositionDrafts, type PositionDrafts } from '../utils/visitWorkflow';
+import { mergePositionDraft, type PositionDrafts } from '../utils/visitWorkflow';
 
 // Not part of the workbook's Lists sheet (Thermal mode was free text there) — this is a curated set
 // of the modes field crews actually report on radiometric thermal cameras (FLIR/DJI H20T etc.).
@@ -90,10 +88,7 @@ function VisitDetailWorkspace() {
   const isTeamMember = user?.role === 'team_member';
   const { data: visit, isLoading, isError, error: visitError } = useVisit(id);
   const { data: lists } = useChoiceLists();
-  const updateVisit = useUpdateVisit();
-  const updatePosition = useUpdatePosition(id, true);
   const deletePosition = useDeletePosition(id);
-  const createPosition = useCreatePosition(id);
   const uploadImage = useUploadImage(id);
   const updateImage = useUpdateImage(id);
   const clearImageFile = useClearImageFile(id);
@@ -103,58 +98,41 @@ function VisitDetailWorkspace() {
   const retypeImage = useRetypeImage(id);
   const makePrimaryImage = useMakePrimaryImage(id);
   const deleteVisit = useDeleteVisit();
-  const addVoiceNote = useAddPositionVoiceNote(id);
   const transcribeVoiceNote = useTranscribePositionVoiceNote(id);
   const deleteVoiceNote = useDeletePositionVoiceNote(id);
 
-  const [headerError, setHeaderError] = useState('');
-  const [headerDraft, setHeaderDraft] = useState<Record<string, unknown> | null>(null);
+  const working = useVisitEntry(id, user?.username || '');
+  const { entry } = working;
+  const drafts = entry.drafts;
+  const headerDraft = entry.headerDraft;
+  const setDrafts = (value: PositionDrafts | ((current: PositionDrafts) => PositionDrafts)) => working.change(current => ({ ...current, drafts: typeof value === 'function' ? value(current.drafts) : value }));
   const [receipt, setReceipt] = useState<{ title: string; message: string; time: string } | null>(null);
-  const draftStorageKey = `iip-visit-drafts:${user?.username}:${id}`;
-  const [drafts, setDrafts] = useState<PositionDrafts>(() => {
-    try { return restorePositionDrafts(sessionStorage.getItem(draftStorageKey), id); } catch { return {}; }
-  });
-  const [draftStorageError, setDraftStorageError] = useState(false);
-  useEffect(() => {
-    try {
-      if (Object.keys(drafts).length) sessionStorage.setItem(draftStorageKey, JSON.stringify(drafts));
-      else sessionStorage.removeItem(draftStorageKey);
-      // Reflect the outcome of synchronizing drafts with browser storage.
-      // oxlint-disable-next-line react/set-state-in-effect
-      setDraftStorageError(false);
-    } catch { setDraftStorageError(true); }
-  }, [drafts, draftStorageKey]);
   const [selectedPositionId, setSelectedPositionId] = useState<number | null>(null);
-  const [batchSaving, setBatchSaving] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
-  const dirtyPositions = new Set(Object.keys(drafts).map(Number));
+  const [voiceError, setVoiceError] = useState('');
+  const [pendingVoice, setPendingVoice] = useState<{ position: Position; file: File; token: string; duration: number } | null>(null);
+  const uploadVoice = async (recording: NonNullable<typeof pendingVoice>) => {
+    setPendingVoice(recording); setUploadBusy(true); setVoiceError('');
+    try {
+      await working.upload(recording.position, 'Voice note', recording.file, recording.token, recording.duration);
+      setPendingVoice(null); setUploadBusy(false);
+    } catch {
+      setVoiceError('The recording is retained on this page. Retry before leaving; refreshing would lose the unsent recording.');
+    }
+  };
+  const batchSaving = working.busy;
+  const pendingDraftImages = working.images.filter(i => !entry.excludedImages.includes(i.id));
+  const hasDraft = entryHasChanges(entry) || pendingDraftImages.length > 0;
   useEffect(() => {
-    if (!Object.keys(drafts).length && !headerDraft) return;
+    if (!uploadBusy) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [drafts, headerDraft]);
-  useEffect(() => {
-    if (!dirtyPositions.size && !uploadBusy && !headerDraft) return;
-    const confirmLeave = (event: MouseEvent) => {
-      const link = (event.target as Element)?.closest?.('a[href]') as HTMLAnchorElement | null;
-      if (!link || link.target === '_blank' || link.hasAttribute('download') || link.href === window.location.href || event.ctrlKey || event.metaKey) return;
-      if (!window.confirm('Leave this inspection and discard unsaved inspection changes? Save them first if they must appear in reports.')) {
-        event.preventDefault(); event.stopPropagation();
-      }
-    };
-    document.addEventListener('click', confirmLeave, true);
-    return () => document.removeEventListener('click', confirmLeave, true);
-  }, [dirtyPositions.size, uploadBusy, headerDraft]);
+  }, [uploadBusy]);
   const confirmSaved = (title: string, message: string) => {
     setReceipt({ title, message, time: new Date().toLocaleString() });
 
   };
-  // Positions manually revealed this session via "Add position" but that don't have real data yet —
-  // isPositionActive() below already covers everything with data, this only plugs the gap between
-  // clicking Add and actually filling something in (and lets a mis-click be undone).
-  const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
-
   const header = useMemo(() => ({ ...visit, ...headerDraft }), [visit, headerDraft]);
 
   if (isError) {
@@ -173,26 +151,17 @@ function VisitDetailWorkspace() {
     );
   }
 
-  if (isLoading || !visit || !lists) {
-    return <LinearProgress />;
+  if (isLoading || !visit || !lists || !working.ready) {
+    return <Stack spacing={2}><LinearProgress />{working.error && <Alert severity="warning">{working.error}<Button onClick={() => void working.reload()}>Retry loading draft</Button></Alert>}</Stack>;
   }
 
-  const saveHeaderField = (field: string, value: unknown) => {
-    setHeaderDraft((d) => ({ ...(d || {}), [field]: value }));
-  };
-
-  const commitHeader = async () => {
-    if (!headerDraft || updateVisit.isPending) return;
-    const submitted = { ...headerDraft }; setHeaderError('');
-    try {
-      await updateVisit.mutateAsync({ id, payload: submitted });
-      setHeaderDraft(current => {
-        const remaining = Object.fromEntries(Object.entries(current || {}).filter(([key, value]) => value !== submitted[key]));
-        return Object.keys(remaining).length ? remaining : null;
-      });
-    } catch { setHeaderError('Visit details were not saved. Your entries are retained; check the connection and retry.'); }
-  };
-
+  const saveHeaderFields = (values: Record<string, unknown>) => working.change(current => {
+    const before = current.headerBefore || visit;
+    const changes = { ...(current.headerDraft || {}), ...values };
+    for (const key of Object.keys(changes)) if ((changes[key] ?? '') === (before[key as keyof typeof before] ?? '')) delete changes[key];
+    return { ...current, headerBefore: before, headerDraft: Object.keys(changes).length ? changes : null };
+  });
+  const saveHeaderField = (field: string, value: unknown) => saveHeaderFields({ [field]: value });
   const pendingEvidence = visit.positions.filter(p => p.in_scope !== false)
     .flatMap((p) => p.images.map((img) => ({ position: p, image: img })))
     .filter(({ image }) => image.evidence_status === 'PENDING CAPTURE' || image.evidence_status === 'RECAPTURE REQUIRED');
@@ -207,39 +176,21 @@ function VisitDetailWorkspace() {
     p.screening_result !== 'Not inspected' ||
     p.images.some((img) => !!img.file_path) ||
     !!p.voice_note_path;
-  const visiblePositions = visit.positions.filter((p) => p.in_scope !== false && (isPositionActive(p) || addedIds.has(p.id)));
-  const hiddenIds = new Set(
-    visit.positions.filter((p) => p.in_scope === false || (!isPositionActive(p) && !addedIds.has(p.id))).map((p) => p.id),
-  );
-
+  const allPositions = entryPositions(visit, entry);
+  const visiblePositions = allPositions.filter(p => p.in_scope !== false && (isPositionActive(p) || !!drafts[p.id] || p.id < 0));
+  const hiddenIds = new Set(allPositions.filter(p => !visiblePositions.some(v => v.id === p.id)).map(p => p.id));
+  const addSlot = (slot: PositionSlot) => {
+    const next = addEntryPosition(visit, entry, slot);
+    working.change(next);
+    const added = entryPositions(visit, next).find(p => p.ohl === slot.ohl && p.phase === slot.phase && p.string === slot.string && p.direction === slot.direction);
+    setSelectedPositionId(added?.id || null);
+  };
   const handleAddPosition = async (position: Position, direction: string, mountType: string, stringCount: string) => {
-    const payload: Partial<Position> = { string_count: stringCount, tower_proximity: stringCount === 'Double' ? (position.string === 'S1' ? 'Outer' : 'Inner') : null };
-    if (direction) payload.direction = direction;
-    if (mountType) payload.mount_type = mountType;
-    if (Object.keys(payload).length > 0) {
-      await updatePosition.mutateAsync({ id: position.id, payload });
-    }
-    setAddedIds((prev) => new Set(prev).add(position.id));
-    setSelectedPositionId(position.id);
-    confirmSaved('Position added and saved', `${positionLabel({ ...position, direction })} was added. The server confirmed the save.`);
+    addSlot({ ohl: position.ohl, phase: position.phase, string: position.string, direction, mount_type: mountType, string_count: stringCount });
   };
-
-  // Create an additional direction or restore a slot freed by editing a string identity.
-  // The saved direction makes the new row active when the visit refetches.
   const handleCreatePosition = async (ohl: string, phase: string, string_: string, direction: string, mountType: string, stringCount: string) => {
-    const created = await createPosition.mutateAsync({ ohl, phase, string: string_, direction, mount_type: mountType || undefined, string_count: stringCount });
-    setSelectedPositionId(created.id);
-    confirmSaved('Position added and saved', `${positionLabel({ ohl, phase, string: string_, direction })} was added. The server confirmed the save.`);
+    addSlot({ ohl, phase, string: string_, direction, mount_type: mountType, string_count: stringCount });
   };
-
-  const handleRemovePosition = (positionId: number) => {
-    setAddedIds((prev) => {
-      const next = new Set(prev);
-      next.delete(positionId);
-      return next;
-    });
-  };
-
   const focusedPosition = visiblePositions.find(p => p.id === selectedPositionId) || visiblePositions[0];
   const focusedIndex = visiblePositions.findIndex(p => p.id === focusedPosition?.id);
 
@@ -249,7 +200,7 @@ function VisitDetailWorkspace() {
         <Button
           startIcon={<ArrowBackIcon />}
           onClick={() => {
-            if ((dirtyPositions.size || headerDraft || uploadBusy) && !window.confirm('Discard unsaved inspection changes and leave this inspection?')) return;
+            if (uploadBusy && !window.confirm('An upload is still pending. Leave this page?')) return;
             navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`);
           }}
         >
@@ -259,7 +210,7 @@ function VisitDetailWorkspace() {
           <Button
             variant="outlined"
             startIcon={<PictureAsPdfIcon />}
-            disabled={dirtyPositions.size > 0 || uploadBusy || updateVisit.isPending || !!headerDraft}
+            disabled={hasDraft || uploadBusy || working.busy}
             component="a"
             href={mediaUrl(`/api/reports/visits/${id}.pdf`)}
             target="_blank"
@@ -331,12 +282,12 @@ function VisitDetailWorkspace() {
 
       <Card component="details">
         <Box component="summary" sx={{ p: 2, cursor: 'pointer', fontWeight: 700 }}>Visit details · {header.inspection_date as string || 'Date not set'} · {header.inspector_name as string || 'Set inspector and equipment'}</Box>
-        <CardContent>
+        <CardContent component="fieldset" disabled={working.busy || uploadBusy || working.uncertain} sx={{ border: 0, minWidth: 0 }}>
           <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
             Visit header
           </Typography>
           <VisitEquipmentPreset visit={visit} userId={String(user?.id || user?.username)} inspectorName={user?.full_name || user?.username || ''}
-            onApply={payload => updateVisit.mutateAsync({ id, payload })} />
+            onApply={async payload => saveHeaderFields(payload)} />
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
@@ -559,14 +510,13 @@ function VisitDetailWorkspace() {
             // map always shows the right tower instead of a blank/generic view when a visit has no GPS yet.
             latitude={(header.latitude as number) ?? visit.latitude ?? visit.tower?.latitude ?? null}
             longitude={(header.longitude as number) ?? visit.longitude ?? visit.tower?.longitude ?? null}
-            onChange={(lat, lng) => setHeaderDraft(current => ({ ...current, latitude: lat, longitude: lng }))}
+            onChange={(lat, lng) => saveHeaderFields({ latitude: lat, longitude: lng })}
             height={320}
             label={visit.tower?.tower_id}
             highlight
           />
-          {headerError && <Alert severity="error" sx={{ mt: 2 }}>{headerError}</Alert>}
-          <Button sx={{ mt: 2 }} variant="contained" disabled={!headerDraft || updateVisit.isPending} onClick={() => void commitHeader()}>{updateVisit.isPending ? 'Saving visit details…' : 'Save visit details'}</Button>
-          {headerDraft && <Typography variant="caption" sx={{ ml: 2 }}>Unsaved visit details</Typography>}
+          <Typography variant="caption">Visit details join the same draft as the positions. Confirm them together below.</Typography>
+          {headerDraft && <Typography variant="caption" sx={{ ml: 2 }}>Draft visit details</Typography>}
         </CardContent>
       </Card>
 
@@ -582,25 +532,31 @@ function VisitDetailWorkspace() {
           Inspection positions
         </Typography>
         <Stack spacing={1.5}>
-          <Alert severity="info">Inspection field changes stay in a draft until you review and confirm saving. An internet connection is required for server confirmation. Saved changes affect future reports; regenerate earlier documents when needed.</Alert>
-          {dirtyPositions.size > 0 && <Alert severity="warning">{dirtyPositions.size} position(s) have unsaved changes. Save or discard these changes before downloading the tower report.</Alert>}
-          {draftStorageError && <Alert severity="warning">This browser could not keep a recovery copy of your position drafts. Keep this page open until they are saved.</Alert>}
+          <Alert severity="info">Enter the whole visit, then use Review and save visit once. Draft fields and new evidence are saved separately from confirmed report data.</Alert>
+          {voiceError && pendingVoice && <Alert severity="error">{voiceError}<Stack direction="row" spacing={1}>
+            <Button onClick={() => void uploadVoice(pendingVoice)}>Retry recording upload</Button>
+            <Button onClick={() => { setPendingVoice(null); setVoiceError(''); setUploadBusy(false); }}>Discard unsent recording</Button>
+          </Stack></Alert>}
           {receipt && <Alert severity="success" onClose={() => setReceipt(null)}>
             <strong>{receipt.title}.</strong> {receipt.message} Confirmed at {receipt.time}.
           </Alert>}
-          <VisitWorkflowToolbar visit={visit} positions={visiblePositions} lists={lists} drafts={drafts}
+          <VisitEntryToolbar visit={visit} positions={visiblePositions} lists={lists} entry={entry} images={working.images}
             onDraftsChange={setDrafts} selectedId={focusedPosition?.id ?? null} onSelect={setSelectedPositionId}
-            canSaveTemplate={!isTeamMember} onBusyChange={setBatchSaving} disabled={uploadBusy || updatePosition.isPending}
-            onSaved={message => confirmSaved('Visit updated', message)} />
+            canSaveTemplate={!isTeamMember} disabled={uploadBusy} busy={working.busy} locked={working.uncertain}
+            status={working.status} draftError={working.error}
+            onPrepare={(slots, remember) => working.change(prepareEntryLayout(visit, entry, slots, remember))}
+            onConfirm={async () => { await working.commit(); confirmSaved('Visit saved', 'Visit details, positions and draft evidence were confirmed together.'); }}
+            onLater={async () => { await working.flush(); navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`); }}
+            onDiscard={working.discard} onReload={working.reload} onCompareLatest={working.compareLatest} />
           <Box component="details"><Typography component="summary" sx={{ cursor: 'pointer' }}>Add an individual position or exception</Typography>
-          <AddPositionBar
-            positions={visit.positions}
+          <Box component="fieldset" disabled={uploadBusy || working.busy || working.uncertain} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}><AddPositionBar
+            positions={allPositions}
             hiddenIds={hiddenIds}
             lists={lists}
             towerArea={visit.tower?.area}
             onAdd={handleAddPosition}
             onCreate={handleCreatePosition}
-          />
+          /></Box>
           </Box>
           {visiblePositions.length === 0 && (
             <Alert severity="info">
@@ -617,16 +573,22 @@ function VisitDetailWorkspace() {
               key={p.id}
               position={drafts[p.id] ? { ...drafts[p.id].before, images: p.images } : p}
               draftValue={drafts[p.id]?.changes || {}}
-              externalSaving={batchSaving}
+              visitEntryMode
+              externalSaving={batchSaving || working.uncertain}
               onUploadBusyChange={setUploadBusy}
               onDraftChange={changes => setDrafts(current => {
                 if (!Object.keys(changes).length) { const next = { ...current }; delete next[p.id]; return next; }
                 return mergePositionDraft(current, p, changes);
               })}
-              onSave={async (payload) => {
-                await updatePosition.mutateAsync({ id: p.id, payload: { ...payload, expected_updated_at: drafts[p.id]?.before.updated_at || p.updated_at } });
-                confirmSaved('Inspection changes saved', `${positionLabel({ ...p, ...payload })} was updated. The server confirmed the save.`);
-              }}
+              onSave={async () => { throw new Error('Use Review and save visit.'); }}
+              onStageEvidence={(type, file, token) => working.upload(visit.positions.find(saved => saved.id === p.id) || p, type, file, token)}
+              draftEvidence={<Stack spacing={1} sx={{ my: 1 }}>
+                {pendingDraftImages.filter(i => i.position_key === p.id).map(image => <Stack key={image.id} direction="row" sx={{ alignItems: 'center', gap: 1 }}>
+                  {image.image_type === 'Voice note' ? <Box component="audio" controls src={mediaUrl(`/api/visits/${id}/entry/images/${image.id}`)} sx={{ width: 220 }} /> : <Box component="img" src={mediaUrl(`/api/visits/${id}/entry/images/${image.id}`)} alt={image.image_type} sx={{ width: 80, height: 55, objectFit: 'cover' }} />}
+                  <Typography variant="caption">Draft · {image.image_type} · {image.filename}</Typography>
+                  <Button size="small" onClick={() => working.change(current => ({ ...current, excludedImages: [...current.excludedImages, image.id] }))}>Remove from draft</Button>
+                </Stack>)}
+              </Stack>}
               lists={lists}
               towerArea={visit.tower?.area}
               defaultExpanded
@@ -663,17 +625,22 @@ function VisitDetailWorkspace() {
               onMakePrimaryImage={(imageId) => makePrimaryImage.mutate(imageId)}
               annotationSaving={saveAnnotation.isPending}
               onDelete={async () => {
-                await deletePosition.mutateAsync(p.id);
-                handleRemovePosition(p.id);
+                if (p.id > 0) await deletePosition.mutateAsync(p.id);
+                working.change(current => {
+                  const layoutVersions = { ...current.layoutVersions }; delete layoutVersions[p.id];
+                  return { ...current, layoutVersions, additions: current.additions.filter(item => item.id !== p.id), layoutIds: current.layoutIds?.filter(key => key !== p.id) || null,
+                    excludedImages: [...current.excludedImages, ...working.images.filter(i => i.position_key === p.id).map(i => i.id)] };
+                });
                 setDrafts(current => { const next = { ...current }; delete next[p.id]; return next; });
-                confirmSaved('Deletion saved', `${positionLabel(p)} was permanently deleted. The server confirmed the deletion; this position will no longer be included in future reports.`);
+                if (p.id > 0) confirmSaved('Deletion saved', `${positionLabel(p)} was permanently deleted. The server confirmed the deletion; this position will no longer be included in future reports.`);
               }}
-              onRecordVoiceNote={(blob, durationSeconds) =>
-                addVoiceNote.mutate({ positionId: p.id, file: blob, durationSeconds })
-              }
+              onRecordVoiceNote={(blob, durationSeconds) => {
+                void uploadVoice({ position: visit.positions.find(saved => saved.id === p.id) || p,
+                  file: new File([blob], 'recording.webm', { type: blob.type }), token: crypto.randomUUID(), duration: durationSeconds });
+              }}
               onTranscribeVoiceNote={() => transcribeVoiceNote.mutate(p.id)}
               onDeleteVoiceNote={() => deleteVoiceNote.mutate(p.id)}
-              voiceNoteSaving={addVoiceNote.isPending && addVoiceNote.variables?.positionId === p.id}
+              voiceNoteSaving={uploadBusy}
               voiceNoteTranscribing={transcribeVoiceNote.isPending && transcribeVoiceNote.variables === p.id}
             />
           ))}

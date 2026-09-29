@@ -6,7 +6,8 @@ import { positionError, positionLabel } from '../utils/positionChanges';
 
 interface UploadItem { file: File; type: string; baselineId?: number; token: string }
 
-export function PositionEvidenceUpload({ position, types, disabled, onUpload, onExtra, onBusyChange }: {
+export function PositionEvidenceUpload({ position, types, disabled, onUpload, onExtra, onBusyChange, onStage }: {
+  onStage?: (type: string, file: File, token: string) => Promise<unknown>;
   position: Position; types: string[]; disabled?: boolean;
   onUpload: (id: number, file: File, meta: Record<string, unknown>) => Promise<unknown>;
   onExtra: (type: string, file: File, meta: Record<string, unknown>) => Promise<unknown>;
@@ -33,11 +34,12 @@ export function PositionEvidenceUpload({ position, types, disabled, onUpload, on
       while (pending.length) {
         const item = pending[0];
         setProgress(`${pending.length} file(s) remaining · ${item.file.name}`);
-        if (item.baselineId != null) await onUpload(item.baselineId, item.file, { requestToken: item.token });
+        if (onStage) await onStage(item.type, item.file, item.token);
+        else if (item.baselineId != null) await onUpload(item.baselineId, item.file, { requestToken: item.token });
         else await onExtra(item.type, item.file, { requestToken: item.token });
         pending = pending.slice(1); setRemaining(pending);
       }
-      setProgress('Files uploaded or queued on this device. Check sync status before reporting.');
+      setProgress(onStage ? 'Photos uploaded to your draft. They join the report only after you confirm the visit.' : 'Files uploaded or queued on this device. Check sync status before reporting.');
       onBusyChange?.(false);
     } catch (err) {
       setError(positionError(err, 'Upload stopped. Unsent files are kept here. Retry or remove them from this upload queue.'));

@@ -621,6 +621,7 @@ class VisitCreate(VisitBase):
 
 
 class VisitUpdate(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
     inspection_date: dt.date | None = None
     inspector_name: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)

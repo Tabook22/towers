@@ -32,6 +32,35 @@ def utcnow() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
 
 
+class VisitEntryDraft(Base):
+    """Private working copy; never read by reports or progress calculations."""
+    __tablename__ = "visit_entry_drafts"
+    __table_args__ = (UniqueConstraint("visit_id", "user_id"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    visit_id: Mapped[int] = mapped_column(ForeignKey("visits.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    revision: Mapped[int] = mapped_column(default=0)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    last_commit_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class VisitDraftImage(Base):
+    __tablename__ = "visit_draft_images"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    draft_id: Mapped[int] = mapped_column(ForeignKey("visit_entry_drafts.id", ondelete="CASCADE"), index=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True)
+    position_key: Mapped[int] = mapped_column(Integer)
+    expected_position_updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    image_type: Mapped[str] = mapped_column(String(20))
+    filename: Mapped[str] = mapped_column(String(300))
+    content_type: Mapped[str] = mapped_column(String(100))
+    file_path: Mapped[str] = mapped_column(String(500))
+    checksum: Mapped[str] = mapped_column(String(64))
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    consumed: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
 class UserRole(str, enum.Enum):
     ADMIN = "admin"
     REVIEWER = "reviewer"

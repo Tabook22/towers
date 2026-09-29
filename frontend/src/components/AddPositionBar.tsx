@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Alert, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlineRounded';
 import type { ChoiceLists, Position } from '../api/types';
 import { deriveDirectionFromArea, deriveDirectionsFromArea } from '../utils/direction';
@@ -37,7 +37,6 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
   const [stringCount, setStringCount] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const saveLock = useRef(false);
 
   const isTension = mountType === 'Tension';
@@ -63,14 +62,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
   const remaining = lists.ohl.flatMap(o => lists.phase.flatMap(p => lists.string.map(s => ({ ohl: o, phase: p, string: s }))))
     .filter(c => !positions.some(p => !hiddenIds.has(p.id) && p.ohl === c.ohl && p.phase === c.phase && p.string === c.string));
 
-  const reset = () => {
-    setStringCount('');
-    setMountType('');
-    setOhl('');
-    setDirection('');
-    setPhase('');
-    setStringVal('');
-  };
+  const reset = () => { setStringVal(''); };
 
   if (remaining.length === 0 && tensionRemaining.length === 0) {
     return (
@@ -104,7 +96,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
         await onCreate(ohl, phase, stringVal, direction, mountType, stringCount);
       }
       reset();
-      setConfirmOpen(false);
+
     } catch (err) {
       setError(positionError(err, 'Addition not confirmed. Your entries are kept here. Check your connection and reload the visit before retrying if the server may have received the request.'));
     } finally { saveLock.current = false; setSaving(false); }
@@ -253,9 +245,9 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
           variant="contained"
           startIcon={<AddCircleOutlineIcon />}
           disabled={saving || !mountType || !stringCount || !stringOptions.includes(stringVal) || !(ohl && phase && stringVal) || (!match && !direction) || (isTension && !direction)}
-          onClick={() => { setError(''); setConfirmOpen(true); }}
+          onClick={() => void handleAdd()}
         >
-          {saving ? 'Saving…' : 'Review and add'}
+          {saving ? 'Adding…' : 'Add position'}
         </Button>
       </Stack>
       {mountType && phase && stringCount && <Typography variant="body2" sx={{ mt: 1.5 }}>
@@ -263,24 +255,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
       </Typography>}
       {phase && stringCount && !stringOptions.length && <Alert severity="info" sx={{ mt: 1 }}>The matching string positions have already been added. Edit their inspection cards below.</Alert>}
       {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
-      <Dialog open={confirmOpen} onClose={() => { if (!saving) setConfirmOpen(false); }} aria-labelledby="confirm-add-position">
-        <DialogTitle id="confirm-add-position">Confirm new inspection position</DialogTitle>
-        <DialogContent>
-          <DialogContentText>Check these details before adding this position to the saved inspection used in future reports.</DialogContentText>
-          <Stack spacing={0.5} sx={{ my: 2 }}>
-            <Typography><strong>Position:</strong> {ohl} · Phase {phase} · {stringVal}</Typography>
-            <Typography><strong>Tower type:</strong> {mountType}</Typography>
-            <Typography><strong>Number of strings:</strong> {stringCount === 'Double' ? '2' : '1'}</Typography>
-            <Typography><strong>Direction:</strong> {direction || 'Not set'}</Typography>
-          </Stack>
-          <Alert severity="info">Wait for the server confirmation before treating this position as saved.</Alert>
-          {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
-        </DialogContent>
-        <DialogActions>
-          <Button autoFocus disabled={saving} onClick={() => setConfirmOpen(false)}>Back to editing</Button>
-          <Button variant="contained" disabled={saving} onClick={() => void handleAdd()}>{saving ? 'Saving — waiting for server…' : 'Confirm and save position'}</Button>
-        </DialogActions>
-      </Dialog>
+
     </Paper>
   );
 }

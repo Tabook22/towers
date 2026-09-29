@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   Accordion,
   AccordionDetails,
@@ -45,6 +46,9 @@ import { VoiceNoteControls, VoiceNotePlayer } from './VoiceNoteControls';
 import { positionChangeRows, positionError, positionLabel as formatPositionLabel, positionPatch } from '../utils/positionChanges';
 
 interface Props {
+  visitEntryMode?: boolean;
+  draftEvidence?: ReactNode;
+  onStageEvidence?: (type: string, file: File, token: string) => Promise<unknown>;
   draftValue?: Partial<Position>;
   onDraftChange?: (draft: Partial<Position>) => void;
   externalSaving?: boolean;
@@ -80,6 +84,9 @@ interface Props {
 }
 
 export function PositionPanel({
+  visitEntryMode = false,
+  draftEvidence,
+  onStageEvidence,
   draftValue,
   onDraftChange,
   externalSaving = false,
@@ -129,11 +136,11 @@ export function PositionPanel({
     return () => onDirtyChange?.(savedPosition.id, false);
   }, [savedPosition.id, dirty, onDirtyChange]);
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty || visitEntryMode) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  }, [dirty, visitEntryMode]);
   const confirmSave = async () => {
     if (!review || saveLock.current) return;
     saveLock.current = true; setSaving(true); setSaveError('');
@@ -158,7 +165,8 @@ export function PositionPanel({
   const [deleteError, setDeleteError] = useState('');
   const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
   const deleteLock = useRef(false);
-  const positionLabel = formatPositionLabel(savedPosition);
+  const displayPosition = visitEntryMode ? position : savedPosition;
+  const positionLabel = formatPositionLabel(displayPosition);
   const confirmDelete = async () => {
     if (!deleteAcknowledged || deleteLock.current) return;
     deleteLock.current = true;
@@ -202,9 +210,10 @@ export function PositionPanel({
         setExpanded(true);
         requestAnimationFrame(() => configurationRef.current?.focus());
       }}>Edit</Button>
-      <Button size="small" color="error" startIcon={<DeleteRoundedIcon />} aria-label={`Delete position ${positionLabel}`} onClick={() => {
+      <Button size="small" color="error" disabled={externalSaving} startIcon={<DeleteRoundedIcon />} aria-label={`${savedPosition.id < 0 ? 'Remove draft position' : 'Delete position'} ${positionLabel}`} onClick={() => {
+        if (savedPosition.id < 0) { void onDelete(); return; }
         setDeleteError(''); setDeleteAcknowledged(false); setDeleteOpen(true);
-      }}>Delete</Button>
+      }}>{savedPosition.id < 0 ? 'Remove from draft' : 'Delete'}</Button>
     </Stack>
     <Accordion expanded={expanded} onChange={(_, value) => setExpanded(value)} disableGutters variant="outlined" sx={{ '&:before': { display: 'none' } }}>
       <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ '& .MuiAccordionSummary-content': { pr: { sm: 20 }, pt: { xs: 4, sm: 0 }, minHeight: 48, alignItems: 'center' } }}>
@@ -213,33 +222,35 @@ export function PositionPanel({
             <Grid size={{ xs: 12, sm: 3 }}>
               <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
                 <Typography sx={{ fontWeight: 700 }}>
-                  {savedPosition.ohl} · {savedPosition.phase} · {savedPosition.string_count === 'Double' ? `${savedPosition.string} — ${savedPosition.string === 'S1' ? 'Outer' : 'Inner'}` : savedPosition.string}
+                  {displayPosition.ohl} · {displayPosition.phase} · {displayPosition.string_count === 'Double' ? `${displayPosition.string} — ${displayPosition.string === 'S1' ? 'Outer' : 'Inner'}` : displayPosition.string}
                 </Typography>
-                {savedPosition.tower_proximity && (
+                {displayPosition.tower_proximity && (
                   <Chip
                     size="small"
                     variant="outlined"
-                    color={savedPosition.tower_proximity === 'Inner' ? 'info' : 'secondary'}
-                    label={savedPosition.tower_proximity}
+                    color={displayPosition.tower_proximity === 'Inner' ? 'info' : 'secondary'}
+                    label={displayPosition.tower_proximity}
                   />
                 )}
               </Stack>
               <Typography variant="caption" color="text.secondary">
-                {savedPosition.mount_type || 'Tower type not set'} · {savedPosition.string_count === 'Double' ? '2 strings' : savedPosition.string_count === 'Single' ? '1 string' : 'String count not set'} · {savedPosition.position_code || 'Direction not set'}
-                {dirty && <Chip size="small" color="warning" label="Unsaved changes" sx={{ ml: 1 }} />}
+                {displayPosition.mount_type || 'Tower type not set'} · {displayPosition.string_count === 'Double' ? '2 strings' : displayPosition.string_count === 'Single' ? '1 string' : 'String count not set'} · {visitEntryMode ? displayPosition.direction || 'Direction not set' : savedPosition.position_code || 'Direction not set'}
+                {(dirty || savedPosition.id < 0) && <Chip size="small" color="warning" label={visitEntryMode ? 'Draft' : 'Unsaved changes'} sx={{ ml: 1 }} />}
               </Typography>
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
-              <ScreeningChip result={savedPosition.screening_result} />
+              <ScreeningChip result={displayPosition.screening_result} />
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
-              <HotspotChip value={savedPosition.hotspot} />
+              <HotspotChip value={displayPosition.hotspot} />
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
-              <SeverityChip severity={savedPosition.severity} />
+              <SeverityChip severity={displayPosition.severity} />
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
-              {pendingCount > 0 ? (
+              {visitEntryMode && (dirty || savedPosition.id < 0) ? (
+                <Chip size="small" label="Draft · check evidence below" color="warning" variant="outlined" />
+              ) : pendingCount > 0 ? (
                 <Chip size="small" label={`${pendingCount} image(s) pending`} color="warning" variant="outlined" />
               ) : (
                 <Chip size="small" label="Evidence complete" color="success" variant="outlined" />
@@ -250,13 +261,14 @@ export function PositionPanel({
       </AccordionSummary>
       <AccordionDetails>
         <Stack component="fieldset" disabled={saving || deleting || externalSaving} spacing={2} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
-          <Alert severity={dirty ? 'warning' : lastSaved ? 'success' : 'info'}>
+          {!visitEntryMode && <><Alert severity={dirty ? 'warning' : lastSaved ? 'success' : 'info'}>
             {dirty ? 'Unsaved changes — review and confirm saving before using these changes in a report.' : lastSaved ? `Saved on the server. Confirmed at ${lastSaved}.` : 'No unsaved field edits in this card. Changes require review and confirmation before saving.'}
           </Alert>
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
             <Button variant="contained" disabled={!dirty || saving} onClick={reviewChanges}>Review and save changes</Button>
             <Button disabled={!dirty || saving} onClick={discard}>Discard changes</Button>
           </Stack>
+          </>}
           <Box ref={configurationRef} tabIndex={-1} sx={{ outline: 'none', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', borderRadius: 2 } }}>
             <PositionConfiguration position={position} lists={lists} towerArea={towerArea} onChange={onUpdate} />
           </Box>
@@ -597,8 +609,9 @@ export function PositionPanel({
           </Box>
 
           <Box>
-            <PositionEvidenceUpload position={savedPosition} types={lists.image_type}
+            <PositionEvidenceUpload position={visitEntryMode ? position : savedPosition} types={lists.image_type} onStage={onStageEvidence}
               disabled={saving || externalSaving} onUpload={onUploadImage} onExtra={onAddExtraImage} onBusyChange={onUploadBusyChange} />
+            {draftEvidence}
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
               Every uploaded image for this position is grouped by type below. Check "Include in report" on every image you want in the next report — you can
               choose more than one per type. Unchecked images remain supporting evidence. Saved reports are unchanged.
@@ -630,10 +643,10 @@ export function PositionPanel({
               </Grid>
             )}
           </Box>
-          <Stack direction="row" spacing={1}>
+          {!visitEntryMode && <Stack direction="row" spacing={1}>
             <Button variant="contained" disabled={!dirty || saving} onClick={reviewChanges}>Review and save changes</Button>
             <Button disabled={!dirty || saving} onClick={discard}>Discard changes</Button>
-          </Stack>
+          </Stack>}
         </Stack>
       </AccordionDetails>
     </Accordion>

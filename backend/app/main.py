@@ -18,6 +18,7 @@ from app.migrations import (
     rebuild_positions_table_for_multi_direction_support,
 )
 from app.routers import (
+    visit_entry,
     thermal_bridge,
     app_settings,
     archive,
@@ -79,6 +80,7 @@ app.include_router(push.router)
 app.include_router(areas.router)
 app.include_router(towers.router)
 app.include_router(visits.router)
+app.include_router(visit_entry.router)
 app.include_router(positions.router)
 app.include_router(images.router)
 app.include_router(archive.router)

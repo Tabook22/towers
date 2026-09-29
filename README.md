@@ -24,55 +24,60 @@ Data flow: a Tower has many Visits; each Visit auto-creates its 12 fixed Positio
 2 strings); each Position starts with 4 image slots (`TH Full` / `TH Close` / `RGB Full` / `RGB Close`) and can have supplementary images. Position and
 Image IDs are generated server-side from the workbook's original formulas and are never user-editable.
 
-## Confirming inspection-position changes
+## Field visit entry: one final confirmation
 
-Position fields are edited as an unsaved draft. Use **Review and save changes** to compare the
-saved and proposed values, then **Confirm and save changes**. Adding a position also requires a
-review and confirmation. Deletion identifies the position and affected evidence, requires an
-acknowledgment of permanent deletion, and then a final confirmation.
-
-A timestamped success alert appears only after the server acknowledges the operation.
-Position additions, edits, and deletions require an internet connection and completion of any
-pending offline work for that visit. Failed requests retain the draft and show an unconfirmed
-status. Tower-report downloads are disabled while position fields have unsaved edits. Confirmed
-changes affect future reports; previously generated documents must be regenerated when needed.
-
-## Faster field visit entry
-
-1. Open **Prepare tower positions**, select circuits, strings and direction(s), and review the
-   generated layout. Team leaders can remember it as this tower's template for future visits.
-   Preparation reuses empty baseline rows and excludes unused rows without deleting them.
-   Positions with existing inspection work or images cannot be omitted or overwritten by a template.
-2. Select checklist rows and use **Shared details** to draft manufacturer, installation year and
-   insulator type together. Empty fields are filled by default; exceptions are preserved.
-   Results, temperatures, condition assessments, notes and images are always individual.
-3. Open a checklist position and use **Previous/Next position** to enter findings. Drafts survive
-   position navigation and refresh in the same browser tab. They are not server saves or a
-   cross-device backup. **Review and save all changed positions** shows each before/after value
-   and commits the entire batch, or none of it if validation or revision checks fail.
-4. Add multiple images directly through the four evidence-category buttons. Uploads are sequential
-   and retain unsent files for retry while the page remains open. Retry tokens avoid duplicate
-   uploads after an ambiguous response; existing offline queues retain those tokens. Image report
-   selection, EXIF extraction, thermal processing and individual image metadata remain available.
-5. Expand **Visit details**, save the header once, and review **Visit checks** before generating
-   the report. A device-local equipment preset can fill empty equipment/inspector fields after
-   review; weather, load, readings and observations are not reused. Pending evidence remains
+1. Open **Prepare tower positions**, choose circuits, strings and directions, and select
+   **Use this layout**. Alternatively, **Add position** adds an individual position directly to
+   the working checklist. Neither action needs an intermediate confirmation. Team leaders can
+   remember the layout as this tower's template when the visit is confirmed.
+2. Expand **Visit details** and fill in the header. A device-local equipment preset fills empty
+   equipment/inspector fields; weather, load, readings and observations are not reused.
+3. Select checklist rows and apply **Shared details** for manufacturer, installation year and
+   insulator type. Empty fields are filled by default. Results, measurements, condition assessments,
+   notes and evidence remain individual. Move between positions with **Previous/Next position**.
+4. Add multiple photos using the four evidence-category buttons, or record a position voice note.
+   Uploads go into a private working draft and retain their position/category association. They
+   do not enter confirmed inspections or reports until final confirmation. Failed uploads can be
+   retried while the page stays open; do not refresh with unsent files or recordings.
+5. Use **Review and save visit** once. Review the header, layout, changed fields and evidence
+   associations, then **Confirm and save visit**. The server saves the entire change together or
+   rejects it without partially updating inspection records. A timestamped receipt appears only
+   after server confirmation. Visit checks flag missing information; pending evidence remains
    informational under the existing report policy.
 
-Batch position saving and preparation require a connection and a cleared visit outbox. Stale
-drafts remain available for comparison with current saved values; they never silently overwrite
-another inspector's position edits. Report downloads on this page wait for its drafts and uploads.
+Fields are saved automatically on the device and synchronized to a private server draft when
+connected. **Save draft and finish later** waits for that synchronization before leaving. Drafts
+survive refresh; server drafts are available to the same account on another device. Simultaneous
+editing on multiple devices raises a conflict instead of overwriting another draft. Unsynced
+local edits are retained for recovery. Drafts are not visible to other inspectors or included in
+reports. Final confirmation requires a connection and a cleared legacy visit outbox. Retry tokens
+prevent duplicate confirmation and duplicate uploads after an ambiguous response.
 
-The backend's existing additive startup migration adds the layout, scope, preparation, image
-namespace and upload-token columns. Legacy rows remain in scope and keep their report eligibility.
-Prepared-only positions do not become official findings until observations/evidence are recorded.
-Completion and reports exclude unused slots. Existing image codes are preserved; newly colliding
-codes on repeat visits receive a stable visit/position suffix. Report templates and archived
-documents are unchanged. Deploy the backend and frontend together after the normal database and
-archive backup; verify a representative historical visit and regenerated report in staging first.
+Confirmed-record revision checks protect other inspectors' work. **Compare latest saved values**
+refreshes the comparison for field edits while keeping proposed values; changed/deleted position
+identities require a fresh selection. Evidence uploaded against a stale position must be removed
+from the draft and uploaded again after checking the association. **Reload server draft** replaces
+this device's copy, with an explicit warning to preserve any unsynced notes first.
 
-Focused coverage is in `backend/tests/test_visit_workflow.py` and
-`frontend/tests/visitWorkflow.test.mjs`, alongside the existing official-report and evidence tests.
+Permanent deletion and replacement of existing evidence retain their existing safeguards. Editing
+already-confirmed image metadata, report selection, thermal processing and the separate general
+visit-photo archive remain immediate existing workflows. The single final review covers visit
+fields, position entry and newly uploaded position evidence. Report downloads on the visit page
+wait for draft entry and pending uploads. Existing report templates and archived documents remain
+unchanged; regenerate documents when confirmed inspection data changes.
+
+Preparation reuses empty baseline rows and excludes unused rows without deleting them. Positions
+with recorded work cannot be omitted. Prepared positions become official findings only after
+observations/evidence are recorded. Image IDs remain generated by the server, including stable
+suffixes for collisions on repeat visits. The backend creates separate `visit_entry_drafts` and
+`visit_draft_images` tables; existing inspection rows and report eligibility are preserved. Consumed
+draft files are retained on disk for recovery and will need an explicit retention policy as usage
+grows. Deploy frontend and backend together after the normal database/archive backup and verify
+historical visit/report compatibility in staging.
+
+Focused coverage is in `backend/tests/test_visit_entry.py`, `backend/tests/test_visit_workflow.py`,
+`frontend/tests/visitEntry.test.mjs` and `frontend/tests/visitWorkflow.test.mjs`, alongside the
+existing official-report and evidence tests.
 
 ## Dashboard tower history
 
