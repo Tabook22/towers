@@ -1,0 +1,320 @@
+"""Recovery acceptance tests. Every database and storage root is isolated in tmp_path."""
+import datetime as dt
+import json
+import shutil
+import sqlite3
+import subprocess
+import sys
+import zipfile
+from pathlib import Path
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from PIL import Image as PillowImage
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+
+from app.config import settings
+from app.database import Base
+from app.deps import get_current_user, get_db
+from app.models import User, Tower, Visit, Position, Image, Team, VisitPhoto, VisitEntryDraft, VisitDraftImage, ReportImage, KnowledgeDocument
+from app.services import backups as service, backup_jobs as jobs
+from app.backup_gate import initialize_gate, maintenance, BackupMaintenanceMiddleware
+from app.routers import backups as routes
+from app.routers.reports import oetc_line_report
+from app.schemas import LineInspectionReportRequest
+
+
+@pytest.fixture
+def setup(tmp_path, monkeypatch):
+    root_names = [name for name in service.roots() if name != 'channel_thumbnails']
+    def instance(name, seed=False):
+        directory = tmp_path / name; directory.mkdir(exist_ok=True)
+        engine = create_engine('sqlite:///' + (directory / 'app.sqlite3').as_posix())
+        Base.metadata.create_all(engine)
+        monkeypatch.setattr(service, 'engine', engine)
+        for root in root_names + ['backups']:
+            folder = directory / root; folder.mkdir(exist_ok=True)
+            monkeypatch.setattr(settings, root + '_dir', folder)
+        initialize_gate()
+        with Session(engine) as db:
+            admin = User(id=1, username='recovery-admin', role='admin', is_super_admin=True, is_active=True, is_approved=True, hashed_password='SECRET-HASH-DO-NOT-EXPORT')
+            db.add(admin); db.commit()
+            if seed:
+                team = Team(id=1, name='Recovery team', leader_user_id=1)
+                tower = Tower(id=1, tower_id='Ashoor-Saada-66', area='Dhofar', line_sector='Ashoor-Saada', assigned_team_id=1)
+                db.add_all([team, tower]); db.flush()
+                for ident in (1, 2):
+                    visit = Visit(id=ident, tower_id=1, team_id=1, inspection_date=dt.date(2026, 9, 28 + ident), mission_seq=ident, inspector_name='Recovery inspector')
+                    db.add(visit); db.flush()
+                    pos = Position(id=ident, visit_id=ident, ohl='OHL1', phase='R', string='S1', direction='Ashoor', installed=True, hotspot='Yes', screening_result='Hotspot detected', tmax_c=31.2, tref_c=27.1)
+                    db.add(pos); db.flush()
+                    filename = f'evidence-{ident}.jpg'
+                    PillowImage.new('RGB', (40, 30), 'red').save(settings.images_dir / filename)
+                    shutil.copyfile(settings.images_dir / filename, settings.thumbnails_dir / filename)
+                    db.add(Image(id=ident, position_id=ident, image_type='RGB Full', sequence=1, file_path=filename, thumbnail_path=filename, content_type='image/jpeg', evidence_status='COMPLETE', checksum=service.digest(settings.images_dir / filename), include_in_report=True))
+                db.add(VisitPhoto(visit_id=1, position_id=1, file_path='evidence-1.jpg', thumbnail_path='evidence-1.jpg', original_filename='Context.jpg', content_type='image/jpeg', uploaded_by=1))
+                db.add(VisitEntryDraft(id=1, visit_id=1, user_id=1, payload={'headerDraft': {'weather': 'Clear'}}, last_commit_token='SECRET-CONFIRM-TOKEN'))
+                db.flush()
+                db.add(VisitDraftImage(draft_id=1, token='idempotency-only', position_key=1, image_type='RGB Full', filename='Draft.jpg', content_type='image/jpeg', file_path='evidence-1.jpg', checksum=service.digest(settings.images_dir / 'evidence-1.jpg')))
+                inline = settings.knowledge_base_dir / 'inline'; inline.mkdir()
+                shutil.copyfile(settings.images_dir / 'evidence-1.jpg', inline / 'reference.jpg')
+                db.add(KnowledgeDocument(title='Reference', file_path='inline/reference.jpg', original_filename='reference.jpg', content_type='image/jpeg', body_html='<img src="/api/knowledge-base/inline-images/reference.jpg">', uploaded_by=1))
+                db.commit()
+                response = oetc_line_report(LineInspectionReportRequest(team_id=1, tower_id=1, start_date=dt.date(2026,9,29), end_date=dt.date(2026,9,29), report_number='RECOVERY-TEST'), db, admin)
+                assert response.body[:2] == b'PK'
+        return engine, directory
+    engine, directory = instance('source', seed=True)
+    yield instance, engine, directory, tmp_path
+    service.engine.dispose()
+    engine.dispose()
+
+
+def package(tmp_path):
+    folder = tmp_path / 'snapshot'
+    manifest = service.snapshot(folder)
+    archive = tmp_path / 'inspection.zip'
+    service.pack(folder, archive)
+    validated = tmp_path / 'validated'
+    assert service.validate_archive(archive, validated) == manifest
+    return manifest, archive, validated
+
+
+def test_full_roundtrip_counts_images_metadata_reports_and_credentials(setup):
+    instance, engine, directory, tmp = setup
+    manifest, archive, validated = package(tmp)
+    with zipfile.ZipFile(archive) as z:
+        raw = z.read('database.sqlite3')
+        assert b'SECRET-HASH' not in raw and b'SECRET-CONFIRM' not in raw
+        assert any('Ashoor-Saada/Ashoor-Saada-66__tower-1/visit-1/images/' in p for p in z.namelist())
+        assert 'RECOVERY-TEST' not in z.read('inspection-index.csv').decode('utf-8-sig')
+    dest_engine, dest_dir = instance('destination')
+    result = service.restore(validated, 'full', [], 'recovery-admin')
+    assert result['records_to_import'] == manifest['counts']
+    with service.connect(service.live_path()) as conn:
+        assert service.counts(conn) == manifest['counts']
+        service.check_database(conn)
+        assert conn.execute('SELECT hashed_password FROM users WHERE id=1').fetchone()[0] == 'SECRET-HASH-DO-NOT-EXPORT'
+        for _, _, _, root, rel in service.file_references(conn):
+            assert service.resolve_file(service.roots()[root], rel).is_file()
+    with Session(dest_engine) as db:
+        from app.services.reports import build_visit_report
+        visit = db.get(Visit, 1)
+        assert visit.inspector_name == 'Recovery inspector' and visit.positions[0].delta_t == 4.1
+        image = db.get(Image, 1)
+        restored_image_path = settings.images_dir / image.file_path
+        assert image.position.visit.id == 1
+        assert service.digest(settings.images_dir / image.file_path) == image.checksum
+        PillowImage.open(settings.images_dir / image.file_path).verify()
+        pdf = build_visit_report(visit, db)
+        assert pdf.startswith(b'%PDF') and len(pdf) > 1000
+        report = oetc_line_report(LineInspectionReportRequest(team_id=1, tower_id=1, start_date=dt.date(2026,9,29), end_date=dt.date(2026,9,30), report_number='RESTORED-REPORT'), db, db.get(User, 1))
+        assert report.body[:2] == b'PK'
+        body = db.query(KnowledgeDocument).one().body_html
+        name = body.split('inline-images/')[1].split('"')[0]
+        assert name != 'reference.jpg' and (settings.knowledge_base_dir / 'inline' / name).is_file()
+    from app.routers import visits, images
+    app = FastAPI(); app.include_router(visits.router); app.include_router(images.router)
+    def session():
+        with Session(dest_engine) as db: yield db
+    app.dependency_overrides[get_db] = session
+    app.dependency_overrides[get_current_user] = lambda: User(id=1, username='recovery-admin', role='admin', is_super_admin=True)
+    with TestClient(app) as client:
+        opened = client.get('/api/visits/1')
+        assert opened.status_code == 200, opened.text
+        assert opened.json()['positions'][0]['tmax_c'] == 31.2
+        image_response = client.get('/api/images/1/file')
+        assert image_response.status_code == 200
+        assert image_response.content == restored_image_path.read_bytes()
+        assert client.get('/api/images/1/thumbnail').content == restored_image_path.read_bytes()
+        assert client.get('/api/visits/1/photos/1/thumbnail').content == restored_image_path.read_bytes()
+
+
+def test_selective_missing_visit_reuses_parents_and_rejects_duplicates(setup):
+    instance, _, _, tmp = setup
+    _, _, validated = package(tmp)
+    engine, _ = instance('selective')
+    service.restore(validated, 'selective', [1], 'recovery-admin')
+    with Session(engine) as db:
+        assert db.query(Visit).count() == 1
+        assert db.query(Image).count() == 1
+        assert db.query(ReportImage).count() == 1
+        assert db.query(VisitPhoto).one().position_id == 1
+    with pytest.raises(ValueError, match='already exists'):
+        service.restore(validated, 'selective', [1], 'recovery-admin')
+    service.restore(validated, 'selective', [2], 'recovery-admin')
+    with Session(engine) as db:
+        assert db.query(Visit).count() == 2 and db.query(Tower).count() == 1
+
+
+def test_restore_rolls_back_database_and_staged_files_on_failure(setup):
+    instance, _, _, tmp = setup
+    _, _, validated = package(tmp)
+    _, dest = instance('rollback')
+    before = service.digest(service.live_path())
+    def fail():
+        raise RuntimeError('simulated crash before commit')
+    with pytest.raises(RuntimeError):
+        service.restore(validated, 'full', [], 'recovery-admin', before_commit=fail)
+    assert service.digest(service.live_path()) == before
+    assert not list(settings.images_dir.rglob('*.jpg'))
+
+
+@pytest.mark.parametrize('problem', ['checksum', 'version', 'missing', 'traversal', 'orphan', 'malformed'])
+def test_rejects_bad_archives_without_touching_live_data(setup, problem):
+    _, _, _, tmp = setup
+    _, archive, _ = package(tmp)
+    with zipfile.ZipFile(archive) as z:
+        items = {i.filename: z.read(i) for i in z.infolist()}
+    manifest = json.loads(items['manifest.json'])
+    if problem == 'checksum':
+        items[manifest['files'][0]['path']] += b'corrupt'
+    elif problem == 'version':
+        manifest['format_version'] = 999
+    elif problem == 'missing':
+        del items[manifest['files'][0]['path']]
+    elif problem == 'traversal':
+        items['../outside.txt'] = b'bad'
+    elif problem == 'malformed':
+        manifest['files'][0]['size'] = -1
+    else:
+        modified = tmp / 'orphan.sqlite3'; modified.write_bytes(items['database.sqlite3'])
+        with service.connect(modified) as c:
+            c.execute('UPDATE positions SET visit_id=999 WHERE id=1')
+        items['database.sqlite3'] = modified.read_bytes()
+        db_info = next(x for x in manifest['members'] if x['path'] == 'database.sqlite3')
+        db_info.update(size=modified.stat().st_size, sha256=service.digest(modified))
+    items['manifest.json'] = json.dumps(manifest).encode()
+    bad = tmp / 'bad.zip'
+    with zipfile.ZipFile(bad, 'w') as z:
+        for name, data in items.items(): z.writestr(name, data)
+    before = service.digest(service.live_path())
+    with pytest.raises(ValueError): service.validate_archive(bad, tmp / 'bad-extract')
+    assert service.digest(service.live_path()) == before and not (tmp / 'outside.txt').exists()
+
+
+def test_restore_job_requires_and_keeps_recovery_backup(setup, monkeypatch):
+    instance, _, _, tmp = setup
+    _, archive, _ = package(tmp)
+    _, _ = instance('job-destination')
+    source = jobs.create('upload', 'recovery-admin')
+    shutil.copyfile(archive, jobs.directory(source['id']) / 'upload.zip')
+    jobs.validate(source['id'])
+    restore = jobs.create('restore', 'recovery-admin', source_id=source['id'])
+    jobs.run(restore['id'], lambda: jobs.recover(restore['id'], source['id'], 'full', []))
+    result = jobs.get(restore['id'])
+    assert result['status'] == 'complete', result
+    recovery = jobs.get(result['recovery_id'])
+    assert recovery['status'] == 'complete' and recovery['summary']['counts']['visits'] == 0
+    assert (jobs.directory(recovery['id']) / 'backup.zip').is_file()
+    assert not (jobs.directory(restore['id']) / 'recheck').exists()
+
+
+def test_api_authorization_chunk_offsets_confirmation_and_maintenance(setup, monkeypatch):
+    _, _, _, tmp = setup
+    app = FastAPI(); app.include_router(routes.router); app.add_middleware(BackupMaintenanceMiddleware)
+    @app.get('/ordinary')
+    def ordinary(): return {'ok': True}
+    account = User(username='recovery-admin', role='admin', is_super_admin=False)
+    app.dependency_overrides[get_current_user] = lambda: account
+    monkeypatch.setattr(jobs, 'submit', lambda *args: None)
+    with TestClient(app) as c:
+        assert c.get('/api/backups').status_code == 403
+        account.is_super_admin = True
+        j = c.post('/api/backups/uploads', json={'size': 6}).json()
+        path = '/api/backups/' + j['id']
+        assert c.put(path + '/upload?offset=0', content=b'abc').status_code == 200
+        assert c.put(path + '/upload?offset=0', content=b'abc').status_code == 409
+        assert c.post(path + '/validate').status_code == 409
+        assert c.put(path + '/upload?offset=3', content=b'def').status_code == 200
+        assert c.get(path).json()['size'] == 6
+        assert c.post(path + '/restore', json={'mode': 'full'}).status_code == 409
+        with maintenance(exclusive=True):
+            assert c.get('/ordinary').status_code == 503
+            assert c.get('/api/backups').status_code == 200
+            with pytest.raises(sqlite3.OperationalError):
+                with maintenance(): pass
+        assert c.get('/ordinary').status_code == 200
+        assert c.delete(path).status_code == 204
+
+
+def test_recovery_backup_failure_prevents_any_restore(setup, monkeypatch):
+    instance, _, _, tmp = setup
+    _, archive, _ = package(tmp)
+    instance('failed-recovery')
+    upload = jobs.create('upload', 'recovery-admin')
+    shutil.copyfile(archive, jobs.directory(upload['id']) / 'upload.zip')
+    job = jobs.create('restore', 'recovery-admin', source_id=upload['id'])
+    before = service.digest(service.live_path())
+    def fail(*args, **kwargs): raise ValueError('Simulated insufficient space')
+    monkeypatch.setattr(service, 'pack', fail)
+    jobs.run(job['id'], lambda: jobs.recover(job['id'], upload['id'], 'full', []))
+    assert jobs.get(job['id'])['status'] == 'failed'
+    assert service.digest(service.live_path()) == before
+    assert not list(settings.images_dir.rglob('*.jpg'))
+
+
+def test_missing_current_file_is_recorded_in_pre_restore_copy(setup):
+    _, _, _, tmp = setup
+    _, _, validated = package(tmp)
+    (settings.images_dir / 'evidence-1.jpg').unlink()
+    with pytest.raises(ValueError, match='Missing required attachment'):
+        service.snapshot(tmp / 'ordinary-fails')
+    current = service.snapshot(tmp / 'damaged-recovery', allow_missing=True)
+    assert current['missing_files']
+    service.restore(validated, 'full', [], 'recovery-admin')
+    with service.connect(service.live_path()) as c:
+        assert all(service.resolve_file(service.roots()[root], rel).is_file() for _,_,_,root,rel in service.file_references(c))
+
+
+def test_selective_identifier_conflict_does_not_modify_target(setup):
+    instance, _, _, tmp = setup
+    _, _, validated = package(tmp)
+    engine, _ = instance('conflict')
+    with Session(engine) as db:
+        db.add(Tower(id=1, tower_id='Different-tower')); db.commit()
+    before = service.digest(service.live_path())
+    with pytest.raises(ValueError, match='Conflicting identifier'):
+        service.restore(validated, 'selective', [1], 'recovery-admin')
+    assert service.digest(service.live_path()) == before
+
+
+def test_wal_snapshot_excludes_live_session_credentials_and_worker_lock(setup):
+    _, engine, _, tmp = setup
+    from app.routers.live_help import LiveRoom, LiveSignal
+    now = dt.datetime(2026, 9, 30)
+    with Session(engine) as db:
+        db.add(LiveRoom(id='call', caller=1, guest=1, caller_device='session-device', status='connected', created=now, expires=now, caller_seen=now, guest_seen=now))
+        db.flush()
+        db.add(LiveSignal(room_id='call', sender=1, nonce='session-nonce', kind='offer', payload='SECRET-WEBRTC-SESSION-CREDENTIAL'))
+        db.commit()
+    with service.connect(service.live_path()) as c:
+        c.execute('PRAGMA journal_mode=WAL')
+    _, archive, validated = package(tmp)
+    with zipfile.ZipFile(archive) as z:
+        assert b'SECRET-WEBRTC' not in z.read('database.sqlite3')
+        assert not any(p.endswith(('-wal', '-shm', '-journal')) for p in z.namelist())
+    script = "import sqlite3,sys\nc=sqlite3.connect(sys.argv[1],timeout=0)\ntry:\n c.execute('BEGIN');c.execute('SELECT id FROM barrier').fetchone()\nexcept sqlite3.OperationalError:\n sys.exit(7)\nfinally:\n c.close()"
+    from app.backup_gate import gate_path
+    with maintenance(exclusive=True):
+        other = subprocess.run([sys.executable, '-c', script, str(gate_path())], capture_output=True, timeout=10)
+        assert other.returncode == 7, other.stderr
+    assert subprocess.run([sys.executable, '-c', script, str(gate_path())], capture_output=True, timeout=10).returncode == 0
+
+
+def test_legacy_channel_thumbnail_and_cross_visit_report_selection(setup):
+    instance, engine, _, tmp = setup
+    from app.models import TeamChannelMessage
+    shutil.copyfile(settings.images_dir / 'evidence-1.jpg', settings.channel_dir / 'old-thumb.jpg')
+    with Session(engine) as db:
+        db.add(TeamChannelMessage(team_id=1, visit_id=1, field_date=dt.date(2026,9,29), photo_path='old-thumb.jpg', photo_thumb_path='old-thumb.jpg', photo_content_type='image/jpeg'))
+        db.commit()
+        oetc_line_report(LineInspectionReportRequest(team_id=1, tower_id=1, start_date=dt.date(2026,9,29), end_date=dt.date(2026,9,30), report_number='CROSS-VISIT'), db, db.get(User,1))
+    _, _, validated = package(tmp)
+    instance('legacy-restore')
+    plan = service.restore(validated, 'selective', [1], 'recovery-admin')
+    assert plan['omitted_cross_visit_reports']
+    with service.connect(service.live_path()) as conn:
+        thumb = conn.execute('SELECT photo_thumb_path FROM team_channel_messages').fetchone()[0]
+        assert (settings.channel_dir / 'thumbs' / thumb).is_file()

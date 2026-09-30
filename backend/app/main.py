@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.client_guard import client_role_route_guard
 from app.config import settings
 from app.database import Base, engine
+from app.backup_gate import BackupMaintenanceMiddleware, initialize_gate, maintenance
 from app.migrations import (
     allow_unassigned_channel_authors,
     add_missing_columns,
@@ -18,6 +19,7 @@ from app.migrations import (
     rebuild_positions_table_for_multi_direction_support,
 )
 from app.routers import (
+    backups,
     visit_entry,
     thermal_bridge,
     app_settings,
@@ -46,18 +48,21 @@ from app.routers import (
     visits,
 )
 
-Base.metadata.create_all(bind=engine)
-allow_unassigned_channel_authors(engine)
-rebuild_images_table_for_multi_image_support(engine)
-rebuild_positions_table_for_multi_direction_support(engine)
-add_missing_columns(engine, Base)
-backfill_report_image_selection(engine)
-backfill_areas_from_towers(engine)
-backfill_visit_team_id_from_towers(engine)
-backfill_report_type(engine)
-backfill_menu_permissions(engine)
+initialize_gate()
+with maintenance(exclusive=True, timeout=60):
+    Base.metadata.create_all(bind=engine)
+    allow_unassigned_channel_authors(engine)
+    rebuild_images_table_for_multi_image_support(engine)
+    rebuild_positions_table_for_multi_direction_support(engine)
+    add_missing_columns(engine, Base)
+    backfill_report_image_selection(engine)
+    backfill_areas_from_towers(engine)
+    backfill_visit_team_id_from_towers(engine)
+    backfill_report_type(engine)
+    backfill_menu_permissions(engine)
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
+app.add_middleware(BackupMaintenanceMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -74,6 +79,7 @@ app.add_middleware(
 app.middleware("http")(client_role_route_guard)
 
 app.include_router(thermal_bridge.router)
+app.include_router(backups.router)
 app.include_router(auth.router)
 app.include_router(app_settings.router)
 app.include_router(push.router)

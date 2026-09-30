@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     app_name: str = "Insulator Inspector Pro"
     database_url: str = f"sqlite:///{BASE_DIR / 'storage' / 'insulator_inspector.db'}"
     storage_dir: Path = BASE_DIR / "storage"
+    backups_dir: Path = BASE_DIR / "storage" / "backups"
+    backup_max_archive_gb: int = 100
+    backup_retention_days: int = 7
     images_dir: Path = BASE_DIR / "storage" / "images"
     thumbnails_dir: Path = BASE_DIR / "storage" / "thumbnails"
     reports_dir: Path = BASE_DIR / "storage" / "reports"

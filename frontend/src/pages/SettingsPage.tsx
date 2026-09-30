@@ -1,4 +1,5 @@
 import { tr, useLanguage } from '../i18n';
+import { BackupRestoreSection } from '../components/BackupRestoreSection';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -1526,6 +1527,7 @@ export function SettingsPage() {
     <Box>
       <Typography variant="h5" sx={{ fontWeight: 800, mb: 2 }}>{tr("Settings")}</Typography>
       <Stack spacing={3}>
+        {isSuperAdmin && <BackupRestoreSection />}
         {user?.role === 'admin' && <PendingAccountsSection />}
         {canManageSettings && <BrandingSection />}
         {canManageSettings && <OrganizationBrandingSection />}
