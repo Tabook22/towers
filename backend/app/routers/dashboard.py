@@ -76,7 +76,7 @@ def dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_cu
         if is_crew and leader_team_id:
             visit_q = visit_q.filter(Visit.team_id == leader_team_id)
         latest = (
-            visit_q.options(joinedload(Visit.positions).joinedload(Position.images))
+            visit_q.options(joinedload(Visit.positions).joinedload(Position.images), joinedload(Visit.team))
             .order_by(Visit.inspection_date.desc().nullslast(), Visit.id.desc())
             .first()
         )
@@ -91,6 +91,7 @@ def dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_cu
             total_hotspots += r["hotspots"]
             total_pending += r["images_pending"]
             visit_out = VisitOut.model_validate(latest)
+            visit_out.team_name = latest.team.name if latest.team else None
             visit_out.rollup = rollup
 
         rows.append(DashboardTowerRow(tower=tower, latest_visit=visit_out, rollup=rollup))

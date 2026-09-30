@@ -1,6 +1,7 @@
 import { tr, useLanguage } from '../i18n';
 import { useEffect, useState } from 'react';
-import { Box, Button, Chip, Dialog, Grid, Stack, Typography } from '@mui/material';
+import { Box, Button, ButtonBase, Chip, Dialog, Grid, Stack, Typography } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import LocalFireDepartmentRoundedIcon from '@mui/icons-material/LocalFireDepartmentRounded';
 import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded';
@@ -23,6 +24,7 @@ const SESSION_KEY = 'iip_splash_shown';
 export function SplashScreen() {
   useLanguage();
   const { user } = useAuth();
+  const canOpenCompletedWork = user?.role === 'admin';
   const eligible = user?.role === 'admin' || user?.role === 'team_leader';
   const [open, setOpen] = useState(false);
 
@@ -149,11 +151,21 @@ export function SplashScreen() {
         ) : (
           <Stack spacing={1} sx={{ mb: 3 }}>
             {recentlyCompleted.map((r) => (
+              <Box key={r.tower.id} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
+              <ButtonBase
+                component={canOpenCompletedWork ? RouterLink : 'div'}
+                to={canOpenCompletedWork ? `/visits/${r.latest_visit!.id}` : undefined}
+                onClick={canOpenCompletedWork ? dismiss : undefined}
+                disabled={!canOpenCompletedWork}
+                aria-label={canOpenCompletedWork ? tr("Open inspection for {0}", [r.tower.tower_id]) : undefined}
+                sx={{ display: 'block', width: '100%', textAlign: 'start', p: 1.5,
+                  ...(canOpenCompletedWork && { '&:hover': { bgcolor: 'action.hover' }, '&.Mui-focusVisible': { bgcolor: 'action.selected', outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }),
+                }}
+              >
               <Stack
-                key={r.tower.id}
                 direction="row"
                 spacing={1.5}
-                sx={{ alignItems: 'center', p: 1, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}
+                sx={{ alignItems: 'center' }}
               >
                 <CheckCircleRoundedIcon fontSize="small" color="success" />
                 <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -163,6 +175,11 @@ export function SplashScreen() {
                   <Typography variant="caption" color="text.secondary">
                     {r.tower.area || tr("No area set")} · {r.latest_visit?.team_name || tr("Unknown team")}
                   </Typography>
+                  {canOpenCompletedWork && (
+                    <Typography variant="caption" color="primary" sx={{ display: 'block', mt: 0.5 }}>
+                      {tr("View inspection details")}
+                    </Typography>
+                  )}
                 </Box>
                 {r.rollup && r.rollup.hotspots > 0 && (
                   <Chip
@@ -176,6 +193,15 @@ export function SplashScreen() {
                   {r.latest_visit?.inspection_date}
                 </Typography>
               </Stack>
+              </ButtonBase>
+              {canOpenCompletedWork && (
+                <Box sx={{ px: 1.5, pb: 0.5 }}>
+                  <Button size="small" component={RouterLink} to={`/towers/${r.tower.id}`} onClick={dismiss}>
+                    {tr("View tower history")}
+                  </Button>
+                </Box>
+              )}
+              </Box>
             ))}
           </Stack>
         )}

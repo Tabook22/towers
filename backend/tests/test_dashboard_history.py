@@ -46,6 +46,8 @@ def test_history_preserves_visit_teams_dates_and_all_visits(db):
     summary = dashboard_summary(db, User(role='admin'), 'North')
     assert summary.tower_count == len(rows)
     assert summary.visit_count == sum(len(row.visits) for row in rows)
+    assert summary.rows[1].latest_visit.id == visits[1].id
+    assert summary.rows[1].latest_visit.team_name == 'Second crew'
 
 
 @pytest.mark.parametrize('role', ['team_leader', 'team_member'])
@@ -54,6 +56,8 @@ def test_crew_history_matches_dashboard_scope_and_hides_other_crews(db, role):
     rows = dashboard_tower_history(db, User(role=role, team_id=a.id), None)
     assert {r.tower.id for r in rows} == {towers[0].id, towers[1].id}
     assert {v.team_name for r in rows for v in r.visits} == {'First crew'}
+    summary = dashboard_summary(db, User(role=role, team_id=a.id), None)
+    assert {r.latest_visit.team_name for r in summary.rows} == {'First crew'}
     assert dashboard_tower_history(db, User(role=role, team_id=a.id), 'South') == []
     assert dashboard_tower_history(db, User(id=999, role=role), None) == []
 
