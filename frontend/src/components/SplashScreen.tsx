@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useState } from 'react';
 import { Box, Button, Chip, Dialog, Grid, Stack, Typography } from '@mui/material';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
@@ -20,6 +21,7 @@ const SESSION_KEY = 'iip_splash_shown';
  * go straight to their own missions instead (see Layout's isCrew split elsewhere) — this is
  * deliberately not for them. */
 export function SplashScreen() {
+  useLanguage();
   const { user } = useAuth();
   const eligible = user?.role === 'admin' || user?.role === 'team_leader';
   const [open, setOpen] = useState(false);
@@ -105,10 +107,10 @@ export function SplashScreen() {
 
         <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center', mb: 3 }}>
           <Typography variant="h5" sx={{ fontWeight: 800 }}>
-            {branding?.splash_header || `Welcome back, ${user?.full_name || user?.username}`}
+            {branding?.splash_header || tr("Welcome back, {0}", [user?.full_name || user?.username])}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {branding?.splash_subtitle || '132 kV OHL Field Inspections — Dufar Area & beyond'}
+            {branding?.splash_subtitle || tr("132 kV OHL Field Inspections — Dufar Area & beyond")}
           </Typography>
         </Stack>
 
@@ -119,9 +121,7 @@ export function SplashScreen() {
                 <Typography variant="h6" sx={{ fontWeight: 800 }}>
                   {data.tower_count}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Towers
-                </Typography>
+                <Typography variant="caption" color="text.secondary">{tr("Towers")}</Typography>
               </Stack>
             </Grid>
             <Grid size={4}>
@@ -129,9 +129,7 @@ export function SplashScreen() {
                 <Typography variant="h6" sx={{ fontWeight: 800, color: 'error.main' }}>
                   {data.total_hotspots}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Open hotspots
-                </Typography>
+                <Typography variant="caption" color="text.secondary">{tr("Open hotspots")}</Typography>
               </Stack>
             </Grid>
             <Grid size={4}>
@@ -139,21 +137,15 @@ export function SplashScreen() {
                 <Typography variant="h6" sx={{ fontWeight: 800, color: 'warning.main' }}>
                   {data.total_images_pending}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Images pending
-                </Typography>
+                <Typography variant="caption" color="text.secondary">{tr("Images pending")}</Typography>
               </Stack>
             </Grid>
           </Grid>
         )}
 
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-          Latest work completed
-        </Typography>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>{tr("Latest work completed")}</Typography>
         {recentlyCompleted.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            No completed inspections yet — finished missions will show up here.
-          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{tr("No completed inspections yet — finished missions will show up here.")}</Typography>
         ) : (
           <Stack spacing={1} sx={{ mb: 3 }}>
             {recentlyCompleted.map((r) => (
@@ -169,7 +161,7 @@ export function SplashScreen() {
                     {r.tower.tower_id}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {r.tower.area || 'No area set'} · {r.latest_visit?.team_name || 'Unknown team'}
+                    {r.tower.area || tr("No area set")} · {r.latest_visit?.team_name || tr("Unknown team")}
                   </Typography>
                 </Box>
                 {r.rollup && r.rollup.hotspots > 0 && (
@@ -192,8 +184,7 @@ export function SplashScreen() {
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', color: 'text.secondary' }}>
             <PendingActionsRoundedIcon fontSize="small" />
             <Typography variant="caption">
-              {data.total_images_pending} evidence image{data.total_images_pending === 1 ? '' : 's'} still pending across every tower.
-            </Typography>
+              {data.total_images_pending}{tr(" evidence image")}{data.total_images_pending === 1 ? '' : tr("s")}{tr(" still pending across every tower.")}</Typography>
           </Stack>
         )}
       </Box>
@@ -201,9 +192,7 @@ export function SplashScreen() {
       {/* Outside the scrolling region and never scrolls away — dismissing shouldn't require
           scrolling all the way to the bottom first. */}
       <Box sx={{ p: { xs: 2.5, sm: 4 }, pt: 1.5, flexShrink: 0, borderTop: '1px solid', borderColor: 'divider' }}>
-        <Button variant="contained" fullWidth size="large" onClick={dismiss}>
-          Continue to Dashboard
-        </Button>
+        <Button variant="contained" fullWidth size="large" onClick={dismiss}>{tr("Continue to Dashboard")}</Button>
       </Box>
     </Dialog>
   );

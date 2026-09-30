@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { apiClient } from '../api/client';
 import type { LoginResponse } from '../api/types';
@@ -37,6 +38,7 @@ function readStoredUser(): AuthUser | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  useLanguage();
   const [user, setUser] = useState<AuthUser | null>(readStoredUser());
 
   useEffect(() => {
@@ -130,7 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAuth() {
+  useLanguage();
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error(tr("useAuth must be used within AuthProvider"));
   return ctx;
 }

@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n';
 import type { ReactNode } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 
@@ -84,6 +85,7 @@ function parseBlocks(text: string): Block[] {
  * (badge + text, matching the guide's own step styling), bullet points, bold, and inline code —
  * instead of dumping literal `**`/`1.` characters at the reader. */
 export function MarkdownLite({ text }: { text: string }) {
+  useLanguage();
   const blocks = parseBlocks(text);
   return (
     <Stack spacing={1}>

@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { MapContainer, Marker, Polyline, TileLayer, Tooltip as LeafletTooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -41,6 +42,7 @@ function youIcon() {
 }
 
 function MapRefBridge({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
+  useLanguage();
   const map = useMap();
   useEffect(() => {
     mapRef.current = map;
@@ -52,6 +54,7 @@ function MapRefBridge({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null>
 }
 
 function FitToPoints({ positions }: { positions: [number, number][] }) {
+  useLanguage();
   const map = useMap();
   const key = positions.map((p) => p.join(',')).join('|');
   useEffect(() => {
@@ -64,6 +67,7 @@ function FitToPoints({ positions }: { positions: [number, number][] }) {
 }
 
 function OpenPopupOnMapClick({ enabled, onOpen }: { enabled: boolean; onOpen: () => void }) {
+  useLanguage();
   useMapEvents({
     click: () => {
       if (enabled) onOpen();
@@ -73,6 +77,7 @@ function OpenPopupOnMapClick({ enabled, onOpen }: { enabled: boolean; onOpen: ()
 }
 
 function InvalidateSize({ sizeKey }: { sizeKey: string }) {
+  useLanguage();
   const map = useMap();
   useEffect(() => {
     const id = window.setTimeout(() => map.invalidateSize(), 80);
@@ -123,6 +128,7 @@ export function TeamSiteMap({
   }) => void;
   claiming?: boolean;
 }) {
+  useLanguage();
   const planned = new Set(plannedIds || []);
   const hasPlan = planned.size > 0;
   const towerPts = (towers || []).filter((t) => t.latitude != null && t.longitude != null);
@@ -208,7 +214,7 @@ export function TeamSiteMap({
         '&:hover': { bgcolor: 'rgba(13,71,92,0.18)' },
         ...sx,
       }}
-      title="Drag to resize"
+      title={tr("Drag to resize")}
     />
   );
 
@@ -224,10 +230,7 @@ export function TeamSiteMap({
           borderRadius: 2,
         }}
       >
-        <Typography color="text.secondary" variant="body2" sx={{ px: 2, textAlign: 'center' }}>
-          No towers with GPS yet, and this phone has not sent a location. Tap Allow GPS tracking at
-          the top, then this map will show you, your track, and the assigned towers.
-        </Typography>
+        <Typography color="text.secondary" variant="body2" sx={{ px: 2, textAlign: 'center' }}>{tr("No towers with GPS yet, and this phone has not sent a location. Tap Allow GPS tracking at the top, then this map will show you, your track, and the assigned towers.")}</Typography>
       </Box>
     );
   }
@@ -235,30 +238,30 @@ export function TeamSiteMap({
   return (
     <Box>
       <Stack direction="row" spacing={0.75} sx={{ mb: 1, flexWrap: 'wrap' }}>
-        <Chip size="small" label="You" sx={{ bgcolor: '#0d475c', color: '#fff' }} />
-        <Chip size="small" label="Track tonight" variant="outlined" color="success" />
+        <Chip size="small" label={tr("You")} sx={{ bgcolor: '#0d475c', color: '#fff' }} />
+        <Chip size="small" label={tr("Track tonight")} variant="outlined" color="success" />
         {showCatalog || canClaim ? (
           <>
-            <Chip size="small" label="Free" sx={{ bgcolor: FREE_TOWER_COLOR, color: '#fff' }} />
+            <Chip size="small" label={tr("Free")} sx={{ bgcolor: FREE_TOWER_COLOR, color: '#fff' }} />
             {teamsPresent(catalogPts).map((t) => (
               <Chip key={t.id} size="small" label={t.name} sx={{ bgcolor: colorForTeam(t.id), color: '#fff' }} />
             ))}
             <Chip
               size="small"
               icon={<CheckRoundedIcon sx={{ color: '#fff !important', fontSize: 14 }} />}
-              label="Inspection completed"
+              label={tr("Inspection completed")}
               sx={{ bgcolor: '#2e7d32', color: '#fff' }}
             />
           </>
         ) : (
           <>
-            <Chip size="small" label="Number + Tower ID" variant="outlined" />
-            <Chip size="small" label="Tower done" sx={{ bgcolor: '#2e7d32', color: '#fff' }} />
-            <Chip size="small" label="In progress" sx={{ bgcolor: '#1976d2', color: '#fff' }} />
-            <Chip size="small" label="Not started" sx={{ bgcolor: '#9e9e9e', color: '#fff' }} />
+            <Chip size="small" label={tr("Number + Tower ID")} variant="outlined" />
+            <Chip size="small" label={tr("Tower done")} sx={{ bgcolor: '#2e7d32', color: '#fff' }} />
+            <Chip size="small" label={tr("In progress")} sx={{ bgcolor: '#1976d2', color: '#fff' }} />
+            <Chip size="small" label={tr("Not started")} sx={{ bgcolor: '#9e9e9e', color: '#fff' }} />
           </>
         )}
-        {hasPlan && <Chip size="small" color="primary" label={`${planned.size} tonight`} />}
+        {hasPlan && <Chip size="small" color="primary" label={tr("{0} tonight", [planned.size])} />}
       </Stack>
       <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)' }}>
         <div style={{ position: 'relative', height: h, width: '100%', transition: 'height 0.2s ease' }}>
@@ -314,14 +317,10 @@ export function TeamSiteMap({
                         <br />
                         {t.area || '—'}
                         <br />
-                        {free
-                          ? 'Free — click to assign to this team'
-                          : `Assigned to ${t.assigned_team_name || 'a team'} — click to unassign`}
+                        {free ? tr("Free — click to assign to this team") : tr("Assigned to {0} — click to unassign", [t.assigned_team_name || tr("a team")])}
                         {completed && (
                           <>
-                            <br />
-                            ✓ Inspection completed
-                          </>
+                            <br />{tr("✓ Inspection completed")}</>
                         )}
                       </LeafletTooltip>
                     </Marker>
@@ -348,7 +347,7 @@ export function TeamSiteMap({
                       <br />
                       {t.area || ''}
                       <br />
-                      {t.status === 'completed' ? 'Completed' : t.status === 'in_progress' ? 'In progress' : 'Not started'}
+                      {t.status === 'completed' ? tr("Completed") : t.status === 'in_progress' ? tr("In progress") : tr("Not started")}
                     </LeafletTooltip>
                   </Marker>
                 ))}
@@ -376,7 +375,7 @@ export function TeamSiteMap({
                     <br />
                     {t.area || '—'}
                     <br />
-                    <em>Click to assign to this team</em>
+                    <em>{tr("Click to assign to this team")}</em>
                   </LeafletTooltip>
                 </Marker>
               ))}
@@ -390,7 +389,7 @@ export function TeamSiteMap({
                 <LeafletTooltip direction="top" offset={[0, -10]} opacity={1}>
                   <strong>{m.full_name || m.username}</strong>
                   <br />
-                  {m.is_stale ? 'Last seen' : 'Live'}
+                  {m.is_stale ? tr("Last seen") : tr("Live")}
                 </LeafletTooltip>
               </Marker>
             ))}
@@ -407,7 +406,7 @@ export function TeamSiteMap({
             )}
           </MapContainer>
           <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1000, display: 'flex', gap: 0.5 }}>
-            <Tooltip title={layer === 'street' ? 'Satellite' : 'Map'}>
+            <Tooltip title={layer === 'street' ? tr("Satellite") : tr("Map")}>
               <IconButton
                 size="small"
                 onClick={() => setLayer((l) => (l === 'street' ? 'satellite' : 'street'))}
@@ -416,7 +415,7 @@ export function TeamSiteMap({
                 {layer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
-            <Tooltip title="Open large map">
+            <Tooltip title={tr("Open large map")}>
               <IconButton
                 size="small"
                 onClick={() => setPopupOpen(true)}
@@ -449,11 +448,11 @@ export function TeamSiteMap({
         }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1, py: 1, flexWrap: 'wrap' }}>
-          <Typography sx={{ fontWeight: 800, flex: 1 }}>Site map</Typography>
+          <Typography sx={{ fontWeight: 800, flex: 1 }}>{tr("Site map")}</Typography>
           <TextField
             size="small"
             type="number"
-            label="Width %"
+            label={tr("Width %")}
             value={popupW}
             onChange={(e) => setPopupW(clampPct(Number(e.target.value) || 80))}
             slotProps={{ htmlInput: { min: 40, max: 98 } }}
@@ -462,18 +461,18 @@ export function TeamSiteMap({
           <TextField
             size="small"
             type="number"
-            label="Height %"
+            label={tr("Height %")}
             value={popupH}
             onChange={(e) => setPopupH(clampPct(Number(e.target.value) || 80))}
             slotProps={{ htmlInput: { min: 40, max: 98 } }}
             sx={{ width: 110 }}
           />
-          <Tooltip title={layer === 'street' ? 'Satellite' : 'Map'}>
+          <Tooltip title={layer === 'street' ? tr("Satellite") : tr("Map")}>
             <IconButton size="small" onClick={() => setLayer((l) => (l === 'street' ? 'satellite' : 'street'))}>
               {layer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
-          <IconButton onClick={() => setPopupOpen(false)} aria-label="Close">
+          <IconButton onClick={() => setPopupOpen(false)} aria-label={tr("Close")}>
             <CloseIcon />
           </IconButton>
         </DialogTitle>
@@ -535,14 +534,10 @@ export function TeamSiteMap({
                         <br />
                         {t.area || '—'}
                         <br />
-                        {free
-                          ? 'Free — click to assign to this team'
-                          : `Assigned to ${t.assigned_team_name || 'a team'} — click to unassign`}
+                        {free ? tr("Free — click to assign to this team") : tr("Assigned to {0} — click to unassign", [t.assigned_team_name || tr("a team")])}
                         {completed && (
                           <>
-                            <br />
-                            ✓ Inspection completed
-                          </>
+                            <br />{tr("✓ Inspection completed")}</>
                         )}
                       </LeafletTooltip>
                     </Marker>

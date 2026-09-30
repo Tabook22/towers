@@ -1,3 +1,5 @@
+import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
+import { tr, useLanguage } from '../i18n';
 import { useState } from 'react';
 import { Alert, Box, Button, Paper, Stack, TextField, Typography } from '@mui/material';
 import BoltIcon from '@mui/icons-material/BoltRounded';
@@ -13,6 +15,7 @@ function errorDetail(err: unknown, fallback: string): string {
 }
 
 export function LoginPage() {
+  const language = useLanguage();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -33,7 +36,7 @@ export function LoginPage() {
       auth.login(data);
       navigate('/');
     } catch (err) {
-      setLoginError(errorDetail(err, 'Invalid username or password.'));
+      setLoginError(errorDetail(err, tr("Invalid username or password.")));
     }
   };
 
@@ -52,13 +55,14 @@ export function LoginPage() {
       }}
     >
       <Stack spacing={2} sx={{ alignItems: 'center' }}>
-        <Paper elevation={6} sx={{ p: 5, width: 400, borderRadius: 3 }}>
+        <LanguageSwitcher />
+        <Paper elevation={6} sx={{ p: { xs: 3, sm: 5 }, width: 'min(400px, calc(100vw - 32px))', borderRadius: 3 }}>
           <Stack spacing={1} sx={{ mb: 3, alignItems: 'center' }}>
             {logoUrl ? (
               <Box
                 component="img"
                 src={logoUrl}
-                alt={branding?.org_name_en || 'Organization logo'}
+                alt={(language === 'ar' ? branding?.org_name_ar || branding?.org_name_en : branding?.org_name_en) || tr("Organization logo")}
                 sx={{ width: 72, height: 72, objectFit: 'contain' }}
               />
             ) : (
@@ -77,39 +81,34 @@ export function LoginPage() {
                 <BoltIcon fontSize="large" />
               </Box>
             )}
-            <Typography variant="h5" sx={{ fontWeight: 800 }}>
-              Insulator Inspector Pro
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-              132 kV overhead-line insulator field inspection platform
-            </Typography>
+            <Typography variant="h5" sx={{ fontWeight: 800 }}>{tr("Insulator Inspector Pro")}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>{tr("132 kV overhead-line insulator field inspection platform")}</Typography>
           </Stack>
           <form onSubmit={handleSubmit}>
             <Stack spacing={2}>
-              {loginError && <Alert severity="error">{loginError}</Alert>}
+              {loginError && <Alert severity="error">{tr(loginError)}</Alert>}
               <TextField
-                label="Username"
+                label={tr("Username")}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoFocus
                 fullWidth
               />
               <TextField
-                label="Password"
+                label={tr("Password")}
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 fullWidth
               />
               <Button type="submit" variant="contained" size="large" disabled={login.isPending} fullWidth>
-                {login.isPending ? 'Signing in…' : 'Sign in'}
+                {login.isPending ? tr("Signing in…") : tr("Sign in")}
               </Button>
             </Stack>
           </form>
         </Paper>
         <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center' }}>
-          © {new Date().getFullYear()} {branding?.org_name_en || 'Insulator Inspector Pro'}. All rights reserved.
-        </Typography>
+          © {new Date().getFullYear()} {(language === 'ar' ? branding?.org_name_ar || branding?.org_name_en : branding?.org_name_en) || tr("Insulator Inspector Pro")}{tr(". All rights reserved.")}</Typography>
       </Stack>
     </Box>
   );

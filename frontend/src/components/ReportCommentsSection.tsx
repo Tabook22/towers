@@ -1,3 +1,4 @@
+import { tr, useLanguage, locale } from '../i18n';
 import { useState } from 'react';
 import { Alert, Box, Button, Chip, LinearProgress, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useAddReportComment, useReportComments } from '../api/hooks';
@@ -20,6 +21,7 @@ const ROLE_LABEL: Record<string, string> = {
  * read/post UI (see backend models.ReportComment for the access boundary — anyone who can see the
  * report can read and post to it). */
 export function ReportCommentsSection({ reportId }: { reportId: number }) {
+  useLanguage();
   const { data: comments, isLoading } = useReportComments(reportId);
   const addComment = useAddReportComment(reportId);
   const [draft, setDraft] = useState('');
@@ -31,7 +33,7 @@ export function ReportCommentsSection({ reportId }: { reportId: number }) {
     setError(null);
     addComment.mutate(body, {
       onSuccess: () => setDraft(''),
-      onError: (err) => setError(errorDetail(err, 'Could not post this comment.')),
+      onError: (err) => setError(errorDetail(err, tr("Could not post this comment."))),
     });
   };
 
@@ -51,7 +53,7 @@ export function ReportCommentsSection({ reportId }: { reportId: number }) {
               </Typography>
               <Chip size="small" variant="outlined" label={ROLE_LABEL[c.author_role] || c.author_role} />
               <Typography variant="caption" color="text.secondary">
-                {new Date(c.created_at).toLocaleString()}
+                {new Date(c.created_at).toLocaleString(locale())}
               </Typography>
             </Stack>
             <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
@@ -60,14 +62,12 @@ export function ReportCommentsSection({ reportId }: { reportId: number }) {
           </Paper>
         ))}
         {!isLoading && (!comments || comments.length === 0) && (
-          <Typography variant="body2" color="text.secondary">
-            No comments yet.
-          </Typography>
+          <Typography variant="body2" color="text.secondary">{tr("No comments yet.")}</Typography>
         )}
       </Stack>
       {error && (
         <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>
-          {error}
+          {tr(error)}
         </Alert>
       )}
       <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end' }}>
@@ -76,13 +76,11 @@ export function ReportCommentsSection({ reportId }: { reportId: number }) {
           fullWidth
           multiline
           minRows={2}
-          placeholder="Write a comment…"
+          placeholder={tr("Write a comment…")}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
-        <Button variant="contained" onClick={submit} disabled={addComment.isPending || !draft.trim()}>
-          Post
-        </Button>
+        <Button variant="contained" onClick={submit} disabled={addComment.isPending || !draft.trim()}>{tr("Post")}</Button>
       </Stack>
     </Box>
   );

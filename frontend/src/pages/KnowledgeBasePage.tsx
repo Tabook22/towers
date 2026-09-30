@@ -1,3 +1,4 @@
+import { tr, useLanguage, locale } from '../i18n';
 import { useRef, useState } from 'react';
 import {
   Alert,
@@ -58,6 +59,7 @@ function formatSize(bytes: number | null): string {
 }
 
 export function KnowledgeBasePage() {
+  useLanguage();
   const { user } = useAuth();
   const { data: docs, isLoading } = useKnowledgeDocuments();
   const { data: teams } = useTeams();
@@ -118,7 +120,7 @@ export function KnowledgeBasePage() {
       onSuccess: (data) => editorRef.current?.appendParagraph(data.transcript),
       onError: (err: unknown) => {
         const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-        setError(detail || 'Could not transcribe that recording — type the note instead.');
+        setError(detail || tr("Could not transcribe that recording — type the note instead."));
       },
     });
   };
@@ -126,15 +128,15 @@ export function KnowledgeBasePage() {
   const submit = () => {
     setError(null);
     if (!title.trim()) {
-      setError('A title is required.');
+      setError(tr("A title is required."));
       return;
     }
     if (mode === 'file' && !file) {
-      setError('Choose a file to upload.');
+      setError(tr("Choose a file to upload."));
       return;
     }
     if (mode === 'text' && isRichTextEmpty(bodyHtml)) {
-      setError('Write, paste, or record some text first.');
+      setError(tr("Write, paste, or record some text first."));
       return;
     }
     upload.mutate(
@@ -155,7 +157,7 @@ export function KnowledgeBasePage() {
         },
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setError(detail || 'Could not save this document.');
+          setError(detail || tr("Could not save this document."));
         },
       },
     );
@@ -176,18 +178,11 @@ export function KnowledgeBasePage() {
     <Box>
       <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 800 }}>
-            Knowledge base
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Field reports, incident write-ups, and reference files the help assistant can search when
-            answering questions like "has this happened before".
-          </Typography>
+          <Typography variant="h5" sx={{ fontWeight: 800 }}>{tr("Knowledge base")}</Typography>
+          <Typography variant="body2" color="text.secondary">{tr("Field reports, incident write-ups, and reference files the help assistant can search when answering questions like \"has this happened before\".")}</Typography>
         </Box>
         {canManage && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>
-            Add document
-          </Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>{tr("Add document")}</Button>
         )}
       </Stack>
 
@@ -195,12 +190,12 @@ export function KnowledgeBasePage() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Title</TableCell>
-              <TableCell>Team</TableCell>
-              <TableCell>Uploaded by</TableCell>
-              <TableCell>Date</TableCell>
-              <TableCell>Size</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>{tr("Title")}</TableCell>
+              <TableCell>{tr("Team")}</TableCell>
+              <TableCell>{tr("Uploaded by")}</TableCell>
+              <TableCell>{tr("Date")}</TableCell>
+              <TableCell>{tr("Size")}</TableCell>
+              <TableCell align="right">{tr("Actions")}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -220,7 +215,7 @@ export function KnowledgeBasePage() {
                           {doc.title}
                         </Typography>
                         {doc.has_voice && (
-                          <Tooltip title="Has a voice recording attached">
+                          <Tooltip title={tr("Has a voice recording attached")}>
                             <MicRoundedIcon fontSize="inherit" color="action" />
                           </Tooltip>
                         )}
@@ -234,31 +229,31 @@ export function KnowledgeBasePage() {
                   </Stack>
                 </TableCell>
                 <TableCell>
-                  {doc.team_name ? <Chip size="small" label={doc.team_name} /> : <Chip size="small" variant="outlined" label="Company-wide" />}
+                  {doc.team_name ? <Chip size="small" label={doc.team_name} /> : <Chip size="small" variant="outlined" label={tr("Company-wide")} />}
                 </TableCell>
                 <TableCell>{doc.uploaded_by_name || '—'}</TableCell>
-                <TableCell>{new Date(doc.uploaded_at).toLocaleDateString()}</TableCell>
+                <TableCell>{new Date(doc.uploaded_at).toLocaleDateString(locale())}</TableCell>
                 <TableCell>{formatSize(doc.file_size)}</TableCell>
                 <TableCell align="right">
-                  <Tooltip title="Read">
+                  <Tooltip title={tr("Read")}>
                     <IconButton size="small" onClick={() => setPreviewId(doc.id)}>
                       <VisibilityRoundedIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Download original file">
+                  <Tooltip title={tr("Download original file")}>
                     <IconButton size="small" component="a" href={mediaUrl(`/api/knowledge-base/${doc.id}/file`)} target="_blank" rel="noreferrer">
                       <DownloadIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   {canModify(doc) && (
-                    <Tooltip title="Edit">
+                    <Tooltip title={tr("Edit")}>
                       <IconButton size="small" onClick={() => setEditingId(doc.id)}>
                         <EditIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   )}
                   {canModify(doc) && (
-                    <Tooltip title="Delete">
+                    <Tooltip title={tr("Delete")}>
                       <IconButton size="small" onClick={() => deleteDoc.mutate(doc.id)}>
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -270,9 +265,7 @@ export function KnowledgeBasePage() {
             {!isLoading && (docs || []).length === 0 && (
               <TableRow>
                 <TableCell colSpan={6}>
-                  <Typography variant="body2" color="text.secondary">
-                    No documents yet — upload a field report or incident write-up to get started.
-                  </Typography>
+                  <Typography variant="body2" color="text.secondary">{tr("No documents yet — upload a field report or incident write-up to get started.")}</Typography>
                 </TableCell>
               </TableRow>
             )}
@@ -292,17 +285,17 @@ export function KnowledgeBasePage() {
             : undefined
         }
       >
-        <DialogTitle>Add to knowledge base</DialogTitle>
+        <DialogTitle>{tr("Add to knowledge base")}</DialogTitle>
         <Tabs value={mode} onChange={(_e, v) => setMode(v)} sx={{ px: 3, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
-          <Tab value="file" label="Upload file" />
-          <Tab value="text" label="Write / record" />
+          <Tab value="file" label={tr("Upload file")} />
+          <Tab value="text" label={tr("Write / record")} />
         </Tabs>
         <DialogContent sx={mode === 'text' ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined}>
           <Stack spacing={2} sx={{ mt: 1, ...(mode === 'text' ? { flex: 1, minHeight: 0 } : {}) }}>
-            {error && <Alert severity="error">{error}</Alert>}
-            <TextField label="Title" fullWidth autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
+            {error && <Alert severity="error">{tr(error)}</Alert>}
+            <TextField label={tr("Title")} fullWidth autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
             <TextField
-              label="Description (optional)"
+              label={tr("Description (optional)")}
               fullWidth
               multiline
               minRows={2}
@@ -310,8 +303,8 @@ export function KnowledgeBasePage() {
               onChange={(e) => setDescription(e.target.value)}
             />
             {isAdminOrReviewer && (
-              <TextField select label="Team (optional)" fullWidth value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-                <MenuItem value="">Company-wide (visible to every team)</MenuItem>
+              <TextField select label={tr("Team (optional)")} fullWidth value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+                <MenuItem value="">{tr("Company-wide (visible to every team)")}</MenuItem>
                 {(teams || []).map((t) => (
                   <MenuItem key={t.id} value={t.id}>
                     {t.name}
@@ -320,7 +313,7 @@ export function KnowledgeBasePage() {
               </TextField>
             )}
             {user?.role === 'team_leader' && (
-              <Alert severity="info">This will be filed under your own team only.</Alert>
+              <Alert severity="info">{tr("This will be filed under your own team only.")}</Alert>
             )}
 
             {mode === 'file' ? (
@@ -333,32 +326,28 @@ export function KnowledgeBasePage() {
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
                 <Button variant="outlined" onClick={() => fileInputRef.current?.click()}>
-                  {file ? file.name : 'Choose file (PDF, Word, .txt, .md, image, video, or audio)'}
+                  {file ? file.name : tr("Choose file (PDF, Word, .txt, .md, image, video, or audio)")}
                 </Button>
               </>
             ) : (
               <>
-                <RichTextEditor ref={editorRef} value={bodyHtml} onChange={setBodyHtml} minHeight={200} placeholder="Type here, paste from elsewhere, or record your voice below and it'll appear here to review." />
+                <RichTextEditor ref={editorRef} value={bodyHtml} onChange={setBodyHtml} minHeight={200} placeholder={tr("Type here, paste from elsewhere, or record your voice below and it'll appear here to review.")} />
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0 }}>
                   <VoiceNoteControls saving={transcribe.isPending} onRecorded={handleRecorded} />
                   {transcribe.isPending && (
-                    <Typography variant="caption" color="text.secondary">
-                      Transcribing…
-                    </Typography>
+                    <Typography variant="caption" color="text.secondary">{tr("Transcribing…")}</Typography>
                   )}
                 </Stack>
                 <Box sx={{ flexShrink: 0 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                    Save as
-                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("Save as")}</Typography>
                   <ToggleButtonGroup
                     size="small"
                     exclusive
                     value={saveAs}
                     onChange={(_e, v) => v && setSaveAs(v)}
                   >
-                    <ToggleButton value="txt">Text file (.txt)</ToggleButton>
-                    <ToggleButton value="pdf">PDF</ToggleButton>
+                    <ToggleButton value="txt">{tr("Text file (.txt)")}</ToggleButton>
+                    <ToggleButton value="pdf">{tr("PDF")}</ToggleButton>
                   </ToggleButtonGroup>
                 </Box>
               </>
@@ -366,10 +355,8 @@ export function KnowledgeBasePage() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={submit} disabled={upload.isPending}>
-            Save
-          </Button>
+          <Button onClick={() => setOpen(false)}>{tr("Cancel")}</Button>
+          <Button variant="contained" onClick={submit} disabled={upload.isPending}>{tr("Save")}</Button>
         </DialogActions>
       </Dialog>
 
@@ -409,6 +396,7 @@ function EditDocumentDialog({
   teams: { id: number; name: string }[];
   onClose: () => void;
 }) {
+  useLanguage();
   const { data: doc } = useKnowledgeDocumentDetail(docId);
   const update = useUpdateKnowledgeDocument();
 
@@ -443,11 +431,11 @@ function EditDocumentDialog({
     if (!doc) return;
     setError(null);
     if (!title.trim()) {
-      setError('Title cannot be empty.');
+      setError(tr("Title cannot be empty."));
       return;
     }
     if (doc.is_composed && isRichTextEmpty(bodyHtml)) {
-      setError('Text cannot be empty.');
+      setError(tr("Text cannot be empty."));
       return;
     }
     update.mutate(
@@ -464,7 +452,7 @@ function EditDocumentDialog({
         onSuccess: handleClose,
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setError(detail || 'Could not save these changes.');
+          setError(detail || tr("Could not save these changes."));
         },
       },
     );
@@ -485,18 +473,16 @@ function EditDocumentDialog({
           : undefined
       }
     >
-      <DialogTitle>Edit document</DialogTitle>
+      <DialogTitle>{tr("Edit document")}</DialogTitle>
       <DialogContent sx={wide ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined}>
         {!doc ? (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-            Loading…
-          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>{tr("Loading…")}</Typography>
         ) : (
           <Stack spacing={2} sx={{ mt: 1, ...(wide ? { flex: 1, minHeight: 0 } : {}) }}>
-            {error && <Alert severity="error">{error}</Alert>}
-            <TextField label="Title" fullWidth value={title} onChange={(e) => setTitle(e.target.value)} />
+            {error && <Alert severity="error">{tr(error)}</Alert>}
+            <TextField label={tr("Title")} fullWidth value={title} onChange={(e) => setTitle(e.target.value)} />
             <TextField
-              label="Description (optional)"
+              label={tr("Description (optional)")}
               fullWidth
               multiline
               minRows={2}
@@ -504,8 +490,8 @@ function EditDocumentDialog({
               onChange={(e) => setDescription(e.target.value)}
             />
             {isAdminOrReviewer && (
-              <TextField select label="Team (optional)" fullWidth value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-                <MenuItem value="">Company-wide (visible to every team)</MenuItem>
+              <TextField select label={tr("Team (optional)")} fullWidth value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+                <MenuItem value="">{tr("Company-wide (visible to every team)")}</MenuItem>
                 {teams.map((t) => (
                   <MenuItem key={t.id} value={t.id}>
                     {t.name}
@@ -516,9 +502,7 @@ function EditDocumentDialog({
 
             {doc.has_voice && (
               <Box sx={{ flexShrink: 0 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                  Original recording
-                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("Original recording")}</Typography>
                 <VoiceNotePlayer src={mediaUrl(`/api/knowledge-base/${doc.id}/voice`)} duration={doc.voice_duration_seconds} />
               </Box>
             )}
@@ -527,29 +511,22 @@ function EditDocumentDialog({
               <>
                 <RichTextEditor key={doc.id} value={bodyHtml} onChange={setBodyHtml} minHeight={200} />
                 <Box sx={{ flexShrink: 0 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                    Save as
-                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("Save as")}</Typography>
                   <ToggleButtonGroup size="small" exclusive value={saveAs} onChange={(_e, v) => v && setSaveAs(v)}>
-                    <ToggleButton value="txt">Text file (.txt)</ToggleButton>
-                    <ToggleButton value="pdf">PDF</ToggleButton>
+                    <ToggleButton value="txt">{tr("Text file (.txt)")}</ToggleButton>
+                    <ToggleButton value="pdf">{tr("PDF")}</ToggleButton>
                   </ToggleButtonGroup>
                 </Box>
               </>
             ) : (
-              <Alert severity="info">
-                This was uploaded as a file — only the title, description, and team can be edited here. Delete and
-                re-upload to change its content.
-              </Alert>
+              <Alert severity="info">{tr("This was uploaded as a file — only the title, description, and team can be edited here. Delete and re-upload to change its content.")}</Alert>
             )}
           </Stack>
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleClose}>Cancel</Button>
-        <Button variant="contained" onClick={submit} disabled={!doc || update.isPending}>
-          Save changes
-        </Button>
+        <Button onClick={handleClose}>{tr("Cancel")}</Button>
+        <Button variant="contained" onClick={submit} disabled={!doc || update.isPending}>{tr("Save changes")}</Button>
       </DialogActions>
     </Dialog>
   );

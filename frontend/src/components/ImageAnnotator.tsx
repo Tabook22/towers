@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import {
   Accordion,
@@ -316,6 +317,7 @@ interface Props {
 }
 
 export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, originalUrl, onSave, saving }: Props) {
+  useLanguage();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [baseUrl, setBaseUrl] = useState(imageUrl);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
@@ -473,7 +475,7 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
             },
             onError: (err: unknown) => {
               const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-              setSmartError(detail || 'Could not enhance this photo — check your connection and try again.');
+              setSmartError(detail || tr("Could not enhance this photo — check your connection and try again."));
             },
           },
         );
@@ -1072,7 +1074,7 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
   // React-driven, and no ambiguity about which element has focus. The tradeoff is a plainer look
   // (no positioned mini text box right at the click point) for guaranteed-reliable typing.
   const addTextAt = (p: Point) => {
-    const text = window.prompt('Label text:')?.trim();
+    const text = window.prompt(tr("Label text:"))?.trim();
     if (!text) return; // cancelled, or submitted empty — nothing to add
     const shape: Shape = { id: newShapeId(), type: 'text', color, fontSize: currentFontSize, x: p.x, y: p.y, text };
     setShapes((prev) => [...prev, shape]);
@@ -1093,7 +1095,7 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
     const hit = [...shapes].reverse().find((s) => s.type === 'text' && hitTest(s, p));
     if (!hit || hit.type !== 'text') return;
     setSelectedId(hit.id);
-    const result = window.prompt('Label text:', hit.text);
+    const result = window.prompt(tr("Label text:"), hit.text);
     if (result === null) return; // Cancel — leave the label as-is
     const text = result.trim();
     if (text) {
@@ -1125,43 +1127,43 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperComponent={ResizableDialogPaper}>
-      <DialogTitle>{title} — mark up</DialogTitle>
+      <DialogTitle>{title}{tr(" — mark up")}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5}>
           <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
             <ToggleButtonGroup size="small" value={tool} exclusive onChange={(_e, v) => handleToolChange(v)}>
-              <ToggleButton value="select" aria-label="Select / move / resize">
-                <Tooltip title="Select — drag to move, drag any of its 4 corner handles to resize width and height independently">
+              <ToggleButton value="select" aria-label={tr("Select / move / resize")}>
+                <Tooltip title={tr("Select — drag to move, drag any of its 4 corner handles to resize width and height independently")}>
                   <NearMeIcon fontSize="small" />
                 </Tooltip>
               </ToggleButton>
-              <ToggleButton value="circle" aria-label="Circle">
-                <Tooltip title="Circle — point at a spot">
+              <ToggleButton value="circle" aria-label={tr("Circle")}>
+                <Tooltip title={tr("Circle — point at a spot")}>
                   <PanoramaFishEyeIcon fontSize="small" />
                 </Tooltip>
               </ToggleButton>
-              <ToggleButton value="rect" aria-label="Rectangle">
-                <Tooltip title="Rectangle — box an area">
+              <ToggleButton value="rect" aria-label={tr("Rectangle")}>
+                <Tooltip title={tr("Rectangle — box an area")}>
                   <CropSquareIcon fontSize="small" />
                 </Tooltip>
               </ToggleButton>
-              <ToggleButton value="pen" aria-label="Freehand">
-                <Tooltip title="Freehand line">
+              <ToggleButton value="pen" aria-label={tr("Freehand")}>
+                <Tooltip title={tr("Freehand line")}>
                   <GestureIcon fontSize="small" />
                 </Tooltip>
               </ToggleButton>
-              <ToggleButton value="arrow" aria-label="Arrow">
-                <Tooltip title="Arrow — drag from the start toward whatever you want to point at. Select it afterward for 3 round handles: drag the tail or head to move/rotate that end, drag the middle one to bend the shaft into a curve">
+              <ToggleButton value="arrow" aria-label={tr("Arrow")}>
+                <Tooltip title={tr("Arrow — drag from the start toward whatever you want to point at. Select it afterward for 3 round handles: drag the tail or head to move/rotate that end, drag the middle one to bend the shaft into a curve")}>
                   <ArrowRightAltIcon fontSize="small" />
                 </Tooltip>
               </ToggleButton>
-              <ToggleButton value="text" aria-label="Text label">
-                <Tooltip title="Text — click to type a label explaining a mark (e.g. 'bad contact joint'); double-click an existing label with the Select tool to edit or clear it">
+              <ToggleButton value="text" aria-label={tr("Text label")}>
+                <Tooltip title={tr("Text — click to type a label explaining a mark (e.g. 'bad contact joint'); double-click an existing label with the Select tool to edit or clear it")}>
                   <TextFieldsIcon fontSize="small" />
                 </Tooltip>
               </ToggleButton>
-              <ToggleButton value="erase" aria-label="Eraser">
-                <Tooltip title="Eraser — rubs out just the part you drag over">
+              <ToggleButton value="erase" aria-label={tr("Eraser")}>
+                <Tooltip title={tr("Eraser — rubs out just the part you drag over")}>
                   <BackspaceIcon fontSize="small" />
                 </Tooltip>
               </ToggleButton>
@@ -1172,7 +1174,7 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
                 <Box
                   key={c}
                   role="button"
-                  aria-label={`Color ${c}`}
+                  aria-label={tr("Color {0}", [c])}
                   onClick={() => setColor(c)}
                   sx={{
                     width: 26,
@@ -1234,7 +1236,7 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
             </Stack>
 
             <Stack direction="row" spacing={0.25} sx={{ alignItems: 'center' }}>
-              <Tooltip title="Zoom out">
+              <Tooltip title={tr("Zoom out")}>
                 <span>
                   <IconButton size="small" onClick={handleZoomOut} disabled={zoom <= ZOOM_MIN}>
                     <ZoomOutIcon fontSize="small" />
@@ -1244,7 +1246,7 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
               <Typography variant="caption" color="text.secondary" sx={{ minWidth: 34, textAlign: 'center' }}>
                 {Math.round(zoom * 100)}%
               </Typography>
-              <Tooltip title="Zoom in — magnify to see and mark small details precisely">
+              <Tooltip title={tr("Zoom in — magnify to see and mark small details precisely")}>
                 <span>
                   <IconButton size="small" onClick={handleZoomIn} disabled={zoom >= ZOOM_MAX}>
                     <ZoomInIcon fontSize="small" />
@@ -1253,7 +1255,7 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
               </Tooltip>
             </Stack>
 
-            <Tooltip title="Drag a box around the insulator string — analyzes just that area (direction, disc spacing, its own brightness range) instead of the whole photo">
+            <Tooltip title={tr("Drag a box around the insulator string — analyzes just that area (direction, disc spacing, its own brightness range) instead of the whole photo")}>
               <span>
                 <Button
                   size="small"
@@ -1272,12 +1274,12 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
                     setPickingRoi(true);
                   }}
                 >
-                  {pickingRoi ? 'Drag a box…' : 'Auto enhance insulator'}
+                  {pickingRoi ? tr("Drag a box…") : tr("Auto enhance insulator")}
                 </Button>
               </span>
             </Tooltip>
 
-            <Tooltip title="Brightness / contrast / saturation / detail / color">
+            <Tooltip title={tr("Brightness / contrast / saturation / detail / color")}>
               <ToggleButton
                 size="small"
                 value="enhance"
@@ -1292,20 +1294,20 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
             <Box sx={{ flexGrow: 1 }} />
 
             {selectedId && (
-              <Tooltip title="Delete selected shape">
+              <Tooltip title={tr("Delete selected shape")}>
                 <IconButton size="small" onClick={handleDeleteSelected} color="error">
                   <DeleteOutlineIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
             )}
-            <Tooltip title="Undo last shape">
+            <Tooltip title={tr("Undo last shape")}>
               <span>
                 <IconButton size="small" onClick={handleUndo} disabled={shapes.length === 0}>
                   <UndoIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
-            <Tooltip title="Clear all marks">
+            <Tooltip title={tr("Clear all marks")}>
               <span>
                 <IconButton size="small" onClick={handleClear} disabled={shapes.length === 0}>
                   <ClearAllIcon fontSize="small" />
@@ -1313,56 +1315,38 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
               </span>
             </Tooltip>
             {originalUrl && baseUrl !== originalUrl && (
-              <Tooltip title="Discard marks and start over from the original photo">
-                <Button size="small" startIcon={<RestartAltIcon fontSize="small" />} onClick={handleStartOver}>
-                  Start over
-                </Button>
+              <Tooltip title={tr("Discard marks and start over from the original photo")}>
+                <Button size="small" startIcon={<RestartAltIcon fontSize="small" />} onClick={handleStartOver}>{tr("Start over")}</Button>
               </Tooltip>
             )}
           </Stack>
 
           {pickingRoi && (
-            <Alert severity="info" onClose={cancelPickRoi}>
-              Drag a box around the insulator string on the photo below.
-            </Alert>
+            <Alert severity="info" onClose={cancelPickRoi}>{tr("Drag a box around the insulator string on the photo below.")}</Alert>
           )}
 
           {roiBox && (
             <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center', px: 1.5, py: 1, borderRadius: 1.5, bgcolor: 'action.hover' }}>
-              <Typography variant="body2" sx={{ mr: 0.5 }}>
-                Enhance that box:
-              </Typography>
-              <Button size="small" onClick={() => runSmartEnhance('gentle')} disabled={smartEnhance.isPending}>
-                Gentle
-              </Button>
-              <Button size="small" variant="contained" onClick={() => runSmartEnhance('balanced')} disabled={smartEnhance.isPending}>
-                Balanced
-              </Button>
-              <Button size="small" onClick={() => runSmartEnhance('strong')} disabled={smartEnhance.isPending}>
-                Strong
-              </Button>
-              <Button size="small" color="inherit" onClick={cancelPickRoi} disabled={smartEnhance.isPending}>
-                Cancel
-              </Button>
+              <Typography variant="body2" sx={{ mr: 0.5 }}>{tr("Enhance that box:")}</Typography>
+              <Button size="small" onClick={() => runSmartEnhance('gentle')} disabled={smartEnhance.isPending}>{tr("Gentle")}</Button>
+              <Button size="small" variant="contained" onClick={() => runSmartEnhance('balanced')} disabled={smartEnhance.isPending}>{tr("Balanced")}</Button>
+              <Button size="small" onClick={() => runSmartEnhance('strong')} disabled={smartEnhance.isPending}>{tr("Strong")}</Button>
+              <Button size="small" color="inherit" onClick={cancelPickRoi} disabled={smartEnhance.isPending}>{tr("Cancel")}</Button>
               {smartEnhance.isPending && (
-                <Typography variant="caption" color="text.secondary">
-                  Enhancing…
-                </Typography>
+                <Typography variant="caption" color="text.secondary">{tr("Enhancing…")}</Typography>
               )}
             </Stack>
           )}
 
           {smartError && (
             <Alert severity="error" onClose={() => setSmartError(null)}>
-              {smartError}
+              {tr(smartError)}
             </Alert>
           )}
 
           {smartEstimate && (
             <Alert severity="info" onClose={() => setSmartEstimate(null)}>
-              {smartEstimate.confidence === 'estimated'
-                ? `Estimated ${Math.round(smartEstimate.direction_deg)}° tilt from vertical, disc spacing ~${Math.round(smartEstimate.pitch_px)}px — used to scale the noise reduction and detail enhancement.`
-                : `Couldn't confidently measure disc spacing in that box, so a size-based estimate was used instead — the enhancement still ran, just less precisely tuned.`}
+              {smartEstimate.confidence === 'estimated' ? tr("Estimated {0}° tilt from vertical, disc spacing ~{1}px — used to scale the noise reduction and detail enhancement.", [Math.round(smartEstimate.direction_deg), Math.round(smartEstimate.pitch_px)]) : tr("Couldn't confidently measure disc spacing in that box, so a size-based estimate was used instead — the enhancement still ran, just less precisely tuned.")}
             </Alert>
           )}
 
@@ -1370,25 +1354,19 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
             <Stack spacing={0.5} sx={{ borderRadius: 1.5, bgcolor: 'action.hover', overflow: 'auto', maxHeight: 320 }}>
               <Accordion disableGutters defaultExpanded elevation={0} sx={{ bgcolor: 'transparent' }}>
                 <AccordionSummary expandIcon={<ExpandMoreIcon fontSize="small" />}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Light &amp; contrast
-                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{tr("Light & contrast")}</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Stack direction="row" spacing={2.5} sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
-                    <EnhanceSlider label="Brightness" value={brightness} onChange={setBrightness} />
-                    <EnhanceSlider label="Contrast" value={contrast} onChange={setContrast} />
-                    <EnhanceSlider label="Saturation" value={saturation} onChange={setSaturation} />
-                    <Tooltip title="Auto-stretch brightness/contrast from this photo's own histogram">
-                      <Button size="small" startIcon={<AutoFixHighIcon fontSize="small" />} onClick={handleAutoEnhance}>
-                        Auto
-                      </Button>
+                    <EnhanceSlider label={tr("Brightness")} value={brightness} onChange={setBrightness} />
+                    <EnhanceSlider label={tr("Contrast")} value={contrast} onChange={setContrast} />
+                    <EnhanceSlider label={tr("Saturation")} value={saturation} onChange={setSaturation} />
+                    <Tooltip title={tr("Auto-stretch brightness/contrast from this photo's own histogram")}>
+                      <Button size="small" startIcon={<AutoFixHighIcon fontSize="small" />} onClick={handleAutoEnhance}>{tr("Auto")}</Button>
                     </Tooltip>
-                    <Tooltip title="Back to the unadjusted photo (drawn marks are unaffected)">
+                    <Tooltip title={tr("Back to the unadjusted photo (drawn marks are unaffected)")}>
                       <span>
-                        <Button size="small" startIcon={<RestartAltIcon fontSize="small" />} onClick={resetEnhance} disabled={enhanceIsDefault}>
-                          Reset
-                        </Button>
+                        <Button size="small" startIcon={<RestartAltIcon fontSize="small" />} onClick={resetEnhance} disabled={enhanceIsDefault}>{tr("Reset")}</Button>
                       </span>
                     </Tooltip>
                   </Stack>
@@ -1397,15 +1375,13 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
 
               <Accordion disableGutters elevation={0} sx={{ bgcolor: 'transparent' }}>
                 <AccordionSummary expandIcon={<ExpandMoreIcon fontSize="small" />}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Detail &amp; noise
-                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{tr("Detail & noise")}</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Stack spacing={1}>
                     <Stack direction="row" spacing={2.5} sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
                       <EnhanceSlider
-                        label="Local contrast"
+                        label={tr("Local contrast")}
                         value={localContrast}
                         min={0}
                         max={100}
@@ -1413,7 +1389,7 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
                         onCommit={(v) => recomputeHeavy({ localContrast: v })}
                       />
                       <EnhanceSlider
-                        label="Noise reduction"
+                        label={tr("Noise reduction")}
                         value={noiseReduction}
                         min={0}
                         max={100}
@@ -1421,7 +1397,7 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
                         onCommit={(v) => recomputeHeavy({ noiseReduction: v })}
                       />
                       <EnhanceSlider
-                        label="Sharpening"
+                        label={tr("Sharpening")}
                         value={sharpening}
                         min={0}
                         max={100}
@@ -1429,30 +1405,23 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
                         onCommit={(v) => recomputeHeavy({ sharpening: v })}
                       />
                     </Stack>
-                    <Typography variant="caption" color="text.secondary">
-                      Use gently. Enhancement cannot recover detail that was never captured, or fix a poorly focused
-                      photo.
-                    </Typography>
+                    <Typography variant="caption" color="text.secondary">{tr("Use gently. Enhancement cannot recover detail that was never captured, or fix a poorly focused photo.")}</Typography>
                   </Stack>
                 </AccordionDetails>
               </Accordion>
 
               <Accordion disableGutters elevation={0} sx={{ bgcolor: 'transparent' }}>
                 <AccordionSummary expandIcon={<ExpandMoreIcon fontSize="small" />}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Individual colors
-                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{tr("Individual colors")}</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Stack spacing={1}>
-                    <Typography variant="caption" color="text.secondary">
-                      0% removes a color's saturation; 100% keeps it; 200% strengthens it.
-                    </Typography>
+                    <Typography variant="caption" color="text.secondary">{tr("0% removes a color's saturation; 100% keeps it; 200% strengthens it.")}</Typography>
                     <Stack direction="row" spacing={2.5} sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
                       {HUE_SWATCHES.map(({ key, label, color }) => (
                         <EnhanceSlider
                           key={key}
-                          label={label}
+                          label={tr(label)}
                           swatch={color}
                           value={hueSat[key]}
                           onChange={(v) => setHueSat((prev) => ({ ...prev, [key]: v }))}
@@ -1470,9 +1439,7 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
 
               <Accordion disableGutters elevation={0} sx={{ bgcolor: 'transparent' }}>
                 <AccordionSummary expandIcon={<ExpandMoreIcon fontSize="small" />}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Highlight color range
-                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{tr("Highlight color range")}</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Stack spacing={1.5}>
@@ -1488,7 +1455,7 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
                           }}
                         />
                       }
-                      label={<Typography variant="body2">Dim pixels outside this hue range</Typography>}
+                      label={<Typography variant="body2">{tr("Dim pixels outside this hue range")}</Typography>}
                     />
                     <Box
                       sx={{
@@ -1511,11 +1478,7 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
                         recomputeHeavy({ hueRange: next });
                       }}
                     />
-                    <Typography variant="caption" color="text.secondary">
-                      Based on this photo's own colors, not a real temperature reading — these images have no
-                      per-pixel temperature data behind them, only the camera's own rendered palette. Isolating the
-                      reds/oranges on a typical hot palette approximates "hot vs. cool", nothing more precise.
-                    </Typography>
+                    <Typography variant="caption" color="text.secondary">{tr("Based on this photo's own colors, not a real temperature reading — these images have no per-pixel temperature data behind them, only the camera's own rendered palette. Isolating the reds/oranges on a typical hot palette approximates \"hot vs. cool\", nothing more precise.")}</Typography>
                   </Stack>
                 </AccordionDetails>
               </Accordion>
@@ -1523,18 +1486,16 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
               <Box sx={{ px: 2, py: 1 }}>
                 <FormControlLabel
                   control={<Checkbox size="small" checked={compareOriginal} onChange={(e) => setCompareOriginal(e.target.checked)} />}
-                  label={<Typography variant="body2">Compare original / enhanced</Typography>}
+                  label={<Typography variant="body2">{tr("Compare original / enhanced")}</Typography>}
                 />
               </Box>
             </Stack>
           )}
           {processing && (
-            <Typography variant="caption" color="text.secondary">
-              Processing…
-            </Typography>
+            <Typography variant="caption" color="text.secondary">{tr("Processing…")}</Typography>
           )}
 
-          {loadError && <Alert severity="error">Couldn't load the image to annotate.</Alert>}
+          {loadError && <Alert severity="error">{tr("Couldn't load the image to annotate.")}</Alert>}
 
           <Box
             ref={scrollBoxRef}
@@ -1611,15 +1572,15 @@ export function ImageAnnotator({ open, onClose, title, imageId, imageUrl, origin
                 // dragged outward, which is exactly the direction resizing bigger requires.
               />
             ) : (
-              !loadError && <Typography sx={{ color: 'grey.400', p: 4 }}>Loading image…</Typography>
+              !loadError && <Typography sx={{ color: 'grey.400', p: 4 }}>{tr("Loading image…")}</Typography>
             )}
           </Box>
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{tr("Close")}</Button>
         <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={!img || saving}>
-          {saving ? 'Saving…' : 'Save annotation'}
+          {saving ? tr("Saving…") : tr("Save annotation")}
         </Button>
       </DialogActions>
     </Dialog>
@@ -1646,12 +1607,13 @@ function EnhanceSlider({
   max?: number;
   swatch?: string;
 }) {
+  useLanguage();
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 190 }}>
       <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', width: 82, flexShrink: 0 }}>
         {swatch && <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: swatch, flexShrink: 0 }} />}
         <Typography variant="caption" color="text.secondary" noWrap>
-          {label}
+          {tr(label)}
         </Typography>
       </Stack>
       <Slider

@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Dialog, DialogContent, DialogTitle, IconButton, LinearProgress, Typography } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -22,6 +23,7 @@ interface Props {
  * DraggableResizableDialogPaper), since a document this size often needs moving out of the way
  * of whatever the admin is cross-checking it against. */
 export function DocxViewerDialog({ open, onClose, title, fileUrl, notice }: Props) {
+  useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export function DocxViewerDialog({ open, onClose, title, fileUrl, notice }: Prop
         const res = await fetch(fileUrl, { signal: controller.signal });
         if (!res.ok) {
           const data = await res.json().catch(() => null);
-          throw new Error(typeof data?.detail === 'string' ? data.detail : `Could not open the document (${res.status}).`);
+          throw new Error(typeof data?.detail === 'string' ? data.detail : tr("Could not open the document ({0}).", [res.status]));
         }
         const blob = await res.blob();
         if (cancelled || !containerRef.current) return;
@@ -54,7 +56,7 @@ export function DocxViewerDialog({ open, onClose, title, fileUrl, notice }: Prop
         });
         if (!cancelled && containerRef.current) containerRef.current.replaceChildren(...Array.from(rendered.childNodes));
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not open this report.');
+        if (!cancelled) setError(err instanceof Error ? err.message : tr("Could not open this report."));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -86,28 +88,24 @@ export function DocxViewerDialog({ open, onClose, title, fileUrl, notice }: Prop
         <Typography variant="h6" component="span" sx={{ fontWeight: 700, flex: 1, minWidth: 0 }} noWrap>
           {title}
         </Typography>
-        <Button size="small" startIcon={<DownloadRoundedIcon />} component="a" href={fileUrl} target="_blank" rel="noreferrer">
-          Download
-        </Button>
-        <IconButton onClick={onClose} size="small" aria-label="Close document preview">
+        <Button size="small" startIcon={<DownloadRoundedIcon />} component="a" href={fileUrl} target="_blank" rel="noreferrer">{tr("Download")}</Button>
+        <IconButton onClick={onClose} size="small" aria-label={tr("Close document preview")}>
           <CloseRoundedIcon />
         </IconButton>
       </DialogTitle>
       {notice && <Alert severity="warning">{notice}</Alert>}
-      {loading && <LinearProgress aria-label="Loading document" />}
+      {loading && <LinearProgress aria-label={tr("Loading document")} />}
       <DialogContent sx={{ p: 0, flex: 1, minHeight: 0, overflow: 'auto', bgcolor: (theme) => theme.palette.mode === 'dark' ? '#273842' : '#e4e9ed' }}>
         {loading && (
-          <Typography variant="body2" color="text.secondary" sx={{ p: 4, textAlign: 'center' }}>
-            Loading document…
-          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ p: 4, textAlign: 'center' }}>{tr("Loading document…")}</Typography>
         )}
         {error && (
           <Alert severity="error" sx={{ m: 2 }}>
-            {error} — use Download above instead.
-          </Alert>
+            {tr(error)}{tr(" — use Download above instead.")}</Alert>
         )}
         <Box
           ref={containerRef}
+          dir="ltr"
           sx={{
             display: loading || error ? 'none' : 'block',
             // docx-preview renders each Word page as its own white sheet on this darker

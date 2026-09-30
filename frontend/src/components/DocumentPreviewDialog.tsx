@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { Dialog, DialogTitle, DialogContent, IconButton, Box, Typography, Button, Chip } from '@mui/material';
 import CloseIcon from '@mui/icons-material/CloseRounded';
 import DownloadIcon from '@mui/icons-material/DownloadRounded';
@@ -46,6 +47,7 @@ export function DocumentPreviewDialog({
   hasVoice,
   voiceDurationSeconds,
 }: Props) {
+  useLanguage();
   const downloadUrl = mediaUrl(`/api/knowledge-base/${docId}/file`);
   // inline=true tells the server to send Content-Disposition: inline instead of the default
   // "attachment" — without it, the browser downloads the file the instant the iframe/img/video
@@ -70,13 +72,11 @@ export function DocumentPreviewDialog({
             {title}
           </Typography>
           {teamName !== undefined && (
-            <Chip size="small" sx={{ mt: 0.5 }} label={teamName || 'Company-wide'} variant={teamName ? 'filled' : 'outlined'} />
+            <Chip size="small" sx={{ mt: 0.5 }} label={teamName || tr("Company-wide")} variant={teamName ? 'filled' : 'outlined'} />
           )}
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-          <Button size="small" startIcon={<DownloadIcon />} component="a" href={downloadUrl} target="_blank" rel="noreferrer">
-            Download
-          </Button>
+          <Button size="small" startIcon={<DownloadIcon />} component="a" href={downloadUrl} target="_blank" rel="noreferrer">{tr("Download")}</Button>
           <IconButton onClick={onClose} size="small">
             <CloseIcon />
           </IconButton>
@@ -85,9 +85,7 @@ export function DocumentPreviewDialog({
       <DialogContent sx={{ p: 0, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {hasVoice && (
           <Box sx={{ px: 3, pt: 2, flexShrink: 0 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              Voice recording
-            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("Voice recording")}</Typography>
             <VoiceNotePlayer src={mediaUrl(`/api/knowledge-base/${docId}/voice`)} duration={voiceDurationSeconds ?? null} />
           </Box>
         )}
@@ -116,9 +114,7 @@ export function DocumentPreviewDialog({
           </Box>
         ) : (
           <Box sx={{ p: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              No preview available for this file type — use Download above to view it.
-            </Typography>
+            <Typography variant="body2" color="text.secondary">{tr("No preview available for this file type — use Download above to view it.")}</Typography>
           </Box>
         )}
       </DialogContent>

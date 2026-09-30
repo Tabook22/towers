@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useState } from 'react';
 import {
   Accordion,
@@ -38,22 +39,21 @@ const evidenceColor = (status: string): 'success' | 'warning' | 'default' | 'err
 };
 
 function PositionRow({ pos, onImageClick }: { pos: TeamActivityPosition; onImageClick: (img: TeamActivityImage) => void }) {
+  useLanguage();
   return (
     <TableRow>
       <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>
         {pos.ohl} {pos.phase} {pos.string} {pos.direction || ''}
         {pos.tower_proximity ? ` (${pos.tower_proximity})` : ''}
       </TableCell>
-      <TableCell>{pos.screening_result}</TableCell>
+      <TableCell>{tr(pos.screening_result)}</TableCell>
       <TableCell>
-        {pos.hotspot === 'Yes' ? <Chip size="small" color="error" label="Hotspot" /> : '-'}
+        {pos.hotspot === 'Yes' ? <Chip size="small" color="error" label={tr("Hotspot")} /> : '-'}
       </TableCell>
       <TableCell>
         <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
           {pos.images.length === 0 && (
-            <Typography variant="caption" color="text.secondary">
-              No images yet
-            </Typography>
+            <Typography variant="caption" color="text.secondary">{tr("No images yet")}</Typography>
           )}
           {pos.images.map((img) => (
             <Chip
@@ -64,7 +64,7 @@ function PositionRow({ pos, onImageClick }: { pos: TeamActivityPosition; onImage
               clickable
               onClick={() => onImageClick(img)}
               label={`${img.image_code || img.image_type}${img.annotated ? ' ✓' : ''}`}
-              title={`${img.image_type} — captured ${img.capture_date || '?'} — click to view`}
+              title={tr("{0} — captured {1} — click to view", [img.image_type, img.capture_date || '?'])}
             />
           ))}
         </Stack>
@@ -79,6 +79,7 @@ function PositionRow({ pos, onImageClick }: { pos: TeamActivityPosition; onImage
  * formal checklist images (not the free-form Photos gallery) are listed. Same data downloads as a
  * flat, filterable Excel sheet via the button below. */
 export function TeamActivityReport() {
+  useLanguage();
   const { user } = useAuth();
   const isTeamLeader = user?.role === 'team_leader';
   const { data: teams } = useTeams();
@@ -105,27 +106,20 @@ export function TeamActivityReport() {
 
   return (
     <Box>
-      <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-        Team activity report
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Every team's field work, grouped by team, then by day, then by tower and each string's
-        measurements and evidence images — so you can see at a glance what team 1 did on day 1, how
-        many towers they covered on day 2, and so on. Only the official checklist images count here,
-        not the free-form Photos gallery. Download the same data as a sortable/filterable Excel sheet.
-      </Typography>
+      <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>{tr("Team activity report")}</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("Every team's field work, grouped by team, then by day, then by tower and each string's measurements and evidence images — so you can see at a glance what team 1 did on day 1, how many towers they covered on day 2, and so on. Only the official checklist images count here, not the free-form Photos gallery. Download the same data as a sortable/filterable Excel sheet.")}</Typography>
 
       <Stack direction="row" spacing={1.5} sx={{ mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         {!isTeamLeader && (
           <TextField
             select
             size="small"
-            label="Team"
+            label={tr("Team")}
             value={teamId}
             onChange={(e) => setTeamId(e.target.value)}
             sx={{ minWidth: 180 }}
           >
-            <MenuItem value="">All teams</MenuItem>
+            <MenuItem value="">{tr("All teams")}</MenuItem>
             {teams?.map((t) => (
               <MenuItem key={t.id} value={t.id}>
                 {t.name}
@@ -136,7 +130,7 @@ export function TeamActivityReport() {
         <TextField
           size="small"
           type="date"
-          label="From"
+          label={tr("From")}
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
           slotProps={{ inputLabel: { shrink: true } }}
@@ -144,7 +138,7 @@ export function TeamActivityReport() {
         <TextField
           size="small"
           type="date"
-          label="To"
+          label={tr("To")}
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
           slotProps={{ inputLabel: { shrink: true } }}
@@ -156,9 +150,7 @@ export function TeamActivityReport() {
           href={xlsxUrl()}
           target="_blank"
           rel="noreferrer"
-        >
-          Download Excel
-        </Button>
+        >{tr("Download Excel")}</Button>
       </Stack>
 
       {isLoading && (
@@ -166,12 +158,9 @@ export function TeamActivityReport() {
           <CircularProgress size={28} />
         </Box>
       )}
-      {isError && <Alert severity="error">Could not load the team activity report.</Alert>}
+      {isError && <Alert severity="error">{tr("Could not load the team activity report.")}</Alert>}
       {!isLoading && !isError && (data?.length ?? 0) === 0 && (
-        <Alert severity="info">
-          No team missions in range yet — a team's visits show up here once a mission (a visit with a
-          team assigned) has a position with a Direction set or an image captured.
-        </Alert>
+        <Alert severity="info">{tr("No team missions in range yet — a team's visits show up here once a mission (a visit with a team assigned) has a position with a Direction set or an image captured.")}</Alert>
       )}
 
       <Stack spacing={1.5}>
@@ -183,7 +172,7 @@ export function TeamActivityReport() {
                 <Typography sx={{ fontWeight: 700 }}>{team.team_name}</Typography>
                 <Chip
                   size="small"
-                  label={`${team.days.length} day${team.days.length === 1 ? '' : 's'}`}
+                  label={tr("{0} day{1}", [team.days.length, team.days.length === 1 ? '' : tr("s")])}
                   variant="outlined"
                 />
               </Stack>
@@ -199,7 +188,7 @@ export function TeamActivityReport() {
                       </Typography>
                       <Chip
                         size="small"
-                        label={`${day.towers.length} tower${day.towers.length === 1 ? '' : 's'}`}
+                        label={tr("{0} tower{1}", [day.towers.length, day.towers.length === 1 ? '' : tr("s")])}
                         variant="outlined"
                       />
                     </Stack>
@@ -216,25 +205,22 @@ export function TeamActivityReport() {
                                 {tower.area}
                               </Typography>
                             )}
-                            <Chip size="small" label={tower.mission_status} />
+                            <Chip size="small" label={tr(tower.mission_status)} />
                             {tower.mission_seq && (
-                              <Typography variant="caption" color="text.secondary">
-                                Mission #{tower.mission_seq}
+                              <Typography variant="caption" color="text.secondary">{tr("Mission #")}{tower.mission_seq}
                               </Typography>
                             )}
                           </Stack>
                           {tower.positions.length === 0 ? (
-                            <Typography variant="caption" color="text.secondary">
-                              No positions started yet.
-                            </Typography>
+                            <Typography variant="caption" color="text.secondary">{tr("No positions started yet.")}</Typography>
                           ) : (
                             <Table size="small">
                               <TableHead>
                                 <TableRow>
-                                  <TableCell>Position</TableCell>
-                                  <TableCell>Screening</TableCell>
-                                  <TableCell>Hotspot</TableCell>
-                                  <TableCell>Images</TableCell>
+                                  <TableCell>{tr("Position")}</TableCell>
+                                  <TableCell>{tr("Screening")}</TableCell>
+                                  <TableCell>{tr("Hotspot")}</TableCell>
+                                  <TableCell>{tr("Images")}</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>

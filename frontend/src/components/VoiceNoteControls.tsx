@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import MicIcon from '@mui/icons-material/MicRounded';
@@ -35,6 +36,7 @@ export function VoiceNoteControls({
   compact?: boolean;
   onRecorded: (blob: Blob, durationSeconds: number, liveTranscript: string) => void;
 }) {
+  useLanguage();
   const [recording, setRecording] = useState(false);
   const [starting, setStarting] = useState(false);
   const mounted = useRef(true);
@@ -76,7 +78,7 @@ export function VoiceNoteControls({
     setError(null);
     transcriptRef.current = '';
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      setError('This browser cannot record audio. Type the note instead.');
+      setError(tr("This browser cannot record audio. Type the note instead."));
       return;
     }
     setStarting(true);
@@ -98,7 +100,7 @@ export function VoiceNoteControls({
         const blob = new Blob(chunksRef.current, { type: rec.mimeType || mime || 'audio/webm' });
         const duration = Math.max(1, Math.round((Date.now() - startedAt.current) / 1000));
         if (blob.size < 200) {
-          setError('Recording was empty — try again closer to the phone.');
+          setError(tr("Recording was empty — try again closer to the phone."));
           return;
         }
         onRecorded(blob, duration, transcriptRef.current.trim());
@@ -132,7 +134,7 @@ export function VoiceNoteControls({
     } catch {
       streamRef.current?.getTracks().forEach(t => t.stop());
       if (timerRef.current) window.clearInterval(timerRef.current);
-      setError('Microphone permission denied — allow the mic, or type the note.');
+      setError(tr("Microphone permission denied — allow the mic, or type the note."));
     } finally {
       if (mounted.current) setStarting(false);
     }
@@ -141,7 +143,7 @@ export function VoiceNoteControls({
   return (
     <Stack spacing={0.5} sx={{ flexShrink: 0 }}>
       {recording && compact ? (
-        <Stack sx={{ alignItems: 'center' }}><Tooltip title="Stop and preview recording"><IconButton aria-label="Stop and preview recording" color="error" onClick={stop}><StopIcon /></IconButton></Tooltip><Typography variant="caption" color="error" sx={{ fontSize: 10 }}>{seconds}s</Typography></Stack>
+        <Stack sx={{ alignItems: 'center' }}><Tooltip title={tr("Stop and preview recording")}><IconButton aria-label={tr("Stop and preview recording")} color="error" onClick={stop}><StopIcon /></IconButton></Tooltip><Typography variant="caption" color="error" sx={{ fontSize: 10 }}>{seconds}{tr("s")}</Typography></Stack>
       ) : recording ? (
         <Button
           variant="contained"
@@ -149,11 +151,9 @@ export function VoiceNoteControls({
           startIcon={<StopIcon />}
           onClick={stop}
           disabled={saving}
-        >
-          Stop {seconds}s
-        </Button>
+        >{tr("Stop ")}{seconds}{tr("s")}</Button>
       ) : compact ? (
-        <Tooltip title="Record voice note"><span><IconButton aria-label="Record voice note" onClick={() => void start()} disabled={disabled || saving || starting} color="primary"><MicIcon /></IconButton></span></Tooltip>
+        <Tooltip title={tr("Record voice note")}><span><IconButton aria-label={tr("Record voice note")} onClick={() => void start()} disabled={disabled || saving || starting} color="primary"><MicIcon /></IconButton></span></Tooltip>
       ) : (
         <Button
           variant="outlined"
@@ -161,15 +161,15 @@ export function VoiceNoteControls({
           onClick={() => void start()}
           disabled={disabled || saving || starting}
         >
-          {saving ? 'Saving…' : 'Record'}
+          {saving ? tr("Saving…") : tr("Record")}
         </Button>
       )}
       {recording && !compact && (
-        <Chip size="small" color="error" label={compact ? 'Recording… stop to preview' : 'Recording — speak the daily note'} />
+        <Chip size="small" color="error" label={compact ? tr("Recording… stop to preview") : tr("Recording — speak the daily note")} />
       )}
       {error && (
         <Alert severity="warning" onClose={() => setError(null)} sx={{ py: 0 }}>
-          <Typography variant="caption">{error}</Typography>
+          <Typography variant="caption">{tr(error)}</Typography>
         </Alert>
       )}
     </Stack>
@@ -177,13 +177,13 @@ export function VoiceNoteControls({
 }
 
 export function VoiceNotePlayer({ src, duration }: { src: string; duration: number | null }) {
+  useLanguage();
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 0.5, flexWrap: 'wrap' }}>
       <audio src={src} controls preload="none" style={{ height: 36, maxWidth: '100%' }} />
       {duration != null && duration > 0 && (
         <Typography variant="caption" color="text.secondary">
-          {duration}s
-        </Typography>
+          {duration}{tr("s")}</Typography>
       )}
     </Stack>
   );

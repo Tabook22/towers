@@ -1,3 +1,4 @@
+import { tr, useLanguage, locale } from '../i18n';
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -100,10 +101,11 @@ function timeAgo(iso: string): string {
 
 function clock(iso: string): string {
   const d = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
 }
 
 function MapRefBridge({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
+  useLanguage();
   const map = useMap();
   useEffect(() => {
     mapRef.current = map;
@@ -115,6 +117,7 @@ function MapRefBridge({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null>
 }
 
 function FitToPoints({ positions, resetKey }: { positions: [number, number][]; resetKey: string }) {
+  useLanguage();
   const map = useMap();
   const lastKey = useRef('');
   useEffect(() => {
@@ -136,6 +139,7 @@ function MovingMarker({
   position: [number, number];
   children?: ReactNode;
 } & ComponentProps<typeof Marker>) {
+  useLanguage();
   const ref = useRef<L.Marker | null>(null);
   useEffect(() => {
     ref.current?.setLatLng(position);
@@ -207,6 +211,7 @@ function HighlightedTowerMarker({
   nextStay?: TowerStay;
   teamName: string;
 }) {
+  useLanguage();
   const markerRef = useRef<L.Marker | null>(null);
   useEffect(() => {
     markerRef.current?.openPopup();
@@ -237,13 +242,9 @@ function HighlightedTowerMarker({
           </Typography>
         )}
         <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
-          {teamName} was here {clock(stay.arrived_at)} – {clock(stay.departed_at)}
+          {teamName}{tr(" was here ")}{clock(stay.arrived_at)} – {clock(stay.departed_at)}
         </Typography>
-        <Typography variant="caption" sx={{ display: 'block' }}>
-          Stayed {stay.minutes} min
-          {nextStay
-            ? ` before moving to ${nextStay.tower_id} (${travelMin} min travel)`
-            : ' — last tower in this period'}
+        <Typography variant="caption" sx={{ display: 'block' }}>{tr("Stayed ")}{stay.minutes}{tr(" min")}{nextStay ? tr(" before moving to {0} ({1} min travel)", [nextStay.tower_id, travelMin]) : tr(" — last tower in this period")}
         </Typography>
       </Popup>
     </Marker>
@@ -251,6 +252,7 @@ function HighlightedTowerMarker({
 }
 
 function CrewTrails({ reports, selectedUserId }: { reports: MovementDayReport[]; selectedUserId: number | null }) {
+  useLanguage();
   return (
     <>
       {reports.flatMap((trail) => {
@@ -272,6 +274,7 @@ function CrewTrails({ reports, selectedUserId }: { reports: MovementDayReport[];
 }
 
 export function FieldTrackerPage() {
+  useLanguage();
   const { data: shift } = useShiftInfo();
   const [onDate, setOnDate] = useState('');
   const fieldDate = onDate || shift?.field_date || '';
@@ -422,24 +425,17 @@ export function FieldTrackerPage() {
   return (
     <Stack spacing={3}>
       <Box>
-        <Typography variant="h4" sx={{ fontWeight: 800 }}>
-          Field Tracker
-        </Typography>
-        <Typography color="text.secondary">
-          Crew phones send GPS every minute while the app is open. Registered towers are on the map
-          with the live tracks. This board refreshes every 10 seconds from mission start until now.
-        </Typography>
+        <Typography variant="h4" sx={{ fontWeight: 800 }}>{tr("Field Tracker")}</Typography>
+        <Typography color="text.secondary">{tr("Crew phones send GPS every minute while the app is open. Registered towers are on the map with the live tracks. This board refreshes every 10 seconds from mission start until now.")}</Typography>
       </Box>
 
       {error && (
-        <Alert severity="error">
-          Couldn't load the field tracker. This page requires admin or reviewer access.
-        </Alert>
+        <Alert severity="error">{tr("Couldn't load the field tracker. This page requires admin or reviewer access.")}</Alert>
       )}
 
       <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
         <TextField
-          label="Field night of"
+          label={tr("Field night of")}
           type="date"
           size="small"
           value={reportDate}
@@ -447,36 +443,36 @@ export function FieldTrackerPage() {
             setOnDate(e.target.value);
             setMissionKey(e.target.value ? `night:${e.target.value}` : 'live');
           }}
-          helperText={shift?.label || '6:00 PM–6:00 PM Oman time'}
+          helperText={shift?.label || tr("6:00 PM–6:00 PM Oman time")}
           slotProps={{ inputLabel: { shrink: true } }}
         />
         <TextField
-          label="From hour"
+          label={tr("From hour")}
           type="time"
           size="small"
           value={fromTime}
           onChange={(e) => setFromTime(e.target.value)}
-          helperText="e.g. 22:00"
+          helperText={tr("e.g. 22:00")}
           slotProps={{ inputLabel: { shrink: true } }}
         />
         <TextField
-          label="To hour"
+          label={tr("To hour")}
           type="time"
           size="small"
           value={toTime}
           onChange={(e) => setToTime(e.target.value)}
-          helperText="e.g. 05:00"
+          helperText={tr("e.g. 05:00")}
           slotProps={{ inputLabel: { shrink: true } }}
         />
         <TextField
           select
           size="small"
-          label="Team"
+          label={tr("Team")}
           value={teamId}
           onChange={(e) => setTeamId(e.target.value)}
           sx={{ minWidth: 180 }}
         >
-          <MenuItem value="">All teams</MenuItem>
+          <MenuItem value="">{tr("All teams")}</MenuItem>
           {(teams || []).map((t) => (
             <MenuItem key={t.id} value={String(t.id)}>
               {t.name}
@@ -486,7 +482,7 @@ export function FieldTrackerPage() {
         <TextField
           select
           size="small"
-          label="Previous missions"
+          label={tr("Previous missions")}
           value={missionKey}
           onChange={(e) => {
             const key = e.target.value;
@@ -500,19 +496,19 @@ export function FieldTrackerPage() {
             }
           }}
           sx={{ minWidth: 260 }}
-          helperText="Saved tracks — nothing is deleted"
+          helperText={tr("Saved tracks — nothing is deleted")}
         >
-          <MenuItem value="live">{currentMission ? `Current · ${currentMission.label}` : 'Live now (this field night)'}</MenuItem>
+          <MenuItem value="live">{currentMission ? tr("Current · {0}", [currentMission.label]) : tr("Live now (this field night)")}</MenuItem>
           {missionKey.startsWith('night:') &&
             !(missions || []).some((m) => missionKeyOf(m) === missionKey) && (
-              <MenuItem value={missionKey}>Field night {missionKey.slice(5)}</MenuItem>
+              <MenuItem value={missionKey}>{tr("Field night ")}{missionKey.slice(5)}</MenuItem>
             )}
           {(missions || [])
             .filter((m) => !m.is_current)
             .map((m) => (
               <MenuItem key={missionKeyOf(m)} value={missionKeyOf(m)}>
                 {m.label}
-                {m.ping_count ? ` · ${m.ping_count} pts` : ''}
+                {m.ping_count ? tr(" · {0} pts", [m.ping_count]) : ''}
               </MenuItem>
             ))}
         </TextField>
@@ -528,9 +524,7 @@ export function FieldTrackerPage() {
               setMissionKey('live');
             }
           }}
-        >
-          10pm–5am
-        </Button>
+        >{tr("10pm–5am")}</Button>
         <Button
           size="small"
           onClick={() => {
@@ -542,9 +536,7 @@ export function FieldTrackerPage() {
             setOpsFilter('all');
             if (shift?.field_date) setOnDate(shift.field_date);
           }}
-        >
-          Live now
-        </Button>
+        >{tr("Live now")}</Button>
         <Button
           size="small"
           variant="contained"
@@ -552,24 +544,20 @@ export function FieldTrackerPage() {
           startIcon={<RestartAltIcon />}
           onClick={() => setConfirmNew(true)}
           disabled={startMission.isPending}
-        >
-          New mission
-        </Button>
+        >{tr("New mission")}</Button>
         <Chip
           icon={<GroupsIcon />}
-          label={`${visiblePoints.length} crew · ${catalogWithGps.length} towers · ${(dayReport || []).length} track${(dayReport || []).length === 1 ? '' : 's'}`}
+          label={tr("{0} crew · {1} towers · {2} track{3}", [visiblePoints.length, catalogWithGps.length, (dayReport || []).length, (dayReport || []).length === 1 ? '' : tr("s")])}
           color={visiblePoints.length > 0 || catalogWithGps.length > 0 ? 'primary' : 'default'}
           variant="outlined"
         />
       </Stack>
 
       <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
-        <Typography variant="body2" color="text.secondary" sx={{ mr: 0.5 }}>
-          Tonight&apos;s events
-        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mr: 0.5 }}>{tr("Tonight&apos;s events")}</Typography>
         <Chip
           size="small"
-          label="All"
+          label={tr("All")}
           color={opsFilter === 'all' ? 'primary' : 'default'}
           variant={opsFilter === 'all' ? 'filled' : 'outlined'}
           onClick={() => setOpsFilter('all')}
@@ -590,33 +578,20 @@ export function FieldTrackerPage() {
           />
         ))}
         {opsFilter !== 'all' && opsTeamIds && opsTeamIds.size === 0 && (
-          <Typography variant="caption" color="text.secondary">
-            No {opsLabel(opsFilter)} posts this field night
-          </Typography>
+          <Typography variant="caption" color="text.secondary">{tr("No ")}{opsLabel(opsFilter)}{tr(" posts this field night")}</Typography>
         )}
       </Stack>
 
       {viewingSaved && selectedSaved && (
-        <Alert severity="info">
-          Viewing saved mission <strong>{selectedSaved.label}</strong>. GPS from this period is still stored.
-          Click Live now to follow tonight, or New mission to start a clean map.
-        </Alert>
+        <Alert severity="info">{tr("Viewing saved mission ")}<strong>{selectedSaved.label}</strong>{tr(". GPS from this period is still stored. Click Live now to follow tonight, or New mission to start a clean map.")}</Alert>
       )}
       {!viewingSaved && currentMission && (
         <Alert severity="success">
           {currentMission.field_date === reportDate ? (
-            <>
-              Current mission started {clock(currentMission.started_at)} — the map only draws this
-              outing. Open Previous missions to see anything recorded before this.
-            </>
+            <>{tr("Current mission started ")}{clock(currentMission.started_at)}{tr(" — the map only draws this outing. Open Previous missions to see anything recorded before this.")}</>
           ) : (
-            <>
-              Current mission has been running since {currentMission.field_date} (nobody has tapped
-              New mission since) — to keep today's board readable, it only draws{' '}
-              <strong>today's</strong> tracking. Nothing is deleted: open Previous missions, or set
-              Field night to {currentMission.field_date}, to see the earlier days of this same
-              outing.
-            </>
+            <>{tr("Current mission has been running since ")}{currentMission.field_date}{tr(" (nobody has tapped New mission since) — to keep today's board readable, it only draws")}{' '}
+              <strong>{tr("today's")}</strong>{tr(" tracking. Nothing is deleted: open Previous missions, or set Field night to ")}{currentMission.field_date}{tr(", to see the earlier days of this same outing.")}</>
           )}
         </Alert>
       )}
@@ -728,15 +703,13 @@ export function FieldTrackerPage() {
                       {t.tower_id}
                     </Typography>
                     <Typography variant="caption" sx={{ display: 'block' }}>
-                      {t.area || 'No area'}
+                      {t.area || tr("No area")}
                       {t.voltage ? ` · ${t.voltage}` : ''}
                     </Typography>
                     <Typography variant="caption" sx={{ display: 'block' }}>
-                      {t.assigned_team_name ? `Assigned: ${t.assigned_team_name}` : 'Not assigned to a team'}
+                      {t.assigned_team_name ? tr("Assigned: {0}", [t.assigned_team_name]) : tr("Not assigned to a team")}
                     </Typography>
-                    <Button size="small" sx={{ mt: 0.5 }} onClick={() => navigate(`/towers/${t.id}`)}>
-                      Open tower
-                    </Button>
+                    <Button size="small" sx={{ mt: 0.5 }} onClick={() => navigate(`/towers/${t.id}`)}>{tr("Open tower")}</Button>
                   </Popup>
                 </Marker>
               );
@@ -756,15 +729,14 @@ export function FieldTrackerPage() {
                       {m.full_name || m.username}
                     </Typography>
                     <Typography variant="caption" sx={{ display: 'block' }}>
-                      {m.team_name || 'No team linked'}
+                      {m.team_name || tr("No team linked")}
                     </Typography>
                     <Typography variant="caption" sx={{ display: 'block' }}>
-                      {m.is_stale ? 'Last seen' : 'Live'}
+                      {m.is_stale ? tr("Last seen") : tr("Live")}
                       {m.last_seen ? ` ${timeAgo(m.last_seen)}` : ''}
-                      {approx ? ' · approximate' : ''}
+                      {approx ? tr(" · approximate") : ''}
                     </Typography>
-                    <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
-                      Towers today: {m.today.towers_visited} · Screened: {m.today.screened} · Hotspots: {m.today.hotspots}
+                    <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>{tr("Towers today: ")}{m.today.towers_visited}{tr(" · Screened: ")}{m.today.screened}{tr(" · Hotspots: ")}{m.today.hotspots}
                     </Typography>
                   </Popup>
                 </MovingMarker>
@@ -803,12 +775,10 @@ export function FieldTrackerPage() {
                     </Typography>
                   )}
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                    {ev.author_name || 'Crew'} · {clock(ev.created_at)}
+                    {ev.author_name || tr("Crew")} · {clock(ev.created_at)}
                   </Typography>
                   {ev.visit_id && (
-                    <Button size="small" sx={{ mt: 0.5 }} onClick={() => navigate(`/visits/${ev.visit_id}`)}>
-                      Open visit
-                    </Button>
+                    <Button size="small" sx={{ mt: 0.5 }} onClick={() => navigate(`/visits/${ev.visit_id}`)}>{tr("Open visit")}</Button>
                   )}
                 </Popup>
               </Marker>
@@ -823,12 +793,12 @@ export function FieldTrackerPage() {
             )}
           </MapContainer>
           <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            <Tooltip title={layer === 'street' ? 'Switch to satellite view' : 'Switch to street map'}>
+            <Tooltip title={layer === 'street' ? tr("Switch to satellite view") : tr("Switch to street map")}>
               <IconButton size="small" onClick={() => setLayer((v) => (v === 'street' ? 'satellite' : 'street'))} sx={{ bgcolor: 'background.paper', boxShadow: 2, '&:hover': { bgcolor: 'background.paper' } }}>
                 {layer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
-            <Tooltip title={expanded ? 'Shrink map' : 'Enlarge map'}>
+            <Tooltip title={expanded ? tr("Shrink map") : tr("Enlarge map")}>
               <IconButton size="small" onClick={() => setExpanded((v) => !v)} sx={{ bgcolor: 'background.paper', boxShadow: 2, '&:hover': { bgcolor: 'background.paper' } }}>
                 {expanded ? <CloseFullscreenIcon fontSize="small" /> : <OpenInFullIcon fontSize="small" />}
               </IconButton>
@@ -842,14 +812,14 @@ export function FieldTrackerPage() {
           <TableHead>
             <TableRow>
               <TableCell />
-              <TableCell>Technician</TableCell>
-              <TableCell>Team</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell align="center">Tracked</TableCell>
-              <TableCell align="center">Path km</TableCell>
-              <TableCell align="center">Towers (GPS)</TableCell>
-              <TableCell align="center">Visits</TableCell>
-              <TableCell align="center">Hotspots</TableCell>
+              <TableCell>{tr("Technician")}</TableCell>
+              <TableCell>{tr("Team")}</TableCell>
+              <TableCell>{tr("Status")}</TableCell>
+              <TableCell align="center">{tr("Tracked")}</TableCell>
+              <TableCell align="center">{tr("Path km")}</TableCell>
+              <TableCell align="center">{tr("Towers (GPS)")}</TableCell>
+              <TableCell align="center">{tr("Visits")}</TableCell>
+              <TableCell align="center">{tr("Hotspots")}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -878,20 +848,14 @@ export function FieldTrackerPage() {
                   <Chip
                     size="small"
                     label={
-                      !m.last_seen
-                        ? 'Not reporting'
-                        : m.is_stale
-                          ? `Last seen ${timeAgo(m.last_seen)}`
-                          : `Live · ${timeAgo(m.last_seen)}`
+                      !m.last_seen ? tr("Not reporting") : m.is_stale ? tr("Last seen {0}", [timeAgo(m.last_seen)]) : tr("Live · {0}", [timeAgo(m.last_seen)])
                     }
                     color={!m.last_seen ? 'warning' : m.is_stale ? 'default' : 'success'}
                     variant={m.is_stale || !m.last_seen ? 'outlined' : 'filled'}
                   />
                 </TableCell>
                 <TableCell align="center">
-                  {dayReport?.find((r) => r.user_id === m.user_id)
-                    ? `${dayReport.find((r) => r.user_id === m.user_id)!.minutes_tracked} min`
-                    : '—'}
+                  {dayReport?.find((r) => r.user_id === m.user_id) ? tr("{0} min", [dayReport.find((r) => r.user_id === m.user_id)!.minutes_tracked]) : '—'}
                 </TableCell>
                 <TableCell align="center">{dayReport?.find((r) => r.user_id === m.user_id)?.distance_km ?? '—'}</TableCell>
                 <TableCell align="center">{dayReport?.find((r) => r.user_id === m.user_id)?.stays.length ?? 0}</TableCell>
@@ -902,9 +866,7 @@ export function FieldTrackerPage() {
             {!isLoading && visiblePoints.length === 0 && (
               <TableRow>
                 <TableCell colSpan={9} align="center">
-                  {opsFilter !== 'all'
-                    ? `No crews posted ${opsLabel(opsFilter)} this field night.`
-                    : 'No tracks in this date/hour range. Pick another field night or hours, or wait for a crew to start reporting and tap Allow when asked for location.'}
+                  {opsFilter !== 'all' ? tr("No crews posted {0} this field night.", [opsLabel(opsFilter)]) : tr("No tracks in this date/hour range. Pick another field night or hours, or wait for a crew to start reporting and tap Allow when asked for location.")}
                 </TableCell>
               </TableRow>
             )}
@@ -917,30 +879,24 @@ export function FieldTrackerPage() {
           <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
             {selectedReport.team_name || selectedReport.full_name || selectedReport.username} — {reportDate}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            First ping {clock(selectedReport.first_seen)} · last ping {clock(selectedReport.last_seen)} ·{' '}
-            {selectedReport.minutes_tracked} min on the clock · {selectedReport.distance_km} km ·{' '}
-            {selectedReport.ping_count} GPS points
-          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("First ping ")}{clock(selectedReport.first_seen)}{tr(" · last ping ")}{clock(selectedReport.last_seen)} ·{' '}
+            {selectedReport.minutes_tracked}{tr(" min on the clock · ")}{selectedReport.distance_km}{tr(" km ·")}{' '}
+            {selectedReport.ping_count}{tr(" GPS points")}</Typography>
           {selectedReport.stays.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              No tower stays recorded yet — a stay is counted when GPS stays within 80 m of a tower.
-            </Typography>
+            <Typography variant="body2" color="text.secondary">{tr("No tower stays recorded yet — a stay is counted when GPS stays within 80 m of a tower.")}</Typography>
           ) : (
             <>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              Click a tower to jump to it on the map — a red square marks it, with the last time this team was there and how long they stayed.
-            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{tr("Click a tower to jump to it on the map — a red square marks it, with the last time this team was there and how long they stayed.")}</Typography>
             <TableContainer>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Tower</TableCell>
-                    <TableCell>Area</TableCell>
-                    <TableCell>Arrived</TableCell>
-                    <TableCell>Left</TableCell>
-                    <TableCell align="right">Minutes</TableCell>
-                    <TableCell>Visit</TableCell>
+                    <TableCell>{tr("Tower")}</TableCell>
+                    <TableCell>{tr("Area")}</TableCell>
+                    <TableCell>{tr("Arrived")}</TableCell>
+                    <TableCell>{tr("Left")}</TableCell>
+                    <TableCell align="right">{tr("Minutes")}</TableCell>
+                    <TableCell>{tr("Visit")}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -976,12 +932,10 @@ export function FieldTrackerPage() {
                               navigate(`/visits/${stay.visit_id}`);
                             }}
                           >
-                            {stay.visit_status || 'open'}
+                            {stay.visit_status || tr("open")}
                           </Button>
                         ) : (
-                          <Typography variant="caption" color="text.secondary">
-                            GPS only
-                          </Typography>
+                          <Typography variant="caption" color="text.secondary">{tr("GPS only")}</Typography>
                         )}
                       </TableCell>
                     </TableRow>
@@ -995,15 +949,12 @@ export function FieldTrackerPage() {
       )}
 
       <Dialog open={confirmNew} onClose={() => setConfirmNew(false)}>
-        <DialogTitle>Start a new mission?</DialogTitle>
+        <DialogTitle>{tr("Start a new mission?")}</DialogTitle>
         <DialogContent>
-          <Typography>
-            This clears the map so you can follow the next outing. Every GPS point already recorded
-            stays saved — open it anytime from Previous missions.
-          </Typography>
+          <Typography>{tr("This clears the map so you can follow the next outing. Every GPS point already recorded stays saved — open it anytime from Previous missions.")}</Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmNew(false)}>Cancel</Button>
+          <Button onClick={() => setConfirmNew(false)}>{tr("Cancel")}</Button>
           <Button
             variant="contained"
             color="warning"
@@ -1018,9 +969,7 @@ export function FieldTrackerPage() {
                 setSelectedUserId(null);
               });
             }}
-          >
-            Start new mission
-          </Button>
+          >{tr("Start new mission")}</Button>
         </DialogActions>
       </Dialog>
 

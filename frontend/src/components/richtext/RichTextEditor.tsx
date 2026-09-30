@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../../i18n';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Box, Divider, IconButton, Stack, Tooltip } from '@mui/material';
 import { Global, css } from '@emotion/react';
@@ -131,7 +132,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
 
   const setLink = () => {
     const prev = editor.getAttributes('link').href as string | undefined;
-    const url = window.prompt('Link URL', prev || 'https://');
+    const url = window.prompt(tr("Link URL"), prev || 'https://');
     if (url === null) return;
     if (!url.trim()) {
       editor.chain().focus().extendMarkRange('link').unsetLink().run();
@@ -171,35 +172,35 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
         spacing={0.25}
         sx={{ flexWrap: 'wrap', alignItems: 'center', p: 0.5, borderBottom: 1, borderColor: 'divider', bgcolor: 'grey.50' }}
       >
-        <ToolButton title="Undo" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>
+        <ToolButton title={tr("Undo")} onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>
           <UndoIcon fontSize="small" />
         </ToolButton>
-        <ToolButton title="Redo" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}>
+        <ToolButton title={tr("Redo")} onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}>
           <RedoIcon fontSize="small" />
         </ToolButton>
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-        <ToolButton title="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
+        <ToolButton title={tr("Bold")} active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
           <FormatBoldIcon fontSize="small" />
         </ToolButton>
-        <ToolButton title="Italic" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>
+        <ToolButton title={tr("Italic")} active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>
           <FormatItalicIcon fontSize="small" />
         </ToolButton>
-        <ToolButton title="Underline" active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}>
+        <ToolButton title={tr("Underline")} active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}>
           <FormatUnderlinedIcon fontSize="small" />
         </ToolButton>
-        <ToolButton title="Strikethrough" active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}>
+        <ToolButton title={tr("Strikethrough")} active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}>
           <StrikethroughIcon fontSize="small" />
         </ToolButton>
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
         <ToolButton
-          title="Heading"
+          title={tr("Heading")}
           active={editor.isActive('heading', { level: 2 })}
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
         >
           <LooksTwoIcon fontSize="small" />
         </ToolButton>
         <ToolButton
-          title="Subheading"
+          title={tr("Subheading")}
           active={editor.isActive('heading', { level: 3 })}
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
         >
@@ -207,51 +208,51 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
         </ToolButton>
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
         <ToolButton
-          title="Bulleted list"
+          title={tr("Bulleted list")}
           active={editor.isActive('bulletList')}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
         >
           <FormatListBulletedIcon fontSize="small" />
         </ToolButton>
         <ToolButton
-          title="Numbered list"
+          title={tr("Numbered list")}
           active={editor.isActive('orderedList')}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
         >
           <FormatListNumberedIcon fontSize="small" />
         </ToolButton>
-        <ToolButton title="Quote" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
+        <ToolButton title={tr("Quote")} active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
           <FormatQuoteIcon fontSize="small" />
         </ToolButton>
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-        <ToolButton title="Add link" active={editor.isActive('link')} onClick={setLink}>
+        <ToolButton title={tr("Add link")} active={editor.isActive('link')} onClick={setLink}>
           <LinkIcon fontSize="small" />
         </ToolButton>
         <ToolButton
-          title="Remove link"
+          title={tr("Remove link")}
           disabled={!editor.isActive('link')}
           onClick={() => editor.chain().focus().unsetLink().run()}
         >
           <LinkOffIcon fontSize="small" />
         </ToolButton>
-        <ToolButton title="Insert image" onClick={onPickImage} disabled={uploadImage.isPending}>
+        <ToolButton title={tr("Insert image")} onClick={onPickImage} disabled={uploadImage.isPending}>
           <ImageIcon fontSize="small" />
         </ToolButton>
         {isImageSelected && (
           <>
             <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-            <ToolButton title="Align image left" active={editor.getAttributes('image').align === 'left'} onClick={() => setAlign('left')}>
+            <ToolButton title={tr("Align image left")} active={editor.getAttributes('image').align === 'left'} onClick={() => setAlign('left')}>
               <FormatAlignLeftIcon fontSize="small" />
             </ToolButton>
             <ToolButton
-              title="Center image"
+              title={tr("Center image")}
               active={editor.getAttributes('image').align === 'center'}
               onClick={() => setAlign('center')}
             >
               <FormatAlignCenterIcon fontSize="small" />
             </ToolButton>
             <ToolButton
-              title="Align image right"
+              title={tr("Align image right")}
               active={editor.getAttributes('image').align === 'right'}
               onClick={() => setAlign('right')}
             >
@@ -280,6 +281,7 @@ function ToolButton({
   onClick: () => void;
   children: React.ReactNode;
 }) {
+  useLanguage();
   return (
     <Tooltip title={title}>
       <span>

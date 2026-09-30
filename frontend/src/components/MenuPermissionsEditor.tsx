@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { Box, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { MENU_ITEMS, MENU_PERMISSION_LEVELS, MENU_PERMISSION_LEVEL_LABELS } from '../api/types';
 
@@ -12,6 +13,7 @@ export function MenuPermissionsEditor({
   value: Record<string, string>;
   onChange: (next: Record<string, string>) => void;
 }) {
+  useLanguage();
   const setLevel = (itemId: string, level: string | null) => {
     const next = { ...value };
     if (level) next[itemId] = level;
@@ -22,11 +24,8 @@ export function MenuPermissionsEditor({
   return (
     <Stack spacing={1.25}>
       <Box>
-        <Typography variant="subtitle2">Menu access</Typography>
-        <Typography variant="caption" color="text.secondary">
-          A menu item is completely hidden from this account unless a level is selected. Click the
-          selected level again to hide it.
-        </Typography>
+        <Typography variant="subtitle2">{tr("Menu access")}</Typography>
+        <Typography variant="caption" color="text.secondary">{tr("A menu item is completely hidden from this account unless a level is selected. Click the selected level again to hide it.")}</Typography>
       </Box>
       {MENU_ITEMS.map((item) => (
         <Box
@@ -34,7 +33,7 @@ export function MenuPermissionsEditor({
           sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}
         >
           <Typography variant="body2" sx={{ minWidth: 130 }}>
-            {item.label}
+            {tr(item.label)}
           </Typography>
           <ToggleButtonGroup
             size="small"
@@ -44,7 +43,7 @@ export function MenuPermissionsEditor({
           >
             {MENU_PERMISSION_LEVELS.map((level) => (
               <ToggleButton key={level} value={level} sx={{ px: 1.25 }}>
-                {MENU_PERMISSION_LEVEL_LABELS[level]}
+                {tr(MENU_PERMISSION_LEVEL_LABELS[level])}
               </ToggleButton>
             ))}
           </ToggleButtonGroup>

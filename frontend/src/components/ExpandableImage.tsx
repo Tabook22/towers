@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useState, type ReactNode } from 'react';
 import { Box, IconButton, Tooltip } from '@mui/material';
 import OpenInFullIcon from '@mui/icons-material/OpenInFullRounded';
@@ -15,6 +16,7 @@ interface ExpandableImageProps {
 /** A photo with an overlay button to enlarge/shrink it in place — same interaction as MapPicker's
  * enlarge control, for consistency across the app's image and map previews. */
 export function ExpandableImage({ src, alt, height = 160, expandedHeight, fallback }: ExpandableImageProps) {
+  useLanguage();
   const [expanded, setExpanded] = useState(false);
   const [errored, setErrored] = useState(false);
   const currentHeight = expanded ? (expandedHeight ?? Math.min(680, height * 3)) : height;
@@ -36,7 +38,7 @@ export function ExpandableImage({ src, alt, height = 160, expandedHeight, fallba
           transition: 'height 0.2s ease',
         }}
       />
-      <Tooltip title={expanded ? 'Shrink photo' : 'Enlarge photo'}>
+      <Tooltip title={expanded ? tr("Shrink photo") : tr("Enlarge photo")}>
         <IconButton
           size="small"
           onClick={() => setExpanded((v) => !v)}

@@ -1,3 +1,4 @@
+import { useLanguage } from './i18n';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
@@ -41,6 +42,7 @@ const queryClient = new QueryClient({
 // this would otherwise reveal 403s at the API layer regardless), so a client never lands on a blank
 // or broken admin page just because they typed/bookmarked a different URL.
 function ProtectedLayout({ children, clientAllowed = false }: { children: ReactNode; clientAllowed?: boolean }) {
+  useLanguage();
   const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user?.role === 'client' && !clientAllowed) return <Navigate to="/client-reports" replace />;
@@ -50,6 +52,7 @@ function ProtectedLayout({ children, clientAllowed = false }: { children: ReactN
 
 
 function AppRoutes() {
+  useLanguage();
   const { isAuthenticated } = useAuth();
 
   return (
@@ -60,6 +63,7 @@ function AppRoutes() {
 }
 
 function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
+  useLanguage();
   return (
     <Routes>
       <Route path="/login" element={isAuthenticated ? <CatchAllRedirect /> : <LoginPage />} />
@@ -189,11 +193,13 @@ function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
 }
 
 function CatchAllRedirect() {
+  useLanguage();
   const { user } = useAuth();
   return <Navigate to={user?.role === 'client' ? '/client-reports' : '/'} replace />;
 }
 
 export default function App() {
+  useLanguage();
   return (
     <ColorModeProvider>
       <UpdateBanner />

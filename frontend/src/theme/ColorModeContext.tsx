@@ -1,7 +1,15 @@
+import { CacheProvider } from '@emotion/react';
+import createCache from '@emotion/cache';
+import rtlPlugin from '@mui/stylis-plugin-rtl';
+import { prefixer } from 'stylis';
+import { useLanguage } from '../i18n';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ThemeProvider, type PaletteMode } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { DEFAULT_MODE, getTheme } from './theme';
+
+const ltrCache = createCache({ key: 'iip-ltr' });
+const rtlCache = createCache({ key: 'iip-rtl', stylisPlugins: [prefixer, rtlPlugin] });
 
 const STORAGE_KEY = 'iip_color_mode';
 
@@ -22,6 +30,7 @@ const ColorModeContext = createContext<{ mode: PaletteMode; toggleMode: () => vo
 });
 
 export function useColorMode() {
+  useLanguage();
   return useContext(ColorModeContext);
 }
 
@@ -30,6 +39,7 @@ export function useColorMode() {
  * picks a mode via the toggle in the top bar, that choice is remembered per browser and wins over
  * the default on every later visit. */
 export function ColorModeProvider({ children }: { children: ReactNode }) {
+  const language = useLanguage();
   const [mode, setModeState] = useState<PaletteMode>(() => loadStoredMode() ?? DEFAULT_MODE);
 
   useEffect(() => {
@@ -43,15 +53,15 @@ export function ColorModeProvider({ children }: { children: ReactNode }) {
   const setMode = (m: PaletteMode) => setModeState(m);
   const toggleMode = () => setModeState((m) => (m === 'dark' ? 'light' : 'dark'));
 
-  const theme = useMemo(() => getTheme(mode), [mode]);
+  const theme = useMemo(() => getTheme(mode, language), [mode, language]);
   const ctxValue = useMemo(() => ({ mode, toggleMode, setMode }), [mode]);
 
   return (
     <ColorModeContext.Provider value={ctxValue}>
-      <ThemeProvider theme={theme}>
+      <CacheProvider value={language === 'ar' ? rtlCache : ltrCache}><ThemeProvider theme={theme}>
         <CssBaseline />
         {children}
-      </ThemeProvider>
+      </ThemeProvider></CacheProvider>
     </ColorModeContext.Provider>
   );
 }

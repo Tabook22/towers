@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useRef, useState } from 'react';
 import { Alert, Autocomplete, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import CampaignRounded from '@mui/icons-material/CampaignRounded';
@@ -8,6 +9,7 @@ import { AppearanceEditor } from './NoticeDesign';
 import { noteDesign, noteTextStyle, paperStyle, useNoticeDesign } from './noticeDesignUtils';
 
 export function NoticeEditor({ notice, onClose }: { notice: FieldNotice | null; onClose: () => void }) {
+  useLanguage();
   const options = useNoticeOptions(true);
   const save = useChangeNotice();
   const { t } = useNoticeDesign();
@@ -39,17 +41,17 @@ export function NoticeEditor({ notice, onClose }: { notice: FieldNotice | null; 
     <DialogTitle sx={{ pb: 1 }}><Typography component="span" variant="h6" sx={{ fontWeight: 800 }}>{t(notice ? 'Edit notice' : 'Pin a field notice')}</Typography><Typography variant="body2" color="text.secondary">{t('A clear instruction helps the crew act with confidence.')}</Typography></DialogTitle>
     <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
       {options.isLoading && <LinearProgress />}
-      {options.isError && <Alert severity="error" action={<Button onClick={() => void options.refetch()}>Retry</Button>}>Could not load notice options.</Alert>}
-      {error && <Alert severity="error">{error}</Alert>}
-      <ToggleButtonGroup exclusive value={form.category} onChange={(_, category: NoticeCategory | null) => { if (category) setForm(f => ({ ...f, category, owner_id: category === 'action' ? f.owner_id : null, due_on: category === 'action' ? f.due_on : null })); }} fullWidth size="small" aria-label="Notice type">
+      {options.isError && <Alert severity="error" action={<Button onClick={() => void options.refetch()}>{tr("Retry")}</Button>}>{tr("Could not load notice options.")}</Alert>}
+      {error && <Alert severity="error">{tr(error)}</Alert>}
+      <ToggleButtonGroup exclusive value={form.category} onChange={(_, category: NoticeCategory | null) => { if (category) setForm(f => ({ ...f, category, owner_id: category === 'action' ? f.owner_id : null, due_on: category === 'action' ? f.due_on : null })); }} fullWidth size="small" aria-label={tr("Notice type")}>
         <ToggleButton value="urgent" sx={{ gap: 0.7 }}><CampaignRounded fontSize="small" />{t('Urgent')}</ToggleButton>
         <ToggleButton value="action" sx={{ gap: 0.7 }}><AssignmentTurnedInRounded fontSize="small" />{t('Action')}</ToggleButton>
         <ToggleButton value="update" sx={{ gap: 0.7 }}><StickyNote2Rounded fontSize="small" />{t('Update')}</ToggleButton>
       </ToggleButtonGroup>
       {form.category === 'urgent' && <Alert severity="warning">{t('An urgent banner appears for recipients until they acknowledge this notice or it is archived or expires.')}</Alert>}
-      <TextField autoFocus label={t('Title')} required value={form.title} onChange={e => change('title', e.target.value)} slotProps={{ htmlInput: { maxLength: 160, dir: design.direction, lang: design.language === 'auto' ? undefined : design.language } }} placeholder="What does the crew need to know?" />
-      <TextField label={t('Message')} inputRef={messageInput} required multiline minRows={4} maxRows={10} value={form.body} onChange={e => change('body', e.target.value)} slotProps={{ htmlInput: { maxLength: 4000, dir: design.direction, lang: design.language === 'auto' ? undefined : design.language, style: { fontFamily: design.family, fontSize: design.font_size } } }} helperText={`${form.body.length}/4000`} placeholder="Explain what needs attention and what to do next." />
-      <Box><Typography variant="caption" color="text.secondary">{t('Add an emoji to the message')}</Typography><Stack direction="row" sx={{ flexWrap: 'wrap', gap: .5 }}>{['👍', '✅', '⚠️', '📷', '📍', '💡', '🙏', '🔧'].map(emoji => <Button key={emoji} size="small" aria-label={`Insert ${emoji}`} onMouseDown={e => e.preventDefault()} onClick={() => insertEmoji(emoji)} sx={{ minWidth: 36, fontSize: 21 }}>{emoji}</Button>)}</Stack></Box>
+      <TextField autoFocus label={t('Title')} required value={form.title} onChange={e => change('title', e.target.value)} slotProps={{ htmlInput: { maxLength: 160, dir: design.direction, lang: design.language === 'auto' ? undefined : design.language } }} placeholder={tr("What does the crew need to know?")} />
+      <TextField label={t('Message')} inputRef={messageInput} required multiline minRows={4} maxRows={10} value={form.body} onChange={e => change('body', e.target.value)} slotProps={{ htmlInput: { maxLength: 4000, dir: design.direction, lang: design.language === 'auto' ? undefined : design.language, style: { fontFamily: design.family, fontSize: design.font_size } } }} helperText={`${form.body.length}/4000`} placeholder={tr("Explain what needs attention and what to do next.")} />
+      <Box><Typography variant="caption" color="text.secondary">{t('Add an emoji to the message')}</Typography><Stack direction="row" sx={{ flexWrap: 'wrap', gap: .5 }}>{['👍', '✅', '⚠️', '📷', '📍', '💡', '🙏', '🔧'].map(emoji => <Button key={emoji} size="small" aria-label={tr("Insert {0}", [emoji])} onMouseDown={e => e.preventDefault()} onClick={() => insertEmoji(emoji)} sx={{ minWidth: 36, fontSize: 21 }}>{tr(emoji)}</Button>)}</Stack></Box>
       <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}><AppearanceEditor value={form.appearance} paper={design.paper} change={next => change('appearance', next)} /></Box>
       <Box><Typography variant="caption" color="text.secondary">{t('Live preview')}</Typography><Box dir={design.direction} lang={design.language === 'auto' ? undefined : design.language} sx={{ ...paperStyle(design.paper), p: 3, my: 1 }}>
         <Typography sx={{ ...noteTextStyle(form), fontWeight: 800, fontSize: design.font_size + 2 }}>{design.marker && <span dir="auto">{design.marker} </span>}{form.title || t('Title')}</Typography>

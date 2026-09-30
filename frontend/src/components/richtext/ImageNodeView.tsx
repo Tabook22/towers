@@ -1,3 +1,4 @@
+import { useLanguage } from '../../i18n';
 import { useRef } from 'react';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 
@@ -9,6 +10,7 @@ const MIN_WIDTH = 40;
  * RichTextEditor.tsx). What actually gets saved is just `<img width=".." data-align="..">`
  * (see ResizableImage.ts's renderHTML) — this component is editor-only presentation. */
 export function ImageNodeView({ node, updateAttributes, selected }: NodeViewProps) {
+  useLanguage();
   const { src, alt, width, align } = node.attrs as { src: string; alt: string | null; width: number | null; align: string };
   const imgRef = useRef<HTMLImageElement | null>(null);
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null);

@@ -21,6 +21,13 @@ body {
   font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
+/* Measurements and ISO date/time entry keep their physical order in either UI language. */
+input[type='number'], input[type='date'], input[type='time'], input[type='datetime-local'],
+input[type='email'], input[type='url'], input[type='tel'] {
+  direction: ltr;
+  text-align: start;
+}
+
 /* MapPicker's always-on marker label (e.g. tower ID) — see components/MapPicker.tsx `label` prop. */
 .map-picker-label {
   font-weight: 700;

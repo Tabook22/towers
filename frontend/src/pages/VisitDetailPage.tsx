@@ -1,3 +1,4 @@
+import { tr, useLanguage, locale } from '../i18n';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -69,11 +70,13 @@ const THERMAL_MODE_OPTIONS = [
 ];
 
 export function VisitDetailPage() {
+  useLanguage();
   const { visitId } = useParams();
   return <VisitDetailWorkspace key={visitId} />;
 }
 
 function VisitDetailWorkspace() {
+  useLanguage();
   const { visitId } = useParams();
   const id = Number(visitId);
   const queryClient=useQueryClient();
@@ -117,7 +120,7 @@ function VisitDetailWorkspace() {
       await working.upload(recording.position, 'Voice note', recording.file, recording.token, recording.duration);
       setPendingVoice(null); setUploadBusy(false);
     } catch {
-      setVoiceError('The recording is retained on this page. Retry before leaving; refreshing would lose the unsent recording.');
+      setVoiceError(tr("The recording is retained on this page. Retry before leaving; refreshing would lose the unsent recording."));
     }
   };
   const batchSaving = working.busy;
@@ -130,7 +133,7 @@ function VisitDetailWorkspace() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [uploadBusy]);
   const confirmSaved = (title: string, message: string) => {
-    setReceipt({ title, message, time: new Date().toLocaleString() });
+    setReceipt({ title, message, time: new Date().toLocaleString(locale()) });
 
   };
   const header = useMemo(() => ({ ...visit, ...headerDraft }), [visit, headerDraft]);
@@ -139,20 +142,16 @@ function VisitDetailWorkspace() {
     const status = (visitError as { response?: { status?: number } })?.response?.status;
     return (
       <Stack spacing={2}>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/towers')} sx={{ alignSelf: 'flex-start' }}>
-          Back to towers
-        </Button>
+        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/towers')} sx={{ alignSelf: 'flex-start' }}>{tr("Back to towers")}</Button>
         <Alert severity={status === 403 ? 'warning' : 'error'}>
-          {status === 403
-            ? "You don't have access to this visit — team-leader accounts only see their own team's missions."
-            : 'Could not load this visit.'}
+          {status === 403 ? tr("You don't have access to this visit — team-leader accounts only see their own team's missions.") : tr("Could not load this visit.")}
         </Alert>
       </Stack>
     );
   }
 
   if (isLoading || !visit || !lists || !working.ready) {
-    return <Stack spacing={2}><LinearProgress />{working.error && <Alert severity="warning">{working.error}<Button onClick={() => void working.reload()}>Retry loading draft</Button></Alert>}</Stack>;
+    return <Stack spacing={2}><LinearProgress />{working.error && <Alert severity="warning">{tr(working.error)}<Button onClick={() => void working.reload()}>{tr("Retry loading draft")}</Button></Alert>}</Stack>;
   }
 
   const saveHeaderFields = (values: Record<string, unknown>) => working.change(current => {
@@ -200,11 +199,11 @@ function VisitDetailWorkspace() {
         <Button
           startIcon={<ArrowBackIcon />}
           onClick={() => {
-            if (uploadBusy && !window.confirm('An upload is still pending. Leave this page?')) return;
+            if (uploadBusy && !window.confirm(tr("An upload is still pending. Leave this page?"))) return;
             navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`);
           }}
         >
-          {visit.team_id ? 'Back to team' : 'Back to tower'}
+          {visit.team_id ? tr("Back to team") : tr("Back to tower")}
         </Button>
         <Stack direction="row" spacing={1.5}>
           <Button
@@ -215,9 +214,7 @@ function VisitDetailWorkspace() {
             href={mediaUrl(`/api/reports/visits/${id}.pdf`)}
             target="_blank"
             rel="noreferrer"
-          >
-            Download tower report (PDF)
-          </Button>
+          >{tr("Download tower report (PDF)")}</Button>
           {!isTeamMember && (
             <Button
               variant="outlined"
@@ -227,15 +224,13 @@ function VisitDetailWorkspace() {
               onClick={() => {
                 if (
                   window.confirm(
-                    'Permanently delete this inspection visit? This removes all its positions, screening results, and images. This cannot be undone.',
+                    tr("Permanently delete this inspection visit? This removes all its positions, screening results, and images. This cannot be undone."),
                   )
                 ) {
                   deleteVisit.mutate(id, { onSuccess: () => navigate(`/towers/${visit.tower_id}`) });
                 }
               }}
-            >
-              Delete visit
-            </Button>
+            >{tr("Delete visit")}</Button>
           )}
         </Stack>
       </Stack>
@@ -243,13 +238,12 @@ function VisitDetailWorkspace() {
       <Box>
         <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           <Typography variant="h4" sx={{ fontWeight: 800 }}>
-            {visit.tower?.tower_id} — Field Inspection Visit
-          </Typography>
+            {visit.tower?.tower_id}{tr(" — Field Inspection Visit")}</Typography>
           <VisitStatusChip status={visit.rollup?.visit_status} />
           {visit.team_id && (
             <Chip
               icon={<GroupsIcon />}
-              label={visit.mission_seq == null ? visit.team_name : `${visit.team_name} — Mission ${visit.mission_seq}`}
+              label={visit.mission_seq == null ? visit.team_name : tr("{0} — Mission {1}", [visit.team_name, visit.mission_seq])}
               component={RouterLink}
               to={`/teams/${visit.team_id}`}
               clickable
@@ -266,26 +260,24 @@ function VisitDetailWorkspace() {
       {visit.rollup && (
         <Grid container spacing={2}>
           <Grid size={{ xs: 6, sm: 3 }}>
-            <KpiTile label="Screened / Installed" value={`${visit.rollup.screened}/${visit.rollup.installed}`} icon={<CellTowerIcon />} />
+            <KpiTile label={tr("Screened / Installed")} value={`${visit.rollup.screened}/${visit.rollup.installed}`} icon={<CellTowerIcon />} />
           </Grid>
           <Grid size={{ xs: 6, sm: 3 }}>
-            <KpiTile label="Completion" value={`${visit.rollup.completion_pct}%`} icon={<FactCheckIcon />} color="#3a6f84" />
+            <KpiTile label={tr("Completion")} value={`${visit.rollup.completion_pct}%`} icon={<FactCheckIcon />} color="#3a6f84" />
           </Grid>
           <Grid size={{ xs: 6, sm: 3 }}>
-            <KpiTile label="Hotspots" value={visit.rollup.hotspots} icon={<LocalFireDepartmentIcon />} color="#d32f2f" />
+            <KpiTile label={tr("Hotspots")} value={visit.rollup.hotspots} icon={<LocalFireDepartmentIcon />} color="#d32f2f" />
           </Grid>
           <Grid size={{ xs: 6, sm: 3 }}>
-            <KpiTile label="Images pending" value={visit.rollup.images_pending} icon={<PendingActionsIcon />} color="#f57c00" />
+            <KpiTile label={tr("Images pending")} value={visit.rollup.images_pending} icon={<PendingActionsIcon />} color="#f57c00" />
           </Grid>
         </Grid>
       )}
 
       <Card component="details">
-        <Box component="summary" sx={{ p: 2, cursor: 'pointer', fontWeight: 700 }}>Visit details · {header.inspection_date as string || 'Date not set'} · {header.inspector_name as string || 'Set inspector and equipment'}</Box>
+        <Box component="summary" sx={{ p: 2, cursor: 'pointer', fontWeight: 700 }}>{tr("Visit details · ")}{header.inspection_date as string || tr("Date not set")} · {header.inspector_name as string || tr("Set inspector and equipment")}</Box>
         <CardContent component="fieldset" disabled={working.busy || uploadBusy || working.uncertain} sx={{ border: 0, minWidth: 0 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-            Visit header
-          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>{tr("Visit header")}</Typography>
           <VisitEquipmentPreset visit={visit} userId={String(user?.id || user?.username)} inspectorName={user?.full_name || user?.username || ''}
             onApply={async payload => saveHeaderFields(payload)} />
           <Grid container spacing={2}>
@@ -293,7 +285,7 @@ function VisitDetailWorkspace() {
               <TextField
                 size="small"
                 type="date"
-                label="Inspection date"
+                label={tr("Inspection date")}
                 fullWidth
                 slotProps={{ inputLabel: { shrink: true } }}
                 value={(header.inspection_date as string) || ''}
@@ -303,7 +295,7 @@ function VisitDetailWorkspace() {
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 size="small"
-                label="Inspector"
+                label={tr("Inspector")}
                 fullWidth
                 value={(header.inspector_name as string) || ''}
                 onChange={(e) => saveHeaderField('inspector_name', e.target.value)}
@@ -312,7 +304,7 @@ function VisitDetailWorkspace() {
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 size="small"
-                label="Permit / Job No."
+                label={tr("Permit / Job No.")}
                 fullWidth
                 value={(header.permit_job_no as string) || ''}
                 onChange={(e) => saveHeaderField('permit_job_no', e.target.value)}
@@ -321,7 +313,7 @@ function VisitDetailWorkspace() {
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 size="small"
-                label="Weather / wind"
+                label={tr("Weather / wind")}
                 fullWidth
                 value={(header.weather_wind as string) || ''}
                 onChange={(e) => saveHeaderField('weather_wind', e.target.value)}
@@ -330,7 +322,7 @@ function VisitDetailWorkspace() {
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 size="small"
-                label="Electrical load"
+                label={tr("Electrical load")}
                 fullWidth
                 value={(header.electrical_load as string) || ''}
                 onChange={(e) => saveHeaderField('electrical_load', e.target.value)}
@@ -339,7 +331,7 @@ function VisitDetailWorkspace() {
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 size="small"
-                label="Camera / drone"
+                label={tr("Camera / drone")}
                 fullWidth
                 value={(header.camera_drone as string) || ''}
                 onChange={(e) => saveHeaderField('camera_drone', e.target.value)}
@@ -349,7 +341,7 @@ function VisitDetailWorkspace() {
               <TextField
                 select
                 size="small"
-                label="Thermal mode"
+                label={tr("Thermal mode")}
                 fullWidth
                 value={(header.thermal_mode as string) || ''}
                 onChange={(e) => saveHeaderField('thermal_mode', e.target.value || null)}
@@ -357,11 +349,11 @@ function VisitDetailWorkspace() {
                 <MenuItem value="">—</MenuItem>
                 {THERMAL_MODE_OPTIONS.map((m) => (
                   <MenuItem key={m} value={m}>
-                    {m}
+                    {tr(m)}
                   </MenuItem>
                 ))}
                 {header.thermal_mode && !THERMAL_MODE_OPTIONS.includes(header.thermal_mode as string) && (
-                  <MenuItem value={header.thermal_mode as string}>{header.thermal_mode as string} (existing)</MenuItem>
+                  <MenuItem value={header.thermal_mode as string}>{header.thermal_mode as string}{tr(" (existing)")}</MenuItem>
                 )}
               </TextField>
             </Grid>
@@ -369,7 +361,7 @@ function VisitDetailWorkspace() {
               <TextField
                 size="small"
                 type="number"
-                label="Emissivity"
+                label={tr("Emissivity")}
                 fullWidth
                 value={(header.emissivity as number) ?? ''}
                 onChange={(e) => saveHeaderField('emissivity', e.target.value ? Number(e.target.value) : null)}
@@ -379,7 +371,7 @@ function VisitDetailWorkspace() {
               <TextField
                 size="small"
                 type="number"
-                label="Reflected temp (°C)"
+                label={tr("Reflected temp (°C)")}
                 fullWidth
                 value={(header.reflected_temp as number) ?? ''}
                 onChange={(e) => saveHeaderField('reflected_temp', e.target.value ? Number(e.target.value) : null)}
@@ -387,14 +379,12 @@ function VisitDetailWorkspace() {
             </Grid>
           </Grid>
 
-          <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
-            Equipment &amp; environment (official report)
-          </Typography>
+          <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>{tr("Equipment & environment (official report)")}</Typography>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 size="small"
-                label="Camera serial no."
+                label={tr("Camera serial no.")}
                 fullWidth
                 value={(header.camera_serial_no as string) || ''}
                 onChange={(e) => saveHeaderField('camera_serial_no', e.target.value)}
@@ -403,7 +393,7 @@ function VisitDetailWorkspace() {
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 size="small"
-                label="Calibration certificate no."
+                label={tr("Calibration certificate no.")}
                 fullWidth
                 value={(header.calibration_cert_no as string) || ''}
                 onChange={(e) => saveHeaderField('calibration_cert_no', e.target.value)}
@@ -413,7 +403,7 @@ function VisitDetailWorkspace() {
               <TextField
                 size="small"
                 type="date"
-                label="Calibration due date"
+                label={tr("Calibration due date")}
                 fullWidth
                 slotProps={{ inputLabel: { shrink: true } }}
                 value={(header.calibration_due_date as string) || ''}
@@ -424,7 +414,7 @@ function VisitDetailWorkspace() {
               <TextField
                 size="small"
                 type="number"
-                label="Distance to target (m)"
+                label={tr("Distance to target (m)")}
                 fullWidth
                 value={(header.distance_to_target_m as number) ?? ''}
                 onChange={(e) => saveHeaderField('distance_to_target_m', e.target.value ? Number(e.target.value) : null)}
@@ -434,7 +424,7 @@ function VisitDetailWorkspace() {
               <TextField
                 size="small"
                 type="number"
-                label="Ambient temp (°C)"
+                label={tr("Ambient temp (°C)")}
                 fullWidth
                 value={(header.ambient_temp_c as number) ?? ''}
                 onChange={(e) => saveHeaderField('ambient_temp_c', e.target.value ? Number(e.target.value) : null)}
@@ -444,7 +434,7 @@ function VisitDetailWorkspace() {
               <TextField
                 size="small"
                 type="number"
-                label="Humidity (%)"
+                label={tr("Humidity (%)")}
                 fullWidth
                 value={(header.humidity_pct as number) ?? ''}
                 onChange={(e) => saveHeaderField('humidity_pct', e.target.value ? Number(e.target.value) : null)}
@@ -454,15 +444,14 @@ function VisitDetailWorkspace() {
 
           {visit.team_id && (
             <>
-              <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
-                Mission timing — {visit.team_name}, Mission {visit.mission_seq}
+              <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>{tr("Mission timing — ")}{visit.team_name}{tr(", Mission ")}{visit.mission_seq}
               </Typography>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 6, sm: 3 }}>
                   <TextField
                     size="small"
                     type="time"
-                    label="Start time"
+                    label={tr("Start time")}
                     fullWidth
                     slotProps={{ inputLabel: { shrink: true } }}
                     value={(header.start_time as string)?.slice(0, 5) || ''}
@@ -473,7 +462,7 @@ function VisitDetailWorkspace() {
                   <TextField
                     size="small"
                     type="time"
-                    label="End time"
+                    label={tr("End time")}
                     fullWidth
                     slotProps={{ inputLabel: { shrink: true } }}
                     value={(header.end_time as string)?.slice(0, 5) || ''}
@@ -484,27 +473,22 @@ function VisitDetailWorkspace() {
                   <TextField
                     select
                     size="small"
-                    label="Mission status"
+                    label={tr("Mission status")}
                     fullWidth
                     value={(header.mission_status as string) || 'planned'}
                     onChange={(e) => saveHeaderField('mission_status', e.target.value)}
                   >
-                    <MenuItem value="planned">Planned</MenuItem>
-                    <MenuItem value="in_progress">In progress</MenuItem>
-                    <MenuItem value="completed">Completed</MenuItem>
+                    <MenuItem value="planned">{tr("Planned")}</MenuItem>
+                    <MenuItem value="in_progress">{tr("In progress")}</MenuItem>
+                    <MenuItem value="completed">{tr("Completed")}</MenuItem>
                   </TextField>
                 </Grid>
               </Grid>
             </>
           )}
 
-          <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
-            Visit GPS — this mission's tower
-          </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-            The boxed pin below is {visit.tower?.tower_id || 'this tower'} — starts at the tower's own recorded
-            location; drag it (or click the map) only if you need to log exactly where you stood for this visit.
-          </Typography>
+          <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>{tr("Visit GPS — this mission's tower")}</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{tr("The boxed pin below is ")}{visit.tower?.tower_id || tr("this tower")}{tr(" — starts at the tower's own recorded location; drag it (or click the map) only if you need to log exactly where you stood for this visit.")}</Typography>
           <MapPicker
             // Falls back through: this visit's own saved GPS -> the tower's own recorded location, so the
             // map always shows the right tower instead of a blank/generic view when a visit has no GPS yet.
@@ -515,40 +499,35 @@ function VisitDetailWorkspace() {
             label={visit.tower?.tower_id}
             highlight
           />
-          <Typography variant="caption">Visit details join the same draft as the positions. Confirm them together below.</Typography>
-          {headerDraft && <Typography variant="caption" sx={{ ml: 2 }}>Draft visit details</Typography>}
+          <Typography variant="caption">{tr("Visit details join the same draft as the positions. Confirm them together below.")}</Typography>
+          {headerDraft && <Typography variant="caption" sx={{ ml: 2 }}>{tr("Draft visit details")}</Typography>}
         </CardContent>
       </Card>
 
       {pendingEvidence.length > 0 && (
-        <Alert severity="info">
-          Evidence check: {pendingEvidence.length} image(s) still pending across this visit. This is informational
-          only — it doesn't hold the visit back from "Ready for review".
-        </Alert>
+        <Alert severity="info">{tr("Evidence check: ")}{pendingEvidence.length}{tr(" image(s) still pending across this visit. This is informational only — it doesn't hold the visit back from \"Ready for review\".")}</Alert>
       )}
 
       <Box>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }}>
-          Inspection positions
-        </Typography>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }}>{tr("Inspection positions")}</Typography>
         <Stack spacing={1.5}>
-          <Alert severity="info">Enter the whole visit, then use Review and save visit once. Draft fields and new evidence are saved separately from confirmed report data.</Alert>
-          {voiceError && pendingVoice && <Alert severity="error">{voiceError}<Stack direction="row" spacing={1}>
-            <Button onClick={() => void uploadVoice(pendingVoice)}>Retry recording upload</Button>
-            <Button onClick={() => { setPendingVoice(null); setVoiceError(''); setUploadBusy(false); }}>Discard unsent recording</Button>
+          <Alert severity="info">{tr("Enter the whole visit, then use Review and save visit once. Draft fields and new evidence are saved separately from confirmed report data.")}</Alert>
+          {voiceError && pendingVoice && <Alert severity="error">{tr(voiceError)}<Stack direction="row" spacing={1}>
+            <Button onClick={() => void uploadVoice(pendingVoice)}>{tr("Retry recording upload")}</Button>
+            <Button onClick={() => { setPendingVoice(null); setVoiceError(''); setUploadBusy(false); }}>{tr("Discard unsent recording")}</Button>
           </Stack></Alert>}
           {receipt && <Alert severity="success" onClose={() => setReceipt(null)}>
-            <strong>{receipt.title}.</strong> {receipt.message} Confirmed at {receipt.time}.
+            <strong>{tr(receipt.title)}.</strong> {tr(receipt.message)}{tr(" Confirmed at ")}{receipt.time}.
           </Alert>}
           <VisitEntryToolbar visit={visit} positions={visiblePositions} lists={lists} entry={entry} images={working.images}
             onDraftsChange={setDrafts} selectedId={focusedPosition?.id ?? null} onSelect={setSelectedPositionId}
             canSaveTemplate={!isTeamMember} disabled={uploadBusy} busy={working.busy} locked={working.uncertain}
-            status={working.status} draftError={working.error}
+            status={working.status} draftError={tr(working.error)}
             onPrepare={(slots, remember) => working.change(prepareEntryLayout(visit, entry, slots, remember))}
             onConfirm={async () => { await working.commit(); confirmSaved('Visit saved', 'Visit details, positions and draft evidence were confirmed together.'); }}
             onLater={async () => { await working.flush(); navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`); }}
             onDiscard={working.discard} onReload={working.reload} onCompareLatest={working.compareLatest} />
-          <Box component="details"><Typography component="summary" sx={{ cursor: 'pointer' }}>Add an individual position or exception</Typography>
+          <Box component="details"><Typography component="summary" sx={{ cursor: 'pointer' }}>{tr("Add an individual position or exception")}</Typography>
           <Box component="fieldset" disabled={uploadBusy || working.busy || working.uncertain} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}><AddPositionBar
             positions={allPositions}
             hiddenIds={hiddenIds}
@@ -559,14 +538,12 @@ function VisitDetailWorkspace() {
           /></Box>
           </Box>
           {visiblePositions.length === 0 && (
-            <Alert severity="info">
-              Start with “Prepare tower positions” to build the checklist, or add an individual position.
-            </Alert>
+            <Alert severity="info">{tr("Start with “Prepare tower positions” to build the checklist, or add an individual position.")}</Alert>
           )}
           {focusedPosition && <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-            <Button disabled={focusedIndex <= 0 || batchSaving || uploadBusy} onClick={() => setSelectedPositionId(visiblePositions[focusedIndex - 1].id)}>Previous position</Button>
-            <Typography variant="body2">Position {focusedIndex + 1} of {visiblePositions.length}</Typography>
-            <Button disabled={focusedIndex >= visiblePositions.length - 1 || batchSaving || uploadBusy} onClick={() => setSelectedPositionId(visiblePositions[focusedIndex + 1].id)}>Next position</Button>
+            <Button disabled={focusedIndex <= 0 || batchSaving || uploadBusy} onClick={() => setSelectedPositionId(visiblePositions[focusedIndex - 1].id)}>{tr("Previous position")}</Button>
+            <Typography variant="body2">{tr("Position ")}{focusedIndex + 1}{tr(" of ")}{visiblePositions.length}</Typography>
+            <Button disabled={focusedIndex >= visiblePositions.length - 1 || batchSaving || uploadBusy} onClick={() => setSelectedPositionId(visiblePositions[focusedIndex + 1].id)}>{tr("Next position")}</Button>
           </Stack>}
           {(focusedPosition ? [focusedPosition] : []).map((p) => (
             <PositionPanel
@@ -580,13 +557,13 @@ function VisitDetailWorkspace() {
                 if (!Object.keys(changes).length) { const next = { ...current }; delete next[p.id]; return next; }
                 return mergePositionDraft(current, p, changes);
               })}
-              onSave={async () => { throw new Error('Use Review and save visit.'); }}
+              onSave={async () => { throw new Error(tr("Use Review and save visit.")); }}
               onStageEvidence={(type, file, token) => working.upload(visit.positions.find(saved => saved.id === p.id) || p, type, file, token)}
               draftEvidence={<Stack spacing={1} sx={{ my: 1 }}>
                 {pendingDraftImages.filter(i => i.position_key === p.id).map(image => <Stack key={image.id} direction="row" sx={{ alignItems: 'center', gap: 1 }}>
                   {image.image_type === 'Voice note' ? <Box component="audio" controls src={mediaUrl(`/api/visits/${id}/entry/images/${image.id}`)} sx={{ width: 220 }} /> : <Box component="img" src={mediaUrl(`/api/visits/${id}/entry/images/${image.id}`)} alt={image.image_type} sx={{ width: 80, height: 55, objectFit: 'cover' }} />}
-                  <Typography variant="caption">Draft · {image.image_type} · {image.filename}</Typography>
-                  <Button size="small" onClick={() => working.change(current => ({ ...current, excludedImages: [...current.excludedImages, image.id] }))}>Remove from draft</Button>
+                  <Typography variant="caption">{tr("Draft · ")}{tr(image.image_type)} · {image.filename}</Typography>
+                  <Button size="small" onClick={() => working.change(current => ({ ...current, excludedImages: [...current.excludedImages, image.id] }))}>{tr("Remove from draft")}</Button>
                 </Stack>)}
               </Stack>}
               lists={lists}

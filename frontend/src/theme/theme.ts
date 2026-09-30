@@ -1,3 +1,6 @@
+import { arSA, enUS } from '@mui/material/locale';
+import { arSD as gridArabic } from '@mui/x-data-grid/locales';
+import type { Language } from '../i18n';
 import { createTheme, type PaletteMode, type Theme } from '@mui/material/styles';
 
 // Severity / status color scale, reused across badges, map markers, and KPI tiles. Rendered as a
@@ -36,9 +39,10 @@ export const screeningColors: Record<string, string> = {
 // see theme/ColorModeContext.tsx for how a saved per-browser choice overrides this afterward.
 export const DEFAULT_MODE: PaletteMode = 'dark';
 
-export function getTheme(mode: PaletteMode): Theme {
+export function getTheme(mode: PaletteMode, language: Language = 'en'): Theme {
   const isDark = mode === 'dark';
   return createTheme({
+    direction: language === 'ar' ? 'rtl' : 'ltr',
     palette: {
       mode,
       primary: isDark
@@ -57,7 +61,7 @@ export function getTheme(mode: PaletteMode): Theme {
     },
     shape: { borderRadius: 12 },
     typography: {
-      fontFamily: '"Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      fontFamily: language === 'ar' ? 'Tahoma, Arial, sans-serif' : '"Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       h1: { fontWeight: 700 },
       h2: { fontWeight: 700 },
       h3: { fontWeight: 700, letterSpacing: '-0.035em' },
@@ -115,7 +119,7 @@ export function getTheme(mode: PaletteMode): Theme {
         },
       },
     },
-  });
+  }, language === 'ar' ? arSA : enUS, language === 'ar' ? gridArabic : {});
 }
 
 // Kept for any leftover direct imports — prefer useTheme()/the ColorModeContext for anything

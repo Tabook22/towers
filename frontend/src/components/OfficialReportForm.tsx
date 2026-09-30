@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useMemo, useState } from 'react';
 import {
   Accordion,
@@ -47,6 +48,7 @@ type Mode = 'tower' | 'team' | 'line' | 'overall';
  * and an area are the same thing, just named for what an admin actually calls it. Same rendering
  * path in every case — see backend services/oetc_report.py and oetc_grouped_report.py. */
 export function OfficialReportForm({ showHistory = true, onCreated }: { showHistory?: boolean; onCreated?: () => void }) {
+  useLanguage();
   const { data: teams } = useTeams();
   const { data: towers } = useTowers({ include_inactive: true, limit: 5000 });
   const { data: areas } = useAreas();
@@ -123,7 +125,7 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
       approval_date: approvalDate || null,
     };
     const onError = async (err: unknown) => {
-      setError(await reportError(err, 'Could not generate the report.'));
+      setError(await reportError(err, tr("Could not generate the report.")));
     };
     if (mode === 'tower') {
       generateTeam.mutate({ ...shared, tower_id: towerId }, { onError, onSuccess: onCreated });
@@ -150,56 +152,39 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
     <Box>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 0.5 }}>
         <DescriptionRoundedIcon color="action" fontSize="small" />
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>
-          Official report for the customer
-        </Typography>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Official report for the customer")}</Typography>
       </Stack>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Choose the inspection scope and date range, review the coverage, then add your assessment
-        and sign-off. Reports use the official customer template and are saved to the library.
-      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("Choose the inspection scope and date range, review the coverage, then add your assessment and sign-off. Reports use the official customer template and are saved to the library.")}</Typography>
 
       <Accordion variant="outlined" sx={{ mb: 2 }} disableGutters>
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-          <Typography variant="subtitle2">
-            Help with report coverage
-          </Typography>
+          <Typography variant="subtitle2">{tr("Help with report coverage")}</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={1}>
             <Typography variant="body2">
-              <strong>1.</strong> The tower has inspection visits linked to a team in the selected date range.
-            </Typography>
+              <strong>1.</strong>{tr(" The tower has inspection visits linked to a team in the selected date range.")}</Typography>
             <Typography variant="body2">
-              <strong>2.</strong> The visit was started from the team leader's or a crew member's own
-              login (they tap the tower, then <strong>Start visit</strong>) — not created directly by
-              an admin. This is what links a visit to a team; it's the most common reason a report
-              comes back empty.
-            </Typography>
+              <strong>2.</strong>{tr(" The visit was started from the team leader's or a crew member's own login (they tap the tower, then ")}<strong>{tr("Start visit")}</strong>{tr(") — not created directly by an admin. This is what links a visit to a team; it's the most common reason a report comes back empty.")}</Typography>
             <Typography variant="body2">
-              <strong>3.</strong> At least one position on that visit has a Direction set or a photo
-              uploaded — an untouched position is correctly left out, not an error.
-            </Typography>
+              <strong>3.</strong>{tr(" At least one position on that visit has a Direction set or a photo uploaded — an untouched position is correctly left out, not an error.")}</Typography>
             <Typography variant="body2">
-              <strong>4.</strong> The date range below actually covers when the work was recorded.
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Full walkthrough: Help page → For Admins → 7. Reports → "How to build the final report".
-            </Typography>
+              <strong>4.</strong>{tr(" The date range below actually covers when the work was recorded.")}</Typography>
+            <Typography variant="body2" color="text.secondary">{tr("Full walkthrough: Help page → For Admins → 7. Reports → \"How to build the final report\".")}</Typography>
           </Stack>
         </AccordionDetails>
       </Accordion>
 
       <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_, v) => handleModeChange(v)} sx={{ mb: 2 }}>
-        <ToggleButton value="tower">By tower</ToggleButton>
-        <ToggleButton value="team">By team</ToggleButton>
-        <ToggleButton value="line">By line</ToggleButton>
-        <ToggleButton value="overall">Overall (final report)</ToggleButton>
+        <ToggleButton value="tower">{tr("By tower")}</ToggleButton>
+        <ToggleButton value="team">{tr("By team")}</ToggleButton>
+        <ToggleButton value="line">{tr("By line")}</ToggleButton>
+        <ToggleButton value="overall">{tr("Overall (final report)")}</ToggleButton>
       </ToggleButtonGroup>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
+          {tr(error)}
         </Alert>
       )}
 
@@ -214,14 +199,10 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
               onChange={(_e, v) => setTowerId(v ? v.id : null)}
               getOptionLabel={(o) => o.label}
               isOptionEqualToValue={(a, b) => a.id === b.id}
-              renderInput={(params) => <TextField {...params} label="Tower" placeholder="Search by tower number" />}
+              renderInput={(params) => <TextField {...params} label={tr("Tower")} placeholder={tr("Search by tower number")} />}
             />
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-              {selectedTowerOption
-                ? selectedTowerOption.assigned_team_name
-                  ? `Team: ${selectedTowerOption.assigned_team_name} (worked out automatically)`
-                  : 'The team will be resolved from this tower’s inspection visits.'
-                : 'Just the report for this one tower — the team is worked out automatically.'}
+              {selectedTowerOption ? selectedTowerOption.assigned_team_name ? tr("Team: {0} (worked out automatically)", [selectedTowerOption.assigned_team_name]) : tr("The team will be resolved from this tower’s inspection visits.") : tr("Just the report for this one tower — the team is worked out automatically.")}
             </Typography>
           </Box>
         )}
@@ -229,14 +210,14 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
           <TextField
             select
             size="small"
-            label="Team"
+            label={tr("Team")}
             value={teamId}
             onChange={(e) => setTeamId(e.target.value)}
             sx={{ minWidth: 220, maxWidth: 320 }}
-            helperText="Covers that team's whole campaign in the date range below."
+            helperText={tr("Covers that team's whole campaign in the date range below.")}
           >
             <MenuItem value="">
-              <em>Select a team</em>
+              <em>{tr("Select a team")}</em>
             </MenuItem>
             {teams?.map((t) => (
               <MenuItem key={t.id} value={t.id}>
@@ -250,14 +231,14 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
             <TextField
               select
               size="small"
-              label="Transmission line"
+              label={tr("Transmission line")}
               value={area}
               onChange={(e) => setArea(e.target.value)}
               sx={{ minWidth: 220, maxWidth: 320 }}
-              helperText="Every team currently working this line, combined into one file."
+              helperText={tr("Every team currently working this line, combined into one file.")}
             >
               <MenuItem value="">
-                <em>Select a line</em>
+                <em>{tr("Select a line")}</em>
               </MenuItem>
               {areas?.map((a) => (
                 <MenuItem key={a} value={a}>
@@ -268,28 +249,25 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
           </Box>
         )}
         {mode === 'overall' && (
-          <Alert severity="info" sx={{ maxWidth: 560 }}>
-            Every line, every team, every mission — in Line → Team → Mission order, each team's own
-            section unchanged. This is the one to hand the customer as the overall project report.
-          </Alert>
+          <Alert severity="info" sx={{ maxWidth: 560 }}>{tr("Every line, every team, every mission — in Line → Team → Mission order, each team's own section unchanged. This is the one to hand the customer as the overall project report.")}</Alert>
         )}
 
         {(mode === 'tower' || mode === 'team') && <TextField
           size="small"
-          label="Report number (optional)"
-          placeholder="Automatically assigned"
-          helperText="Leave blank for a unique number, or enter your own reference."
+          label={tr("Report number (optional)")}
+          placeholder={tr("Automatically assigned")}
+          helperText={tr("Leave blank for a unique number, or enter your own reference.")}
           value={reportNumber}
           onChange={(e) => setReportNumber(e.target.value)}
           sx={{ maxWidth: 420 }}
         />}
-        {(mode === 'line' || mode === 'overall') && <Alert severity="info">Each team section receives an automatic report number and is saved separately in the library. The combined document downloads when generation finishes.</Alert>}
+        {(mode === 'line' || mode === 'overall') && <Alert severity="info">{tr("Each team section receives an automatic report number and is saved separately in the library. The combined document downloads when generation finishes.")}</Alert>}
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <TextField
             type="date"
             size="small"
-            label="From"
+            label={tr("From")}
             slotProps={{ inputLabel: { shrink: true } }}
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
@@ -297,9 +275,9 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
           <TextField
             type="date"
             size="small"
-            label="To"
+            label={tr("To")}
             error={Boolean(startDate && endDate && !validDates)}
-            helperText={startDate && endDate && !validDates ? 'End date must be on or after start date.' : undefined}
+            helperText={startDate && endDate && !validDates ? tr("End date must be on or after start date.") : undefined}
             slotProps={{ inputLabel: { shrink: true } }}
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
@@ -311,46 +289,43 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
             {preview.isLoading ? (
               <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', color: 'text.secondary' }}>
                 <CircularProgress size={16} />
-                <Typography variant="body2">Checking what this will include…</Typography>
+                <Typography variant="body2">{tr("Checking what this will include…")}</Typography>
               </Stack>
             ) : preview.isError ? (
-              <Alert severity="error">Could not check report coverage. Check your connection and try again.</Alert>
+              <Alert severity="error">{tr("Could not check report coverage. Check your connection and try again.")}</Alert>
             ) : preview.data && !preview.data.ok ? (
               <Alert severity="warning">
-                {preview.data.message} — review the scope and dates, or open Help with report coverage above.
-              </Alert>
+                {preview.data.message}{tr(" — review the scope and dates, or open Help with report coverage above.")}</Alert>
             ) : preview.data ? (
               <Alert
                 severity="success"
                 icon={<VisibilityRoundedIcon fontSize="inherit" />}
                 sx={{ '& .MuiAlert-message': { width: '100%' } }}
               >
-                <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                  This will include:
-                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>{tr("This will include:")}</Typography>
                 <Stack direction="row" spacing={2.5} sx={{ flexWrap: 'wrap', rowGap: 0.5 }}>
                   <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                     <CellTowerRoundedIcon fontSize="small" />
                     <Typography variant="body2">
-                      {preview.data.tower_count} tower{preview.data.tower_count === 1 ? '' : 's'}
+                      {preview.data.tower_count}{tr(" tower")}{preview.data.tower_count === 1 ? '' : tr("s")}
                     </Typography>
                   </Stack>
                   {mode !== 'tower' && (
                     <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                       <GroupsRoundedIcon fontSize="small" />
                       <Typography variant="body2">
-                        {preview.data.team_count} team{preview.data.team_count === 1 ? '' : 's'}
+                        {preview.data.team_count}{tr(" team")}{preview.data.team_count === 1 ? '' : tr("s")}
                       </Typography>
                     </Stack>
                   )}
                   <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                     <DescriptionRoundedIcon fontSize="small" />
-                    <Typography variant="body2">{preview.data.position_count} insulator findings</Typography>
+                    <Typography variant="body2">{preview.data.position_count}{tr(" insulator findings")}</Typography>
                   </Stack>
                   <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                     <LocalFireDepartmentRoundedIcon fontSize="small" color={preview.data.hotspot_count > 0 ? 'error' : 'inherit'} />
                     <Typography variant="body2">
-                      {preview.data.hotspot_count} hotspot{preview.data.hotspot_count === 1 ? '' : 's'}
+                      {preview.data.hotspot_count}{tr(" hotspot")}{preview.data.hotspot_count === 1 ? '' : tr("s")}
                     </Typography>
                   </Stack>
                 </Stack>
@@ -362,23 +337,23 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
         <TextField
           select
           size="small"
-          label="Overall condition"
+          label={tr("Overall condition")}
           value={overallCondition}
           onChange={(e) => setOverallCondition(e.target.value)}
           sx={{ maxWidth: 320 }}
         >
           <MenuItem value="">
-            <em>Not set</em>
+            <em>{tr("Not set")}</em>
           </MenuItem>
           {lists?.overall_condition.map((c) => (
             <MenuItem key={c} value={c}>
-              {c}
+              {tr(c)}
             </MenuItem>
           ))}
         </TextField>
         <TextField
           size="small"
-          label="Probable cause of thermal anomaly"
+          label={tr("Probable cause of thermal anomaly")}
           multiline
           minRows={2}
           value={probableCause}
@@ -386,7 +361,7 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
         />
         <TextField
           size="small"
-          label="Recommended corrective action"
+          label={tr("Recommended corrective action")}
           multiline
           minRows={2}
           value={correctiveAction}
@@ -394,22 +369,22 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
         />
         <TextField
           size="small"
-          label="Additional comments"
+          label={tr("Additional comments")}
           multiline
           minRows={2}
           value={additionalComments}
           onChange={(e) => setAdditionalComments(e.target.value)}
         />
 
-        <Typography variant="subtitle2">Approval — applied to every section in the file</Typography>
+        <Typography variant="subtitle2">{tr("Approval — applied to every section in the file")}</Typography>
         <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', rowGap: 2 }}>
-          <TextField size="small" label="Prepared by" value={preparedBy} onChange={(e) => setPreparedBy(e.target.value)} />
-          <TextField size="small" label="Reviewed by" value={reviewedBy} onChange={(e) => setReviewedBy(e.target.value)} />
-          <TextField size="small" label="Approved by" value={approvedBy} onChange={(e) => setApprovedBy(e.target.value)} />
+          <TextField size="small" label={tr("Prepared by")} value={preparedBy} onChange={(e) => setPreparedBy(e.target.value)} />
+          <TextField size="small" label={tr("Reviewed by")} value={reviewedBy} onChange={(e) => setReviewedBy(e.target.value)} />
+          <TextField size="small" label={tr("Approved by")} value={approvedBy} onChange={(e) => setApprovedBy(e.target.value)} />
           <TextField
             type="date"
             size="small"
-            label="Approval date"
+            label={tr("Approval date")}
             slotProps={{ inputLabel: { shrink: true } }}
             value={approvalDate}
             onChange={(e) => setApprovalDate(e.target.value)}
@@ -418,7 +393,7 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
 
         <Box>
           <Button variant="contained" disabled={!requiredFilled || generating || preview.isFetching || preview.isError || !preview.data?.ok} onClick={handleGenerate}>
-            {buttonLabel}
+            {tr(buttonLabel)}
           </Button>
         </Box>
       </Stack>
@@ -427,14 +402,11 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <HistoryRoundedIcon fontSize="small" color="action" />
-            <Typography variant="subtitle2">Report history — see what's already been generated</Typography>
+            <Typography variant="subtitle2">{tr("Report history — see what's already been generated")}</Typography>
           </Stack>
         </AccordionSummary>
         <AccordionDetails>
-          <Typography variant="body2" color="text.secondary">
-            Every report generated above, with a one-click re-download — no need to redo the form
-            or risk reusing a report number that's already taken.
-          </Typography>
+          <Typography variant="body2" color="text.secondary">{tr("Every report generated above, with a one-click re-download — no need to redo the form or risk reusing a report number that's already taken.")}</Typography>
           <ReportHistoryTable />
         </AccordionDetails>
       </Accordion>}

@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useRef, useState } from 'react';
 import { Alert, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlineRounded';
@@ -29,6 +30,7 @@ interface Props {
 }
 
 export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, onCreate }: Props) {
+  useLanguage();
   const [mountType, setMountType] = useState('');
   const [ohl, setOhl] = useState('');
   const [direction, setDirection] = useState('');
@@ -67,7 +69,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
   if (remaining.length === 0 && tensionRemaining.length === 0) {
     return (
       <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography color="text.secondary">All positions have been added.</Typography>
+        <Typography color="text.secondary">{tr("All positions have been added.")}</Typography>
       </Paper>
     );
   }
@@ -98,7 +100,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
       reset();
 
     } catch (err) {
-      setError(positionError(err, 'Addition not confirmed. Your entries are kept here. Check your connection and reload the visit before retrying if the server may have received the request.'));
+      setError(positionError(err, tr("Addition not confirmed. Your entries are kept here. Check your connection and reload the visit before retrying if the server may have received the request.")));
     } finally { saveLock.current = false; setSaving(false); }
   };
 
@@ -113,11 +115,11 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
       }}
     >
       <Stack component="fieldset" disabled={saving} direction="row" spacing={2} sx={{ m: 0, p: 0, border: 0, alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-        <Typography sx={{ fontWeight: 700 }}>Add position</Typography>
+        <Typography sx={{ fontWeight: 700 }}>{tr("Add position")}</Typography>
         <TextField
           select
           size="small"
-          label="Tower type"
+          label={tr("Tower type")}
           value={mountType}
           onChange={(e) => {
             const value = e.target.value;
@@ -136,14 +138,14 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
           <MenuItem value="">—</MenuItem>
           {lists.mount_type.map((m) => (
             <MenuItem key={m} value={m}>
-              {m}
+              {tr(m)}
             </MenuItem>
           ))}
         </TextField>
         <TextField
           select
           size="small"
-          label="OHL"
+          label={tr("OHL")}
           value={ohl}
           onChange={(e) => {
             setOhl(e.target.value);
@@ -156,7 +158,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
         >
           {ohlOptions.map((v) => (
             <MenuItem key={v} value={v}>
-              {v}
+              {tr(v)}
             </MenuItem>
           ))}
         </TextField>
@@ -164,7 +166,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
           <TextField
             select
             size="small"
-            label="Direction"
+            label={tr("Direction")}
             value={direction}
             onChange={(e) => {
               setDirection(e.target.value);
@@ -177,7 +179,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
           >
             {directionOptions.map((d) => (
               <MenuItem key={d} value={d}>
-                {d}
+                {tr(d)}
               </MenuItem>
             ))}
           </TextField>
@@ -185,7 +187,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
         <TextField
           select
           size="small"
-          label="Phase"
+          label={tr("Phase")}
           value={phase}
           onChange={(e) => {
             const nextPhase = e.target.value;
@@ -199,18 +201,18 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
         >
           {phaseOptions.map((v) => (
             <MenuItem key={v} value={v}>
-              {v}
+              {tr(v)}
             </MenuItem>
           ))}
         </TextField>
-        <TextField select size="small" label="Number of strings" value={stringCount}
+        <TextField select size="small" label={tr("Number of strings")} value={stringCount}
           disabled={!phase} onChange={e => { setStringCount(e.target.value); setStringVal(''); }} sx={{ minWidth: 160 }}>
           <MenuItem value="Single">1</MenuItem><MenuItem value="Double">2</MenuItem>
         </TextField>
         <TextField
           select
           size="small"
-          label="String"
+          label={tr("String")}
           value={stringVal}
           onChange={(e) => setStringVal(e.target.value)}
           disabled={!phase || !stringCount}
@@ -218,7 +220,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
         >
           {stringOptions.map((v) => (
             <MenuItem key={v} value={v}>
-              {stringCount === 'Double' ? STRING_LABELS[v] || v : v}
+              {tr(stringCount === 'Double' ? STRING_LABELS[v] || v : v)}
             </MenuItem>
           ))}
         </TextField>
@@ -226,17 +228,17 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
           <TextField
             select
             size="small"
-            label="Direction"
+            label={tr("Direction")}
             value={direction}
             onChange={(e) => setDirection(e.target.value)}
             disabled={mountType === 'Suspension'}
-            helperText={mountType === 'Suspension' ? 'Not needed for Suspension' : undefined}
+            helperText={mountType === 'Suspension' ? tr("Not needed for Suspension") : undefined}
             sx={{ minWidth: 110 }}
           >
             <MenuItem value="">—</MenuItem>
             {lists.direction.map((d) => (
               <MenuItem key={d} value={d}>
-                {d}
+                {tr(d)}
               </MenuItem>
             ))}
           </TextField>
@@ -247,14 +249,14 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
           disabled={saving || !mountType || !stringCount || !stringOptions.includes(stringVal) || !(ohl && phase && stringVal) || (!match && !direction) || (isTension && !direction)}
           onClick={() => void handleAdd()}
         >
-          {saving ? 'Adding…' : 'Add position'}
+          {saving ? tr("Adding…") : tr("Add position")}
         </Button>
       </Stack>
       {mountType && phase && stringCount && <Typography variant="body2" sx={{ mt: 1.5 }}>
-        {mountType} · {ohl} · Phase {phase} · {stringCount === 'Single' ? '1 string' : '2 strings'} · {stringVal ? (stringCount === 'Double' ? STRING_LABELS[stringVal] : stringVal) : 'Choose a string'}
+        {mountType} · {ohl}{tr(" · Phase ")}{phase} · {stringCount === 'Single' ? tr("1 string") : tr("2 strings")} · {stringVal ? (stringCount === 'Double' ? STRING_LABELS[stringVal] : stringVal) : tr("Choose a string")}
       </Typography>}
-      {phase && stringCount && !stringOptions.length && <Alert severity="info" sx={{ mt: 1 }}>The matching string positions have already been added. Edit their inspection cards below.</Alert>}
-      {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
+      {phase && stringCount && !stringOptions.length && <Alert severity="info" sx={{ mt: 1 }}>{tr("The matching string positions have already been added. Edit their inspection cards below.")}</Alert>}
+      {error && <Alert severity="error" sx={{ mt: 1 }}>{tr(error)}</Alert>}
 
     </Paper>
   );

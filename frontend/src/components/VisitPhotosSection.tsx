@@ -1,3 +1,4 @@
+import { tr, useLanguage, locale } from '../i18n';
 import { useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -46,6 +47,7 @@ const positionLabel = (p: Position) => `${p.ohl} ${p.phase} ${p.string}${p.direc
  * than what was originally uploaded for TH Full, so instead of re-uploading from the camera roll,
  * just point at the one already sitting in this gallery. */
 export function VisitPhotosSection({ visitId, positions }: { visitId: number; positions: Position[] }) {
+  const uiLanguage = useLanguage();
   const { data: photos, isLoading } = useVisitPhotos(visitId);
   const upload = useUploadVisitPhoto(visitId);
   const { items: outbox, previewUrl } = useOffline();
@@ -88,9 +90,9 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
         items,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
-    if (ungrouped.length > 0) sections.push({ key: 'ungrouped', label: 'Ungrouped', items: ungrouped });
+    if (ungrouped.length > 0) sections.push({ key: 'ungrouped', label: tr("Ungrouped"), items: ungrouped });
     return sections;
-  }, [photos, positionById]);
+  }, [photos, positionById, uiLanguage]);
 
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -129,7 +131,7 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
         <Box
           component="img"
           src={thumbUrl(p)}
-          alt={p.caption || p.original_filename || 'Visit photo'}
+          alt={p.caption || p.original_filename || tr("Visit photo")}
           onClick={() => setLightboxPhoto(p)}
           sx={{
             width: '100%',
@@ -141,7 +143,7 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
           }}
         />
         <Stack direction="row" spacing={0.5} sx={{ position: 'absolute', top: 4, right: 4 }}>
-          <Tooltip title="Use as a position's official image">
+          <Tooltip title={tr("Use as a position's official image")}>
             <IconButton
               size="small"
               onClick={() => openPromote(p)}
@@ -150,11 +152,11 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
               <SwapHorizIcon fontSize="small" color="primary" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Delete photo">
+          <Tooltip title={tr("Delete photo")}>
             <IconButton
               size="small"
               onClick={() => {
-                if (window.confirm('Delete this photo?')) del.mutate(p.id);
+                if (window.confirm(tr("Delete this photo?"))) del.mutate(p.id);
               }}
               sx={{ bgcolor: 'rgba(255,255,255,0.85)', '&:hover': { bgcolor: 'white' } }}
             >
@@ -169,7 +171,7 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
         </Typography>
       )}
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-        {new Date(p.captured_at || p.uploaded_at).toLocaleString()}
+        {new Date(p.captured_at || p.uploaded_at).toLocaleString(locale())}
       </Typography>
     </Grid>
   );
@@ -177,20 +179,13 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
   return (
     <Card>
       <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-          Photos
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Anything that doesn't fit the position checklist above — an overview shot, a site
-          condition, anything worth attaching. Tag a photo to an insulator when uploading to keep the
-          gallery grouped by which one it's for. Found a better shot on closer look? Use the swap
-          icon to make it a position's official evidence image instead of uploading again.
-        </Typography>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>{tr("Photos")}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("Anything that doesn't fit the position checklist above — an overview shot, a site condition, anything worth attaching. Tag a photo to an insulator when uploading to keep the gallery grouped by which one it's for. Found a better shot on closer look? Use the swap icon to make it a position's official evidence image instead of uploading again.")}</Typography>
 
         <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
           <TextField
             size="small"
-            label="Caption (optional)"
+            label={tr("Caption (optional)")}
             sx={{ flexGrow: 1, minWidth: 160 }}
             value={captionDraft}
             onChange={(e) => setCaptionDraft(e.target.value)}
@@ -198,21 +193,19 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
           <TextField
             select
             size="small"
-            label="Tag to insulator (optional)"
+            label={tr("Tag to insulator (optional)")}
             sx={{ minWidth: 200 }}
             value={uploadPositionId}
             onChange={(e) => setUploadPositionId(e.target.value)}
           >
-            <MenuItem value="">Ungrouped</MenuItem>
+            <MenuItem value="">{tr("Ungrouped")}</MenuItem>
             {usablePositions.map((p) => (
               <MenuItem key={p.id} value={p.id}>
                 {positionLabel(p)}
               </MenuItem>
             ))}
           </TextField>
-          <Button variant="contained" startIcon={<UploadIcon />} onClick={() => fileInputRef.current?.click()} sx={{ flexShrink: 0 }}>
-            Upload photos
-          </Button>
+          <Button variant="contained" startIcon={<UploadIcon />} onClick={() => fileInputRef.current?.click()} sx={{ flexShrink: 0 }}>{tr("Upload photos")}</Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -229,13 +222,11 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
         {(isLoading || upload.isPending) && <LinearProgress sx={{ mb: 2 }} />}
 
         {!isLoading && groups.length === 0 && queuedPhotos.length === 0 && (
-          <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-            No photos uploaded yet.
-          </Typography>
+          <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>{tr("No photos uploaded yet.")}</Typography>
         )}
         {queuedPhotos.length > 0 && (
           <Box sx={{ mb: 2 }}>
-            <Chip size="small" color="warning" label={`On this phone · ${queuedPhotos.length}`} sx={{ mb: 1 }} />
+            <Chip size="small" color="warning" label={tr("On this phone · {0}", [queuedPhotos.length])} sx={{ mb: 1 }} />
             <Grid container spacing={1.5}>
               {queuedPhotos.map((item) => {
                 const src = previewUrl(item.id);
@@ -254,9 +245,7 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
                         border: '2px dashed #f9a825',
                       }}
                     />
-                    <Typography variant="caption" color="warning.main">
-                      Waiting for signal
-                    </Typography>
+                    <Typography variant="caption" color="warning.main">{tr("Waiting for signal")}</Typography>
                   </Grid>
                 );
               })}
@@ -271,7 +260,7 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
                 {g.key !== 'ungrouped' && <PlaceIcon fontSize="small" color="action" />}
                 <Chip size="small" label={g.label} variant={g.key === 'ungrouped' ? 'outlined' : 'filled'} color={g.key === 'ungrouped' ? 'default' : 'primary'} />
                 <Typography variant="caption" color="text.secondary">
-                  {g.items.length} photo{g.items.length === 1 ? '' : 's'}
+                  {g.items.length}{tr(" photo")}{g.items.length === 1 ? '' : tr("s")}
                 </Typography>
               </Stack>
               <Grid container spacing={1.5}>
@@ -287,34 +276,31 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
         <ImageLightbox
           open
           onClose={() => setLightboxPhoto(null)}
-          title={lightboxPhoto.original_filename || 'Visit photo'}
+          title={lightboxPhoto.original_filename || tr("Visit photo")}
           imageUrl={fileUrl(lightboxPhoto)}
-          subtitle={lightboxPhoto.caption || new Date(lightboxPhoto.captured_at || lightboxPhoto.uploaded_at).toLocaleString()}
+          subtitle={lightboxPhoto.caption || new Date(lightboxPhoto.captured_at || lightboxPhoto.uploaded_at).toLocaleString(locale())}
         />
       )}
 
       {promoteTarget && (
         <Dialog open onClose={() => setPromoteTarget(null)} maxWidth="xs" fullWidth>
-          <DialogTitle>Use this photo as…</DialogTitle>
+          <DialogTitle>{tr("Use this photo as…")}</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 1 }}>
               <Box
                 component="img"
                 src={thumbUrl(promoteTarget)}
-                alt="Selected photo"
+                alt={tr("Selected photo")}
                 sx={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 2, bgcolor: 'grey.100' }}
               />
-              {promoteError && <Alert severity="error">{promoteError}</Alert>}
+              {promoteError && <Alert severity="error">{tr(promoteError)}</Alert>}
               {usablePositions.length === 0 ? (
-                <Alert severity="info">
-                  No positions have a Direction set yet — set one on a position above before assigning
-                  images to it.
-                </Alert>
+                <Alert severity="info">{tr("No positions have a Direction set yet — set one on a position above before assigning images to it.")}</Alert>
               ) : (
                 <>
                   <TextField
                     select
-                    label="Position"
+                    label={tr("Position")}
                     size="small"
                     value={promotePositionId}
                     onChange={(e) => {
@@ -322,9 +308,7 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
                       setPromoteImageId('');
                     }}
                   >
-                    <MenuItem value="" disabled>
-                      Choose a position
-                    </MenuItem>
+                    <MenuItem value="" disabled>{tr("Choose a position")}</MenuItem>
                     {usablePositions.map((p) => (
                       <MenuItem key={p.id} value={p.id}>
                         {positionLabel(p)}
@@ -333,14 +317,14 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
                   </TextField>
                   <TextField
                     select
-                    label="Image to replace"
+                    label={tr("Image to replace")}
                     size="small"
                     value={promoteImageId}
                     onChange={(e) => setPromoteImageId(e.target.value)}
                     disabled={!promotePositionId}
                   >
                     <MenuItem value="" disabled>
-                      {promotePositionId ? 'Choose which image' : 'Pick a position first'}
+                      {promotePositionId ? tr("Choose which image") : tr("Pick a position first")}
                     </MenuItem>
                     {slotOptions.map((opt) => (
                       <MenuItem key={opt.id} value={opt.id}>
@@ -348,16 +332,13 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
                       </MenuItem>
                     ))}
                   </TextField>
-                  <Typography variant="caption" color="text.secondary">
-                    This replaces whatever's in that exact slot. The photo stays here in the gallery
-                    afterward too — using it here doesn't remove it.
-                  </Typography>
+                  <Typography variant="caption" color="text.secondary">{tr("This replaces whatever's in that exact slot. The photo stays here in the gallery afterward too — using it here doesn't remove it.")}</Typography>
                 </>
               )}
             </Stack>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setPromoteTarget(null)}>Cancel</Button>
+            <Button onClick={() => setPromoteTarget(null)}>{tr("Cancel")}</Button>
             <Button
               variant="contained"
               disabled={!promotePositionId || !promoteImageId || promote.isPending}
@@ -376,9 +357,7 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
                   },
                 );
               }}
-            >
-              Replace
-            </Button>
+            >{tr("Replace")}</Button>
           </DialogActions>
         </Dialog>
       )}

@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useState } from 'react';
 import { Button, Slide, Snackbar } from '@mui/material';
 
@@ -10,6 +11,7 @@ const ASSET_RE = /\/assets\/index-[\w-]+\.js/;
  * bundle it references against the one actually running in this tab; a mismatch means a newer build
  * has been deployed since this tab was opened, so prompt a reload instead of leaving that silent. */
 export function UpdateBanner() {
+  useLanguage();
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
   useEffect(() => {
@@ -53,9 +55,7 @@ export function UpdateBanner() {
       anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       message="A new version of this app is available"
       action={
-        <Button color="inherit" size="small" onClick={() => window.location.reload()}>
-          Reload
-        </Button>
+        <Button color="inherit" size="small" onClick={() => window.location.reload()}>{tr("Reload")}</Button>
       }
     />
   );

@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { Chip } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
@@ -10,7 +11,7 @@ function colorChip(label: string | null | undefined, colorMap: Record<string, st
     <Chip
       size="small"
       icon={icon}
-      label={label}
+      label={tr(label)}
       sx={{
         backgroundColor: `${color}1f`,
         color,
@@ -22,37 +23,42 @@ function colorChip(label: string | null | undefined, colorMap: Record<string, st
 }
 
 export function SeverityChip({ severity }: { severity: string | null | undefined }) {
+  useLanguage();
   return colorChip(severity, severityColors);
 }
 
 export function ScreeningChip({ result }: { result: string | null | undefined }) {
+  useLanguage();
   const icon = result === 'Hotspot detected' ? <LocalFireDepartmentIcon fontSize="small" /> : undefined;
   return colorChip(result, screeningColors, icon);
 }
 
 export function EvidenceChip({ status }: { status: string | null | undefined }) {
+  useLanguage();
   return colorChip(status, evidenceColors);
 }
 
 export function HotspotChip({ value }: { value: string | null | undefined }) {
+  useLanguage();
   if (value === 'Yes') {
     return (
       <Chip
         size="small"
         icon={<LocalFireDepartmentIcon fontSize="small" />}
-        label="Hotspot"
+        label={tr("Hotspot")}
         color="error"
         sx={{ fontWeight: 700 }}
       />
     );
   }
   if (value === 'Unconfirmed') {
-    return <Chip size="small" icon={<WarningAmberIcon fontSize="small" />} label="Unconfirmed" color="warning" />;
+    return <Chip size="small" icon={<WarningAmberIcon fontSize="small" />} label={tr("Unconfirmed")} color="warning" />;
   }
-  return <Chip size="small" label={value === 'No' ? 'No' : 'Not assessed'} variant="outlined" />;
+  return <Chip size="small" label={value === 'No' ? tr("No") : tr("Not assessed")} variant="outlined" />;
 }
 
 export function VisitStatusChip({ status }: { status: string | null | undefined }) {
+  useLanguage();
   const map: Record<string, string> = {
     'Ready for review': '#2e7d32',
     'Inspection incomplete': '#f57c00',

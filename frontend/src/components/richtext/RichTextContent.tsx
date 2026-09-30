@@ -1,3 +1,4 @@
+import { useLanguage } from '../../i18n';
 import { Box } from '@mui/material';
 import { Global, css } from '@emotion/react';
 import { withInlineImageTokens } from './htmlUtils';
@@ -47,6 +48,7 @@ const contentStyles = css`
  * routers/knowledge_base.py's sanitize_html), so this dangerouslySetInnerHTML only ever renders a
  * small allow-listed set of tags/attributes — never anything a client sent unsanitized. */
 export function RichTextContent({ html }: { html: string }) {
+  useLanguage();
   return (
     <Box className="kb-rich-content">
       <Global styles={contentStyles} />

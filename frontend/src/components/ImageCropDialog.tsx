@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useState, useCallback } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Slider, Stack, TextField, Typography } from '@mui/material';
@@ -18,7 +19,7 @@ async function cropToFile(imageSrc: string, cropPixels: Area, outputWidth: numbe
   canvas.width = outputWidth;
   canvas.height = outputHeight;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Could not get canvas context');
+  if (!ctx) throw new Error(tr("Could not get canvas context"));
   ctx.drawImage(
     image,
     cropPixels.x,
@@ -31,7 +32,7 @@ async function cropToFile(imageSrc: string, cropPixels: Area, outputWidth: numbe
     outputHeight,
   );
   const blob: Blob = await new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not export cropped image'))), 'image/jpeg', 0.9),
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(tr("Could not export cropped image")))), 'image/jpeg', 0.9),
   );
   return new File([blob], fileName, { type: 'image/jpeg' });
 }
@@ -57,6 +58,7 @@ export function ImageCropDialog({
   defaultWidth?: number;
   defaultHeight?: number;
 }) {
+  useLanguage();
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
@@ -83,12 +85,12 @@ export function ImageCropDialog({
 
   return (
     <Dialog open={open} onClose={onCancel} maxWidth="sm" fullWidth>
-      <DialogTitle>Choose what part of the photo to show</DialogTitle>
+      <DialogTitle>{tr("Choose what part of the photo to show")}</DialogTitle>
       <DialogContent>
         <Stack spacing={2}>
           <Stack direction="row" spacing={2}>
             <TextField
-              label="Width (px)"
+              label={tr("Width (px)")}
               type="number"
               size="small"
               value={outputWidth}
@@ -96,7 +98,7 @@ export function ImageCropDialog({
               slotProps={{ htmlInput: { min: 50, step: 10 } }}
             />
             <TextField
-              label="Height (px)"
+              label={tr("Height (px)")}
               type="number"
               size="small"
               value={outputHeight}
@@ -118,23 +120,16 @@ export function ImageCropDialog({
             )}
           </Box>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-            <Typography variant="body2" color="text.secondary" sx={{ minWidth: 40 }}>
-              Zoom
-            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ minWidth: 40 }}>{tr("Zoom")}</Typography>
             <Slider size="small" min={1} max={4} step={0.05} value={zoom} onChange={(_e, v) => setZoom(v as number)} />
           </Stack>
-          <Typography variant="caption" color="text.secondary">
-            Drag the photo to reposition it, and use the zoom slider to focus on a specific part — the
-            highlighted box is exactly what will be shown, at the width/height set above.
-          </Typography>
+          <Typography variant="caption" color="text.secondary">{tr("Drag the photo to reposition it, and use the zoom slider to focus on a specific part — the highlighted box is exactly what will be shown, at the width/height set above.")}</Typography>
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onCancel} disabled={busy}>
-          Cancel
-        </Button>
+        <Button onClick={onCancel} disabled={busy}>{tr("Cancel")}</Button>
         <Button variant="contained" onClick={handleApply} disabled={busy || !croppedAreaPixels}>
-          {busy ? 'Applying…' : 'Apply crop'}
+          {busy ? tr("Applying…") : tr("Apply crop")}
         </Button>
       </DialogActions>
     </Dialog>

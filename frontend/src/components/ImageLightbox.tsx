@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogTitle, DialogContent, IconButton, Box, Typography, Stack, Tooltip } from '@mui/material';
 import CloseIcon from '@mui/icons-material/CloseRounded';
@@ -25,6 +26,7 @@ const ZOOM_STEP = 0.5;
  * from there via ResizableDialogPaper's edge handles; zoom/pan resets every time it (re)opens or
  * the image changes, so a stale magnified state never carries over to the next photo. */
 export function ImageLightbox({ open, onClose, title, imageUrl, subtitle }: Props) {
+  useLanguage();
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragState = useRef<{ startX: number; startY: number; startOffset: { x: number; y: number } } | null>(null);
@@ -102,7 +104,7 @@ export function ImageLightbox({ open, onClose, title, imageUrl, subtitle }: Prop
           )}
         </Box>
         <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-          <Tooltip title="Zoom out">
+          <Tooltip title={tr("Zoom out")}>
             <span>
               <IconButton onClick={() => zoomBy(-ZOOM_STEP)} size="small" disabled={scale <= MIN_SCALE}>
                 <ZoomOutIcon />
@@ -112,14 +114,14 @@ export function ImageLightbox({ open, onClose, title, imageUrl, subtitle }: Prop
           <Typography variant="caption" sx={{ minWidth: 40, textAlign: 'center' }}>
             {Math.round(scale * 100)}%
           </Typography>
-          <Tooltip title="Zoom in">
+          <Tooltip title={tr("Zoom in")}>
             <span>
               <IconButton onClick={() => zoomBy(ZOOM_STEP)} size="small" disabled={scale >= MAX_SCALE}>
                 <ZoomInIcon />
               </IconButton>
             </span>
           </Tooltip>
-          <Tooltip title="Reset zoom">
+          <Tooltip title={tr("Reset zoom")}>
             <span>
               <IconButton onClick={() => { setScale(1); setOffset({ x: 0, y: 0 }); }} size="small" disabled={scale === MIN_SCALE}>
                 <RestartAltIcon />

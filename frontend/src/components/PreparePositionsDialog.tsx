@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useState } from 'react';
 import { Alert, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import type { ChoiceLists, PositionSlot, VisitDetail } from '../api/types';
@@ -8,6 +9,7 @@ import { positionError, positionLabel } from '../utils/positionChanges';
 export function PreparePositionsDialog({ visit, lists, canSaveTemplate, disabled, onPrepare }: {
   visit: VisitDetail; lists: ChoiceLists; canSaveTemplate: boolean; disabled: boolean; onPrepare: (slots: PositionSlot[], remember: boolean) => void;
 }) {
+  useLanguage();
   const [open, setOpen] = useState(false);
   const [mount, setMount] = useState('Suspension');
   const [count, setCount] = useState('Double');
@@ -36,39 +38,39 @@ export function PreparePositionsDialog({ visit, lists, canSaveTemplate, disabled
   };
   const apply = () => {
     try { onPrepare(slots, saveTemplate); setOpen(false); }
-    catch (err) { setError(positionError(err, err instanceof Error ? err.message : 'Check the layout.')); }
+    catch (err) { setError(positionError(err, err instanceof Error ? err.message : tr("Check the layout."))); }
   };
   return <>
-    <Button variant="outlined" disabled={disabled} onClick={start}>Prepare tower positions</Button>
+    <Button variant="outlined" disabled={disabled} onClick={start}>{tr("Prepare tower positions")}</Button>
     <Dialog open={open} fullWidth maxWidth="md" onClose={() => setOpen(false)}>
-      <DialogTitle>Prepare tower positions — {visit.tower?.tower_id}</DialogTitle>
+      <DialogTitle>{tr("Prepare tower positions — ")}{visit.tower?.tower_id}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          <Alert severity="info">Positions will be added to your working draft. Existing observations and images are preserved. Confirm everything once with Review and save visit.</Alert>
+          <Alert severity="info">{tr("Positions will be added to your working draft. Existing observations and images are preserved. Confirm everything once with Review and save visit.")}</Alert>
           <>
-            {visit.tower?.inspection_layout && <Button onClick={() => loadLayout(visit.tower!.inspection_layout!)}>Use saved tower template</Button>}
+            {visit.tower?.inspection_layout && <Button onClick={() => loadLayout(visit.tower!.inspection_layout!)}>{tr("Use saved tower template")}</Button>}
             <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap' }} spacing={2}>
-              <TextField select label="Tower type" value={mount} onChange={e => changeLayout({ mount: e.target.value })} sx={{ minWidth: 160 }}>{lists.mount_type.map(v => <MenuItem key={v} value={v}>{v}</MenuItem>)}</TextField>
-              <TextField select label="Strings per phase" value={count} onChange={e => changeLayout({ count: e.target.value })} sx={{ minWidth: 160 }}><MenuItem value="Single">1 — S1</MenuItem><MenuItem value="Double">2 — S1 Outer / S2 Inner</MenuItem></TextField>
-              <TextField select label="Circuits" value={circuits} slotProps={{ select: { multiple: true } }} onChange={e => changeLayout({ circuits: typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value })} sx={{ minWidth: 160 }}>{lists.ohl.map(v => <MenuItem key={v} value={v}>{v}</MenuItem>)}</TextField>
-              <TextField select label="Direction(s)" value={directions} slotProps={{ select: { multiple: true } }} onChange={e => changeLayout({ directions: typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value })} sx={{ minWidth: 190 }}>{directionOptions.map(v => <MenuItem key={v} value={v}>{v}</MenuItem>)}</TextField>
+              <TextField select label={tr("Tower type")} value={mount} onChange={e => changeLayout({ mount: e.target.value })} sx={{ minWidth: 160 }}>{lists.mount_type.map(v => <MenuItem key={v} value={v}>{tr(v)}</MenuItem>)}</TextField>
+              <TextField select label={tr("Strings per phase")} value={count} onChange={e => changeLayout({ count: e.target.value })} sx={{ minWidth: 160 }}><MenuItem value="Single">{tr("1 — S1")}</MenuItem><MenuItem value="Double">{tr("2 — S1 Outer / S2 Inner")}</MenuItem></TextField>
+              <TextField select label={tr("Circuits")} value={circuits} slotProps={{ select: { multiple: true } }} onChange={e => changeLayout({ circuits: typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value })} sx={{ minWidth: 160 }}>{lists.ohl.map(v => <MenuItem key={v} value={v}>{tr(v)}</MenuItem>)}</TextField>
+              <TextField select label={tr("Direction(s)")} value={directions} slotProps={{ select: { multiple: true } }} onChange={e => changeLayout({ directions: typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value })} sx={{ minWidth: 190 }}>{directionOptions.map(v => <MenuItem key={v} value={v}>{tr(v)}</MenuItem>)}</TextField>
             </Stack>
-            <Typography variant="body2">Review the list below. Remove unused positions for a custom layout. Include all positions that already have recorded work.</Typography>
+            <Typography variant="body2">{tr("Review the list below. Remove unused positions for a custom layout. Include all positions that already have recorded work.")}</Typography>
           </>
-          <Typography sx={{ fontWeight: 700 }}>{slots.length} positions in this layout</Typography>
+          <Typography sx={{ fontWeight: 700 }}>{slots.length}{tr(" positions in this layout")}</Typography>
           <Stack spacing={0.5} sx={{ maxHeight: 330, overflowY: 'auto' }}>
-            {slots.map((slot, index) => <Stack key={`${positionLabel(slot)}-${index}`} direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">{positionLabel(slot)} · {slot.mount_type} · {slot.string_count === 'Double' ? (slot.string === 'S1' ? 'Outer' : 'Inner') : 'Single'}</Typography>
-              {<Button size="small" onClick={() => setSlots(current => current.filter((_, i) => i !== index))}>Remove from layout</Button>}
+            {slots.map((slot, index) => <Stack key={`$<bdi dir="ltr">{positionLabel(slot)}</bdi>-${index}`} direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2"><bdi dir="ltr">{positionLabel(slot)}</bdi> · {tr(slot.mount_type)} · {slot.string_count === 'Double' ? tr(slot.string === 'S1' ? 'Outer' : 'Inner') : tr("Single")}</Typography>
+              {<Button size="small" onClick={() => setSlots(current => current.filter((_, i) => i !== index))}>{tr("Remove from layout")}</Button>}
             </Stack>)}
           </Stack>
-          {canSaveTemplate && <FormControlLabel control={<Checkbox checked={saveTemplate} onChange={e => setSaveTemplate(e.target.checked)} />} label="Remember this layout for future visits to this tower" />}
-          {error && <Alert severity="error">{error}</Alert>}
+          {canSaveTemplate && <FormControlLabel control={<Checkbox checked={saveTemplate} onChange={e => setSaveTemplate(e.target.checked)} />} label={tr("Remember this layout for future visits to this tower")} />}
+          {error && <Alert severity="error">{tr(error)}</Alert>}
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={() => setOpen(false)}>Cancel</Button>
-        <Button variant="contained" disabled={!slots.length} onClick={apply}>Use this layout</Button>
+        <Button onClick={() => setOpen(false)}>{tr("Cancel")}</Button>
+        <Button variant="contained" disabled={!slots.length} onClick={apply}>{tr("Use this layout")}</Button>
       </DialogActions>
     </Dialog>
   </>;

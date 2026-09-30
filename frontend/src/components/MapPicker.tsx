@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { MapContainer, Marker, TileLayer, Tooltip as LeafletTooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -85,6 +86,7 @@ interface MapPickerProps {
 }
 
 function ClickHandler({ onChange }: { onChange?: (lat: number, lng: number) => void }) {
+  useLanguage();
   useMapEvents({
     click(e) {
       onChange?.(Number(e.latlng.lat.toFixed(6)), Number(e.latlng.lng.toFixed(6)));
@@ -94,6 +96,7 @@ function ClickHandler({ onChange }: { onChange?: (lat: number, lng: number) => v
 }
 
 function FitToContext({ positions }: { positions: [number, number][] }) {
+  useLanguage();
   const map = useMap();
   const key = positions.map((p) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join('|');
   useEffect(() => {
@@ -109,6 +112,7 @@ function FitToContext({ positions }: { positions: [number, number][] }) {
 }
 
 function MapRefBridge({ mapRef }: { mapRef: MutableRefObject<L.Map | null> }) {
+  useLanguage();
   const map = useMap();
   useEffect(() => {
     mapRef.current = map;
@@ -136,6 +140,7 @@ export function MapPicker({
   // generic Abu Dhabi-area point before.
   fallbackCenter = [17.01972, 54.08972],
 }: MapPickerProps) {
+  useLanguage();
   const hasPoint = typeof latitude === 'number' && typeof longitude === 'number';
   const contextPts = otherTowers.filter((t) => t.latitude != null && t.longitude != null);
   const mapNumbers = towerNumbersById(
@@ -174,7 +179,7 @@ export function MapPicker({
 
   const handleLocate = () => {
     if (!navigator.geolocation) {
-      setLocateError('Geolocation is not supported by this browser.');
+      setLocateError(tr("Geolocation is not supported by this browser."));
       return;
     }
     setLocateError(null);
@@ -190,7 +195,7 @@ export function MapPicker({
       (err) => {
         setLocating(false);
         setLocateError(
-          err.code === err.PERMISSION_DENIED ? 'Location permission denied.' : 'Could not get your current location.',
+          err.code === err.PERMISSION_DENIED ? tr("Location permission denied.") : tr("Could not get your current location."),
         );
       },
       { enableHighAccuracy: true, timeout: 10000 },
@@ -244,9 +249,7 @@ export function MapPicker({
                   </strong>
                   {onSelectOther ? (
                     <>
-                      <br />
-                      Click to edit this tower
-                    </>
+                      <br />{tr("Click to edit this tower")}</>
                   ) : null}
                 </LeafletTooltip>
               </Marker>
@@ -286,7 +289,7 @@ export function MapPicker({
         </MapContainer>
         <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           {!readOnly && (
-            <Tooltip title="Use my current location">
+            <Tooltip title={tr("Use my current location")}>
               <span>
                 <IconButton
                   size="small"
@@ -299,7 +302,7 @@ export function MapPicker({
               </span>
             </Tooltip>
           )}
-          <Tooltip title={layer === 'street' ? 'Switch to satellite view' : 'Switch to street map'}>
+          <Tooltip title={layer === 'street' ? tr("Switch to satellite view") : tr("Switch to street map")}>
             <IconButton
               size="small"
               onClick={() => setLayer((v) => (v === 'street' ? 'satellite' : 'street'))}
@@ -308,7 +311,7 @@ export function MapPicker({
               {layer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
-          <Tooltip title={expanded ? 'Shrink map' : 'Enlarge map'}>
+          <Tooltip title={expanded ? tr("Shrink map") : tr("Enlarge map")}>
             <IconButton
               size="small"
               onClick={() => setExpanded((v) => !v)}
@@ -322,14 +325,11 @@ export function MapPicker({
       {!readOnly && (
         <Box sx={{ px: 1.5, py: 0.75, bgcolor: 'grey.100' }}>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-            {contextPts.length
-              ? 'Numbered pins are towers already in the catalog. Drag this marker (or click the map) to place the one you are editing. Click a numbered pin to switch to that tower. '
-              : 'Click the map to drop a pin, drag the marker to fine-tune, or use the locate button. '}
-            Lat: {hasPoint ? latitude!.toFixed(6) : '-'}, Lng: {hasPoint ? longitude!.toFixed(6) : '-'}
+            {contextPts.length ? tr("Numbered pins are towers already in the catalog. Drag this marker (or click the map) to place the one you are editing. Click a numbered pin to switch to that tower. ") : tr("Click the map to drop a pin, drag the marker to fine-tune, or use the locate button. ")}{tr("Lat: ")}{hasPoint ? latitude!.toFixed(6) : '-'}{tr(", Lng: ")}{hasPoint ? longitude!.toFixed(6) : '-'}
           </Typography>
           {locateError && (
             <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.25 }}>
-              {locateError}
+              {tr(locateError)}
             </Typography>
           )}
         </Box>

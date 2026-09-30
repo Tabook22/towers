@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useMemo, useState } from 'react';
 import {
   Alert,
@@ -28,6 +29,7 @@ export function ClaimTowerDialog({
   claiming?: boolean;
   error?: string | null;
 }) {
+  useLanguage();
   const [search, setSearch] = useState('');
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -48,22 +50,18 @@ export function ClaimTowerDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Add a tower to this team</DialogTitle>
+      <DialogTitle>{tr("Add a tower to this team")}</DialogTitle>
       <DialogContent>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          These towers were added by admin and are not assigned to any team. Click a pin on the map
-          or a row below — it is assigned to this team immediately and locked until you or an admin
-          release it.
-        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{tr("These towers were added by admin and are not assigned to any team. Click a pin on the map or a row below — it is assigned to this team immediately and locked until you or an admin release it.")}</Typography>
         {error && (
           <Alert severity="error" sx={{ mb: 1.5 }}>
-            {error}
+            {tr(error)}
           </Alert>
         )}
         <TextField
           size="small"
           fullWidth
-          placeholder="Search tower ID, area, or line"
+          placeholder={tr("Search tower ID, area, or line")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           sx={{ mb: 1.5 }}
@@ -77,10 +75,7 @@ export function ClaimTowerDialog({
         />
         <Stack spacing={0.5} sx={{ mt: 1.5, maxHeight: 180, overflowY: 'auto' }}>
           {visible.length === 0 && (
-            <Typography variant="body2" color="text.secondary">
-              No free towers match. If every catalog tower is taken, another team must release one,
-              or an admin can reassign it.
-            </Typography>
+            <Typography variant="body2" color="text.secondary">{tr("No free towers match. If every catalog tower is taken, another team must release one, or an admin can reassign it.")}</Typography>
           )}
           {visible.map((t) => (
             <Button
@@ -95,14 +90,14 @@ export function ClaimTowerDialog({
               <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
                 {t.area || '—'}
                 {t.line_sector ? ` · ${t.line_sector}` : ''}
-                {t.latitude == null ? ' · no GPS' : ''}
+                {t.latitude == null ? tr(" · no GPS") : ''}
               </Typography>
             </Button>
           ))}
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{tr("Close")}</Button>
       </DialogActions>
     </Dialog>
   );

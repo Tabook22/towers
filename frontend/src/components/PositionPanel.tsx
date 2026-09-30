@@ -1,3 +1,5 @@
+import { tr, useLanguage, locale } from '../i18n';
+import { inspectionValue } from '../i18n/inspection';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -113,6 +115,7 @@ export function PositionPanel({
   voiceNoteSaving,
   voiceNoteTranscribing,
 }: Props) {
+  useLanguage();
   const [localDraft, setLocalDraft] = useState<Partial<Position>>({});
   const draft = draftValue ?? localDraft;
   const setDraft = (value: Partial<Position> | ((current: Partial<Position>) => Partial<Position>)) => {
@@ -146,14 +149,14 @@ export function PositionPanel({
     saveLock.current = true; setSaving(true); setSaveError('');
     try {
       await onSave(review.patch);
-      setDraft({}); setReview(null); setLastSaved(new Date().toLocaleString());
+      setDraft({}); setReview(null); setLastSaved(new Date().toLocaleString(locale()));
     } catch (err) {
-      setSaveError(positionError(err, 'Save not confirmed. Your changes remain in this draft. Check your connection and retry; do not rely on these changes in a report yet.'));
+      setSaveError(positionError(err, tr("Save not confirmed. Your changes remain in this draft. Check your connection and retry; do not rely on these changes in a report yet.")));
     } finally { saveLock.current = false; setSaving(false); }
   };
   const reviewChanges = () => { setSaveError(''); setReview({ before: savedPosition, patch }); };
   const discard = () => {
-    if (window.confirm('Discard these unsaved position changes? The saved inspection will stay unchanged.')) {
+    if (window.confirm(tr("Discard these unsaved position changes? The saved inspection will stay unchanged."))) {
       setDraft({}); setSaveError('');
     }
   };
@@ -175,7 +178,7 @@ export function PositionPanel({
       await onDelete();
       setDeleteOpen(false);
     } catch (err) {
-      setDeleteError(positionError(err, 'Deletion not confirmed. Check your connection and reload the visit to verify whether the server received the deletion before trying again.'));
+      setDeleteError(positionError(err, tr("Deletion not confirmed. Check your connection and reload the visit to verify whether the server received the deletion before trying again.")));
     } finally { deleteLock.current = false; setDeleting(false); }
   };
 
@@ -206,14 +209,14 @@ export function PositionPanel({
   return (
     <Box sx={{ position: 'relative' }}>
     <Stack direction="row" spacing={0.5} sx={{ position: 'absolute', right: 40, top: 12, zIndex: 1 }}>
-      <Button size="small" startIcon={<EditRoundedIcon />} aria-label={`Edit position ${positionLabel}`} onClick={() => {
+      <Button size="small" startIcon={<EditRoundedIcon />} aria-label={tr("Edit position {0}", [positionLabel])} onClick={() => {
         setExpanded(true);
         requestAnimationFrame(() => configurationRef.current?.focus());
-      }}>Edit</Button>
+      }}>{tr("Edit")}</Button>
       <Button size="small" color="error" disabled={externalSaving} startIcon={<DeleteRoundedIcon />} aria-label={`${savedPosition.id < 0 ? 'Remove draft position' : 'Delete position'} ${positionLabel}`} onClick={() => {
         if (savedPosition.id < 0) { void onDelete(); return; }
         setDeleteError(''); setDeleteAcknowledged(false); setDeleteOpen(true);
-      }}>{savedPosition.id < 0 ? 'Remove from draft' : 'Delete'}</Button>
+      }}>{savedPosition.id < 0 ? tr("Remove from draft") : tr("Delete")}</Button>
     </Stack>
     <Accordion expanded={expanded} onChange={(_, value) => setExpanded(value)} disableGutters variant="outlined" sx={{ '&:before': { display: 'none' } }}>
       <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ '& .MuiAccordionSummary-content': { pr: { sm: 20 }, pt: { xs: 4, sm: 0 }, minHeight: 48, alignItems: 'center' } }}>
@@ -229,13 +232,13 @@ export function PositionPanel({
                     size="small"
                     variant="outlined"
                     color={displayPosition.tower_proximity === 'Inner' ? 'info' : 'secondary'}
-                    label={displayPosition.tower_proximity}
+                    label={tr(displayPosition.tower_proximity)}
                   />
                 )}
               </Stack>
               <Typography variant="caption" color="text.secondary">
-                {displayPosition.mount_type || 'Tower type not set'} · {displayPosition.string_count === 'Double' ? '2 strings' : displayPosition.string_count === 'Single' ? '1 string' : 'String count not set'} · {visitEntryMode ? displayPosition.direction || 'Direction not set' : savedPosition.position_code || 'Direction not set'}
-                {(dirty || savedPosition.id < 0) && <Chip size="small" color="warning" label={visitEntryMode ? 'Draft' : 'Unsaved changes'} sx={{ ml: 1 }} />}
+                {tr(displayPosition.mount_type) || tr("Tower type not set")} · {displayPosition.string_count === 'Double' ? tr("2 strings") : displayPosition.string_count === 'Single' ? tr("1 string") : tr("String count not set")} · {visitEntryMode ? displayPosition.direction || tr("Direction not set") : savedPosition.position_code || tr("Direction not set")}
+                {(dirty || savedPosition.id < 0) && <Chip size="small" color="warning" label={visitEntryMode ? tr("Draft") : tr("Unsaved changes")} sx={{ ml: 1 }} />}
               </Typography>
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
@@ -249,11 +252,11 @@ export function PositionPanel({
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
               {visitEntryMode && (dirty || savedPosition.id < 0) ? (
-                <Chip size="small" label="Draft · check evidence below" color="warning" variant="outlined" />
+                <Chip size="small" label={tr("Draft · check evidence below")} color="warning" variant="outlined" />
               ) : pendingCount > 0 ? (
-                <Chip size="small" label={`${pendingCount} image(s) pending`} color="warning" variant="outlined" />
+                <Chip size="small" label={tr("{0} image(s) pending", [pendingCount])} color="warning" variant="outlined" />
               ) : (
-                <Chip size="small" label="Evidence complete" color="success" variant="outlined" />
+                <Chip size="small" label={tr("Evidence complete")} color="success" variant="outlined" />
               )}
             </Grid>
           </Grid>
@@ -262,11 +265,11 @@ export function PositionPanel({
       <AccordionDetails>
         <Stack component="fieldset" disabled={saving || deleting || externalSaving} spacing={2} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
           {!visitEntryMode && <><Alert severity={dirty ? 'warning' : lastSaved ? 'success' : 'info'}>
-            {dirty ? 'Unsaved changes — review and confirm saving before using these changes in a report.' : lastSaved ? `Saved on the server. Confirmed at ${lastSaved}.` : 'No unsaved field edits in this card. Changes require review and confirmation before saving.'}
+            {dirty ? tr("Unsaved changes — review and confirm saving before using these changes in a report.") : lastSaved ? tr("Saved on the server. Confirmed at {0}.", [lastSaved]) : tr("No unsaved field edits in this card. Changes require review and confirmation before saving.")}
           </Alert>
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-            <Button variant="contained" disabled={!dirty || saving} onClick={reviewChanges}>Review and save changes</Button>
-            <Button disabled={!dirty || saving} onClick={discard}>Discard changes</Button>
+            <Button variant="contained" disabled={!dirty || saving} onClick={reviewChanges}>{tr("Review and save changes")}</Button>
+            <Button disabled={!dirty || saving} onClick={discard}>{tr("Discard changes")}</Button>
           </Stack>
           </>}
           <Box ref={configurationRef} tabIndex={-1} sx={{ outline: 'none', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', borderRadius: 2 } }}>
@@ -281,26 +284,26 @@ export function PositionPanel({
                     onChange={(e) => onUpdate({ installed: e.target.checked })}
                   />
                 }
-                label="Installed"
+                label={tr("Installed")}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4, md: 2 }}>
               <TextField
                 select
                 size="small"
-                label="Inner / Outer"
+                label={tr("Inner / Outer")}
                 fullWidth
-                helperText="Only if this slot has two insulator strings"
+                helperText={tr("Only if this slot has two insulator strings")}
                 disabled={position.string_count === 'Single'}
                 value={position.tower_proximity || ''}
                 onChange={(e) => onUpdate({ tower_proximity: e.target.value || null })}
               >
                 <MenuItem value="">
-                  <em>Not applicable</em>
+                  <em>{tr("Not applicable")}</em>
                 </MenuItem>
                 {lists.tower_proximity.map((p) => (
                   <MenuItem key={p} value={p}>
-                    {p === 'Inner' ? 'Inner — close to tower' : 'Outer — away from tower'}
+                    {p === 'Inner' ? tr("Inner — close to tower") : tr("Outer — away from tower")}
                   </MenuItem>
                 ))}
               </TextField>
@@ -309,15 +312,11 @@ export function PositionPanel({
               <TextField
                 select
                 size="small"
-                label="Screening result"
+                label={tr("Screening result")}
                 fullWidth
                 disabled={!position.installed}
                 helperText={
-                  !position.installed
-                    ? 'Locked to "Not installed" until you toggle Installed on'
-                    : position.screening_result === 'Not inspected'
-                      ? 'Still counts as unscreened — this is what "Inspection incomplete" means. Setting Hotspot? below fills this in automatically.'
-                      : undefined
+                  !position.installed ? tr("Locked to \"Not installed\" until you toggle Installed on") : position.screening_result === 'Not inspected' ? tr("Still counts as unscreened — this is what \"Inspection incomplete\" means. Setting Hotspot? below fills this in automatically.") : undefined
                 }
                 value={position.screening_result}
                 onChange={(e) => {
@@ -328,7 +327,7 @@ export function PositionPanel({
               >
                 {lists.screening_result.map((s) => (
                   <MenuItem key={s} value={s}>
-                    {s}
+                    {tr(s)}
                   </MenuItem>
                 ))}
               </TextField>
@@ -337,7 +336,7 @@ export function PositionPanel({
               <TextField
                 select
                 size="small"
-                label="Hotspot?"
+                label={tr("Hotspot?")}
                 fullWidth
                 value={position.hotspot || ''}
                 onChange={(e) => {
@@ -348,7 +347,7 @@ export function PositionPanel({
               >
                 {lists.hotspot.map((h) => (
                   <MenuItem key={h} value={h}>
-                    {h}
+                    {tr(h)}
                   </MenuItem>
                 ))}
               </TextField>
@@ -357,14 +356,14 @@ export function PositionPanel({
               <TextField
                 select
                 size="small"
-                label="Severity"
+                label={tr("Severity")}
                 fullWidth
                 value={position.severity || ''}
                 onChange={(e) => onUpdate({ severity: e.target.value })}
               >
                 {lists.severity.map((s) => (
                   <MenuItem key={s} value={s}>
-                    {s}
+                    {tr(s)}
                   </MenuItem>
                 ))}
               </TextField>
@@ -373,14 +372,14 @@ export function PositionPanel({
               <TextField
                 select
                 size="small"
-                label="Confidence"
+                label={tr("Confidence")}
                 fullWidth
                 value={position.confidence || ''}
                 onChange={(e) => onUpdate({ confidence: e.target.value })}
               >
                 {lists.confidence.map((c) => (
                   <MenuItem key={c} value={c}>
-                    {c}
+                    {tr(c)}
                   </MenuItem>
                 ))}
               </TextField>
@@ -392,7 +391,7 @@ export function PositionPanel({
               <TextField
                 size="small"
                 type="number"
-                label="Tmax (°C)"
+                label={tr("Tmax (°C)")}
                 fullWidth
                 autoComplete="off"
                 value={tmaxDraft ?? ''}
@@ -403,7 +402,7 @@ export function PositionPanel({
               <TextField
                 size="small"
                 type="number"
-                label="Tref (°C)"
+                label={tr("Tref (°C)")}
                 fullWidth
                 autoComplete="off"
                 value={trefDraft ?? ''}
@@ -411,12 +410,12 @@ export function PositionPanel({
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3, md: 2 }}>
-              <TextField size="small" label="ΔT (°C)" fullWidth value={deltaT ?? '-'} disabled />
+              <TextField size="small" label={tr("ΔT (°C)")} fullWidth value={deltaT ?? '-'} disabled />
             </Grid>
             <Grid size={{ xs: 12, sm: 12, md: 6 }}>
               <TextField
                 size="small"
-                label="Inspector notes"
+                label={tr("Inspector notes")}
                 fullWidth
                 autoComplete="off"
                 value={notesDraft}
@@ -426,13 +425,8 @@ export function PositionPanel({
           </Grid>
 
           <Box>
-            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-              Voice note
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-              Recorded for this insulator only — S1/S2, Inner/Outer, whichever this position is, never
-              mixed with any other one on this tower.
-            </Typography>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{tr("Voice note")}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{tr("Recorded for this insulator only — S1/S2, Inner/Outer, whichever this position is, never mixed with any other one on this tower.")}</Typography>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <VoiceNoteControls
                 saving={voiceNoteSaving}
@@ -445,7 +439,7 @@ export function PositionPanel({
                       src={mediaUrl(`/api/positions/${position.id}/voice/audio`)}
                       duration={position.voice_note_duration_seconds}
                     />
-                    <Tooltip title="Delete this recording">
+                    <Tooltip title={tr("Delete this recording")}>
                       <IconButton size="small" onClick={onDeleteVoiceNote}>
                         <CloseRoundedIcon fontSize="small" />
                       </IconButton>
@@ -463,7 +457,7 @@ export function PositionPanel({
                       disabled={voiceNoteTranscribing}
                       sx={{ mt: 0.5 }}
                     >
-                      {voiceNoteTranscribing ? 'Converting…' : 'Convert to text'}
+                      {voiceNoteTranscribing ? tr("Converting…") : tr("Convert to text")}
                     </Button>
                   )}
                 </Box>
@@ -472,23 +466,17 @@ export function PositionPanel({
           </Box>
 
           {!position.direction && (
-            <Typography variant="caption" color="warning.main">
-              Set the Direction to generate this position's image IDs and enable uploads.
-            </Typography>
+            <Typography variant="caption" color="warning.main">{tr("Set the Direction to generate this position's image IDs and enable uploads.")}</Typography>
           )}
 
           <Box>
-            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-              Insulator record (official report)
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-              Fills the customer's OETC inspection report — only needed for a position that's actually going in it.
-            </Typography>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{tr("Insulator record (official report)")}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{tr("Fills the customer's OETC inspection report — only needed for a position that's actually going in it.")}</Typography>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 4, md: 2.5 }}>
                 <TextField
                   size="small"
-                  label="Manufacturer"
+                  label={tr("Manufacturer")}
                   fullWidth
                   value={position.manufacturer || ''}
                   onChange={(e) => onUpdate({ manufacturer: e.target.value || null })}
@@ -498,7 +486,7 @@ export function PositionPanel({
                 <TextField
                   size="small"
                   type="number"
-                  label="Year installed"
+                  label={tr("Year installed")}
                   fullWidth
                   value={position.year_installed ?? ''}
                   onChange={(e) => onUpdate({ year_installed: e.target.value ? Number(e.target.value) : null })}
@@ -508,17 +496,17 @@ export function PositionPanel({
                 <TextField
                   select
                   size="small"
-                  label="Insulator type"
+                  label={tr("Insulator type")}
                   fullWidth
                   value={position.insulator_type || ''}
                   onChange={(e) => onUpdate({ insulator_type: e.target.value || null })}
                 >
                   <MenuItem value="">
-                    <em>Not set</em>
+                    <em>{tr("Not set")}</em>
                   </MenuItem>
                   {lists.insulator_type.map((t) => (
                     <MenuItem key={t} value={t}>
-                      {t}
+                      {tr(t)}
                     </MenuItem>
                   ))}
                 </TextField>
@@ -528,7 +516,7 @@ export function PositionPanel({
                 <Grid size={{ xs: 12, sm: 4, md: 2.5 }}>
                   <TextField
                     size="small"
-                    label="GS side (which side)"
+                    label={tr("GS side (which side)")}
                     fullWidth
                     value={position.gs_side || ''}
                     onChange={(e) => onUpdate({ gs_side: e.target.value || null })}
@@ -540,17 +528,17 @@ export function PositionPanel({
                 <TextField
                   select
                   size="small"
-                  label="Pollution condition"
+                  label={tr("Pollution condition")}
                   fullWidth
                   value={position.pollution_condition || ''}
                   onChange={(e) => onUpdate({ pollution_condition: e.target.value || null })}
                 >
                   <MenuItem value="">
-                    <em>Not set</em>
+                    <em>{tr("Not set")}</em>
                   </MenuItem>
                   {lists.pollution_condition.map((t) => (
                     <MenuItem key={t} value={t}>
-                      {t}
+                      {tr(t)}
                     </MenuItem>
                   ))}
                 </TextField>
@@ -559,17 +547,17 @@ export function PositionPanel({
                 <TextField
                   select
                   size="small"
-                  label="Thermal indication"
+                  label={tr("Thermal indication")}
                   fullWidth
                   value={position.thermal_indication || ''}
                   onChange={(e) => onUpdate({ thermal_indication: e.target.value || null })}
                 >
                   <MenuItem value="">
-                    <em>Not set</em>
+                    <em>{tr("Not set")}</em>
                   </MenuItem>
                   {lists.thermal_indication.map((t) => (
                     <MenuItem key={t} value={t}>
-                      {t}
+                      {tr(t)}
                     </MenuItem>
                   ))}
                 </TextField>
@@ -587,11 +575,11 @@ export function PositionPanel({
                   }}
                   renderValue={(selected) =>
                     selected.length === 0 ? (
-                      <Typography color="text.secondary">Visual indications</Typography>
+                      <Typography color="text.secondary">{tr("Visual indications")}</Typography>
                     ) : (
                       <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                         {selected.map((v) => (
-                          <Chip key={v} size="small" label={v} />
+                          <Chip key={v} size="small" label={tr(v)} />
                         ))}
                       </Stack>
                     )
@@ -612,14 +600,9 @@ export function PositionPanel({
             <PositionEvidenceUpload position={visitEntryMode ? position : savedPosition} types={lists.image_type} onStage={onStageEvidence}
               disabled={saving || externalSaving} onUpload={onUploadImage} onExtra={onAddExtraImage} onBusyChange={onUploadBusyChange} />
             {draftEvidence}
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-              Every uploaded image for this position is grouped by type below. Check "Include in report" on every image you want in the next report — you can
-              choose more than one per type. Unchecked images remain supporting evidence. Saved reports are unchanged.
-            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>{tr("Every uploaded image for this position is grouped by type below. Check \"Include in report\" on every image you want in the next report — you can choose more than one per type. Unchecked images remain supporting evidence. Saved reports are unchanged.")}</Typography>
             {uploadedImages.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                No images uploaded yet — use one of the four evidence buttons above.
-              </Typography>
+              <Typography variant="body2" color="text.secondary">{tr("No images uploaded yet — use one of the four evidence buttons above.")}</Typography>
             ) : (
               <Grid container spacing={1.5}>
                 {uploadedImages.map((img) => (
@@ -644,53 +627,43 @@ export function PositionPanel({
             )}
           </Box>
           {!visitEntryMode && <Stack direction="row" spacing={1}>
-            <Button variant="contained" disabled={!dirty || saving} onClick={reviewChanges}>Review and save changes</Button>
-            <Button disabled={!dirty || saving} onClick={discard}>Discard changes</Button>
+            <Button variant="contained" disabled={!dirty || saving} onClick={reviewChanges}>{tr("Review and save changes")}</Button>
+            <Button disabled={!dirty || saving} onClick={discard}>{tr("Discard changes")}</Button>
           </Stack>}
         </Stack>
       </AccordionDetails>
     </Accordion>
     <Dialog open={!!review} onClose={() => { if (!saving) setReview(null); }} fullWidth maxWidth="md" aria-labelledby={`save-position-${position.id}`}>
-      <DialogTitle id={`save-position-${position.id}`}>Confirm inspection changes</DialogTitle>
+      <DialogTitle id={`save-position-${position.id}`}>{tr("Confirm inspection changes")}</DialogTitle>
       <DialogContent>
-        <DialogContentText sx={{ mb: 2 }}>
-          Review changes to {positionLabel}. Confirming updates the saved inspection used in future reports.
-          Already generated report documents will not change; regenerate them if these corrections must be included.
-        </DialogContentText>
+        <DialogContentText sx={{ mb: 2 }}>{tr("Review changes to ")}{positionLabel}{tr(". Confirming updates the saved inspection used in future reports. Already generated report documents will not change; regenerate them if these corrections must be included.")}</DialogContentText>
         <Box sx={{ overflowX: 'auto' }}>
-          <Table size="small" aria-label="Position changes to confirm">
-            <TableHead><TableRow><TableCell>Field</TableCell><TableCell>Currently saved</TableCell><TableCell>New value</TableCell></TableRow></TableHead>
+          <Table size="small" aria-label={tr("Position changes to confirm")}>
+            <TableHead><TableRow><TableCell>{tr("Field")}</TableCell><TableCell>{tr("Currently saved")}</TableCell><TableCell>{tr("New value")}</TableCell></TableRow></TableHead>
             <TableBody>{review && positionChangeRows(review.before, review.patch).map(row => <TableRow key={row.key}>
-              <TableCell>{row.label}</TableCell><TableCell sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{row.before}</TableCell><TableCell sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{row.after}</TableCell>
+              <TableCell>{tr(row.label)}</TableCell><TableCell sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{inspectionValue(row.key, review.before[row.key as keyof Position])}</TableCell><TableCell sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{inspectionValue(row.key, review.patch[row.key as keyof Position])}</TableCell>
             </TableRow>)}</TableBody>
           </Table>
         </Box>
-        {saveError && <Alert severity="error" sx={{ mt: 2 }}>{saveError}</Alert>}
+        {saveError && <Alert severity="error" sx={{ mt: 2 }}>{tr(saveError)}</Alert>}
       </DialogContent>
       <DialogActions>
-        <Button autoFocus disabled={saving} onClick={() => setReview(null)}>Back to editing</Button>
-        <Button variant="contained" disabled={saving} onClick={() => void confirmSave()}>{saving ? 'Saving — waiting for server…' : 'Confirm and save changes'}</Button>
+        <Button autoFocus disabled={saving} onClick={() => setReview(null)}>{tr("Back to editing")}</Button>
+        <Button variant="contained" disabled={saving} onClick={() => void confirmSave()}>{saving ? tr("Saving — waiting for server…") : tr("Confirm and save changes")}</Button>
       </DialogActions>
     </Dialog>
     <Dialog open={deleteOpen} onClose={() => { if (!deleting) setDeleteOpen(false); }} aria-labelledby={`delete-position-${position.id}`}>
-      <DialogTitle id={`delete-position-${position.id}`}>Delete inspection position?</DialogTitle>
+      <DialogTitle id={`delete-position-${position.id}`}>{tr("Delete inspection position?")}</DialogTitle>
       <DialogContent>
-        <DialogContentText>
-          Delete {positionLabel}? This permanently removes its inspection results, evidence images,
-          annotations and voice note. You can add this position again to repeat the inspection.
-          General visit photos and saved report documents are kept. This cannot be undone.
-        </DialogContentText>
-        <Alert severity="warning" sx={{ mt: 2 }}>
-          This removes {savedPosition.images.filter(image => image.file_path).length} evidence image(s) and {savedPosition.voice_note_path ? '1 voice recording' : 'no voice recordings'}.
-          Future reports will exclude this position. Previously generated documents are unchanged and may need to be regenerated.
-        </Alert>
-        {dirty && <Alert severity="warning" sx={{ mt: 1 }}>This position also has unsaved changes. Deleting it discards those changes.</Alert>}
-        <FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={deleteAcknowledged} disabled={deleting} onChange={event => setDeleteAcknowledged(event.target.checked)} />} label="I have checked this position and understand that deletion is permanent." />
-        {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
+        <DialogContentText>{tr("Delete ")}{positionLabel}{tr("? This permanently removes its inspection results, evidence images, annotations and voice note. You can add this position again to repeat the inspection. General visit photos and saved report documents are kept. This cannot be undone.")}</DialogContentText>
+        <Alert severity="warning" sx={{ mt: 2 }}>{tr("This removes ")}{savedPosition.images.filter(image => image.file_path).length}{tr(" evidence image(s) and ")}{savedPosition.voice_note_path ? tr("1 voice recording") : tr("no voice recordings")}{tr(". Future reports will exclude this position. Previously generated documents are unchanged and may need to be regenerated.")}</Alert>
+        {dirty && <Alert severity="warning" sx={{ mt: 1 }}>{tr("This position also has unsaved changes. Deleting it discards those changes.")}</Alert>}
+        <FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={deleteAcknowledged} disabled={deleting} onChange={event => setDeleteAcknowledged(event.target.checked)} />} label={tr("I have checked this position and understand that deletion is permanent.")} />
+        {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{tr(deleteError)}</Alert>}
       </DialogContent>
       <DialogActions>
-        <Button autoFocus disabled={deleting} onClick={() => setDeleteOpen(false)}>Cancel</Button>
-        <Button color="error" variant="contained" disabled={deleting || !deleteAcknowledged} onClick={() => void confirmDelete()}>{deleting ? 'Deleting — waiting for server…' : 'Confirm permanent deletion'}</Button>
+        <Button autoFocus disabled={deleting} onClick={() => setDeleteOpen(false)}>{tr("Cancel")}</Button>
+        <Button color="error" variant="contained" disabled={deleting || !deleteAcknowledged} onClick={() => void confirmDelete()}>{deleting ? tr("Deleting — waiting for server…") : tr("Confirm permanent deletion")}</Button>
       </DialogActions>
     </Dialog>
     </Box>

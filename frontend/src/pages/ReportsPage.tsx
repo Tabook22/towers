@@ -1,3 +1,4 @@
+import { tr, useLanguage, locale } from '../i18n';
 import { useRef, useState, type ReactNode } from 'react';
 import {
   Accordion,
@@ -60,6 +61,7 @@ function ReportSection({
   defaultExpanded?: boolean;
   children: ReactNode;
 }) {
+  useLanguage();
   return (
     <Accordion defaultExpanded={defaultExpanded} disableGutters>
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
@@ -71,7 +73,7 @@ function ReportSection({
       </AccordionSummary>
       <AccordionDetails>
         <Alert severity="info" icon={false} sx={{ mb: 2 }}>
-          <strong>Use this when:</strong> {useWhen}
+          <strong>{tr("Use this when:")}</strong> {useWhen}
         </Alert>
         {children}
       </AccordionDetails>
@@ -98,6 +100,7 @@ function TemplateSlot({
   loading: boolean;
   canRemove: boolean;
 }) {
+  useLanguage();
   const uploadTemplate = useUploadReportTemplate();
   const deleteTemplate = useDeleteReportTemplate();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -109,7 +112,7 @@ function TemplateSlot({
     uploadTemplate.mutate(file, {
       onError: (err: unknown) => {
         const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-        setUploadError(detail || `Could not upload that file — please make sure it's a valid ${accept}.`);
+        setUploadError(detail || tr("Could not upload that file — please make sure it's a valid {0}.", [accept]));
       },
     });
   };
@@ -127,15 +130,13 @@ function TemplateSlot({
         {!loading && template ? (
           <Chip
             icon={<DescriptionRoundedIcon fontSize="small" />}
-            label={`${template.original_filename} — uploaded ${new Date(template.uploaded_at).toLocaleDateString()}`}
+            label={tr("{0} — uploaded {1}", [template.original_filename, new Date(template.uploaded_at).toLocaleDateString(locale())])}
             color="primary"
             variant="outlined"
           />
         ) : (
           !loading && (
-            <Typography variant="body2" color="text.secondary">
-              No custom template uploaded yet.
-            </Typography>
+            <Typography variant="body2" color="text.secondary">{tr("No custom template uploaded yet.")}</Typography>
           )
         )}
 
@@ -156,7 +157,7 @@ function TemplateSlot({
           onClick={() => fileRef.current?.click()}
           disabled={uploadTemplate.isPending}
         >
-          {template ? 'Replace template' : 'Upload template'}
+          {template ? tr("Replace template") : tr("Upload template")}
         </Button>
         <Button
           size="small"
@@ -166,9 +167,7 @@ function TemplateSlot({
           href={mediaUrl(`/api/report-templates/starter?kind=${kind}`)}
           target="_blank"
           rel="noreferrer"
-        >
-          Download starter
-        </Button>
+        >{tr("Download starter")}</Button>
         {template && canRemove && (
           <Button
             size="small"
@@ -177,14 +176,12 @@ function TemplateSlot({
             startIcon={<DeleteOutlineIcon fontSize="small" />}
             onClick={() => deleteTemplate.mutate(kind)}
             disabled={deleteTemplate.isPending}
-          >
-            Remove
-          </Button>
+          >{tr("Remove")}</Button>
         )}
       </Stack>
       {uploadError && (
         <Alert severity="error" sx={{ mt: 1.5 }} onClose={() => setUploadError(null)}>
-          {uploadError}
+          {tr(uploadError)}
         </Alert>
       )}
     </Box>
@@ -192,6 +189,7 @@ function TemplateSlot({
 }
 
 export function ReportsPage() {
+  useLanguage();
   const { user } = useAuth();
   // Mirrors routers/reports.py and routers/report_templates.py: generating the official/execution
   // reports and uploading a custom template need "add"; clearing an active template needs "full".
@@ -221,17 +219,17 @@ export function ReportsPage() {
       <Box sx={{ p: { xs: 3, md: 4 }, borderRadius: '22px', color: '#fff', position: 'relative', overflow: 'hidden', background: 'radial-gradient(ellipse at 95% 0%, #246d76 0%, transparent 55%), linear-gradient(115deg, #102c3b, #123c48)', '&::after': { content: '""', position: 'absolute', width: 280, height: 280, border: '1px solid #ffffff12', borderRadius: '50%', right: -90, bottom: -190, pointerEvents: 'none' } }}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, position: 'relative', zIndex: 1 }}>
           <Box>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}><FolderCopyRoundedIcon sx={{ fontSize: 19, color: '#76d5c6' }} /><Typography variant="overline" sx={{ color: '#9fe4da', letterSpacing: 2 }}>Inspection intelligence</Typography></Stack>
-            <Typography variant="h3" component="h1" sx={{ fontWeight: 750, letterSpacing: '-0.04em', fontSize: { xs: 32, md: 40 }, mb: 1 }}>Every inspection. Clearly reported.</Typography>
-            <Typography sx={{ color: '#bed3dc', maxWidth: 650 }}>Your reporting workspace. Create customer-ready documents and keep every saved report within reach.</Typography>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}><FolderCopyRoundedIcon sx={{ fontSize: 19, color: '#76d5c6' }} /><Typography variant="overline" sx={{ color: '#9fe4da', letterSpacing: 2 }}>{tr("Inspection intelligence")}</Typography></Stack>
+            <Typography variant="h3" component="h1" sx={{ fontWeight: 750, letterSpacing: '-0.04em', fontSize: { xs: 32, md: 40 }, mb: 1 }}>{tr("Every inspection. Clearly reported.")}</Typography>
+            <Typography sx={{ color: '#bed3dc', maxWidth: 650 }}>{tr("Your reporting workspace. Create customer-ready documents and keep every saved report within reach.")}</Typography>
           </Box>
-          {canManageProjectPlans && <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setTab('create')} sx={{ bgcolor: '#b9f2df', color: '#103b35', px: 2.5, py: 1.3, flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' }, '&:hover': { bgcolor: '#d6f9ed' } }}>Create report</Button>}
+          {canManageProjectPlans && <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setTab('create')} sx={{ bgcolor: '#b9f2df', color: '#103b35', px: 2.5, py: 1.3, flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' }, '&:hover': { bgcolor: '#d6f9ed' } }}>{tr("Create report")}</Button>}
         </Stack>
       </Box>
-      <Tabs value={tab} onChange={(_, value) => setTab(value)} aria-label="Reporting workspace" variant="scrollable" sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tab value="library" label="Report library" id="report-tab-library" aria-controls="report-panel-library" />
-        {canManageProjectPlans && <Tab value="create" label="Create report" id="report-tab-create" aria-controls="report-panel-create" />}
-        <Tab value="tools" label="Exports & templates" id="report-tab-tools" aria-controls="report-panel-tools" />
+      <Tabs value={tab} onChange={(_, value) => setTab(value)} aria-label={tr("Reporting workspace")} variant="scrollable" sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tab value="library" label={tr("Report library")} id="report-tab-library" aria-controls="report-panel-library" />
+        {canManageProjectPlans && <Tab value="create" label={tr("Create report")} id="report-tab-create" aria-controls="report-panel-create" />}
+        <Tab value="tools" label={tr("Exports & templates")} id="report-tab-tools" aria-controls="report-panel-tools" />
       </Tabs>
       <Box role="tabpanel" id="report-panel-library" aria-labelledby="report-tab-library" hidden={tab !== 'library'}><ReportHistoryTable key={libraryVersion} /></Box>
       {canManageProjectPlans && <Box role="tabpanel" id="report-panel-create" aria-labelledby="report-tab-create" hidden={tab !== 'create'}><Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: '16px' }}><OfficialReportForm showHistory={false} onCreated={() => { setCreated(true); setLibraryVersion((n) => n + 1); setTab('library'); }} /></Paper></Box>}
@@ -239,26 +237,26 @@ export function ReportsPage() {
       <Stack spacing={2}>
 
       <ReportSection
-        title="Team activity report"
+        title={tr("Team activity report")}
         useWhen="you just want to see or export what a team has actually done so far — not the customer template, a plain internal breakdown you can filter and download as Excel."
       >
         <TeamActivityReport />
       </ReportSection>
 
       <ReportSection
-        title="Overall summary (PDF)"
+        title={tr("Overall summary (PDF)")}
         useWhen="you want a quick internal snapshot PDF across all towers (optionally one area) — a fast status check for yourself, not something to hand the customer."
       >
         <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
           <TextField
             select
             size="small"
-            label="Area"
+            label={tr("Area")}
             value={area}
             onChange={(e) => setArea(e.target.value)}
             sx={{ minWidth: 180 }}
           >
-            <MenuItem value="">All areas</MenuItem>
+            <MenuItem value="">{tr("All areas")}</MenuItem>
             {areas?.map((a) => (
               <MenuItem key={a} value={a}>
                 {a}
@@ -272,15 +270,13 @@ export function ReportsPage() {
             href={overallReportUrl}
             target="_blank"
             rel="noreferrer"
-          >
-            Download overall summary (PDF)
-          </Button>
+          >{tr("Download overall summary (PDF)")}</Button>
         </Stack>
       </ReportSection>
 
       {canManageProjectPlans && (
         <ReportSection
-          title="Field execution plan"
+          title={tr("Field execution plan")}
           useWhen="you're mobilizing and need a plan document showing tower/team counts and a day-by-day schedule — a planning tool, not an inspection report."
         >
           <FieldExecutionPlanForm />
@@ -289,13 +285,13 @@ export function ReportsPage() {
 
       {canManageProjectPlans && (
       <ReportSection
-        title="Custom report templates"
+        title={tr("Custom report templates")}
         useWhen="you want reports in your own branded layout (logo, colors, fonts) instead of the built-in one — advanced, and not needed for the official customer report in Create report, which already uses the customer's own fixed template."
       >
         <Stack spacing={2.5} divider={<Divider />}>
           <TemplateSlot
             kind="docx"
-            label="Word template"
+            label={tr("Word template")}
             accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             description={
               'A Word (.docx) mail-merge template — full layout freedom, and it supports a repeating table row ' +
@@ -307,7 +303,7 @@ export function ReportsPage() {
           />
           <TemplateSlot
             kind="pdf"
-            label="PDF template"
+            label={tr("PDF template")}
             accept=".pdf,application/pdf"
             description={
               'A fillable PDF form — design the page and place named form fields (in Acrobat, LibreOffice, or ' +
@@ -323,18 +319,18 @@ export function ReportsPage() {
       )}
 
       <ReportSection
-        title="Per-tower reports"
+        title={tr("Per-tower reports")}
         useWhen="you want a one-off PDF or Word download for a single tower's latest visit only — not the official customer report in Create report."
       >
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Tower</TableCell>
-                <TableCell>Area</TableCell>
-                <TableCell>Latest visit</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell align="right">Report</TableCell>
+                <TableCell>{tr("Tower")}</TableCell>
+                <TableCell>{tr("Area")}</TableCell>
+                <TableCell>{tr("Latest visit")}</TableCell>
+                <TableCell>{tr("Status")}</TableCell>
+                <TableCell align="right">{tr("Report")}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -356,10 +352,8 @@ export function ReportsPage() {
                           href={mediaUrl(`/api/reports/visits/${row.latest_visit.id}.pdf`)}
                           target="_blank"
                           rel="noreferrer"
-                        >
-                          PDF
-                        </Button>
-                        <Tooltip title={templates?.docx ? '' : 'Upload a Word template above first'}>
+                        >{tr("PDF")}</Button>
+                        <Tooltip title={templates?.docx ? '' : tr("Upload a Word template above first")}>
                           <span>
                             <Button
                               size="small"
@@ -369,12 +363,10 @@ export function ReportsPage() {
                               target="_blank"
                               rel="noreferrer"
                               disabled={!templates?.docx}
-                            >
-                              Word
-                            </Button>
+                            >{tr("Word")}</Button>
                           </span>
                         </Tooltip>
-                        <Tooltip title={templates?.pdf ? '' : 'Upload a PDF template above first'}>
+                        <Tooltip title={templates?.pdf ? '' : tr("Upload a PDF template above first")}>
                           <span>
                             <Button
                               size="small"
@@ -384,25 +376,19 @@ export function ReportsPage() {
                               target="_blank"
                               rel="noreferrer"
                               disabled={!templates?.pdf}
-                            >
-                              PDF (custom)
-                            </Button>
+                            >{tr("PDF (custom)")}</Button>
                           </span>
                         </Tooltip>
                       </Stack>
                     ) : (
-                      <Typography variant="caption" color="text.secondary">
-                        No visit yet
-                      </Typography>
+                      <Typography variant="caption" color="text.secondary">{tr("No visit yet")}</Typography>
                     )}
                   </TableCell>
                 </TableRow>
               ))}
               {!isLoading && data?.rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">
-                    No towers yet — add one from the Towers page.
-                  </TableCell>
+                  <TableCell colSpan={5} align="center">{tr("No towers yet — add one from the Towers page.")}</TableCell>
                 </TableRow>
               )}
             </TableBody>

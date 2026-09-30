@@ -1,3 +1,4 @@
+import { tr, useLanguage, locale } from '../i18n';
 import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
@@ -158,6 +159,7 @@ function TeamSection({
   action?: ReactNode;
   children: ReactNode;
 }) {
+  useLanguage();
   return (
     <Accordion defaultExpanded={defaultExpanded} disableGutters>
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
@@ -263,7 +265,7 @@ function formatBytes(n: number | null | undefined): string {
 function formatTime(iso: string | null): string {
   if (!iso) return '-';
   const d = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
 }
 
 function isoMs(iso: string): number {
@@ -276,6 +278,7 @@ function missionSelectKey(m: TrackingMission): string {
 }
 
 function TrackMapBridge({ mapRef }: { mapRef: MutableRefObject<L.Map | null> }) {
+  useLanguage();
   const map = useMap();
   useEffect(() => {
     mapRef.current = map;
@@ -287,6 +290,7 @@ function TrackMapBridge({ mapRef }: { mapRef: MutableRefObject<L.Map | null> }) 
 }
 
 function FitTrack({ positions, resetKey }: { positions: [number, number][]; resetKey: string }) {
+  useLanguage();
   const map = useMap();
   const lastKey = useRef('');
   useEffect(() => {
@@ -333,14 +337,13 @@ function DayPathMap({
   isToday: boolean;
   liveMembers: LiveTeamMember[] | undefined;
 }) {
+  useLanguage();
   const { data: trails } = useTeamTrails(teamId, logDate);
   const hasPath = (trails || []).some((t) => t.points.length > 0);
   if (!hasPath && !(isToday && (liveMembers || []).length)) return null;
   return (
     <Box>
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-        GPS path this outing — updates live while the crew is signed in
-      </Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("GPS path this outing — updates live while the crew is signed in")}</Typography>
       <TeamSiteMap
         liveMembers={isToday ? liveMembers : undefined}
         trails={trails}
@@ -351,6 +354,7 @@ function DayPathMap({
 }
 
 export function TeamDetailPage() {
+  useLanguage();
   const { teamId } = useParams();
   const id = Number(teamId);
   const navigate = useNavigate();
@@ -607,11 +611,11 @@ export function TeamDetailPage() {
   const handleSaveMemberEdit = () => {
     if (!editingMember) return;
     if (editMemberForm.username.trim().length < 3) {
-      setEditMemberError('Username needs at least 3 characters.');
+      setEditMemberError(tr("Username needs at least 3 characters."));
       return;
     }
     if (editMemberForm.password && editMemberForm.password.length < 6) {
-      setEditMemberError('New password needs at least 6 characters.');
+      setEditMemberError(tr("New password needs at least 6 characters."));
       return;
     }
     setEditMemberError(null);
@@ -696,13 +700,9 @@ export function TeamDetailPage() {
     const status = (teamError as { response?: { status?: number } })?.response?.status;
     return (
       <Stack spacing={2}>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/teams')} sx={{ alignSelf: 'flex-start' }}>
-          Back to teams
-        </Button>
+        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/teams')} sx={{ alignSelf: 'flex-start' }}>{tr("Back to teams")}</Button>
         <Alert severity={status === 403 || !status ? 'warning' : 'error'}>
-          {status === 403 || !status
-            ? "You don't have access to this team."
-            : 'Could not load this team.'}
+          {status === 403 || !status ? tr("You don't have access to this team.") : tr("Could not load this team.")}
         </Alert>
       </Stack>
     );
@@ -771,11 +771,11 @@ export function TeamDetailPage() {
     try {
       const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`;
       const res = await fetch(url);
-      if (!res.ok) throw new Error('routing service unavailable');
+      if (!res.ok) throw new Error(tr("routing service unavailable"));
       const data = await res.json();
       const route = data?.routes?.[0];
       const coordinates: [number, number][] | undefined = route?.geometry?.coordinates;
-      if (!coordinates || coordinates.length === 0) throw new Error('no route found');
+      if (!coordinates || coordinates.length === 0) throw new Error(tr("no route found"));
       const coords: [number, number][] = coordinates.map(([lng, lat]) => [lat, lng]);
       setRoutePath(coords);
       setRouteDriving({ distanceKm: route.distance / 1000, durationMin: route.duration / 60 });
@@ -793,7 +793,7 @@ export function TeamDetailPage() {
     if (t.latitude == null || t.longitude == null) return;
     setRouteError(null);
     if (!navigator.geolocation) {
-      setRouteError('This browser cannot get your location, so a path can’t be drawn.');
+      setRouteError(tr("This browser cannot get your location, so a path can’t be drawn."));
       return;
     }
     setRoutingTowerId(t.id);
@@ -819,9 +819,7 @@ export function TeamDetailPage() {
       (err) => {
         setRoutingTowerId(null);
         setRouteError(
-          err.code === err.PERMISSION_DENIED
-            ? 'Location permission denied — allow location access to see the path here.'
-            : 'Could not get your current location.',
+          err.code === err.PERMISSION_DENIED ? tr("Location permission denied — allow location access to see the path here.") : tr("Could not get your current location."),
         );
       },
       { enableHighAccuracy: true, timeout: 15_000, maximumAge: 30_000 },
@@ -846,21 +844,17 @@ export function TeamDetailPage() {
 
   return (
     <Stack spacing={3}>
-      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/')} sx={{ alignSelf: 'flex-start' }}>
-        Back to dashboard
-      </Button>
+      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/')} sx={{ alignSelf: 'flex-start' }}>{tr("Back to dashboard")}</Button>
 
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
         <Typography variant="h4" sx={{ fontWeight: 800 }}>
           {team.name}
         </Typography>
         <Chip label={team.status} color={STATUS_COLORS[team.status] || 'default'} />
-        {!team.is_active && <Chip label="Archived" variant="outlined" />}
+        {!team.is_active && <Chip label={tr("Archived")} variant="outlined" />}
         <Box sx={{ flex: 1 }} />
         {canManage && (
-          <Button variant="outlined" startIcon={<DescriptionRoundedIcon />} onClick={openReportDialog}>
-            Generate official report
-          </Button>
+          <Button variant="outlined" startIcon={<DescriptionRoundedIcon />} onClick={openReportDialog}>{tr("Generate official report")}</Button>
         )}
       </Stack>
 
@@ -868,20 +862,19 @@ export function TeamDetailPage() {
         <TeamSection
           step={1}
           icon={<InsightsRoundedIcon />}
-          title="At a glance"
-          description="Live counts for this team — towers, screened positions, hotspots, roster size, and the daily target."
+          title={tr("At a glance")}
+          description={tr("Live counts for this team — towers, screened positions, hotspots, roster size, and the daily target.")}
         >
           <Grid container spacing={2}>
             <Grid size={{ xs: 6, sm: 2.4 }}>
               <KpiTile
-                label={`Towers (${rangeStart} → ${rangeEnd})`}
+                label={tr("Towers ({0} → {1})", [rangeStart, rangeEnd])}
                 value={
                   team.daily_target ? (
                     <Stack direction="row" spacing={0.75} sx={{ alignItems: 'baseline' }}>
                       <span>{totals.towers}</span>
                       <Typography variant="caption" color="text.secondary">
-                        / ~{team.daily_target * (progress?.length || 0)} planned
-                      </Typography>
+                        / ~{team.daily_target * (progress?.length || 0)}{tr(" planned")}</Typography>
                     </Stack>
                   ) : (
                     totals.towers
@@ -891,17 +884,17 @@ export function TeamDetailPage() {
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 2.4 }}>
-              <KpiTile label="Positions screened" value={totals.screened} icon={<FactCheckIcon />} color="#3a6f84" />
+              <KpiTile label={tr("Positions screened")} value={totals.screened} icon={<FactCheckIcon />} color="#3a6f84" />
             </Grid>
             <Grid size={{ xs: 6, sm: 2.4 }}>
-              <KpiTile label="Hotspots found" value={totals.hotspots} icon={<LocalFireDepartmentIcon />} color="#d32f2f" />
+              <KpiTile label={tr("Hotspots found")} value={totals.hotspots} icon={<LocalFireDepartmentIcon />} color="#d32f2f" />
             </Grid>
             <Grid size={{ xs: 6, sm: 2.4 }}>
-              <KpiTile label="Roster size" value={team.members.length} icon={<PersonAddIcon />} color="#6d4c41" />
+              <KpiTile label={tr("Roster size")} value={team.members.length} icon={<PersonAddIcon />} color="#6d4c41" />
             </Grid>
             <Grid size={{ xs: 12, sm: 2.4 }}>
               <KpiTile
-                label="Daily target (working plan)"
+                label={tr("Daily target (working plan)")}
                 value={team.daily_target ? `${team.daily_target}/day` : 'Not set'}
                 icon={<FlagRoundedIcon />}
                 color="#8a6d00"
@@ -914,18 +907,14 @@ export function TeamDetailPage() {
       <TeamSection
         step={2}
         icon={<MyLocationIcon />}
-        title="Site map"
+        title={tr("Site map")}
         description={
-          canManage
-            ? 'Green pin: click to assign to this team. Red pin: click to unassign (so another team can take an unfinished tower). Admin can also click a red pin from another team to give it to this team.'
-            : "Every registered tower (number + Tower ID), live GPS, and the crew's recorded track."
+          canManage ? tr("Green pin: click to assign to this team. Red pin: click to unassign (so another team can take an unfinished tower). Admin can also click a red pin from another team to give it to this team.") : tr("Every registered tower (number + Tower ID), live GPS, and the crew's recorded track.")
         }
       >
           {canManage && (
             <Stack direction="row" sx={{ justifyContent: 'flex-end', mb: 1.5 }}>
-              <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setClaimError(null); setClaimOpen(true); }}>
-                Add tower
-              </Button>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setClaimError(null); setClaimOpen(true); }}>{tr("Add tower")}</Button>
             </Stack>
           )}
           {canManage && (jobMap?.towers || []).length > 0 && (
@@ -936,7 +925,7 @@ export function TeamDetailPage() {
                   size="small"
                   label={t.tower_id}
                   onDelete={() => {
-                    if (window.confirm(`Release ${t.tower_id} so another team can take it?`)) {
+                    if (window.confirm(tr("Release {0} so another team can take it?", [t.tower_id]))) {
                       releaseTower.mutate(t.id);
                     }
                   }}
@@ -947,7 +936,7 @@ export function TeamDetailPage() {
           )}
           {claimError && (
             <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setClaimError(null)}>
-              {claimError}
+              {tr(claimError)}
             </Alert>
           )}
           <TeamSiteMap
@@ -982,7 +971,7 @@ export function TeamDetailPage() {
                     if (t.assigned_team_id === id) {
                       if (
                         window.confirm(
-                          `Unassign ${t.tower_id} from this team so another team can inspect it?`,
+                          tr("Unassign {0} from this team so another team can inspect it?", [t.tower_id]),
                         )
                       ) {
                         releaseTower.mutate(t.id, { onError: (err) => setClaimError(String(errOf(err))) });
@@ -992,7 +981,7 @@ export function TeamDetailPage() {
                     if (isAdmin) {
                       if (
                         window.confirm(
-                          `Give ${t.tower_id} to this team? It is currently assigned to ${t.assigned_team_name || 'another team'}.`,
+                          tr("Give {0} to this team? It is currently assigned to {1}.", [t.tower_id, t.assigned_team_name || tr("another team")]),
                         )
                       ) {
                         claimForTeam.mutate(
@@ -1003,7 +992,7 @@ export function TeamDetailPage() {
                       return;
                     }
                     setClaimError(
-                      `${t.tower_id} belongs to ${t.assigned_team_name || 'another team'}. That team or an admin must unassign it first.`,
+                      tr("{0} belongs to {1}. That team or an admin must unassign it first.", [t.tower_id, t.assigned_team_name || tr("another team")]),
                     );
                   }
                 : undefined
@@ -1035,14 +1024,14 @@ export function TeamDetailPage() {
           <TeamSection
             step={3}
             icon={<AssignmentRoundedIcon />}
-            title="Mission"
-            description="This team's standing mission brief — leader contact, scope, and schedule. Click any field and it saves when you click away."
+            title={tr("Mission")}
+            description={tr("This team's standing mission brief — leader contact, scope, and schedule. Click any field and it saves when you click away.")}
           >
               <Stack spacing={2}>
                 <Grid container spacing={2}>
                   <Grid size={6}>
                     <TextField
-                      label="Team leader"
+                      label={tr("Team leader")}
                       fullWidth
                       size="small"
                       defaultValue={team.leader_name || ''}
@@ -1051,7 +1040,7 @@ export function TeamDetailPage() {
                   </Grid>
                   <Grid size={6}>
                     <TextField
-                      label="Leader phone"
+                      label={tr("Leader phone")}
                       fullWidth
                       size="small"
                       defaultValue={team.leader_phone || ''}
@@ -1060,7 +1049,7 @@ export function TeamDetailPage() {
                   </Grid>
                 </Grid>
                 <TextField
-                  label="Mission"
+                  label={tr("Mission")}
                   fullWidth
                   multiline
                   minRows={2}
@@ -1071,7 +1060,7 @@ export function TeamDetailPage() {
                 <Grid container spacing={2}>
                   <Grid size={6}>
                     <TextField
-                      label="From"
+                      label={tr("From")}
                       fullWidth
                       size="small"
                       defaultValue={team.mission_from || ''}
@@ -1080,7 +1069,7 @@ export function TeamDetailPage() {
                   </Grid>
                   <Grid size={6}>
                     <TextField
-                      label="To"
+                      label={tr("To")}
                       fullWidth
                       size="small"
                       defaultValue={team.mission_to || ''}
@@ -1091,7 +1080,7 @@ export function TeamDetailPage() {
                 <Grid container spacing={2}>
                   <Grid size={4}>
                     <TextField
-                      label="Start date"
+                      label={tr("Start date")}
                       type="date"
                       fullWidth
                       size="small"
@@ -1102,7 +1091,7 @@ export function TeamDetailPage() {
                   </Grid>
                   <Grid size={4}>
                     <TextField
-                      label="End date"
+                      label={tr("End date")}
                       type="date"
                       fullWidth
                       size="small"
@@ -1113,28 +1102,28 @@ export function TeamDetailPage() {
                   </Grid>
                   <Grid size={4}>
                     <TextField
-                      label="Status"
+                      label={tr("Status")}
                       select
                       fullWidth
                       size="small"
                       defaultValue={team.status}
                       onChange={(e) => commitField('status', e.target.value)}
                     >
-                      <MenuItem value="active">Active</MenuItem>
-                      <MenuItem value="paused">Paused</MenuItem>
-                      <MenuItem value="completed">Completed</MenuItem>
+                      <MenuItem value="active">{tr("Active")}</MenuItem>
+                      <MenuItem value="paused">{tr("Paused")}</MenuItem>
+                      <MenuItem value="completed">{tr("Completed")}</MenuItem>
                     </TextField>
                   </Grid>
                 </Grid>
                 <TextField
-                  label="General notes"
+                  label={tr("General notes")}
                   fullWidth
                   multiline
                   minRows={2}
                   size="small"
                   defaultValue={team.notes || ''}
                   onBlur={(e) => commitField('notes', e.target.value || null)}
-                  placeholder="Standing notes about this team (not day-specific — see the daily log below for that)"
+                  placeholder={tr("Standing notes about this team (not day-specific — see the daily log below for that)")}
                 />
               </Stack>
           </TeamSection>
@@ -1145,8 +1134,8 @@ export function TeamDetailPage() {
           <Grid size={{ xs: 12, md: 6 }}>
             <TeamSection
               icon={<LinkIcon />}
-              title="Linked logins"
-              description="The account(s) whose device pings and visits count toward this team's tracking & progress — usually just the leader's phone."
+              title={tr("Linked logins")}
+              description={tr("The account(s) whose device pings and visits count toward this team's tracking & progress — usually just the leader's phone.")}
             >
                 <Stack spacing={1} sx={{ mb: 2 }}>
                   {linkedUsers.map((u) => (
@@ -1156,7 +1145,7 @@ export function TeamDetailPage() {
                         {u.username}
                       </Typography>
                       {canManageLogins && (
-                        <Tooltip title="Unlink from this team">
+                        <Tooltip title={tr("Unlink from this team")}>
                           <IconButton size="small" onClick={() => updateUserMut.mutate({ id: u.id, payload: { team_id: null } })}>
                             <LinkOffIcon fontSize="small" />
                           </IconButton>
@@ -1165,9 +1154,7 @@ export function TeamDetailPage() {
                     </Stack>
                   ))}
                   {linkedUsers.length === 0 && (
-                    <Typography variant="body2" color="text.secondary">
-                      No login linked yet.
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary">{tr("No login linked yet.")}</Typography>
                   )}
                 </Stack>
                 {/* Linking an existing account, and creating a new one below, both go through
@@ -1178,13 +1165,13 @@ export function TeamDetailPage() {
                     <TextField
                       select
                       size="small"
-                      label="Link an existing account"
+                      label={tr("Link an existing account")}
                       sx={{ minWidth: 220 }}
                       value={linkUserId}
                       onChange={(e) => setLinkUserId(e.target.value)}
                     >
                       <MenuItem value="" disabled>
-                        {enabledUsers ? 'Choose a login' : 'Loading…'}
+                        {enabledUsers ? tr("Choose a login") : tr("Loading…")}
                       </MenuItem>
                       {unlinkedUsers.map((u) => (
                         <MenuItem key={u.id} value={u.id}>
@@ -1202,44 +1189,37 @@ export function TeamDetailPage() {
                           { onSuccess: () => setLinkUserId('') },
                         );
                       }}
-                    >
-                      Link
-                    </Button>
+                    >{tr("Link")}</Button>
                   </Stack>
                 )}
 
                 {canAddLogins && (
                   <>
                     <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-                      Create a new team-leader login
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                      Gives this team leader their own username and password — signed in, they'll see and
-                      manage only this team's roster and missions, nothing from other teams.
-                    </Typography>
+                    <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{tr("Create a new team-leader login")}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>{tr("Gives this team leader their own username and password — signed in, they'll see and manage only this team's roster and missions, nothing from other teams.")}</Typography>
                     {newLoginError && (
                       <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setNewLoginError(null)}>
-                        {newLoginError}
+                        {tr(newLoginError)}
                       </Alert>
                     )}
                     <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
                       <TextField
                         size="small"
-                        label="Username"
+                        label={tr("Username")}
                         value={newLoginForm.username}
                         onChange={(e) => setNewLoginForm((f) => ({ ...f, username: e.target.value }))}
                       />
                       <TextField
                         size="small"
-                        label="Password"
+                        label={tr("Password")}
                         type="password"
                         value={newLoginForm.password}
                         onChange={(e) => setNewLoginForm((f) => ({ ...f, password: e.target.value }))}
                       />
                       <TextField
                         size="small"
-                        label="Full name"
+                        label={tr("Full name")}
                         value={newLoginForm.full_name}
                         onChange={(e) => setNewLoginForm((f) => ({ ...f, full_name: e.target.value }))}
                       />
@@ -1268,13 +1248,9 @@ export function TeamDetailPage() {
                             },
                           );
                         }}
-                      >
-                        Create login
-                      </Button>
+                      >{tr("Create login")}</Button>
                     </Stack>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                      Password needs at least 6 characters.
-                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>{tr("Password needs at least 6 characters.")}</Typography>
                   </>
                 )}
             </TeamSection>
@@ -1288,19 +1264,19 @@ export function TeamDetailPage() {
             <TeamSection
               step={4}
               icon={<GroupsRoundedIcon />}
-              title="Team members"
-              description="Each member has their own login — they'll only ever see the missions you assign to them, never each other's or your details."
+              title={tr("Team members")}
+              description={tr("Each member has their own login — they'll only ever see the missions you assign to them, never each other's or your details.")}
             >
                 <Stack spacing={1} sx={{ mb: 2 }}>
                   {teamMemberLogins.map((u) => (
                     <Stack key={u.id} direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                       <Chip label={u.full_name || u.username} size="small" />
-                      {u.job_type && <Chip label={u.job_type} size="small" variant="outlined" color="primary" />}
+                      {u.job_type && <Chip label={tr(u.job_type)} size="small" variant="outlined" color="primary" />}
                       <Typography variant="caption" color="text.secondary">
                         {u.username}
                         {u.mobile ? ` · ${u.mobile}` : ''}
                       </Typography>
-                      {!u.is_active && <Chip label="Deactivated" size="small" color="default" />}
+                      {!u.is_active && <Chip label={tr("Deactivated")} size="small" color="default" />}
                       {canManageLogins && (
                         <IconButton
                           size="small"
@@ -1315,17 +1291,13 @@ export function TeamDetailPage() {
                     </Stack>
                   ))}
                   {teamMemberLogins.length === 0 && team.members.length === 0 && (
-                    <Typography variant="body2" color="text.secondary">
-                      No team members added yet.
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary">{tr("No team members added yet.")}</Typography>
                   )}
                 </Stack>
 
                 {team.members.length > 0 && (
                   <>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                      From the old contact-only roster — not yet given a login:
-                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("From the old contact-only roster — not yet given a login:")}</Typography>
                     <Stack spacing={0.75} sx={{ mb: 2 }}>
                       {team.members.map((m) => (
                         <Stack key={m.id} direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1347,15 +1319,13 @@ export function TeamDetailPage() {
                                   job_type: m.role_title || '',
                                 }));
                               }}
-                            >
-                              Give login →
-                            </Button>
+                            >{tr("Give login →")}</Button>
                           )}
                           <IconButton
                             size="small"
                             color="error"
                             onClick={() => {
-                              if (window.confirm(`Remove ${m.name}? They were never given a login.`)) removeMember.mutate(m.id);
+                              if (window.confirm(tr("Remove {0}? They were never given a login.", [m.name]))) removeMember.mutate(m.id);
                             }}
                           >
                             <DeleteIcon fontSize="small" />
@@ -1369,61 +1339,57 @@ export function TeamDetailPage() {
                 {canAddLogins && (
                   <>
                 <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-                  Add a team member
-                </Typography>
+                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{tr("Add a team member")}</Typography>
                 {convertingMemberId != null && (
-                  <Alert severity="info" sx={{ mb: 1.5 }} onClose={() => setConvertingMemberId(null)}>
-                    Giving {memberLoginForm.full_name} a login — just add a username &amp; password below.
-                  </Alert>
+                  <Alert severity="info" sx={{ mb: 1.5 }} onClose={() => setConvertingMemberId(null)}>{tr("Giving ")}{memberLoginForm.full_name}{tr(" a login — just add a username & password below.")}</Alert>
                 )}
                 {memberLoginError && (
                   <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setMemberLoginError(null)}>
-                    {memberLoginError}
+                    {tr(memberLoginError)}
                   </Alert>
                 )}
                 <Stack spacing={1.5}>
                   <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
                     <TextField
                       size="small"
-                      label="Full name"
+                      label={tr("Full name")}
                       value={memberLoginForm.full_name}
                       onChange={(e) => setMemberLoginForm((f) => ({ ...f, full_name: e.target.value }))}
                     />
                     <TextField
                       size="small"
-                      label="Mobile"
+                      label={tr("Mobile")}
                       value={memberLoginForm.mobile}
                       onChange={(e) => setMemberLoginForm((f) => ({ ...f, mobile: e.target.value }))}
                     />
                     <TextField
                       select
                       size="small"
-                      label="Job type"
+                      label={tr("Job type")}
                       sx={{ minWidth: 180 }}
                       value={memberLoginForm.job_type}
                       onChange={(e) => setMemberLoginForm((f) => ({ ...f, job_type: e.target.value }))}
                     >
                       {JOB_TYPE_OPTIONS.map((j) => (
                         <MenuItem key={j} value={j}>
-                          {j}
+                          {tr(j)}
                         </MenuItem>
                       ))}
                       {memberLoginForm.job_type && !JOB_TYPE_OPTIONS.includes(memberLoginForm.job_type) && (
-                        <MenuItem value={memberLoginForm.job_type}>{memberLoginForm.job_type} (custom)</MenuItem>
+                        <MenuItem value={memberLoginForm.job_type}>{tr(memberLoginForm.job_type)}{tr(" (custom)")}</MenuItem>
                       )}
                     </TextField>
                   </Stack>
                   <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
                     <TextField
                       size="small"
-                      label="Username"
+                      label={tr("Username")}
                       value={memberLoginForm.username}
                       onChange={(e) => setMemberLoginForm((f) => ({ ...f, username: e.target.value }))}
                     />
                     <TextField
                       size="small"
-                      label="Password"
+                      label={tr("Password")}
                       type="password"
                       value={memberLoginForm.password}
                       onChange={(e) => setMemberLoginForm((f) => ({ ...f, password: e.target.value }))}
@@ -1462,15 +1428,10 @@ export function TeamDetailPage() {
                           },
                         );
                       }}
-                    >
-                      Add member
-                    </Button>
+                    >{tr("Add member")}</Button>
                   </Stack>
                 </Stack>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                  Password needs at least 6 characters — the member can change it themselves anytime once
-                  signed in.
-                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{tr("Password needs at least 6 characters — the member can change it themselves anytime once signed in.")}</Typography>
                   </>
                 )}
             </TeamSection>
@@ -1491,12 +1452,9 @@ export function TeamDetailPage() {
         <Alert
           severity="info"
           action={
-            <Button size="small" onClick={() => setMissionPlanDate('')}>
-              Back to tonight
-            </Button>
+            <Button size="small" onClick={() => setMissionPlanDate('')}>{tr("Back to tonight")}</Button>
           }
-        >
-          Viewing the mission planned for {missionDateLabel(missionPlanDate)}.
+        >{tr("Viewing the mission planned for ")}{missionDateLabel(missionPlanDate)}.
         </Alert>
       )}
 
@@ -1554,15 +1512,15 @@ export function TeamDetailPage() {
       <TeamSection
         step={9}
         icon={<MapIcon />}
-        title="Job map"
-        description={`Every tower assigned to this team${jobMap?.sector ? ` (${jobMap.sector})` : ''} — not just the ones already visited — so the field crew can see the whole job and where to fly next.`}
+        title={tr("Job map")}
+        description={tr("Every tower assigned to this team{0} — not just the ones already visited — so the field crew can see the whole job and where to fly next.", [jobMap?.sector ? ` (${jobMap.sector})` : ''])}
         action={
           jobMap && jobMap.total > 0 && (
             <Stack direction="row" spacing={1}>
-              <Chip size="small" label={`${jobMap.total} total`} />
-              <Chip size="small" color="success" label={`${jobMap.completed} completed`} />
-              <Chip size="small" color="info" label={`${jobMap.in_progress} in progress`} />
-              <Chip size="small" variant="outlined" label={`${jobMap.pending} not started`} />
+              <Chip size="small" label={tr("{0} total", [jobMap.total])} />
+              <Chip size="small" color="success" label={tr("{0} completed", [jobMap.completed])} />
+              <Chip size="small" color="info" label={tr("{0} in progress", [jobMap.in_progress])} />
+              <Chip size="small" variant="outlined" label={tr("{0} not started", [jobMap.pending])} />
             </Stack>
           )
         }
@@ -1576,11 +1534,7 @@ export function TeamDetailPage() {
           )}
 
           {(!jobMap || jobMap.total === 0) && (
-            <Alert severity="info">
-              No towers assigned to this team yet. An admin can assign some from the Towers page —
-              select the towers this team is responsible for, then "Assign to team" — to define the
-              full scope of work here.
-            </Alert>
+            <Alert severity="info">{tr("No towers assigned to this team yet. An admin can assign some from the Towers page — select the towers this team is responsible for, then \"Assign to team\" — to define the full scope of work here.")}</Alert>
           )}
 
           {jobMap && jobMap.total > 0 && (
@@ -1588,9 +1542,9 @@ export function TeamDetailPage() {
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Tower</TableCell>
-                    <TableCell>Area</TableCell>
-                    <TableCell>Status</TableCell>
+                    <TableCell>{tr("Tower")}</TableCell>
+                    <TableCell>{tr("Area")}</TableCell>
+                    <TableCell>{tr("Status")}</TableCell>
                     <TableCell align="right" />
                   </TableRow>
                 </TableHead>
@@ -1605,16 +1559,16 @@ export function TeamDetailPage() {
                         selected={focused}
                         sx={{ cursor: locatable ? 'pointer' : 'default' }}
                         onClick={() => focusJobMapTower(t)}
-                        title={locatable ? 'Click to find it on the map below' : 'No GPS location recorded for this tower yet'}
+                        title={locatable ? tr("Click to find it on the map below") : tr("No GPS location recorded for this tower yet")}
                       >
                         <TableCell sx={{ fontWeight: 600 }}>{t.tower_id}</TableCell>
                         <TableCell>{t.area || '-'}</TableCell>
                         <TableCell>
-                          <Chip size="small" label={JOB_MAP_LABELS[t.status]} sx={{ bgcolor: JOB_MAP_COLORS[t.status], color: '#fff' }} />
+                          <Chip size="small" label={tr(JOB_MAP_LABELS[t.status])} sx={{ bgcolor: JOB_MAP_COLORS[t.status], color: '#fff' }} />
                         </TableCell>
                         <TableCell align="right">
                           {locatable && (
-                            <Tooltip title="Show path from my current location">
+                            <Tooltip title={tr("Show path from my current location")}>
                               <span>
                                 <IconButton
                                   size="small"
@@ -1630,7 +1584,7 @@ export function TeamDetailPage() {
                             </Tooltip>
                           )}
                           {t.visit_id && (
-                            <Tooltip title="Open this visit">
+                            <Tooltip title={tr("Open this visit")}>
                               <IconButton
                                 size="small"
                                 onClick={(e) => {
@@ -1653,7 +1607,7 @@ export function TeamDetailPage() {
 
           {routeError && (
             <Alert severity="warning" onClose={() => setRouteError(null)} sx={{ mb: 2 }}>
-              {routeError}
+              {tr(routeError)}
             </Alert>
           )}
 
@@ -1696,7 +1650,7 @@ export function TeamDetailPage() {
                   {nextPlan && nextPlan.origin_latitude != null && nextPlan.origin_longitude != null && !routeOrigin && (
                     <Marker position={[nextPlan.origin_latitude, nextPlan.origin_longitude]} icon={myLocationIcon()}>
                       <LeafletTooltip direction="top" offset={[0, -8]} opacity={1}>
-                        {nextPlan.origin_label || 'You are here'}
+                        {nextPlan.origin_label || tr("You are here")}
                       </LeafletTooltip>
                     </Marker>
                   )}
@@ -1740,9 +1694,9 @@ export function TeamDetailPage() {
                           <br />
                           {t.area || ''}
                           <br />
-                          {JOB_MAP_LABELS[t.status]}
-                          {t.visit_id ? ' — click to open' : ''}
-                          {rank ? ` — next #${rank}` : ''}
+                          {tr(JOB_MAP_LABELS[t.status])}
+                          {t.visit_id ? tr(" — click to open") : ''}
+                          {rank ? tr(" — next #{0}", [rank]) : ''}
                         </LeafletTooltip>
                       </Marker>
                       );
@@ -1768,9 +1722,7 @@ export function TeamDetailPage() {
                         />
                       )}
                       <Marker position={[routeOrigin.lat, routeOrigin.lng]} icon={myLocationIcon()}>
-                        <LeafletTooltip direction="top" offset={[0, -8]} opacity={1}>
-                          You are here
-                        </LeafletTooltip>
+                        <LeafletTooltip direction="top" offset={[0, -8]} opacity={1}>{tr("You are here")}</LeafletTooltip>
                       </Marker>
                     </>
                   )}
@@ -1793,17 +1745,9 @@ export function TeamDetailPage() {
                   >
                     {routeFetchingPath ? <CircularProgress size={16} /> : <DirectionsIcon fontSize="small" color="primary" />}
                     <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                      {routeFetchingPath
-                        ? `Finding the driving route to ${routeTower.tower_id}…`
-                        : routeDriving
-                          ? `${routeDriving.distanceKm.toFixed(routeDriving.distanceKm < 10 ? 2 : 1)} km · ~${Math.round(
+                      {routeFetchingPath ? tr("Finding the driving route to {0}…", [routeTower.tower_id]) : routeDriving ? tr("{0} km · ~{1} min drive to {2}", [routeDriving.distanceKm.toFixed(routeDriving.distanceKm < 10 ? 2 : 1), Math.round(
                               routeDriving.durationMin,
-                            )} min drive to ${routeTower.tower_id}`
-                          : routePathFailed
-                            ? `Couldn't load a driving route — ${
-                                routeDistanceKm != null ? `${routeDistanceKm.toFixed(1)} km straight-line` : 'showing straight line'
-                              } to ${routeTower.tower_id}`
-                            : `${routeDistanceKm != null ? `${routeDistanceKm.toFixed(1)} km` : ''} to ${routeTower.tower_id}`}
+                            ), routeTower.tower_id]) : routePathFailed ? tr("Couldn't load a driving route — {0} to {1}", [routeDistanceKm != null ? tr("{0} km straight-line", [routeDistanceKm.toFixed(1)]) : tr("showing straight line"), routeTower.tower_id]) : tr("{0} to {1}", [routeDistanceKm != null ? tr("{0} km", [routeDistanceKm.toFixed(1)]) : '', routeTower.tower_id])}
                     </Typography>
                     <Button
                       size="small"
@@ -1812,10 +1756,8 @@ export function TeamDetailPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       sx={{ ml: 0.5, whiteSpace: 'nowrap' }}
-                    >
-                      Navigate on phone ↗
-                    </Button>
-                    <Tooltip title="Clear path">
+                    >{tr("Navigate on phone ↗")}</Button>
+                    <Tooltip title={tr("Clear path")}>
                       <IconButton size="small" onClick={clearJobMapRoute}>
                         <CloseIcon fontSize="small" />
                       </IconButton>
@@ -1823,7 +1765,7 @@ export function TeamDetailPage() {
                   </Paper>
                 )}
                 <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Tooltip title={jobMapLayer === 'street' ? 'Switch to satellite view' : 'Switch to street map'}>
+                  <Tooltip title={jobMapLayer === 'street' ? tr("Switch to satellite view") : tr("Switch to street map")}>
                     <IconButton
                       size="small"
                       onClick={() => setJobMapLayer((v) => (v === 'street' ? 'satellite' : 'street'))}
@@ -1832,7 +1774,7 @@ export function TeamDetailPage() {
                       {jobMapLayer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title={jobMapExpanded ? 'Shrink map' : 'Enlarge map'}>
+                  <Tooltip title={jobMapExpanded ? tr("Shrink map") : tr("Enlarge map")}>
                     <IconButton
                       size="small"
                       onClick={() => setJobMapExpanded((v) => !v)}
@@ -1854,22 +1796,22 @@ export function TeamDetailPage() {
       <TeamSection
         step={10}
         icon={<FactCheckIcon />}
-        title="Missions"
-        description="Each mission is a tower visit assigned to this team, with a planned start/end time. Click one to open it and run the inspection — positions, images, screening, photos, all in the same place."
+        title={tr("Missions")}
+        description={tr("Each mission is a tower visit assigned to this team, with a planned start/end time. Click one to open it and run the inspection — positions, images, screening, photos, all in the same place.")}
       >
           <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>#</TableCell>
-                  <TableCell>Tower</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Time</TableCell>
-                  <TableCell>Assigned to</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="center">Completion</TableCell>
-                  <TableCell align="center">Hotspots</TableCell>
-                  <TableCell align="center">Photos</TableCell>
+                  <TableCell>{tr("Tower")}</TableCell>
+                  <TableCell>{tr("Date")}</TableCell>
+                  <TableCell>{tr("Time")}</TableCell>
+                  <TableCell>{tr("Assigned to")}</TableCell>
+                  <TableCell>{tr("Status")}</TableCell>
+                  <TableCell align="center">{tr("Completion")}</TableCell>
+                  <TableCell align="center">{tr("Hotspots")}</TableCell>
+                  <TableCell align="center">{tr("Photos")}</TableCell>
                   <TableCell align="right" />
                 </TableRow>
               </TableHead>
@@ -1904,7 +1846,7 @@ export function TeamDetailPage() {
                         slotProps={{ select: { displayEmpty: true } }}
                       >
                         <MenuItem value="">
-                          <em>Unassigned</em>
+                          <em>{tr("Unassigned")}</em>
                         </MenuItem>
                         {teamMemberLogins.map((u) => (
                           <MenuItem key={u.id} value={u.id}>
@@ -1932,9 +1874,9 @@ export function TeamDetailPage() {
                           },
                         }}
                       >
-                        <MenuItem value="planned">Planned</MenuItem>
-                        <MenuItem value="in_progress">In progress</MenuItem>
-                        <MenuItem value="completed">Completed</MenuItem>
+                        <MenuItem value="planned">{tr("Planned")}</MenuItem>
+                        <MenuItem value="in_progress">{tr("In progress")}</MenuItem>
+                        <MenuItem value="completed">{tr("Completed")}</MenuItem>
                       </TextField>
                       ) : (
                         <Chip size="small" label={String(m.mission_status).replace('_', ' ')} color={MISSION_STATUS_COLORS[m.mission_status] || 'default'} />
@@ -1956,7 +1898,7 @@ export function TeamDetailPage() {
                         size="small"
                         color="error"
                         onClick={() => {
-                          if (window.confirm(`Delete Mission ${m.mission_seq} (${m.tower?.tower_id})? This removes the whole visit — positions, images, everything.`))
+                          if (window.confirm(tr("Delete Mission {0} ({1})? This removes the whole visit — positions, images, everything.", [m.mission_seq, m.tower?.tower_id])))
                             deleteVisit.mutate(m.id);
                         }}
                       >
@@ -1968,9 +1910,7 @@ export function TeamDetailPage() {
                 ))}
                 {(!missions || missions.length === 0) && (
                   <TableRow>
-                    <TableCell colSpan={10} align="center">
-                      No missions assigned yet — add the team's first stop below.
-                    </TableCell>
+                    <TableCell colSpan={10} align="center">{tr("No missions assigned yet — add the team's first stop below.")}</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -1982,13 +1922,13 @@ export function TeamDetailPage() {
             <TextField
               select
               size="small"
-              label="Tower"
+              label={tr("Tower")}
               sx={{ minWidth: 160 }}
               value={missionForm.tower_id}
               onChange={(e) => setMissionForm((f) => ({ ...f, tower_id: e.target.value }))}
             >
               <MenuItem value="" disabled>
-                {!towers ? 'Loading towers…' : teamTowers.length === 0 ? 'No towers assigned to this team yet' : 'Select a tower'}
+                {!towers ? tr("Loading towers…") : teamTowers.length === 0 ? tr("No towers assigned to this team yet") : tr("Select a tower")}
               </MenuItem>
               {teamTowers.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
@@ -1997,7 +1937,7 @@ export function TeamDetailPage() {
               ))}
             </TextField>
             <TextField
-              label="Date"
+              label={tr("Date")}
               type="date"
               size="small"
               value={missionForm.inspection_date}
@@ -2005,7 +1945,7 @@ export function TeamDetailPage() {
               slotProps={{ inputLabel: { shrink: true } }}
             />
             <TextField
-              label="Start time"
+              label={tr("Start time")}
               type="time"
               size="small"
               value={missionForm.start_time}
@@ -2013,7 +1953,7 @@ export function TeamDetailPage() {
               slotProps={{ inputLabel: { shrink: true } }}
             />
             <TextField
-              label="End time"
+              label={tr("End time")}
               type="time"
               size="small"
               value={missionForm.end_time}
@@ -2023,13 +1963,13 @@ export function TeamDetailPage() {
             <TextField
               select
               size="small"
-              label="Assign to"
+              label={tr("Assign to")}
               sx={{ minWidth: 160 }}
               value={missionForm.assigned_member_id}
               onChange={(e) => setMissionForm((f) => ({ ...f, assigned_member_id: e.target.value }))}
             >
               <MenuItem value="">
-                <em>Unassigned</em>
+                <em>{tr("Unassigned")}</em>
               </MenuItem>
               {teamMemberLogins.map((u) => (
                 <MenuItem key={u.id} value={u.id}>
@@ -2055,9 +1995,7 @@ export function TeamDetailPage() {
                   },
                 );
               }}
-            >
-              Add mission &amp; open it
-            </Button>
+            >{tr("Add mission & open it")}</Button>
           </Stack>
           )}
       </TeamSection>
@@ -2067,30 +2005,30 @@ export function TeamDetailPage() {
       <TeamSection
         step={11}
         icon={<RouteIcon />}
-        title="Your track & towers"
-        description="Every login on this team sees the same GPS history. Open a previous night to follow the path that was already recorded."
+        title={tr("Your track & towers")}
+        description={tr("Every login on this team sees the same GPS history. Open a previous night to follow the path that was already recorded.")}
         action={
           <TextField
               select
               size="small"
-              label="History"
+              label={tr("History")}
               value={effectiveTrackKey}
               onChange={(e) => {
                 setTrackKey(e.target.value);
                 setTrackStayIdx(null);
               }}
               sx={{ minWidth: 260 }}
-              helperText="Every saved outing stays here"
+              helperText={tr("Every saved outing stays here")}
             >
               {shift?.field_date && (
-                <MenuItem value={`night:${shift.field_date}`}>Tonight ({shift.field_date})</MenuItem>
+                <MenuItem value={`night:${shift.field_date}`}>{tr("Tonight (")}{shift.field_date})</MenuItem>
               )}
               {(fieldHistory || [])
                 .filter((m) => missionSelectKey(m) !== `night:${shift?.field_date || ''}`)
                 .map((m) => (
                   <MenuItem key={missionSelectKey(m)} value={missionSelectKey(m)}>
                     {m.label}
-                    {m.ping_count ? ` · ${m.ping_count} pts` : ''}
+                    {m.ping_count ? tr(" · {0} pts", [m.ping_count]) : ''}
                   </MenuItem>
                 ))}
             </TextField>
@@ -2100,17 +2038,17 @@ export function TeamDetailPage() {
             <>
               <Grid container spacing={2} sx={{ mb: 2 }}>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <KpiTile label="Distance so far" value={`${recap.distance_km} km`} icon={<RouteIcon />} color="#1565c0" />
+                  <KpiTile label={tr("Distance so far")} value={`${recap.distance_km} km`} icon={<RouteIcon />} color="#1565c0" />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <KpiTile label="Time on the clock" value={`${recap.minutes_tracked} min`} icon={<TimerIcon />} />
+                  <KpiTile label={tr("Time on the clock")} value={`${recap.minutes_tracked} min`} icon={<TimerIcon />} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <KpiTile label="Towers this outing" value={recap.towers_visited} icon={<CellTowerIcon />} color="#2e7d32" />
+                  <KpiTile label={tr("Towers this outing")} value={recap.towers_visited} icon={<CellTowerIcon />} color="#2e7d32" />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
                   <KpiTile
-                    label="Avg stay / travel"
+                    label={tr("Avg stay / travel")}
                     value={`${recap.avg_minutes_per_tower} / ${recap.avg_travel_minutes} min`}
                     icon={<DirectionsWalkIcon />}
                     color="#ef6c00"
@@ -2118,17 +2056,13 @@ export function TeamDetailPage() {
                 </Grid>
               </Grid>
               {recap.vs_previous && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  vs previous night: {recap.vs_previous.towers_delta >= 0 ? '+' : ''}
-                  {recap.vs_previous.towers_delta} towers, {recap.vs_previous.distance_km_delta >= 0 ? '+' : ''}
-                  {recap.vs_previous.distance_km_delta} km, avg stay {recap.vs_previous.avg_minutes_per_tower_delta >= 0 ? '+' : ''}
-                  {recap.vs_previous.avg_minutes_per_tower_delta} min
-                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{tr("vs previous night: ")}{recap.vs_previous.towers_delta >= 0 ? '+' : ''}
+                  {recap.vs_previous.towers_delta}{tr(" towers, ")}{recap.vs_previous.distance_km_delta >= 0 ? '+' : ''}
+                  {recap.vs_previous.distance_km_delta}{tr(" km, avg stay ")}{recap.vs_previous.avg_minutes_per_tower_delta >= 0 ? '+' : ''}
+                  {recap.vs_previous.avg_minutes_per_tower_delta}{tr(" min")}</Typography>
               )}
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                Started {formatTime(recap.started_at)} at {recap.start_latitude.toFixed(5)}, {recap.start_longitude.toFixed(5)}
-                {' · '}
-                Now / ended {formatTime(recap.ended_at)} at {recap.end_latitude.toFixed(5)}, {recap.end_longitude.toFixed(5)}
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{tr("Started ")}{formatTime(recap.started_at)}{tr(" at ")}{recap.start_latitude.toFixed(5)}, {recap.start_longitude.toFixed(5)}
+                {' · '}{tr("Now / ended ")}{formatTime(recap.ended_at)}{tr(" at ")}{recap.end_latitude.toFixed(5)}, {recap.end_longitude.toFixed(5)}
               </Typography>
               {recap.path.length > 0 && (
                 <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)', mb: 2 }}>
@@ -2180,19 +2114,16 @@ export function TeamDetailPage() {
                         <Popup autoPan={false}>
                           <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{trackStay.tower_id}</Typography>
                           <Typography variant="caption" sx={{ display: 'block' }}>
-                            {formatTime(trackStay.arrived_at)} – {formatTime(trackStay.departed_at)} · stayed {trackStay.minutes} min
-                          </Typography>
+                            {formatTime(trackStay.arrived_at)} – {formatTime(trackStay.departed_at)}{tr(" · stayed ")}{trackStay.minutes}{tr(" min")}</Typography>
                           <Typography variant="caption" sx={{ display: 'block' }}>
-                            {trackNextStay
-                              ? `Then moved to ${trackNextStay.tower_id} (${Math.max(0, Math.round((isoMs(trackNextStay.arrived_at) - isoMs(trackStay.departed_at)) / 60000))} min travel)`
-                              : 'Last tower in this outing'}
+                            {trackNextStay ? tr("Then moved to {0} ({1} min travel)", [trackNextStay.tower_id, Math.max(0, Math.round((isoMs(trackNextStay.arrived_at) - isoMs(trackStay.departed_at)) / 60000))]) : tr("Last tower in this outing")}
                           </Typography>
                         </Popup>
                       </Marker>
                     )}
                   </MapContainer>
                   <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    <Tooltip title={trackMapLayer === 'street' ? 'Switch to satellite view' : 'Switch to street map'}>
+                    <Tooltip title={trackMapLayer === 'street' ? tr("Switch to satellite view") : tr("Switch to street map")}>
                       <IconButton
                         size="small"
                         onClick={() => setTrackMapLayer((v) => (v === 'street' ? 'satellite' : 'street'))}
@@ -2201,7 +2132,7 @@ export function TeamDetailPage() {
                         {trackMapLayer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title={trackMapExpanded ? 'Shrink map' : 'Enlarge map'}>
+                    <Tooltip title={trackMapExpanded ? tr("Shrink map") : tr("Enlarge map")}>
                       <IconButton
                         size="small"
                         onClick={() => setTrackMapExpanded((v) => !v)}
@@ -2214,19 +2145,17 @@ export function TeamDetailPage() {
                   </div>
                 </Box>
               )}
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                Towers visited this outing — click a row to find it on the map
-              </Typography>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>{tr("Towers visited this outing — click a row to find it on the map")}</Typography>
               <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Tower</TableCell>
-                      <TableCell>Travel from previous</TableCell>
-                      <TableCell>Arrived</TableCell>
-                      <TableCell>Left</TableCell>
-                      <TableCell align="right">Minutes</TableCell>
-                      <TableCell>Inspection</TableCell>
+                      <TableCell>{tr("Tower")}</TableCell>
+                      <TableCell>{tr("Travel from previous")}</TableCell>
+                      <TableCell>{tr("Arrived")}</TableCell>
+                      <TableCell>{tr("Left")}</TableCell>
+                      <TableCell align="right">{tr("Minutes")}</TableCell>
+                      <TableCell>{tr("Inspection")}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -2250,9 +2179,7 @@ export function TeamDetailPage() {
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          {stay.travel_from_prev_minutes == null
-                            ? 'Start'
-                            : `${stay.travel_from_prev_minutes} min${stay.travel_from_prev_km != null ? ` · ${stay.travel_from_prev_km} km` : ''}`}
+                          {stay.travel_from_prev_minutes == null ? tr("Start") : tr("{0} min{1}", [stay.travel_from_prev_minutes, stay.travel_from_prev_km != null ? tr(" · {0} km", [stay.travel_from_prev_km]) : ''])}
                         </TableCell>
                         <TableCell>{formatTime(stay.arrived_at)}</TableCell>
                         <TableCell>{formatTime(stay.departed_at)}</TableCell>
@@ -2260,19 +2187,17 @@ export function TeamDetailPage() {
                         <TableCell>
                           {stay.visit_id ? (
                             <Button size="small" onClick={(e) => { e.stopPropagation(); navigate(`/visits/${stay.visit_id}`); }}>
-                              {stay.visit_status || 'open'}
+                              {stay.visit_status || tr("open")}
                             </Button>
                           ) : (
-                            <Typography variant="caption" color="text.secondary">GPS only</Typography>
+                            <Typography variant="caption" color="text.secondary">{tr("GPS only")}</Typography>
                           )}
                         </TableCell>
                       </TableRow>
                     ))}
                     {recap.stays.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} align="center">
-                          No tower stays in this outing yet (GPS did not sit within 80 m of a tower).
-                        </TableCell>
+                        <TableCell colSpan={6} align="center">{tr("No tower stays in this outing yet (GPS did not sit within 80 m of a tower).")}</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -2280,29 +2205,22 @@ export function TeamDetailPage() {
               </TableContainer>
             </>
           ) : (
-            <Alert severity="info">
-              No GPS track for this period yet. Open the app in the field with location on — the path,
-              kilometres, and tower stays will appear here.
-            </Alert>
+            <Alert severity="info">{tr("No GPS track for this period yet. Open the app in the field with location on — the path, kilometres, and tower stays will appear here.")}</Alert>
           )}
 
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-            All inspections recorded for this team
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Every tower this crew has opened a visit for — so next outing you can finish what you started.
-            {jobMap && jobMap.total > 0 ? ` Job map: ${jobMap.completed} of ${jobMap.total} assigned towers completed.` : ''}
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>{tr("All inspections recorded for this team")}</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{tr("Every tower this crew has opened a visit for — so next outing you can finish what you started.")}{jobMap && jobMap.total > 0 ? tr(" Job map: {0} of {1} assigned towers completed.", [jobMap.completed, jobMap.total]) : ''}
           </Typography>
           <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 280 }}>
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell>#</TableCell>
-                  <TableCell>Tower</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="center">Done</TableCell>
-                  <TableCell align="center">Hotspots</TableCell>
+                  <TableCell>{tr("Tower")}</TableCell>
+                  <TableCell>{tr("Date")}</TableCell>
+                  <TableCell>{tr("Status")}</TableCell>
+                  <TableCell align="center">{tr("Done")}</TableCell>
+                  <TableCell align="center">{tr("Hotspots")}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -2320,7 +2238,7 @@ export function TeamDetailPage() {
                 ))}
                 {(!missions || missions.length === 0) && (
                   <TableRow>
-                    <TableCell colSpan={6} align="center">No inspection visits recorded yet.</TableCell>
+                    <TableCell colSpan={6} align="center">{tr("No inspection visits recorded yet.")}</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -2332,12 +2250,12 @@ export function TeamDetailPage() {
       <TeamSection
         step={12}
         icon={<EventNoteRoundedIcon />}
-        title="Daily progress log"
-        description="GPS path is recorded automatically when the crew signs in. Notes, voice, and files can still be added below."
+        title={tr("Daily progress log")}
+        description={tr("GPS path is recorded automatically when the crew signs in. Notes, voice, and files can still be added below.")}
         action={
           <Stack direction="row" spacing={1.5}>
             <TextField
-              label="From"
+              label={tr("From")}
               type="date"
               size="small"
               value={rangeStart}
@@ -2345,7 +2263,7 @@ export function TeamDetailPage() {
               slotProps={{ inputLabel: { shrink: true } }}
             />
             <TextField
-              label="To"
+              label={tr("To")}
               type="date"
               size="small"
               value={rangeEnd}
@@ -2406,7 +2324,7 @@ export function TeamDetailPage() {
                     )}
                     <Chip
                       size="small"
-                      label={team.daily_target ? `${day.towers_visited} / ${team.daily_target} towers` : `${day.towers_visited} towers`}
+                      label={team.daily_target ? tr("{0} / {1} towers", [day.towers_visited, team.daily_target]) : tr("{0} towers", [day.towers_visited])}
                       color={
                         team.daily_target
                           ? day.towers_visited >= team.daily_target
@@ -2418,16 +2336,16 @@ export function TeamDetailPage() {
                       }
                       variant={team.daily_target ? 'filled' : 'outlined'}
                     />
-                    <Chip size="small" label={`${day.screened} screened`} />
-                    {day.hotspots > 0 && <Chip size="small" color="error" label={`${day.hotspots} hotspots`} />}
-                    <Chip size="small" variant="outlined" label={`${day.images_captured} images`} />
+                    <Chip size="small" label={tr("{0} screened", [day.screened])} />
+                    {day.hotspots > 0 && <Chip size="small" color="error" label={tr("{0} hotspots", [day.hotspots])} />}
+                    <Chip size="small" variant="outlined" label={tr("{0} images", [day.images_captured])} />
                     {(day.ping_count ?? 0) > 0 && (
                       <Chip
                         size="small"
                         color="success"
                         variant="outlined"
                         icon={<MyLocationIcon />}
-                        label={`${(day.path_km ?? 0).toFixed(1)} km · ${day.ping_count} GPS points`}
+                        label={tr("{0} km · {1} GPS points", [(day.path_km ?? 0).toFixed(1), day.ping_count])}
                       />
                     )}
                   </Stack>
@@ -2451,8 +2369,7 @@ export function TeamDetailPage() {
                         <Paper key={item.id} variant="outlined" sx={{ p: 1, borderStyle: 'dashed', borderColor: 'warning.main' }}>
                           {audio && <VoiceNotePlayer src={audio} duration={Number(item.json?.duration_seconds) || null} />}
                           <Typography variant="body2">{String(item.json?.note || item.label)}</Typography>
-                          <Typography variant="caption" color="warning.main">
-                            On this phone — {item.label}
+                          <Typography variant="caption" color="warning.main">{tr("On this phone — ")}{item.label}
                           </Typography>
                         </Paper>
                       );
@@ -2487,7 +2404,7 @@ export function TeamDetailPage() {
                                           <Box
                                             component="img"
                                             src={href}
-                                            alt={f.original_filename || 'photo'}
+                                            alt={f.original_filename || tr("photo")}
                                             sx={{
                                               width: 72,
                                               height: 72,
@@ -2504,22 +2421,22 @@ export function TeamDetailPage() {
                                       )}
                                       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                                         <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap title={f.original_filename || ''}>
-                                          {f.original_filename || 'File'}
+                                          {f.original_filename || tr("File")}
                                         </Typography>
                                         <Typography variant="caption" color="text.secondary">
-                                          {f.is_image ? 'Image' : f.is_pdf ? 'PDF' : 'Document'}
+                                          {f.is_image ? tr("Image") : f.is_pdf ? tr("PDF") : tr("Document")}
                                           {f.file_size ? ` · ${formatBytes(f.file_size)}` : ''}
                                         </Typography>
                                       </Box>
                                       <Stack direction="row" sx={{ flexShrink: 0 }}>
-                                        <Tooltip title="Open">
+                                        <Tooltip title={tr("Open")}>
                                           <IconButton size="small" component="a" href={href} target="_blank" rel="noreferrer">
                                             <LinkIcon fontSize="small" />
                                           </IconButton>
                                         </Tooltip>
                                         {canLogNotes && (
                                           <>
-                                            <Tooltip title="Rename">
+                                            <Tooltip title={tr("Rename")}>
                                               <IconButton
                                                 size="small"
                                                 onClick={() =>
@@ -2533,7 +2450,7 @@ export function TeamDetailPage() {
                                                 <EditIcon fontSize="small" />
                                               </IconButton>
                                             </Tooltip>
-                                            <Tooltip title="Replace this file">
+                                            <Tooltip title={tr("Replace this file")}>
                                               <IconButton
                                                 size="small"
                                                 onClick={() => {
@@ -2544,7 +2461,7 @@ export function TeamDetailPage() {
                                                 <AttachFileIcon fontSize="small" />
                                               </IconButton>
                                             </Tooltip>
-                                            <Tooltip title="Delete this file only">
+                                            <Tooltip title={tr("Delete this file only")}>
                                               <IconButton
                                                 size="small"
                                                 color="error"
@@ -2552,7 +2469,7 @@ export function TeamDetailPage() {
                                                 onClick={() => {
                                                   if (
                                                     window.confirm(
-                                                      `Delete ${f.original_filename || 'this file'}? Other files on this note stay.`,
+                                                      tr("Delete {0}? Other files on this note stay.", [f.original_filename || tr("this file")]),
                                                     )
                                                   ) {
                                                     deleteNoteFile.mutate({ noteId: n.id, fileId: f.id });
@@ -2580,9 +2497,7 @@ export function TeamDetailPage() {
                                   setAddMoreNoteId(n.id);
                                   morePhotoInput.current?.click();
                                 }}
-                              >
-                                Add more photos
-                              </Button>
+                              >{tr("Add more photos")}</Button>
                               <Button
                                 size="small"
                                 startIcon={<PictureAsPdfIcon />}
@@ -2590,15 +2505,11 @@ export function TeamDetailPage() {
                                   setAddMoreNoteId(n.id);
                                   moreDocInput.current?.click();
                                 }}
-                              >
-                                Add more PDF / Word
-                              </Button>
+                              >{tr("Add more PDF / Word")}</Button>
                             </Stack>
                           )}
                           {waitingConvert && (!n.note || n.note === 'Voice note') ? (
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                              Recording saved. Convert it to text to use this note in reports.
-                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{tr("Recording saved. Convert it to text to use this note in reports.")}</Typography>
                           ) : canLogNotes ? (
                             <TextField
                               size="small"
@@ -2613,9 +2524,7 @@ export function TeamDetailPage() {
                               }}
                               sx={{ mt: 0.75 }}
                               helperText={
-                                n.has_audio
-                                  ? 'Edit the transcript if needed — this text can go into the final report'
-                                  : 'Edit this note — it can go into the final report'
+                                n.has_audio ? tr("Edit the transcript if needed — this text can go into the final report") : tr("Edit this note — it can go into the final report")
                               }
                             />
                           ) : (
@@ -2643,11 +2552,7 @@ export function TeamDetailPage() {
                                 });
                               }}
                             >
-                              {transcribeNote.isPending && transcribeNote.variables === n.id
-                                ? 'Converting…'
-                                : waitingConvert
-                                  ? 'Convert to text'
-                                  : 'Convert again'}
+                              {transcribeNote.isPending && transcribeNote.variables === n.id ? tr("Converting…") : waitingConvert ? tr("Convert to text") : tr("Convert again")}
                             </Button>
                           )}
                           {convertError[n.id] && (
@@ -2656,20 +2561,20 @@ export function TeamDetailPage() {
                             </Alert>
                           )}
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                            {n.created_by_name || 'Team'}
-                            {n.has_audio ? (n.transcribed ? ' · voice + text' : ' · voice (not converted yet)') : ''}
-                            {(n.attachments || []).length > 0 ? ` · ${n.attachments.length} file${n.attachments.length === 1 ? '' : 's'}` : ''}
+                            {n.created_by_name || tr("Team")}
+                            {n.has_audio ? (n.transcribed ? tr(" · voice + text") : tr(" · voice (not converted yet)")) : ''}
+                            {(n.attachments || []).length > 0 ? tr(" · {0} file{1}", [n.attachments.length, n.attachments.length === 1 ? '' : tr("s")]) : ''}
                             {` · ${formatTime(n.created_at)}`}
                           </Typography>
                         </Box>
                         {canManage && (
-                        <Tooltip title="Delete this whole note (all files in it)">
+                        <Tooltip title={tr("Delete this whole note (all files in it)")}>
                         <IconButton
                           size="small"
                           onClick={() => {
                             const count = (n.attachments || []).length;
                             const extra = count ? ` This also removes ${count} attached file${count === 1 ? '' : 's'}. Use the trash on a file to remove only that one.` : '';
-                            if (window.confirm(`Delete this whole note?${extra}`)) deleteNote.mutate(n.id);
+                            if (window.confirm(tr("Delete this whole note?{0}", [extra]))) deleteNote.mutate(n.id);
                           }}
                         >
                           <DeleteIcon fontSize="small" />
@@ -2689,7 +2594,7 @@ export function TeamDetailPage() {
                   <TextField
                     size="small"
                     fullWidth
-                    placeholder="Comment for this day — then Add text, Record, or Attach files…"
+                    placeholder={tr("Comment for this day — then Add text, Record, or Attach files…")}
                     value={noteDraft[day.log_date] || ''}
                     onChange={(e) => setNoteDraft((d) => ({ ...d, [day.log_date]: e.target.value }))}
                     onKeyDown={(e) => {
@@ -2711,9 +2616,7 @@ export function TeamDetailPage() {
                         { onSuccess: () => setNoteDraft((d) => ({ ...d, [day.log_date]: '' })) },
                       );
                     }}
-                  >
-                    Add text
-                  </Button>
+                  >{tr("Add text")}</Button>
                   <VoiceNoteControls
                     disabled={addVoiceNote.isPending}
                     saving={addVoiceNote.isPending}
@@ -2765,23 +2668,18 @@ export function TeamDetailPage() {
                     startIcon={<PhotoCameraIcon />}
                     disabled={addNoteFiles.isPending}
                     onClick={() => photoInputByDate.current[day.log_date]?.click()}
-                  >
-                    Add photos
-                  </Button>
+                  >{tr("Add photos")}</Button>
                   <Button
                     variant="outlined"
                     startIcon={<AttachFileIcon />}
                     disabled={addNoteFiles.isPending}
                     onClick={() => docInputByDate.current[day.log_date]?.click()}
-                  >
-                    Add PDF / Word
-                  </Button>
+                  >{tr("Add PDF / Word")}</Button>
                 </Stack>
                 {(pendingFiles[day.log_date] || []).length > 0 && (
                   <Stack spacing={1} sx={{ mt: 1 }}>
                     <Typography variant="caption" color="text.secondary">
-                      {pendingFiles[day.log_date].length} file{pendingFiles[day.log_date].length === 1 ? '' : 's'} ready — tap Add photos or Add PDF / Word again to include more, then Upload.
-                    </Typography>
+                      {pendingFiles[day.log_date].length}{tr(" file")}{pendingFiles[day.log_date].length === 1 ? '' : tr("s")}{tr(" ready — tap Add photos or Add PDF / Word again to include more, then Upload.")}</Typography>
                     <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                       {pendingFiles[day.log_date].map((f, i) => (
                         <Chip key={`${f.name}-${f.size}-${i}`} size="small" label={f.name} onDelete={() => {
@@ -2812,7 +2710,7 @@ export function TeamDetailPage() {
                         );
                       }}
                     >
-                      {addNoteFiles.isPending ? 'Uploading…' : `Upload ${pendingFiles[day.log_date].length} file${pendingFiles[day.log_date].length === 1 ? '' : 's'}`}
+                      {addNoteFiles.isPending ? tr("Uploading…") : tr("Upload {0} file{1}", [pendingFiles[day.log_date].length, pendingFiles[day.log_date].length === 1 ? '' : tr("s")])}
                     </Button>
                   </Stack>
                 )}
@@ -2821,7 +2719,7 @@ export function TeamDetailPage() {
               </Paper>
             ))}
             {!progressLoading && (!progress || progress.length === 0) && (
-              <Alert severity="info">No days in this range yet.</Alert>
+              <Alert severity="info">{tr("No days in this range yet.")}</Alert>
             )}
           </Stack>
       </TeamSection>
@@ -2861,20 +2759,20 @@ export function TeamDetailPage() {
         }}
       />
       <Dialog open={Boolean(renameTarget)} onClose={() => setRenameTarget(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Rename file</DialogTitle>
+        <DialogTitle>{tr("Rename file")}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             fullWidth
             size="small"
-            label="File name"
+            label={tr("File name")}
             value={renameTarget?.name || ''}
             onChange={(e) => setRenameTarget((t) => (t ? { ...t, name: e.target.value } : t))}
             sx={{ mt: 1 }}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRenameTarget(null)}>Cancel</Button>
+          <Button onClick={() => setRenameTarget(null)}>{tr("Cancel")}</Button>
           <Button
             variant="contained"
             disabled={!renameTarget?.name.trim() || renameNoteFile.isPending}
@@ -2885,30 +2783,25 @@ export function TeamDetailPage() {
                 { onSuccess: () => setRenameTarget(null) },
               );
             }}
-          >
-            Save
-          </Button>
+          >{tr("Save")}</Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={reportDialogOpen} onClose={() => setReportDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Generate official report — {team.name}</DialogTitle>
+        <DialogTitle>{tr("Generate official report — ")}{team.name}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              Renders straight into the customer's own "Transmission Line Insulator Thermal Inspection Report"
-              template — every position with real data in this date range becomes a finding.
-            </Typography>
-            {reportError && <Alert severity="error">{reportError}</Alert>}
+            <Typography variant="body2" color="text.secondary">{tr("Renders straight into the customer's own \"Transmission Line Insulator Thermal Inspection Report\" template — every position with real data in this date range becomes a finding.")}</Typography>
+            {reportError && <Alert severity="error">{tr(reportError)}</Alert>}
             <TextField
               select
-              label="Tower"
+              label={tr("Tower")}
               value={reportForm.tower_id}
               onChange={(e) => setReportForm((f) => ({ ...f, tower_id: e.target.value }))}
-              helperText="Leave as 'All towers' for the whole team's campaign, or pick one tower for a single-tower report."
+              helperText={tr("Leave as 'All towers' for the whole team's campaign, or pick one tower for a single-tower report.")}
             >
               <MenuItem value="">
-                <em>All towers (full team campaign)</em>
+                <em>{tr("All towers (full team campaign)")}</em>
               </MenuItem>
               {(jobMap?.towers || []).map((t) => (
                 <MenuItem key={t.id} value={String(t.id)}>
@@ -2917,8 +2810,8 @@ export function TeamDetailPage() {
               ))}
             </TextField>
             <TextField
-              label="Report number"
-              placeholder="e.g. OETC-DFRTRM-IR-2026-01"
+              label={tr("Report number")}
+              placeholder={tr("e.g. OETC-DFRTRM-IR-2026-01")}
               value={reportForm.report_number}
               onChange={(e) => setReportForm((f) => ({ ...f, report_number: e.target.value }))}
               autoFocus
@@ -2927,7 +2820,7 @@ export function TeamDetailPage() {
             <Stack direction="row" spacing={2}>
               <TextField
                 type="date"
-                label="From"
+                label={tr("From")}
                 fullWidth
                 slotProps={{ inputLabel: { shrink: true } }}
                 value={reportForm.start_date}
@@ -2935,7 +2828,7 @@ export function TeamDetailPage() {
               />
               <TextField
                 type="date"
-                label="To"
+                label={tr("To")}
                 fullWidth
                 slotProps={{ inputLabel: { shrink: true } }}
                 value={reportForm.end_date}
@@ -2944,50 +2837,50 @@ export function TeamDetailPage() {
             </Stack>
             <TextField
               select
-              label="Overall condition"
+              label={tr("Overall condition")}
               value={reportForm.overall_condition}
               onChange={(e) => setReportForm((f) => ({ ...f, overall_condition: e.target.value }))}
             >
               <MenuItem value="">
-                <em>Not set</em>
+                <em>{tr("Not set")}</em>
               </MenuItem>
               {lists?.overall_condition.map((c) => (
                 <MenuItem key={c} value={c}>
-                  {c}
+                  {tr(c)}
                 </MenuItem>
               ))}
             </TextField>
             <TextField
-              label="Probable cause of thermal anomaly"
+              label={tr("Probable cause of thermal anomaly")}
               multiline
               minRows={2}
               value={reportForm.probable_cause}
               onChange={(e) => setReportForm((f) => ({ ...f, probable_cause: e.target.value }))}
             />
             <TextField
-              label="Recommended corrective action"
+              label={tr("Recommended corrective action")}
               multiline
               minRows={2}
               value={reportForm.corrective_action}
               onChange={(e) => setReportForm((f) => ({ ...f, corrective_action: e.target.value }))}
             />
             <TextField
-              label="Additional comments"
+              label={tr("Additional comments")}
               multiline
               minRows={2}
               value={reportForm.additional_comments}
               onChange={(e) => setReportForm((f) => ({ ...f, additional_comments: e.target.value }))}
             />
-            <Typography variant="subtitle2">Approval</Typography>
+            <Typography variant="subtitle2">{tr("Approval")}</Typography>
             <Stack direction="row" spacing={2}>
               <TextField
-                label="Prepared by"
+                label={tr("Prepared by")}
                 fullWidth
                 value={reportForm.prepared_by}
                 onChange={(e) => setReportForm((f) => ({ ...f, prepared_by: e.target.value }))}
               />
               <TextField
-                label="Reviewed by"
+                label={tr("Reviewed by")}
                 fullWidth
                 value={reportForm.reviewed_by}
                 onChange={(e) => setReportForm((f) => ({ ...f, reviewed_by: e.target.value }))}
@@ -2995,14 +2888,14 @@ export function TeamDetailPage() {
             </Stack>
             <Stack direction="row" spacing={2}>
               <TextField
-                label="Approved by"
+                label={tr("Approved by")}
                 fullWidth
                 value={reportForm.approved_by}
                 onChange={(e) => setReportForm((f) => ({ ...f, approved_by: e.target.value }))}
               />
               <TextField
                 type="date"
-                label="Date"
+                label={tr("Date")}
                 fullWidth
                 slotProps={{ inputLabel: { shrink: true } }}
                 value={reportForm.approval_date}
@@ -3012,13 +2905,13 @@ export function TeamDetailPage() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setReportDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setReportDialogOpen(false)}>{tr("Cancel")}</Button>
           <Button
             variant="contained"
             disabled={!reportForm.report_number.trim() || generateOetcReport.isPending}
             onClick={handleGenerateReport}
           >
-            {generateOetcReport.isPending ? 'Generating…' : 'Generate & download'}
+            {generateOetcReport.isPending ? tr("Generating…") : tr("Generate & download")}
           </Button>
         </DialogActions>
       </Dialog>
@@ -3029,7 +2922,7 @@ export function TeamDetailPage() {
             <ListItemIcon>
               <EditIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Edit</ListItemText>
+            <ListItemText>{tr("Edit")}</ListItemText>
           </MenuItem>,
           <MenuItem
             key="toggle"
@@ -3042,80 +2935,78 @@ export function TeamDetailPage() {
             <ListItemIcon>
               {memberMenuTarget.is_active ? <LinkOffIcon fontSize="small" /> : <LinkIcon fontSize="small" />}
             </ListItemIcon>
-            <ListItemText>{memberMenuTarget.is_active ? 'Deactivate login' : 'Reactivate login'}</ListItemText>
+            <ListItemText>{memberMenuTarget.is_active ? tr("Deactivate login") : tr("Reactivate login")}</ListItemText>
           </MenuItem>,
           <Divider key="div" />,
           <MenuItem key="delete" onClick={() => handleDeleteMemberLogin(memberMenuTarget)} sx={{ color: 'error.main' }}>
             <ListItemIcon>
               <DeleteIcon fontSize="small" color="error" />
             </ListItemIcon>
-            <ListItemText>Delete</ListItemText>
+            <ListItemText>{tr("Delete")}</ListItemText>
           </MenuItem>,
         ]}
       </Menu>
 
       <Dialog open={editMemberOpen} onClose={() => setEditMemberOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Edit {editingMember?.full_name || editingMember?.username}</DialogTitle>
+        <DialogTitle>{tr("Edit ")}{editingMember?.full_name || editingMember?.username}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {editMemberError && <Alert severity="error">{editMemberError}</Alert>}
+            {editMemberError && <Alert severity="error">{tr(editMemberError)}</Alert>}
             <TextField
-              label="Username"
+              label={tr("Username")}
               fullWidth
               value={editMemberForm.username}
               onChange={(e) => setEditMemberForm((f) => ({ ...f, username: e.target.value }))}
               autoFocus
             />
             <TextField
-              label="Full name"
+              label={tr("Full name")}
               fullWidth
               value={editMemberForm.full_name}
               onChange={(e) => setEditMemberForm((f) => ({ ...f, full_name: e.target.value }))}
             />
             <TextField
-              label="Mobile"
+              label={tr("Mobile")}
               fullWidth
               value={editMemberForm.mobile}
               onChange={(e) => setEditMemberForm((f) => ({ ...f, mobile: e.target.value }))}
             />
             <TextField
               select
-              label="Job type"
+              label={tr("Job type")}
               fullWidth
               value={editMemberForm.job_type}
               onChange={(e) => setEditMemberForm((f) => ({ ...f, job_type: e.target.value }))}
             >
               {JOB_TYPE_OPTIONS.map((j) => (
                 <MenuItem key={j} value={j}>
-                  {j}
+                  {tr(j)}
                 </MenuItem>
               ))}
               {editMemberForm.job_type && !JOB_TYPE_OPTIONS.includes(editMemberForm.job_type) && (
-                <MenuItem value={editMemberForm.job_type}>{editMemberForm.job_type} (custom)</MenuItem>
+                <MenuItem value={editMemberForm.job_type}>{tr(editMemberForm.job_type)}{tr(" (custom)")}</MenuItem>
               )}
             </TextField>
             <TextField
-              label="Notes"
+              label={tr("Notes")}
               multiline
               minRows={2}
               value={editMemberForm.notes}
               onChange={(e) => setEditMemberForm((f) => ({ ...f, notes: e.target.value }))}
             />
             <TextField
-              label="Reset password (optional)"
+              label={tr("Reset password (optional)")}
               type="password"
               fullWidth
               value={editMemberForm.password}
-              helperText="Leave blank to keep their current password"
+              helperText={tr("Leave blank to keep their current password")}
               onChange={(e) => setEditMemberForm((f) => ({ ...f, password: e.target.value }))}
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditMemberOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleSaveMemberEdit} disabled={updateMemberLogin.isPending}>
-            Save
-          </Button>
+          <Button onClick={() => setEditMemberOpen(false)}>{tr("Cancel")}</Button>
+          <Button variant="contained" onClick={handleSaveMemberEdit} disabled={updateMemberLogin.isPending}>{tr("Save")}</Button>
         </DialogActions>
       </Dialog>
     </Stack>

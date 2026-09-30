@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useState } from 'react';
 import {
   Alert,
@@ -22,6 +23,7 @@ import { useAreas, useGenerateFieldExecutionPlan, useTeams } from '../api/hooks'
  * one-time-per-generation input (client, reference letter, period) plus which towers/teams to
  * include — see backend services/field_execution_plan.py for exactly what's computed vs. fixed. */
 export function FieldExecutionPlanForm() {
+  useLanguage();
   const { data: areas } = useAreas();
   const { data: teams } = useTeams();
   const generate = useGenerateFieldExecutionPlan();
@@ -64,7 +66,7 @@ export function FieldExecutionPlanForm() {
       {
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setError(detail || 'Could not generate the plan document.');
+          setError(detail || tr("Could not generate the plan document."));
         },
       },
     );
@@ -72,47 +74,40 @@ export function FieldExecutionPlanForm() {
 
   return (
     <Box>
-      <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-        Field execution plan
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        The customer-facing mobilization plan — client info, live tower/team counts, and a computed
-        day-by-day schedule, generated into the approved plan layout. Assign each tower a{' '}
-        <strong>Line sector</strong> (Towers page) and each team a <strong>Primary line sector</strong>{' '}
-        (Teams page) first so the sector breakdown and schedule come out meaningful — towers without
-        one are grouped as "unclassified".
-      </Typography>
+      <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>{tr("Field execution plan")}</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("The customer-facing mobilization plan — client info, live tower/team counts, and a computed day-by-day schedule, generated into the approved plan layout. Assign each tower a")}{' '}
+        <strong>{tr("Line sector")}</strong>{tr(" (Towers page) and each team a ")}<strong>{tr("Primary line sector")}</strong>{' '}{tr("(Teams page) first so the sector breakdown and schedule come out meaningful — towers without one are grouped as \"unclassified\".")}</Typography>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
+          {tr(error)}
         </Alert>
       )}
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
-            label="Client name"
+            label={tr("Client name")}
             fullWidth
             size="small"
             value={clientName}
             onChange={(e) => setClientName(e.target.value)}
-            helperText="Full name only — the short code below is added automatically"
+            helperText={tr("Full name only — the short code below is added automatically")}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
-            label="Client short code"
+            label={tr("Client short code")}
             fullWidth
             size="small"
             value={clientShort}
             onChange={(e) => setClientShort(e.target.value)}
-            placeholder="e.g. OETC"
+            placeholder={tr("e.g. OETC")}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
-            label="Reference letter number"
+            label={tr("Reference letter number")}
             fullWidth
             size="small"
             value={referenceNo}
@@ -121,17 +116,17 @@ export function FieldExecutionPlanForm() {
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
-            label="Reference letter date"
+            label={tr("Reference letter date")}
             fullWidth
             size="small"
             value={referenceDate}
             onChange={(e) => setReferenceDate(e.target.value)}
-            placeholder="shown exactly as typed, e.g. 06/09/2026"
+            placeholder={tr("shown exactly as typed, e.g. 06/09/2026")}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
-            label="Prepared by"
+            label={tr("Prepared by")}
             fullWidth
             size="small"
             value={preparedBy}
@@ -140,17 +135,17 @@ export function FieldExecutionPlanForm() {
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
-            label="Target period"
+            label={tr("Target period")}
             fullWidth
             size="small"
             value={periodLabel}
             onChange={(e) => setPeriodLabel(e.target.value)}
-            placeholder="e.g. September 2026"
+            placeholder={tr("e.g. September 2026")}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
-            label="Voltage label"
+            label={tr("Voltage label")}
             fullWidth
             size="small"
             value={voltageLabel}
@@ -159,35 +154,34 @@ export function FieldExecutionPlanForm() {
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
-            label="Region label"
+            label={tr("Region label")}
             fullWidth
             size="small"
             value={regionLabel}
             onChange={(e) => setRegionLabel(e.target.value)}
-            placeholder="e.g. Dhofar Governorate"
+            placeholder={tr("e.g. Dhofar Governorate")}
           />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             select
-            label="Towers to include"
+            label={tr("Towers to include")}
             fullWidth
             size="small"
             value={area}
             onChange={(e) => setArea(e.target.value)}
           >
-            <MenuItem value="">All active towers</MenuItem>
+            <MenuItem value="">{tr("All active towers")}</MenuItem>
             {areas?.map((a) => (
               <MenuItem key={a} value={a}>
-                {a} only
-              </MenuItem>
+                {a}{tr(" only")}</MenuItem>
             ))}
           </TextField>
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
-            label="Assumed towers/team/day"
+            label={tr("Assumed towers/team/day")}
             type="number"
             fullWidth
             size="small"
@@ -206,7 +200,7 @@ export function FieldExecutionPlanForm() {
             onChange={(e) => setTeamIds(typeof e.target.value === 'string' ? [] : (e.target.value as number[]))}
             renderValue={(selected) =>
               selected.length === 0 ? (
-                <em>All active teams</em>
+                <em>{tr("All active teams")}</em>
               ) : (
                 <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                   {selected.map((id) => (
@@ -233,7 +227,7 @@ export function FieldExecutionPlanForm() {
         disabled={!requiredFilled || generate.isPending}
         onClick={handleGenerate}
       >
-        {generate.isPending ? 'Generating…' : 'Generate & download plan (.docx)'}
+        {generate.isPending ? tr("Generating…") : tr("Generate & download plan (.docx)")}
       </Button>
     </Box>
   );

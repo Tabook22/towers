@@ -1,3 +1,5 @@
+import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   Alert,
@@ -71,6 +73,7 @@ const SEEN_KEY = 'iip_channel_seen_id';
  * routers/channel.channel_unread_count), and marks everything read the moment you're actually
  * looking at the Messages page rather than requiring an explicit "mark read" action. */
 function useMessagesUnreadCount() {
+  useLanguage();
   const location = useLocation();
   const [seenId, setSeenId] = useState<number>(() => Number(localStorage.getItem(SEEN_KEY) || 0));
   const { data } = useChannelUnread(seenId);
@@ -87,6 +90,7 @@ function useMessagesUnreadCount() {
 // reports, or team management, all of which are scoped away server-side anyway (see
 // routers/dashboard.py, archive.py, team_activity_report.py). One nav item, one workspace.
 function TrackingChip() {
+  useLanguage();
   const { enabled, setEnabled, status, requestNow, lastSentAt, required } = useTracking();
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -96,7 +100,7 @@ function TrackingChip() {
   const ago = lastSentAt
     ? Math.max(0, Math.round((Date.now() - lastSentAt.getTime()) / 1000))
     : null;
-  const liveLabel = ago == null ? 'Tracking' : ago < 60 ? `Live · ${ago}s` : `Live · ${Math.round(ago / 60)}m`;
+  const liveLabel = ago == null ? tr('Tracking') : ago < 60 ? tr('Live · {0}s', [ago]) : tr('Live · {0}m', [Math.round(ago / 60)]);
   const label = !enabled
     ? 'Location off'
     : status === 'watching'
@@ -108,17 +112,13 @@ function TrackingChip() {
   return (
     <Tooltip
       title={
-        required
-          ? 'Location starts when you sign in. The path is saved on the daily team log so dispatch can follow this crew live.'
-          : enabled
-            ? 'Sharing your location with dispatch — click to stop'
-            : 'Not sharing location — click to start'
+        required ? tr("Location starts when you sign in. The path is saved on the daily team log so dispatch can follow this crew live.") : enabled ? tr("Sharing your location with dispatch — click to stop") : tr("Not sharing location — click to start")
       }
     >
       <Chip
         size="small"
         icon={enabled && status !== 'denied' ? <MyLocationIcon /> : <LocationDisabledIcon />}
-        label={label}
+        label={tr(label)}
         color={color}
         variant={enabled && status === 'watching' ? 'filled' : 'outlined'}
         onPointerDown={() => {
@@ -145,6 +145,7 @@ function TrackingChip() {
  * and public/sw.js) — per-browser/device, same as WhatsApp Web vs. the phone app. Hidden entirely
  * on a browser with no Push API support (e.g. iOS Safari unless added to the home screen). */
 function NotificationBell() {
+  useLanguage();
   const { status, busy, error, enable, disable } = usePushNotifications();
   if (status === 'unsupported') return null;
   const subscribed = status === 'subscribed';
@@ -156,7 +157,7 @@ function NotificationBell() {
         ? 'Notifications on for new messages — click to turn off'
         : 'Turn on notifications for new messages');
   return (
-    <Tooltip title={label}>
+    <Tooltip title={tr(label)}>
       <span>
         <IconButton color="inherit" disabled={busy || status === 'denied'} onClick={() => (subscribed ? disable() : enable())}>
           {status === 'denied' ? (
@@ -173,15 +174,13 @@ function NotificationBell() {
 }
 
 function LocationBanner() {
+  useLanguage();
   const { status, requestNow, required, needsAllow, insecure, waitingForPrompt } = useTracking();
   const { online } = useOffline();
   if (!online || !required) return null;
   if (insecure) {
     return (
-      <Alert severity="error" sx={{ borderRadius: 0 }}>
-        Location does not work on plain http:// — open this app with https:// (or localhost). Until
-        then dispatch cannot see this team.
-      </Alert>
+      <Alert severity="error" sx={{ borderRadius: 0 }}>{tr("Location does not work on plain http:// — open this app with https:// (or localhost). Until then dispatch cannot see this team.")}</Alert>
     );
   }
   if (needsAllow || status === 'denied' || status === 'locating' || waitingForPrompt) {
@@ -192,18 +191,10 @@ function LocationBanner() {
       >
         <Stack spacing={1} sx={{ width: '100%' }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-            {waitingForPrompt
-              ? 'Look at the TOP of the phone now'
-              : status === 'denied'
-                ? 'GPS is blocked on this phone'
-                : 'Dispatch needs this team’s location'}
+            {waitingForPrompt ? tr("Look at the TOP of the phone now") : status === 'denied' ? tr("GPS is blocked on this phone") : tr("Dispatch needs this team’s location")}
           </Typography>
           <Typography variant="body2">
-            {waitingForPrompt
-              ? 'A small popup should appear at the top of the screen (or next to the lock in the address bar). Tap Allow. If nothing appears, tap the green button again.'
-              : status === 'denied'
-                ? 'Open the browser menu → this site’s settings → Location → Allow. Then tap the green button below.'
-                : '1. Tap the green button.  2. Tap Allow on the popup at the top of the phone. After that, tracking runs by itself every 10 seconds — keep this screen open (don’t lock the phone) for it to stay live.'}
+            {waitingForPrompt ? tr("A small popup should appear at the top of the screen (or next to the lock in the address bar). Tap Allow. If nothing appears, tap the green button again.") : status === 'denied' ? tr("Open the browser menu → this site’s settings → Location → Allow. Then tap the green button below.") : tr("1. Tap the green button.  2. Tap Allow on the popup at the top of the phone. After that, tracking runs by itself every 10 seconds — keep this screen open (don’t lock the phone) for it to stay live.")}
           </Typography>
           <Button
             variant="contained"
@@ -213,7 +204,7 @@ function LocationBanner() {
             onClick={() => requestNow()}
             sx={{ alignSelf: 'flex-start', fontWeight: 800, px: 2.5 }}
           >
-            {waitingForPrompt ? 'Waiting for Allow… tap again if no popup' : 'Allow GPS tracking'}
+            {waitingForPrompt ? tr("Waiting for Allow… tap again if no popup") : tr("Allow GPS tracking")}
           </Button>
         </Stack>
       </Alert>
@@ -223,6 +214,7 @@ function LocationBanner() {
 }
 
 function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  useLanguage();
   const changePassword = useChangePassword();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -246,11 +238,11 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
   const handleSubmit = () => {
     setError(null);
     if (newPassword.length < 6) {
-      setError('New password needs at least 6 characters.');
+      setError(tr("New password needs at least 6 characters."));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('New password and confirmation don’t match.');
+      setError(tr("New password and confirmation don’t match."));
       return;
     }
     changePassword.mutate(
@@ -264,7 +256,7 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
         },
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setError(detail || 'Could not change your password.');
+          setError(detail || tr("Could not change your password."));
         },
       },
     );
@@ -272,13 +264,13 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Change password</DialogTitle>
+      <DialogTitle>{tr("Change password")}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
-          {success && <Alert severity="success">Password changed.</Alert>}
+          {error && <Alert severity="error">{tr(error)}</Alert>}
+          {success && <Alert severity="success">{tr("Password changed.")}</Alert>}
           <TextField
-            label="Current password"
+            label={tr("Current password")}
             type="password"
             fullWidth
             autoFocus
@@ -286,15 +278,15 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
             onChange={(e) => setCurrentPassword(e.target.value)}
           />
           <TextField
-            label="New password"
+            label={tr("New password")}
             type="password"
             fullWidth
-            helperText="At least 6 characters"
+            helperText={tr("At least 6 characters")}
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
           />
           <TextField
-            label="Confirm new password"
+            label={tr("Confirm new password")}
             type="password"
             fullWidth
             value={confirmPassword}
@@ -303,20 +295,19 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleClose}>Close</Button>
+        <Button onClick={handleClose}>{tr("Close")}</Button>
         <Button
           variant="contained"
           onClick={handleSubmit}
           disabled={changePassword.isPending || !currentPassword || !newPassword || !confirmPassword}
-        >
-          Save
-        </Button>
+        >{tr("Save")}</Button>
       </DialogActions>
     </Dialog>
   );
 }
 
 export function Layout({ children }: { children: ReactNode }) {
+  useLanguage();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { mode, toggleMode } = useColorMode();
@@ -329,15 +320,15 @@ export function Layout({ children }: { children: ReactNode }) {
   // each role gets, and routers/auth.py's create_user/update_user for how an admin customizes it —
   // this replaces what used to be a fixed role-based nav hardcoded here.
   const navItemDefs: { id: string; label: string; to: string; icon: ReactNode }[] = [
-    { id: 'dashboard', label: 'Dashboard', to: '/', icon: <DashboardIcon /> },
-    { id: 'towers', label: 'Towers', to: '/towers', icon: <TowerIcon /> },
-    { id: 'image_archive', label: 'Image Archive', to: '/archive', icon: <PhotoLibraryIcon /> },
+    { id: 'dashboard', label: tr("Dashboard"), to: '/', icon: <DashboardIcon /> },
+    { id: 'towers', label: tr("Towers"), to: '/towers', icon: <TowerIcon /> },
+    { id: 'image_archive', label: tr("Image Archive"), to: '/archive', icon: <PhotoLibraryIcon /> },
     // A client (customer) login's report link goes to the portal page, not the staff one — see
     // App.tsx's route guard for the server-side-equivalent enforcement (app/client_guard.py).
-    { id: 'reports', label: 'Reports', to: isClient ? '/client-reports' : '/reports', icon: <AssessmentIcon /> },
+    { id: 'reports', label: tr("Reports"), to: isClient ? '/client-reports' : '/reports', icon: <AssessmentIcon /> },
     {
       id: 'messages',
-      label: 'Messages',
+      label: tr("Messages"),
       to: '/messages',
       icon: (
         <Badge badgeContent={unreadMessages} color="error" max={99}>
@@ -347,14 +338,14 @@ export function Layout({ children }: { children: ReactNode }) {
     },
     {
       id: 'teams',
-      label: user?.team_id ? 'Our team' : 'Teams',
+      label: user?.team_id ? tr("Our team") : tr("Teams"),
       to: user?.team_id ? `/teams/${user.team_id}` : '/teams',
       icon: <GroupsIcon />,
     },
-    { id: 'field_tracker', label: 'Field Tracker', to: '/field-tracker', icon: <MyLocationIcon /> },
-    { id: 'team_progress', label: 'Team Progress', to: '/team-progress', icon: <InsightsIcon /> },
-    { id: 'knowledge_base', label: 'Knowledge base', to: '/knowledge-base', icon: <MenuBookRoundedIcon /> },
-    { id: 'settings', label: 'Settings', to: '/settings', icon: <SettingsIcon /> },
+    { id: 'field_tracker', label: tr("Field Tracker"), to: '/field-tracker', icon: <MyLocationIcon /> },
+    { id: 'team_progress', label: tr("Team Progress"), to: '/team-progress', icon: <InsightsIcon /> },
+    { id: 'knowledge_base', label: tr("Knowledge base"), to: '/knowledge-base', icon: <MenuBookRoundedIcon /> },
+    { id: 'settings', label: tr("Settings"), to: '/settings', icon: <SettingsIcon /> },
   ];
   const items = navItemDefs.filter((def) => !!user?.menu_permissions?.[def.id]);
 
@@ -386,16 +377,12 @@ export function Layout({ children }: { children: ReactNode }) {
             }}
           >
             <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.label} />
+            <ListItemText primary={tr(item.label)} />
           </ListItemButton>
         ))}
       </List>
       <Box sx={{ mt: 'auto', p: 2 }}>
-        <Typography variant="caption" color="text.secondary">
-          132 kV OHL Field Inspections
-          <br />
-          Dufar Area &amp; beyond
-        </Typography>
+        <Typography variant="caption" color="text.secondary">{tr("132 kV OHL Field Inspections")}<br />{tr("Dufar Area & beyond")}</Typography>
       </Box>
     </>
   );
@@ -409,6 +396,7 @@ export function Layout({ children }: { children: ReactNode }) {
       >
         <Toolbar sx={{ gap: { xs: 0.5, md: 1.5 }, px: { xs: 1, sm: 2 } }}>
           <IconButton
+            aria-label={tr("Open navigation")}
             color="inherit"
             edge="start"
             onClick={() => setMobileNavOpen(true)}
@@ -422,9 +410,7 @@ export function Layout({ children }: { children: ReactNode }) {
             noWrap
             component="div"
             sx={{ fontWeight: 800, flexGrow: 1, display: { xs: 'none', sm: 'block' } }}
-          >
-            Insulator Inspector Pro
-          </Typography>
+          >{tr("Insulator Inspector Pro")}</Typography>
           <Box sx={{ flexGrow: { xs: 1, sm: 0 } }} />
           {user?.id && !isClient && user.menu_permissions?.messages && <LiveHelp key={user.id} userId={user.id} />}
 
@@ -432,27 +418,25 @@ export function Layout({ children }: { children: ReactNode }) {
           <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1.5 }}>
             <OfflineChip />
             <TrackingChip />
-            <Tooltip title="Step-by-step guides for the daily/mission routine">
+            <Tooltip title={tr("Step-by-step guides for the daily/mission routine")}>
               <Button
                 color="inherit"
                 size="small"
                 startIcon={<HelpOutlineIcon />}
                 onClick={() => navigate('/help')}
                 sx={{ borderRadius: 5, px: 1.5, bgcolor: 'rgba(255,255,255,0.12)', '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}
-              >
-                Help me
-              </Button>
+              >{tr("Help me")}</Button>
             </Tooltip>
             <Typography variant="body2" sx={{ opacity: 0.9, mr: 1 }}>
-              {user?.full_name || user?.username} · {user?.role}
+              {user?.full_name || user?.username} · {tr(user?.role)}
             </Typography>
             <NotificationBell />
-            <Tooltip title={mode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
+            <Tooltip title={mode === 'dark' ? tr("Switch to light theme") : tr("Switch to dark theme")}>
               <IconButton color="inherit" onClick={toggleMode}>
                 {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
               </IconButton>
             </Tooltip>
-            <Tooltip title="Log out">
+            <Tooltip title={tr("Log out")}>
               <IconButton
                 color="inherit"
                 onClick={() => {
@@ -473,7 +457,8 @@ export function Layout({ children }: { children: ReactNode }) {
             <TrackingChip />
           </Box>
 
-          <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)} sx={{ p: 0.5, ml: { xs: 0.5, md: 0 } }}>
+          <LanguageSwitcher />
+          <IconButton aria-label={tr("Account menu")} onClick={(e) => setMenuAnchor(e.currentTarget)} sx={{ p: 0.5, ml: { xs: 0.5, md: 0 } }}>
             <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main', color: 'secondary.contrastText', fontWeight: 700 }}>
               {(user?.full_name || user?.username || '?').slice(0, 1).toUpperCase()}
             </Avatar>
@@ -481,7 +466,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
             <MenuItem disabled sx={{ display: { xs: 'flex', md: 'none' }, opacity: '1 !important' }}>
               <Typography variant="body2" color="text.secondary">
-                {user?.full_name || user?.username} · {user?.role}
+                {user?.full_name || user?.username} · {tr(user?.role)}
               </Typography>
             </MenuItem>
             <Box sx={{ display: { xs: 'block', md: 'none' } }}>
@@ -494,9 +479,7 @@ export function Layout({ children }: { children: ReactNode }) {
               >
                 <ListItemIcon>
                   <HelpOutlineIcon fontSize="small" />
-                </ListItemIcon>
-                Help me
-              </MenuItem>
+                </ListItemIcon>{tr("Help me")}</MenuItem>
               <MenuItem
                 onClick={() => {
                   toggleMode();
@@ -504,7 +487,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 }}
               >
                 <ListItemIcon>{mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}</ListItemIcon>
-                {mode === 'dark' ? 'Light theme' : 'Dark theme'}
+                {mode === 'dark' ? tr("Light theme") : tr("Dark theme")}
               </MenuItem>
             </Box>
             <MenuItem
@@ -515,9 +498,7 @@ export function Layout({ children }: { children: ReactNode }) {
             >
               <ListItemIcon>
                 <LockResetIcon fontSize="small" />
-              </ListItemIcon>
-              Change password
-            </MenuItem>
+              </ListItemIcon>{tr("Change password")}</MenuItem>
             <Box sx={{ display: { xs: 'block', md: 'none' } }}>
               <Divider />
               <MenuItem
@@ -529,14 +510,13 @@ export function Layout({ children }: { children: ReactNode }) {
               >
                 <ListItemIcon>
                   <LogoutIcon fontSize="small" />
-                </ListItemIcon>
-                Log out
-              </MenuItem>
+                </ListItemIcon>{tr("Log out")}</MenuItem>
             </Box>
           </Menu>
         </Toolbar>
       </AppBar>
       <Drawer
+        anchor="left"
         variant={isMobile ? 'temporary' : 'permanent'}
         open={isMobile ? mobileNavOpen : true}
         onClose={() => setMobileNavOpen(false)}

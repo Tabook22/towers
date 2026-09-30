@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import type { ReactNode } from 'react';
 import { Box, Link, Typography } from '@mui/material';
 
@@ -34,6 +35,7 @@ function splitTrailingPunctuation(url: string): [string, string] {
  * knowledge-base document's extracted text in the read-only viewer — many field reports and
  * reference notes link out to a video, a photo, or a recording rather than attaching it directly. */
 export function RichTextWithMedia({ text }: { text: string }) {
+  useLanguage();
   const parts = text.split(URL_RE);
   const nodes: ReactNode[] = [];
 
@@ -55,7 +57,7 @@ export function RichTextWithMedia({ text }: { text: string }) {
           <Box
             component="iframe"
             src={`https://www.youtube.com/embed/${ytId}`}
-            title="YouTube video"
+            title={tr("YouTube video")}
             allowFullScreen
             sx={{ border: 0, width: '100%', height: '100%', borderRadius: 1 }}
           />
@@ -67,7 +69,7 @@ export function RichTextWithMedia({ text }: { text: string }) {
           <Box
             component="img"
             src={url}
-            alt="Referenced"
+            alt={tr("Referenced")}
             sx={{ maxWidth: '100%', maxHeight: 360, display: 'block', borderRadius: 1 }}
           />
         </Box>,

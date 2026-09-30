@@ -1,3 +1,4 @@
+import { tr, useLanguage, locale } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import {
   Accordion,
@@ -57,7 +58,7 @@ const KIND_LABEL: Record<string, string> = {
 
 function clock(iso: string) {
   const d = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
 }
 
 // wa.me wants digits only (no "+", spaces or dashes) — mobile numbers on file may have any of
@@ -74,6 +75,7 @@ function formatBytes(bytes: number | null): string {
 }
 
 function useHere() {
+  useLanguage();
   const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
     requestBrowserLocation((lat, lng) => setHere({ lat, lng }), undefined, false);
@@ -90,6 +92,7 @@ export function MessageBody({
   showTeam?: boolean;
   onTower?: (towerId: number, visitId: number | null) => void;
 }) {
+  useLanguage();
   const photo = msg.has_photo
     ? mediaUrl(`/api/community/channel/${msg.id}/photo?thumb=true`, msg.created_at)
     : null;
@@ -139,7 +142,7 @@ export function MessageBody({
           <Chip
             size="small"
             icon={<RoomRoundedIcon fontSize="small" />}
-            label="Location"
+            label={tr("Location")}
             component="a"
             href={`https://www.google.com/maps/search/?api=1&query=${msg.latitude},${msg.longitude}`}
             target="_blank"
@@ -149,16 +152,16 @@ export function MessageBody({
           />
         )}
         <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
-          {msg.author_name || 'Unknown'} · {clock(msg.created_at)}
+          {msg.author_name || tr("Unknown")} · {clock(msg.created_at)}
         </Typography>
         {msg.author_mobile && (
           <Stack direction="row" spacing={0.25}>
-            <Tooltip title={`Call ${msg.author_name || 'them'}`}>
+            <Tooltip title={tr("Call {0}", [msg.author_name || tr("them")])}>
               <IconButton size="small" component="a" href={`tel:${msg.author_mobile}`}>
                 <CallRoundedIcon fontSize="inherit" />
               </IconButton>
             </Tooltip>
-            <Tooltip title={`WhatsApp ${msg.author_name || 'them'}`}>
+            <Tooltip title={tr("WhatsApp {0}", [msg.author_name || tr("them")])}>
               <IconButton
                 size="small"
                 component="a"
@@ -225,7 +228,7 @@ export function MessageBody({
           <InsertDriveFileRoundedIcon color="action" />
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
-              {msg.file_name || 'File'}
+              {msg.file_name || tr("File")}
             </Typography>
             {msg.file_size != null && (
               <Typography variant="caption" color="text.secondary">
@@ -257,6 +260,7 @@ export function NightChannel({
   onTower?: (towerId: number, visitId: number | null) => void;
   step?: number;
 }) {
+  useLanguage();
   const { user } = useAuth();
   const here = useHere();
   const { data, isLoading } = useTeamChannel(teamId, fieldDate);
@@ -303,15 +307,11 @@ export function NightChannel({
             {step != null && <StepBadge n={step} />}
             <ForumRoundedIcon color="primary" />
             <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Tonight
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Shared with dispatch. Tagged to the nearest tower when GPS is on.
-              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Tonight")}</Typography>
+              <Typography variant="body2" color="text.secondary">{tr("Shared with dispatch. Tagged to the nearest tower when GPS is on.")}</Typography>
             </Box>
           </Stack>
-          <Chip size="small" label={`${data?.length || 0} messages`} variant="outlined" />
+          <Chip size="small" label={tr("{0} messages", [data?.length || 0])} variant="outlined" />
         </Stack>
       </AccordionSummary>
       <AccordionDetails>
@@ -329,14 +329,10 @@ export function NightChannel({
           }}
         >
           {(data || []).length === 0 && !isLoading && (
-            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-              No messages yet tonight. Access problem, wind hold, or a hotspot — send it here instead of WhatsApp.
-            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>{tr("No messages yet tonight. Access problem, wind hold, or a hotspot — send it here instead of WhatsApp.")}</Typography>
           )}
           {visible.length === 0 && (data || []).length > 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ py: 1, textAlign: 'center' }}>
-              No {kindFilter} messages in this filter.
-            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ py: 1, textAlign: 'center' }}>{tr("No ")}{kindFilter}{tr(" messages in this filter.")}</Typography>
           )}
           {visible.map((msg) => (
             <MessageBody key={msg.id} msg={msg} onTower={onTower} />
@@ -360,12 +356,12 @@ export function NightChannel({
             <TextField
               select
               size="small"
-              label="Tower"
+              label={tr("Tower")}
               value={towerId}
               onChange={(e) => setTowerId(e.target.value)}
               sx={{ minWidth: 140 }}
             >
-              <MenuItem value="">Auto (GPS)</MenuItem>
+              <MenuItem value="">{tr("Auto (GPS)")}</MenuItem>
               {towers.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
                   {t.tower_id}
@@ -375,7 +371,7 @@ export function NightChannel({
           )}
           <TextField
             size="small"
-            placeholder="Message dispatch / the rest of the crew"
+            placeholder={tr("Message dispatch / the rest of the crew")}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -386,7 +382,7 @@ export function NightChannel({
             }}
             sx={{ flex: 1, minWidth: 160 }}
           />
-          <Tooltip title="Send">
+          <Tooltip title={tr("Send")}>
             <span>
               <IconButton
                 color="primary"
@@ -397,28 +393,28 @@ export function NightChannel({
               </IconButton>
             </span>
           </Tooltip>
-          <Tooltip title="Photo">
+          <Tooltip title={tr("Photo")}>
             <span>
               <IconButton disabled={sending} onClick={() => photoRef.current?.click()}>
                 <PhotoCameraIcon />
               </IconButton>
             </span>
           </Tooltip>
-          <Tooltip title="Video">
+          <Tooltip title={tr("Video")}>
             <span>
               <IconButton disabled={sending} onClick={() => videoRef.current?.click()}>
                 <VideocamRoundedIcon />
               </IconButton>
             </span>
           </Tooltip>
-          <Tooltip title="Attach file">
+          <Tooltip title={tr("Attach file")}>
             <span>
               <IconButton disabled={sending} onClick={() => fileRef.current?.click()}>
                 <AttachFileRoundedIcon />
               </IconButton>
             </span>
           </Tooltip>
-          <Tooltip title={here ? 'Share my location' : 'Waiting for GPS…'}>
+          <Tooltip title={here ? tr("Share my location") : tr("Waiting for GPS…")}>
             <span>
               <IconButton
                 disabled={sending || !here}
@@ -520,6 +516,7 @@ export function DispatchChannelFeed({
   messages?: ChannelMessage[];
   onTower?: (towerId: number, visitId: number | null, teamId: number) => void;
 }) {
+  useLanguage();
   const query = useTrackingChannel(fieldDate, teamId, messages === undefined);
   const data = messages ?? query.data;
   const isLoading = messages ? false : query.isLoading;
@@ -534,24 +531,19 @@ export function DispatchChannelFeed({
       <CardContent>
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', mb: 1 }}>
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Crew channel
-            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Crew channel")}</Typography>
             <Typography variant="body2" color="text.secondary">
-              {teamId ? 'This team tonight' : 'All crews tonight'} — same thread they see on their phones.
-            </Typography>
+              {teamId ? tr("This team tonight") : tr("All crews tonight")}{tr(" — same thread they see on their phones.")}</Typography>
           </Box>
-          {helpCount > 0 && <Chip size="small" color="error" label={`${helpCount} hotspot/help`} />}
+          {helpCount > 0 && <Chip size="small" color="error" label={tr("{0} hotspot/help", [helpCount])} />}
         </Stack>
         {isLoading && <LinearProgress sx={{ mb: 1 }} />}
         <Box ref={listRef} sx={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
           {(data || []).length === 0 && !isLoading && (
-            <Alert severity="info">No crew messages yet this field night.</Alert>
+            <Alert severity="info">{tr("No crew messages yet this field night.")}</Alert>
           )}
           {visible.length === 0 && (data || []).length > 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ py: 1, textAlign: 'center' }}>
-              No messages match this filter.
-            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ py: 1, textAlign: 'center' }}>{tr("No messages match this filter.")}</Typography>
           )}
           {visible.map((msg) => (
             <MessageBody

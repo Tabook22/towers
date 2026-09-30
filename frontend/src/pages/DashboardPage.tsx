@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import {
   Accordion,
   AccordionDetails,
@@ -64,6 +65,7 @@ function DashboardSection({
   defaultExpanded?: boolean;
   children: ReactNode;
 }) {
+  useLanguage();
   return (
     <Accordion defaultExpanded={defaultExpanded} disableGutters>
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
@@ -85,6 +87,7 @@ function DashboardSection({
 }
 
 export function DashboardPage() {
+  useLanguage();
   const [area, setArea] = useState<string>('');
   const [towerHistoryOpen, setTowerHistoryOpen] = useState(false);
   const navigate = useNavigate();
@@ -136,21 +139,19 @@ export function DashboardPage() {
     <Stack spacing={3}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>
-            Overview
-          </Typography>
-          <Typography color="text.secondary">All towers &amp; latest field visits{area ? ` — ${area}` : ''}</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>{tr("Overview")}</Typography>
+          <Typography color="text.secondary">{tr("All towers & latest field visits")}{area ? ` — ${area}` : ''}</Typography>
         </Box>
         <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
           <TextField
             select
             size="small"
-            label="Area"
+            label={tr("Area")}
             value={area}
             onChange={(e) => setArea(e.target.value)}
             sx={{ minWidth: 180 }}
           >
-            <MenuItem value="">All areas</MenuItem>
+            <MenuItem value="">{tr("All areas")}</MenuItem>
             {areas?.map((a) => (
               <MenuItem key={a} value={a}>
                 {a}
@@ -164,9 +165,7 @@ export function DashboardPage() {
             href={reportUrl}
             target="_blank"
             rel="noreferrer"
-          >
-            Overall report
-          </Button>
+          >{tr("Overall report")}</Button>
         </Stack>
       </Stack>
 
@@ -183,12 +182,9 @@ export function DashboardPage() {
         <Alert
           severity="info"
           action={
-            <Button size="small" onClick={() => setMissionPlanDate('')}>
-              Back to tonight
-            </Button>
+            <Button size="small" onClick={() => setMissionPlanDate('')}>{tr("Back to tonight")}</Button>
           }
-        >
-          Viewing the mission planned for {missionDateLabel(missionPlanDate)}.
+        >{tr("Viewing the mission planned for ")}{missionDateLabel(missionPlanDate)}.
         </Alert>
       )}
 
@@ -216,19 +212,19 @@ export function DashboardPage() {
         <>
           <DashboardSection
             icon={<InsightsRoundedIcon />}
-            title="At a glance"
-            description="Live counts across every tower in this view — towers, visits recorded, open hotspots, and images still pending upload."
+            title={tr("At a glance")}
+            description={tr("Live counts across every tower in this view — towers, visits recorded, open hotspots, and images still pending upload.")}
           >
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <KpiTile label="Towers" value={data.tower_count} icon={<CellTowerIcon />} color="#0d475c" onClick={() => setTowerHistoryOpen(true)} hint="View towers & visit history →" />
+                <KpiTile label={tr("Towers")} value={data.tower_count} icon={<CellTowerIcon />} color="#0d475c" onClick={() => setTowerHistoryOpen(true)} hint={tr("View towers & visit history →")} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <KpiTile label="Visits recorded" value={data.visit_count} icon={<FactCheckIcon />} color="#3a6f84" />
+                <KpiTile label={tr("Visits recorded")} value={data.visit_count} icon={<FactCheckIcon />} color="#3a6f84" />
               </Grid>
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <KpiTile
-                  label="Open hotspots"
+                  label={tr("Open hotspots")}
                   value={data.total_hotspots}
                   icon={<LocalFireDepartmentIcon />}
                   color="#d32f2f"
@@ -236,7 +232,7 @@ export function DashboardPage() {
               </Grid>
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <KpiTile
-                  label="Images pending"
+                  label={tr("Images pending")}
                   value={data.total_images_pending}
                   icon={<PendingActionsIcon />}
                   color="#f57c00"
@@ -248,26 +244,21 @@ export function DashboardPage() {
           {canMonitorField && (
             <DashboardSection
               icon={<GpsFixedRoundedIcon />}
-              title="Field teams — live"
-              description={`${liveActive.length} live · ${liveOnMap.length} on map · ${(liveMembers || []).length} field logins`}
+              title={tr("Field teams — live")}
+              description={tr("{0} live · {1} on map · {2} field logins", [liveActive.length, liveOnMap.length, (liveMembers || []).length])}
             >
               <Stack direction="row" sx={{ justifyContent: 'flex-end', mb: 1.5 }}>
-                <Button variant="contained" onClick={() => navigate('/field-tracker')}>
-                  Open Field Tracker
-                </Button>
+                <Button variant="contained" onClick={() => navigate('/field-tracker')}>{tr("Open Field Tracker")}</Button>
               </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                Positions update every minute from crew phones while their app is open. Open Field
-                Tracker for the live map and the path since the mission started.
-              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{tr("Positions update every minute from crew phones while their app is open. Open Field Tracker for the live map and the path since the mission started.")}</Typography>
               {(liveMembers || []).length > 0 && (
                 <TableContainer component={Paper} variant="outlined">
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell>Crew</TableCell>
-                        <TableCell>Team</TableCell>
-                        <TableCell>Status</TableCell>
+                        <TableCell>{tr("Crew")}</TableCell>
+                        <TableCell>{tr("Team")}</TableCell>
+                        <TableCell>{tr("Status")}</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -281,11 +272,7 @@ export function DashboardPage() {
                           <TableCell sx={{ fontWeight: 700 }}>{m.full_name || m.username}</TableCell>
                           <TableCell>{m.team_name || '—'}</TableCell>
                           <TableCell>
-                            {m.latitude == null
-                              ? 'Not reporting'
-                              : m.is_stale
-                                ? 'Last seen (stale)'
-                                : 'Live on site'}
+                            {m.latitude == null ? tr("Not reporting") : m.is_stale ? tr("Last seen (stale)") : tr("Live on site")}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -300,32 +287,23 @@ export function DashboardPage() {
             <Grid size={{ xs: 12, md: 5 }}>
               <DashboardSection
                 icon={<MyLocationRoundedIcon />}
-                title="Site map"
-                description="Live crew GPS, planned towers, and — for leaders and admins — claim or release a tower right from the map."
+                title={tr("Site map")}
+                description={tr("Live crew GPS, planned towers, and — for leaders and admins — claim or release a tower right from the map.")}
               >
                   {teamTrails?.some((t) => t.is_previous) && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Showing this team&apos;s last recorded outing
-                      {teamTrails.find((t) => t.field_date)?.field_date
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{tr("Showing this team&apos;s last recorded outing")}{teamTrails.find((t) => t.field_date)?.field_date
                         ? ` (${teamTrails.find((t) => t.field_date)?.field_date})`
-                        : ''}
-                      . Every crew login sees the same path. Live GPS overlays when someone is signed in tonight.
-                    </Typography>
+                        : ''}{tr(". Every crew login sees the same path. Live GPS overlays when someone is signed in tonight.")}</Typography>
                   )}
                   {teamId && !teamTrails?.some((t) => t.is_previous) && (user?.role === 'team_member' || user?.role === 'team_leader') && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Live GPS for everyone on this team. Open Our team to review previous nights and daily progress.
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{tr("Live GPS for everyone on this team. Open Our team to review previous nights and daily progress.")}</Typography>
                   )}
                   {canClaimTowers && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Green pin: free, click to assign to your team. Each team has its own pin color — click one of your
-                      team&apos;s towers to unassign it. A ✓ marks a tower whose inspection is complete.
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{tr("Green pin: free, click to assign to your team. Each team has its own pin color — click one of your team&apos;s towers to unassign it. A ✓ marks a tower whose inspection is complete.")}</Typography>
                   )}
                   {claimError && (
                     <Alert severity="error" sx={{ mb: 1 }} onClose={() => setClaimError(null)}>
-                      {claimError}
+                      {tr(claimError)}
                     </Alert>
                   )}
                   {isTeamLeader || teamId ? (
@@ -361,7 +339,7 @@ export function DashboardPage() {
                               if (t.assigned_team_id === teamId) {
                                 if (
                                   window.confirm(
-                                    `Unassign ${t.tower_id} from this team so another team can inspect it?`,
+                                    tr("Unassign {0} from this team so another team can inspect it?", [t.tower_id]),
                                   )
                                 ) {
                                   releaseTower.mutate(t.id, {
@@ -373,7 +351,7 @@ export function DashboardPage() {
                               if (isCatalogAdmin) {
                                 if (
                                   window.confirm(
-                                    `Give ${t.tower_id} to this team? It is currently assigned to ${t.assigned_team_name || 'another team'}.`,
+                                    tr("Give {0} to this team? It is currently assigned to {1}.", [t.tower_id, t.assigned_team_name || tr("another team")]),
                                   )
                                 ) {
                                   claimForTeam.mutate(
@@ -384,7 +362,7 @@ export function DashboardPage() {
                                 return;
                               }
                               setClaimError(
-                                `${t.tower_id} belongs to ${t.assigned_team_name || 'another team'}. That team or an admin must unassign it first.`,
+                                tr("{0} belongs to {1}. That team or an admin must unassign it first.", [t.tower_id, t.assigned_team_name || tr("another team")]),
                               );
                             }
                           : undefined
@@ -398,19 +376,19 @@ export function DashboardPage() {
             <Grid size={{ xs: 12, md: 7 }}>
               <DashboardSection
                 icon={<WarningAmberRoundedIcon />}
-                title="Towers needing attention"
-                description="Assigned towers that are still planned or in progress, sorted by hotspot count first."
+                title={tr("Towers needing attention")}
+                description={tr("Assigned towers that are still planned or in progress, sorted by hotspot count first.")}
               >
                   <TableContainer component={Paper} variant="outlined">
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell>Tower</TableCell>
-                          <TableCell>Area</TableCell>
-                          <TableCell align="center">Hotspots</TableCell>
-                          <TableCell align="center">Pending</TableCell>
-                          <TableCell align="center">Completion</TableCell>
-                          <TableCell>Status</TableCell>
+                          <TableCell>{tr("Tower")}</TableCell>
+                          <TableCell>{tr("Area")}</TableCell>
+                          <TableCell align="center">{tr("Hotspots")}</TableCell>
+                          <TableCell align="center">{tr("Pending")}</TableCell>
+                          <TableCell align="center">{tr("Completion")}</TableCell>
+                          <TableCell>{tr("Status")}</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -444,9 +422,7 @@ export function DashboardPage() {
                         {needsAttentionRows.length === 0 && (
                           <TableRow>
                             <TableCell colSpan={6} align="center">
-                              {data.rows.length === 0
-                                ? 'No towers yet — add one from the Towers page.'
-                                : "Nothing needs attention right now — every assigned tower is either finished or hasn't been started yet."}
+                              {data.rows.length === 0 ? tr("No towers yet — add one from the Towers page.") : tr("Nothing needs attention right now — every assigned tower is either finished or hasn't been started yet.")}
                             </TableCell>
                           </TableRow>
                         )}
@@ -461,21 +437,16 @@ export function DashboardPage() {
 
       {towerHistoryOpen && <DashboardTowersDialog open area={area || undefined} onClose={() => setTowerHistoryOpen(false)} />}
       <Dialog open={!!incompleteDetail} onClose={() => setIncompleteDetail(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>What's missing — {incompleteDetail?.towerId}</DialogTitle>
+        <DialogTitle>{tr("What's missing — ")}{incompleteDetail?.towerId}</DialogTitle>
         <DialogContent>
           {incompleteLoading ? (
             <LinearProgress />
           ) : missingPositions.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              Every installed position on this visit has already been screened — the status may
-              update once the page refreshes.
-            </Typography>
+            <Typography variant="body2" color="text.secondary">{tr("Every installed position on this visit has already been screened — the status may update once the page refreshes.")}</Typography>
           ) : (
             <Stack spacing={1}>
               <Typography variant="body2" color="text.secondary">
-                {missingPositions.length} position{missingPositions.length === 1 ? '' : 's'} still
-                {missingPositions.length === 1 ? " hasn't" : " haven't"} been screened:
-              </Typography>
+                {missingPositions.length}{tr(" position")}{missingPositions.length === 1 ? '' : tr("s")}{tr(" still")}{missingPositions.length === 1 ? tr(" hasn't") : tr(" haven't")}{tr(" been screened:")}</Typography>
               <Stack spacing={0.75}>
                 {missingPositions.map((p) => (
                   <Stack
@@ -495,11 +466,9 @@ export function DashboardPage() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setIncompleteDetail(null)}>Close</Button>
+          <Button onClick={() => setIncompleteDetail(null)}>{tr("Close")}</Button>
           {incompleteDetail && (
-            <Button variant="contained" onClick={() => navigate(`/visits/${incompleteDetail.visitId}`)}>
-              Go screen it
-            </Button>
+            <Button variant="contained" onClick={() => navigate(`/visits/${incompleteDetail.visitId}`)}>{tr("Go screen it")}</Button>
           )}
         </DialogActions>
       </Dialog>

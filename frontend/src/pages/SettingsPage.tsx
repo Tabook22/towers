@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -69,6 +70,7 @@ import {
 } from '../api/types';
 
 function BrandingSection() {
+  useLanguage();
   const { data: branding } = useBrandingSettings();
   const update = useUpdateBrandingSettings();
   const [appTitle, setAppTitle] = useState('');
@@ -159,44 +161,26 @@ function BrandingSection() {
   return (
     <Card variant="outlined">
       <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-          Branding & welcome splash
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Controls what admins and team leaders see on the one-time welcome screen when they open the app —
-          the app title, the greeting text, both company logos, and a banner photo across the top.
-        </Typography>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>{tr("Branding & welcome splash")}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("Controls what admins and team leaders see on the one-time welcome screen when they open the app — the app title, the greeting text, both company logos, and a banner photo across the top.")}</Typography>
 
         {saved && (
-          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSaved(false)}>
-            Branding saved. It'll show next time the splash screen appears.
-          </Alert>
+          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSaved(false)}>{tr("Branding saved. It'll show next time the splash screen appears.")}</Alert>
         )}
-        {update.isError && <Alert severity="error" sx={{ mb: 2 }}>Could not save branding.</Alert>}
+        {update.isError && <Alert severity="error" sx={{ mb: 2 }}>{tr("Could not save branding.")}</Alert>}
 
         <Stack spacing={1} sx={{ mb: 3 }}>
-          <Typography variant="subtitle2">Live preview</Typography>
-          <Typography variant="caption" color="text.secondary">
-            This is exactly what the splash screen will look like with your changes below. Drag the
-            main logo anywhere on the banner; for the Sky Green Line logo or the app name, click
-            "Move onto banner" below them first, then drag to fine-tune. Nothing here is saved
-            until you click "Save branding".
-          </Typography>
+          <Typography variant="subtitle2">{tr("Live preview")}</Typography>
+          <Typography variant="caption" color="text.secondary">{tr("This is exactly what the splash screen will look like with your changes below. Drag the main logo anywhere on the banner; for the Sky Green Line logo or the app name, click \"Move onto banner\" below them first, then drag to fine-tune. Nothing here is saved until you click \"Save branding\".")}</Typography>
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
             {logoPosX != null && (
-              <Button size="small" onClick={() => { setLogoPosX(null); setLogoPosY(null); }}>
-                Reset logo position
-              </Button>
+              <Button size="small" onClick={() => { setLogoPosX(null); setLogoPosY(null); }}>{tr("Reset logo position")}</Button>
             )}
             {skyLogoPosX != null && (
-              <Button size="small" onClick={() => { setSkyLogoPosX(null); setSkyLogoPosY(null); }}>
-                Reset Sky Green Line position
-              </Button>
+              <Button size="small" onClick={() => { setSkyLogoPosX(null); setSkyLogoPosY(null); }}>{tr("Reset Sky Green Line position")}</Button>
             )}
             {titlePosX != null && (
-              <Button size="small" onClick={() => { setTitlePosX(null); setTitlePosY(null); }}>
-                Reset app name position
-              </Button>
+              <Button size="small" onClick={() => { setTitlePosX(null); setTitlePosY(null); }}>{tr("Reset app name position")}</Button>
             )}
           </Stack>
           <Box sx={{ maxWidth: 480 }}>
@@ -269,11 +253,8 @@ function BrandingSection() {
         </Stack>
 
         <Stack spacing={1} sx={{ mb: 3 }}>
-          <Typography variant="subtitle2">Splash banner photo</Typography>
-          <Typography variant="caption" color="text.secondary">
-            After choosing a photo you can drag/zoom to pick exactly which part shows, and set its
-            width and height — that framing is exactly what appears on the splash screen.
-          </Typography>
+          <Typography variant="subtitle2">{tr("Splash banner photo")}</Typography>
+          <Typography variant="caption" color="text.secondary">{tr("After choosing a photo you can drag/zoom to pick exactly which part shows, and set its width and height — that framing is exactly what appears on the splash screen.")}</Typography>
           <Box
             sx={{
               width: '30%',
@@ -291,9 +272,7 @@ function BrandingSection() {
             {heroPreview ? (
               <Box component="img" src={heroPreview} alt="" sx={{ width: '100%', height: 'auto', maxHeight: 330, display: 'block' }} />
             ) : (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                No banner set — a plain icon is shown instead
-              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>{tr("No banner set — a plain icon is shown instead")}</Typography>
             )}
           </Box>
           <input
@@ -322,7 +301,7 @@ function BrandingSection() {
           />
           <Stack direction="row" spacing={1}>
             <Button size="small" startIcon={<CloudUploadIcon />} onClick={() => heroInputRef.current?.click()}>
-              {heroImage ? 'Replace banner photo' : 'Upload banner photo'}
+              {heroImage ? tr("Replace banner photo") : tr("Upload banner photo")}
             </Button>
             {(heroRawSrc || (!heroImage && branding?.hero_image_url)) && (
               <Button
@@ -350,7 +329,7 @@ function BrandingSection() {
                   }
                 }}
               >
-                {cropLoading ? 'Loading…' : 'Adjust crop'}
+                {cropLoading ? tr("Loading…") : tr("Adjust crop")}
               </Button>
             )}
           </Stack>
@@ -369,18 +348,14 @@ function BrandingSection() {
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, sm: 6 }}>
             <Stack spacing={1} sx={{ alignItems: 'center' }}>
-              <Typography variant="subtitle2">Main logo</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', mb: 0.5 }}>
-                Shown at the top of the splash screen, at its own size — nothing shows until you upload one. If you
-                want the company name/tagline text under the logo, include it in this image; nothing is drawn
-                underneath it automatically.
-              </Typography>
+              <Typography variant="subtitle2">{tr("Main logo")}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', mb: 0.5 }}>{tr("Shown at the top of the splash screen, at its own size — nothing shows until you upload one. If you want the company name/tagline text under the logo, include it in this image; nothing is drawn underneath it automatically.")}</Typography>
               <Avatar
                 variant="rounded"
                 src={oetcPreview || undefined}
                 sx={{ width: Number(oetcWidth) || 120, height: Number(oetcHeight) || 70, bgcolor: 'action.hover' }}
               >
-                {!oetcPreview && 'None set'}
+                {!oetcPreview && tr("None set")}
               </Avatar>
               <input
                 ref={oetcInputRef}
@@ -390,11 +365,11 @@ function BrandingSection() {
                 onChange={(e) => setOetcLogo(e.target.files?.[0] || null)}
               />
               <Button size="small" startIcon={<CloudUploadIcon />} onClick={() => oetcInputRef.current?.click()}>
-                {oetcLogo ? oetcLogo.name : 'Upload logo'}
+                {oetcLogo ? oetcLogo.name : tr("Upload logo")}
               </Button>
               <Stack direction="row" spacing={1}>
                 <TextField
-                  label="Width (px)"
+                  label={tr("Width (px)")}
                   type="number"
                   size="small"
                   value={oetcWidth}
@@ -404,7 +379,7 @@ function BrandingSection() {
                   slotProps={{ htmlInput: { min: 10 } }}
                 />
                 <TextField
-                  label="Height (px)"
+                  label={tr("Height (px)")}
                   type="number"
                   size="small"
                   value={oetcHeight}
@@ -418,13 +393,13 @@ function BrandingSection() {
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <Stack spacing={1} sx={{ alignItems: 'center' }}>
-              <Typography variant="subtitle2">Sky Green Line logo</Typography>
+              <Typography variant="subtitle2">{tr("Sky Green Line logo")}</Typography>
               <Avatar
                 variant="rounded"
                 src={skyPreview || undefined}
                 sx={{ width: Number(skyWidth) || 120, height: Number(skyHeight) || 70, bgcolor: 'action.hover' }}
               >
-                {!skyPreview && 'SGL'}
+                {!skyPreview && tr("SGL")}
               </Avatar>
               <input
                 ref={skyInputRef}
@@ -434,11 +409,11 @@ function BrandingSection() {
                 onChange={(e) => setSkyLogo(e.target.files?.[0] || null)}
               />
               <Button size="small" startIcon={<CloudUploadIcon />} onClick={() => skyInputRef.current?.click()}>
-                {skyLogo ? skyLogo.name : 'Upload logo'}
+                {skyLogo ? skyLogo.name : tr("Upload logo")}
               </Button>
               <Stack direction="row" spacing={1}>
                 <TextField
-                  label="Width (px)"
+                  label={tr("Width (px)")}
                   type="number"
                   size="small"
                   value={skyWidth}
@@ -448,7 +423,7 @@ function BrandingSection() {
                   slotProps={{ htmlInput: { min: 10 } }}
                 />
                 <TextField
-                  label="Height (px)"
+                  label={tr("Height (px)")}
                   type="number"
                   size="small"
                   value={skyHeight}
@@ -467,30 +442,30 @@ function BrandingSection() {
         <Stack spacing={2}>
           <Stack direction="row" spacing={2}>
             <TextField
-              label="App name"
-              helperText="Shown next to the Sky Green Line logo on the splash screen"
+              label={tr("App name")}
+              helperText={tr("Shown next to the Sky Green Line logo on the splash screen")}
               value={appTitle}
               onChange={(e) => setAppTitle(e.target.value)}
               fullWidth
             />
             <TextField
-              label="Version"
-              helperText='e.g. "ver. 1.0"'
+              label={tr("Version")}
+              helperText={tr("e.g. \"ver. 1.0\"")}
               value={appVersion}
               onChange={(e) => setAppVersion(e.target.value)}
               sx={{ minWidth: 160 }}
             />
           </Stack>
           <TextField
-            label="Welcome header"
-            helperText='Defaults to "Welcome back, <name>" when left blank'
+            label={tr("Welcome header")}
+            helperText={tr("Defaults to \"Welcome back, <name>\" when left blank")}
             value={header}
             onChange={(e) => setHeader(e.target.value)}
             fullWidth
           />
           <TextField
-            label="Subtitle"
-            helperText="Defaults to the standard 132 kV line when left blank"
+            label={tr("Subtitle")}
+            helperText={tr("Defaults to the standard 132 kV line when left blank")}
             value={subtitle}
             onChange={(e) => setSubtitle(e.target.value)}
             fullWidth
@@ -498,9 +473,7 @@ function BrandingSection() {
         </Stack>
 
         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button variant="contained" onClick={handleSave} disabled={update.isPending}>
-            Save branding
-          </Button>
+          <Button variant="contained" onClick={handleSave} disabled={update.isPending}>{tr("Save branding")}</Button>
         </Box>
       </CardContent>
     </Card>
@@ -508,6 +481,7 @@ function BrandingSection() {
 }
 
 function OrganizationBrandingSection() {
+  useLanguage();
   const { data: branding } = useBrandingSettings();
   const update = useUpdateBrandingSettings();
   const [nameEn, setNameEn] = useState('');
@@ -572,26 +546,18 @@ function OrganizationBrandingSection() {
   return (
     <Card variant="outlined">
       <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-          Organization Branding
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Configure the display name, logo, and identity shown on generated inspection reports and the login page.
-        </Typography>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>{tr("Organization Branding")}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("Configure the display name, logo, and identity shown on generated inspection reports and the login page.")}</Typography>
 
         {saved && (
-          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSaved(false)}>
-            Organization branding saved. New reports will use it right away.
-          </Alert>
+          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSaved(false)}>{tr("Organization branding saved. New reports will use it right away.")}</Alert>
         )}
         {update.isError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            Could not save organization branding.
-          </Alert>
+          <Alert severity="error" sx={{ mb: 2 }}>{tr("Could not save organization branding.")}</Alert>
         )}
 
         <Stack spacing={1} sx={{ mb: 3 }}>
-          <Typography variant="subtitle2">Current logo</Typography>
+          <Typography variant="subtitle2">{tr("Current logo")}</Typography>
           <Box
             sx={{
               width: '100%',
@@ -616,9 +582,7 @@ function OrganizationBrandingSection() {
                 sx={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
               />
             ) : (
-              <Typography variant="body2" color="text.secondary">
-                No logo set
-              </Typography>
+              <Typography variant="body2" color="text.secondary">{tr("No logo set")}</Typography>
             )}
           </Box>
           <input
@@ -641,7 +605,7 @@ function OrganizationBrandingSection() {
               startIcon={<CloudUploadIcon />}
               onClick={() => orgLogoInputRef.current?.click()}
             >
-              {orgLogoPreview ? 'Replace logo' : 'Upload logo'}
+              {orgLogoPreview ? tr("Replace logo") : tr("Upload logo")}
             </Button>
             {orgLogoPreview && (
               <Button
@@ -651,18 +615,14 @@ function OrganizationBrandingSection() {
                   setOrgLogo(null);
                   setResetLogo(true);
                 }}
-              >
-                Reset to default
-              </Button>
+              >{tr("Reset to default")}</Button>
             )}
           </Stack>
         </Stack>
 
         <Stack spacing={1} sx={{ mb: 3 }}>
-          <Typography variant="subtitle2">Login page background</Typography>
-          <Typography variant="caption" color="text.secondary">
-            Shown full-screen behind the sign-in form. Leave unset to use the default gradient.
-          </Typography>
+          <Typography variant="subtitle2">{tr("Login page background")}</Typography>
+          <Typography variant="caption" color="text.secondary">{tr("Shown full-screen behind the sign-in form. Leave unset to use the default gradient.")}</Typography>
           <Box
             sx={{
               width: '100%',
@@ -686,9 +646,7 @@ function OrganizationBrandingSection() {
                 sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             ) : (
-              <Typography variant="body2" color="text.secondary">
-                Default gradient
-              </Typography>
+              <Typography variant="body2" color="text.secondary">{tr("Default gradient")}</Typography>
             )}
           </Box>
           <input
@@ -711,7 +669,7 @@ function OrganizationBrandingSection() {
               startIcon={<CloudUploadIcon />}
               onClick={() => loginBackgroundInputRef.current?.click()}
             >
-              {loginBackgroundPreview ? 'Replace image' : 'Upload image'}
+              {loginBackgroundPreview ? tr("Replace image") : tr("Upload image")}
             </Button>
             {loginBackgroundPreview && (
               <Button
@@ -721,9 +679,7 @@ function OrganizationBrandingSection() {
                   setLoginBackground(null);
                   setResetLoginBackground(true);
                 }}
-              >
-                Reset to default
-              </Button>
+              >{tr("Reset to default")}</Button>
             )}
           </Stack>
         </Stack>
@@ -731,31 +687,31 @@ function OrganizationBrandingSection() {
         <Divider sx={{ my: 3 }} />
 
         <Stack spacing={2}>
-          <TextField label="Company name (English)" required value={nameEn} onChange={(e) => setNameEn(e.target.value)} fullWidth />
+          <TextField label={tr("Company name (English)")} required value={nameEn} onChange={(e) => setNameEn(e.target.value)} fullWidth />
           <TextField
-            label="Company name (Arabic)"
+            label={tr("Company name (Arabic)")}
             value={nameAr}
             onChange={(e) => setNameAr(e.target.value)}
             fullWidth
             slotProps={{ htmlInput: { dir: 'rtl' } }}
           />
           <TextField
-            label="Footer text"
-            helperText="A short description shown under the company name"
+            label={tr("Footer text")}
+            helperText={tr("A short description shown under the company name")}
             value={footerText}
             onChange={(e) => setFooterText(e.target.value)}
             fullWidth
           />
           <TextField
-            label="Report footer"
-            helperText='Shown at the bottom of every generated PDF report — defaults to "Confidential field inspection record" when left blank'
+            label={tr("Report footer")}
+            helperText={tr("Shown at the bottom of every generated PDF report — defaults to \"Confidential field inspection record\" when left blank")}
             value={reportFooter}
             onChange={(e) => setReportFooter(e.target.value)}
             fullWidth
           />
           <TextField
-            label="Contact"
-            helperText="Shown next to the report footer, e.g. an email or phone number"
+            label={tr("Contact")}
+            helperText={tr("Shown next to the report footer, e.g. an email or phone number")}
             value={contact}
             onChange={(e) => setContact(e.target.value)}
             fullWidth
@@ -763,9 +719,7 @@ function OrganizationBrandingSection() {
         </Stack>
 
         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button variant="contained" onClick={handleSave} disabled={update.isPending}>
-            Save organization branding
-          </Button>
+          <Button variant="contained" onClick={handleSave} disabled={update.isPending}>{tr("Save organization branding")}</Button>
         </Box>
       </CardContent>
     </Card>
@@ -799,13 +753,14 @@ const emptyAdminForm: AdminFormState = {
 /** Towers/Teams/Users/Reports/Knowledge base each get a View / Add / Full grant; branding settings
  * stays a plain on/off checkbox since it's a single form with no add-vs-edit distinction. */
 function PermissionEditor({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
+  useLanguage();
   return (
     <Stack spacing={1.5}>
       {LEVELED_PERMISSIONS.map((perm) => {
         const level = getPermissionLevel(value, perm);
         return (
           <Box key={perm} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
-            <Typography variant="body2">{ADMIN_PERMISSION_LABELS[perm]}</Typography>
+            <Typography variant="body2">{tr(ADMIN_PERMISSION_LABELS[perm])}</Typography>
             <ToggleButtonGroup
               size="small"
               exclusive
@@ -814,7 +769,7 @@ function PermissionEditor({ value, onChange }: { value: string[]; onChange: (nex
             >
               {PERMISSION_LEVELS.map((lvl) => (
                 <ToggleButton key={lvl} value={lvl}>
-                  {PERMISSION_LEVEL_LABELS[lvl]}
+                  {tr(PERMISSION_LEVEL_LABELS[lvl])}
                 </ToggleButton>
               ))}
             </ToggleButtonGroup>
@@ -840,6 +795,7 @@ function PermissionEditor({ value, onChange }: { value: string[]; onChange: (nex
 }
 
 function PendingAccountsSection() {
+  useLanguage();
   const { data: users } = useUsers();
   const { data: teams } = useTeams();
   const updateUser = useUpdateUser();
@@ -875,7 +831,7 @@ function PendingAccountsSection() {
         onSuccess: () => setApproving(null),
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setApproveError(detail || 'Could not approve this account.');
+          setApproveError(detail || tr("Could not approve this account."));
         },
       },
     );
@@ -883,11 +839,11 @@ function PendingAccountsSection() {
 
   const reject = (u: AdminUser) => {
     setActionError(null);
-    if (!window.confirm(`Reject and delete the pending account "${u.username}"? This can't be undone.`)) return;
+    if (!window.confirm(tr("Reject and delete the pending account \"{0}\"? This can't be undone.", [u.username]))) return;
     deleteUser.mutate(u.id, {
       onError: (err: unknown) => {
         const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-        setActionError(detail || `Could not reject "${u.username}".`);
+        setActionError(detail || tr("Could not reject \"{0}\".", [u.username]));
       },
     });
   };
@@ -899,17 +855,13 @@ function PendingAccountsSection() {
       <CardContent>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
           <HourglassEmptyIcon color="warning" fontSize="small" />
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Pending sign-ups
-          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Pending sign-ups")}</Typography>
           <Chip size="small" color="warning" label={pending.length} />
         </Stack>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          These accounts created themselves from the login page and can't sign in until you approve them.
-        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("These accounts created themselves from the login page and can't sign in until you approve them.")}</Typography>
         {actionError && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setActionError(null)}>
-            {actionError}
+            {tr(actionError)}
           </Alert>
         )}
 
@@ -917,10 +869,10 @@ function PendingAccountsSection() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Username</TableCell>
-                <TableCell>Full name</TableCell>
-                <TableCell>Mobile</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell>{tr("Username")}</TableCell>
+                <TableCell>{tr("Full name")}</TableCell>
+                <TableCell>{tr("Mobile")}</TableCell>
+                <TableCell align="right">{tr("Actions")}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -930,12 +882,8 @@ function PendingAccountsSection() {
                   <TableCell>{u.full_name || '—'}</TableCell>
                   <TableCell>{u.mobile || '—'}</TableCell>
                   <TableCell align="right">
-                    <Button size="small" color="success" startIcon={<CheckCircleIcon />} onClick={() => openApprove(u)}>
-                      Approve
-                    </Button>
-                    <Button size="small" color="error" startIcon={<CancelIcon />} onClick={() => reject(u)}>
-                      Reject
-                    </Button>
+                    <Button size="small" color="success" startIcon={<CheckCircleIcon />} onClick={() => openApprove(u)}>{tr("Approve")}</Button>
+                    <Button size="small" color="error" startIcon={<CancelIcon />} onClick={() => reject(u)}>{tr("Reject")}</Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -945,32 +893,32 @@ function PendingAccountsSection() {
       </CardContent>
 
       <Dialog open={!!approving} onClose={() => setApproving(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Approve — {approving?.username}</DialogTitle>
+        <DialogTitle>{tr("Approve — ")}{approving?.username}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {approveError && <Alert severity="error">{approveError}</Alert>}
+            {approveError && <Alert severity="error">{tr(approveError)}</Alert>}
             <FormControl fullWidth>
-              <InputLabel id="approve-role-label">Role</InputLabel>
+              <InputLabel id="approve-role-label">{tr("Role")}</InputLabel>
               <Select
                 labelId="approve-role-label"
-                label="Role"
+                label={tr("Role")}
                 value={approveRole}
                 onChange={(e) => setApproveRole(e.target.value as 'team_member' | 'team_leader')}
               >
-                <MenuItem value="team_member">Team member</MenuItem>
-                <MenuItem value="team_leader">Team leader</MenuItem>
+                <MenuItem value="team_member">{tr("Team member")}</MenuItem>
+                <MenuItem value="team_leader">{tr("Team leader")}</MenuItem>
               </Select>
             </FormControl>
             <FormControl fullWidth>
-              <InputLabel id="approve-team-label">Team (optional)</InputLabel>
+              <InputLabel id="approve-team-label">{tr("Team (optional)")}</InputLabel>
               <Select
                 labelId="approve-team-label"
-                label="Team (optional)"
+                label={tr("Team (optional)")}
                 value={approveTeamId === '' ? '' : String(approveTeamId)}
                 onChange={(e) => setApproveTeamId(e.target.value === '' ? '' : Number(e.target.value))}
               >
                 <MenuItem value="">
-                  <em>No team</em>
+                  <em>{tr("No team")}</em>
                 </MenuItem>
                 {(teams || []).map((t) => (
                   <MenuItem key={t.id} value={String(t.id)}>
@@ -982,10 +930,8 @@ function PendingAccountsSection() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setApproving(null)}>Cancel</Button>
-          <Button variant="contained" color="success" onClick={confirmApprove} disabled={updateUser.isPending}>
-            Approve
-          </Button>
+          <Button onClick={() => setApproving(null)}>{tr("Cancel")}</Button>
+          <Button variant="contained" color="success" onClick={confirmApprove} disabled={updateUser.isPending}>{tr("Approve")}</Button>
         </DialogActions>
       </Dialog>
     </Card>
@@ -993,6 +939,7 @@ function PendingAccountsSection() {
 }
 
 function AdminAccountsSection() {
+  useLanguage();
   const { data: users } = useUsers();
   const { user: currentUser } = useAuth();
   const createUser = useCreateUser();
@@ -1021,7 +968,7 @@ function AdminAccountsSection() {
   const submitCreate = () => {
     setError(null);
     if (form.username.trim().length < 3 || form.password.length < 6) {
-      setError('Username needs 3+ characters and password needs 6+ characters.');
+      setError(tr("Username needs 3+ characters and password needs 6+ characters."));
       return;
     }
     createUser.mutate(
@@ -1038,7 +985,7 @@ function AdminAccountsSection() {
         onSuccess: () => setCreateOpen(false),
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setError(detail || 'Could not create this admin account.');
+          setError(detail || tr("Could not create this admin account."));
         },
       },
     );
@@ -1060,11 +1007,11 @@ function AdminAccountsSection() {
     if (!editing) return;
     setEditError(null);
     if (editUsername.trim().length < 3) {
-      setEditError('Username needs at least 3 characters.');
+      setEditError(tr("Username needs at least 3 characters."));
       return;
     }
     if (editPassword && editPassword.length < 6) {
-      setEditError('New password needs at least 6 characters.');
+      setEditError(tr("New password needs at least 6 characters."));
       return;
     }
     updateUser.mutate(
@@ -1082,7 +1029,7 @@ function AdminAccountsSection() {
         onSuccess: () => setEditing(null),
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setEditError(detail || 'Could not save these changes.');
+          setEditError(detail || tr("Could not save these changes."));
         },
       },
     );
@@ -1094,13 +1041,13 @@ function AdminAccountsSection() {
 
   const removeAdmin = (admin: AdminUser) => {
     setDeleteError(null);
-    if (!window.confirm(`Permanently delete the admin account "${admin.username}"? This can't be undone.`)) {
+    if (!window.confirm(tr("Permanently delete the admin account \"{0}\"? This can't be undone.", [admin.username]))) {
       return;
     }
     deleteUser.mutate(admin.id, {
       onError: (err: unknown) => {
         const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-        setDeleteError(detail || `Could not delete "${admin.username}".`);
+        setDeleteError(detail || tr("Could not delete \"{0}\".", [admin.username]));
       },
     });
   };
@@ -1109,21 +1056,13 @@ function AdminAccountsSection() {
     <Card variant="outlined">
       <CardContent>
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Admin accounts
-          </Typography>
-          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>
-            New admin
-          </Button>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Admin accounts")}</Typography>
+          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>{tr("New admin")}</Button>
         </Stack>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          A full admin has every permission. A restricted admin can be given View only (see it, no changes),
-          Add (create new, but not edit or delete), or Full (everything) per category — useful for giving
-          someone limited access without handing them everything.
-        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("A full admin has every permission. A restricted admin can be given View only (see it, no changes), Add (create new, but not edit or delete), or Full (everything) per category — useful for giving someone limited access without handing them everything.")}</Typography>
         {deleteError && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDeleteError(null)}>
-            {deleteError}
+            {tr(deleteError)}
           </Alert>
         )}
 
@@ -1131,11 +1070,11 @@ function AdminAccountsSection() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Username</TableCell>
-                <TableCell>Full name</TableCell>
-                <TableCell>Access</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell>{tr("Username")}</TableCell>
+                <TableCell>{tr("Full name")}</TableCell>
+                <TableCell>{tr("Access")}</TableCell>
+                <TableCell>{tr("Status")}</TableCell>
+                <TableCell align="right">{tr("Actions")}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -1150,7 +1089,7 @@ function AdminAccountsSection() {
                   <TableCell>{admin.full_name || '—'}</TableCell>
                   <TableCell>
                     {admin.is_super_admin ? (
-                      <Chip size="small" color="primary" label="Full admin" />
+                      <Chip size="small" color="primary" label={tr("Full admin")} />
                     ) : admin.permissions.length ? (
                       <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                         {admin.permissions.map((p) => {
@@ -1169,23 +1108,23 @@ function AdminAccountsSection() {
                         })}
                       </Stack>
                     ) : (
-                      <Chip size="small" variant="outlined" color="default" label="No permissions" />
+                      <Chip size="small" variant="outlined" color="default" label={tr("No permissions")} />
                     )}
                   </TableCell>
                   <TableCell>
-                    <Chip size="small" color={admin.is_active ? 'success' : 'default'} label={admin.is_active ? 'Active' : 'Deactivated'} />
+                    <Chip size="small" color={admin.is_active ? 'success' : 'default'} label={admin.is_active ? tr("Active") : tr("Deactivated")} />
                   </TableCell>
                   <TableCell align="right">
-                    <Tooltip title="Edit access">
+                    <Tooltip title={tr("Edit access")}>
                       <IconButton size="small" onClick={() => openEdit(admin)}>
                         <EditIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                     <Button size="small" onClick={() => toggleActive(admin)}>
-                      {admin.is_active ? 'Deactivate' : 'Reactivate'}
+                      {admin.is_active ? tr("Deactivate") : tr("Reactivate")}
                     </Button>
                     {admin.id !== currentUser?.id && (
-                      <Tooltip title="Delete this admin account">
+                      <Tooltip title={tr("Delete this admin account")}>
                         <IconButton size="small" color="error" onClick={() => removeAdmin(admin)}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
@@ -1197,9 +1136,7 @@ function AdminAccountsSection() {
               {admins.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5}>
-                    <Typography variant="body2" color="text.secondary">
-                      No admin accounts yet.
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary">{tr("No admin accounts yet.")}</Typography>
                   </TableCell>
                 </TableRow>
               )}
@@ -1209,28 +1146,28 @@ function AdminAccountsSection() {
       </CardContent>
 
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>New admin account</DialogTitle>
+        <DialogTitle>{tr("New admin account")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {error && <Alert severity="error">{error}</Alert>}
+            {error && <Alert severity="error">{tr(error)}</Alert>}
             <TextField
-              label="Username"
+              label={tr("Username")}
               fullWidth
               autoFocus
               value={form.username}
               onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
             />
             <TextField
-              label="Full name"
+              label={tr("Full name")}
               fullWidth
               value={form.full_name}
               onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
             />
             <TextField
-              label="Password"
+              label={tr("Password")}
               type="password"
               fullWidth
-              helperText="At least 6 characters"
+              helperText={tr("At least 6 characters")}
               value={form.password}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
             />
@@ -1241,7 +1178,7 @@ function AdminAccountsSection() {
                   onChange={(e) => setForm((f) => ({ ...f, fullAdmin: e.target.checked }))}
                 />
               }
-              label="Full admin (every permission)"
+              label={tr("Full admin (every permission)")}
             />
             {!form.fullAdmin && (
               <>
@@ -1259,29 +1196,27 @@ function AdminAccountsSection() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={submitCreate} disabled={createUser.isPending}>
-            Create
-          </Button>
+          <Button onClick={() => setCreateOpen(false)}>{tr("Cancel")}</Button>
+          <Button variant="contained" onClick={submitCreate} disabled={createUser.isPending}>{tr("Create")}</Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={!!editing} onClose={() => setEditing(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Edit access — {editing?.username}</DialogTitle>
+        <DialogTitle>{tr("Edit access — ")}{editing?.username}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {editError && <Alert severity="error">{editError}</Alert>}
+            {editError && <Alert severity="error">{tr(editError)}</Alert>}
             <TextField
-              label="Username"
+              label={tr("Username")}
               fullWidth
               value={editUsername}
               onChange={(e) => setEditUsername(e.target.value)}
             />
             <TextField
-              label="Reset password (optional)"
+              label={tr("Reset password (optional)")}
               type="password"
               fullWidth
-              helperText="Leave blank to keep their current password. At least 6 characters if set."
+              helperText={tr("Leave blank to keep their current password. At least 6 characters if set.")}
               value={editPassword}
               onChange={(e) => setEditPassword(e.target.value)}
             />
@@ -1289,7 +1224,7 @@ function AdminAccountsSection() {
               control={
                 <Switch checked={editFullAdmin} onChange={(e) => setEditFullAdmin(e.target.checked)} />
               }
-              label="Full admin (every permission)"
+              label={tr("Full admin (every permission)")}
             />
             {!editFullAdmin && (
               <>
@@ -1301,10 +1236,8 @@ function AdminAccountsSection() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditing(null)}>Cancel</Button>
-          <Button variant="contained" onClick={saveEdit} disabled={updateUser.isPending}>
-            Save
-          </Button>
+          <Button onClick={() => setEditing(null)}>{tr("Cancel")}</Button>
+          <Button variant="contained" onClick={saveEdit} disabled={updateUser.isPending}>{tr("Save")}</Button>
         </DialogActions>
       </Dialog>
     </Card>
@@ -1329,6 +1262,7 @@ const emptyClientForm: ClientFormState = { username: '', password: '', full_name
  * Full-admin only, same boundary as creating/editing another admin account (see auth.py's
  * _require_can_manage) — a restricted admin can never create an external customer login. */
 function ClientAccountsSection() {
+  useLanguage();
   const { data: users } = useUsers();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
@@ -1354,7 +1288,7 @@ function ClientAccountsSection() {
   const submitCreate = () => {
     setError(null);
     if (form.username.trim().length < 3 || form.password.length < 6) {
-      setError('Username needs 3+ characters and password needs 6+ characters.');
+      setError(tr("Username needs 3+ characters and password needs 6+ characters."));
       return;
     }
     createUser.mutate(
@@ -1370,7 +1304,7 @@ function ClientAccountsSection() {
         onSuccess: () => setCreateOpen(false),
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setError(detail || 'Could not create this client account.');
+          setError(detail || tr("Could not create this client account."));
         },
       },
     );
@@ -1388,7 +1322,7 @@ function ClientAccountsSection() {
     if (!editing) return;
     setEditError(null);
     if (editPassword && editPassword.length < 6) {
-      setEditError('New password needs at least 6 characters.');
+      setEditError(tr("New password needs at least 6 characters."));
       return;
     }
     updateUser.mutate(
@@ -1404,7 +1338,7 @@ function ClientAccountsSection() {
         onSuccess: () => setEditing(null),
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setEditError(detail || 'Could not save these changes.');
+          setEditError(detail || tr("Could not save these changes."));
         },
       },
     );
@@ -1416,13 +1350,13 @@ function ClientAccountsSection() {
 
   const removeClient = (client: AdminUser) => {
     setDeleteError(null);
-    if (!window.confirm(`Permanently delete the client account "${client.username}"? This can't be undone.`)) {
+    if (!window.confirm(tr("Permanently delete the client account \"{0}\"? This can't be undone.", [client.username]))) {
       return;
     }
     deleteUser.mutate(client.id, {
       onError: (err: unknown) => {
         const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-        setDeleteError(detail || `Could not delete "${client.username}".`);
+        setDeleteError(detail || tr("Could not delete \"{0}\".", [client.username]));
       },
     });
   };
@@ -1431,20 +1365,13 @@ function ClientAccountsSection() {
     <Card variant="outlined">
       <CardContent>
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Client accounts
-          </Typography>
-          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>
-            New client
-          </Button>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Client accounts")}</Typography>
+          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>{tr("New client")}</Button>
         </Stack>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          A login for the customer — sees only the Reports portal (every generated report and its
-          linked photos), read-only unless you grant one of the toggles below.
-        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("A login for the customer — sees only the Reports portal (every generated report and its linked photos), read-only unless you grant one of the toggles below.")}</Typography>
         {deleteError && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDeleteError(null)}>
-            {deleteError}
+            {tr(deleteError)}
           </Alert>
         )}
 
@@ -1452,11 +1379,11 @@ function ClientAccountsSection() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Username</TableCell>
-                <TableCell>Full name</TableCell>
-                <TableCell>Extra permissions</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell>{tr("Username")}</TableCell>
+                <TableCell>{tr("Full name")}</TableCell>
+                <TableCell>{tr("Extra permissions")}</TableCell>
+                <TableCell>{tr("Status")}</TableCell>
+                <TableCell align="right">{tr("Actions")}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -1466,26 +1393,26 @@ function ClientAccountsSection() {
                   <TableCell>{client.full_name || '—'}</TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                      {client.can_edit_reports && <Chip size="small" variant="outlined" label="Can edit reports" />}
-                      {client.can_delete_report_images && <Chip size="small" variant="outlined" label="Can delete images" />}
+                      {client.can_edit_reports && <Chip size="small" variant="outlined" label={tr("Can edit reports")} />}
+                      {client.can_delete_report_images && <Chip size="small" variant="outlined" label={tr("Can delete images")} />}
                       {!client.can_edit_reports && !client.can_delete_report_images && (
-                        <Chip size="small" variant="outlined" color="default" label="View / download only" />
+                        <Chip size="small" variant="outlined" color="default" label={tr("View / download only")} />
                       )}
                     </Stack>
                   </TableCell>
                   <TableCell>
-                    <Chip size="small" color={client.is_active ? 'success' : 'default'} label={client.is_active ? 'Active' : 'Deactivated'} />
+                    <Chip size="small" color={client.is_active ? 'success' : 'default'} label={client.is_active ? tr("Active") : tr("Deactivated")} />
                   </TableCell>
                   <TableCell align="right">
-                    <Tooltip title="Edit access">
+                    <Tooltip title={tr("Edit access")}>
                       <IconButton size="small" onClick={() => openEdit(client)}>
                         <EditIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                     <Button size="small" onClick={() => toggleActive(client)}>
-                      {client.is_active ? 'Deactivate' : 'Reactivate'}
+                      {client.is_active ? tr("Deactivate") : tr("Reactivate")}
                     </Button>
-                    <Tooltip title="Delete this client account">
+                    <Tooltip title={tr("Delete this client account")}>
                       <IconButton size="small" color="error" onClick={() => removeClient(client)}>
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -1496,9 +1423,7 @@ function ClientAccountsSection() {
               {clients.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5}>
-                    <Typography variant="body2" color="text.secondary">
-                      No client accounts yet.
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary">{tr("No client accounts yet.")}</Typography>
                   </TableCell>
                 </TableRow>
               )}
@@ -1508,28 +1433,28 @@ function ClientAccountsSection() {
       </CardContent>
 
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>New client account</DialogTitle>
+        <DialogTitle>{tr("New client account")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {error && <Alert severity="error">{error}</Alert>}
+            {error && <Alert severity="error">{tr(error)}</Alert>}
             <TextField
-              label="Username"
+              label={tr("Username")}
               fullWidth
               autoFocus
               value={form.username}
               onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
             />
             <TextField
-              label="Full name / company contact"
+              label={tr("Full name / company contact")}
               fullWidth
               value={form.full_name}
               onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
             />
             <TextField
-              label="Password"
+              label={tr("Password")}
               type="password"
               fullWidth
-              helperText="At least 6 characters"
+              helperText={tr("At least 6 characters")}
               value={form.password}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
             />
@@ -1540,7 +1465,7 @@ function ClientAccountsSection() {
                   onChange={(e) => setForm((f) => ({ ...f, can_edit_reports: e.target.checked }))}
                 />
               }
-              label="Can edit a report's sign-off / assessment"
+              label={tr("Can edit a report's sign-off / assessment")}
             />
             <FormControlLabel
               control={
@@ -1549,46 +1474,42 @@ function ClientAccountsSection() {
                   onChange={(e) => setForm((f) => ({ ...f, can_delete_report_images: e.target.checked }))}
                 />
               }
-              label="Can delete images from a report's archive"
+              label={tr("Can delete images from a report's archive")}
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={submitCreate} disabled={createUser.isPending}>
-            Create
-          </Button>
+          <Button onClick={() => setCreateOpen(false)}>{tr("Cancel")}</Button>
+          <Button variant="contained" onClick={submitCreate} disabled={createUser.isPending}>{tr("Create")}</Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={!!editing} onClose={() => setEditing(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Edit access — {editing?.username}</DialogTitle>
+        <DialogTitle>{tr("Edit access — ")}{editing?.username}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {editError && <Alert severity="error">{editError}</Alert>}
+            {editError && <Alert severity="error">{tr(editError)}</Alert>}
             <TextField
-              label="Reset password (optional)"
+              label={tr("Reset password (optional)")}
               type="password"
               fullWidth
-              helperText="Leave blank to keep their current password. At least 6 characters if set."
+              helperText={tr("Leave blank to keep their current password. At least 6 characters if set.")}
               value={editPassword}
               onChange={(e) => setEditPassword(e.target.value)}
             />
             <FormControlLabel
               control={<Switch checked={editCanEdit} onChange={(e) => setEditCanEdit(e.target.checked)} />}
-              label="Can edit a report's sign-off / assessment"
+              label={tr("Can edit a report's sign-off / assessment")}
             />
             <FormControlLabel
               control={<Switch checked={editCanDelete} onChange={(e) => setEditCanDelete(e.target.checked)} />}
-              label="Can delete images from a report's archive"
+              label={tr("Can delete images from a report's archive")}
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditing(null)}>Cancel</Button>
-          <Button variant="contained" onClick={saveEdit} disabled={updateUser.isPending}>
-            Save
-          </Button>
+          <Button onClick={() => setEditing(null)}>{tr("Cancel")}</Button>
+          <Button variant="contained" onClick={saveEdit} disabled={updateUser.isPending}>{tr("Save")}</Button>
         </DialogActions>
       </Dialog>
     </Card>
@@ -1596,15 +1517,14 @@ function ClientAccountsSection() {
 }
 
 export function SettingsPage() {
+  useLanguage();
   const { user } = useAuth();
   const canManageSettings = user?.role === 'admin' && (user.is_super_admin || user.permissions.includes('manage_settings'));
   const isSuperAdmin = user?.role === 'admin' && user.is_super_admin;
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ fontWeight: 800, mb: 2 }}>
-        Settings
-      </Typography>
+      <Typography variant="h5" sx={{ fontWeight: 800, mb: 2 }}>{tr("Settings")}</Typography>
       <Stack spacing={3}>
         {user?.role === 'admin' && <PendingAccountsSection />}
         {canManageSettings && <BrandingSection />}
@@ -1612,7 +1532,7 @@ export function SettingsPage() {
         {isSuperAdmin && <AdminAccountsSection />}
         {isSuperAdmin && <ClientAccountsSection />}
         {!canManageSettings && !isSuperAdmin && (
-          <Alert severity="info">You don't have any settings permissions on this account yet — ask a full admin.</Alert>
+          <Alert severity="info">{tr("You don't have any settings permissions on this account yet — ask a full admin.")}</Alert>
         )}
       </Stack>
     </Box>

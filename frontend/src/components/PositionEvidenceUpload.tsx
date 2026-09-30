@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Stack, Typography } from '@mui/material';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternateRounded';
@@ -13,6 +14,7 @@ export function PositionEvidenceUpload({ position, types, disabled, onUpload, on
   onExtra: (type: string, file: File, meta: Record<string, unknown>) => Promise<unknown>;
   onBusyChange?: (busy: boolean) => void;
 }) {
+  useLanguage();
   const fileInput = useRef<HTMLInputElement>(null);
   const typeRef = useRef(types[0]);
   const lock = useRef(false);
@@ -33,27 +35,27 @@ export function PositionEvidenceUpload({ position, types, disabled, onUpload, on
     try {
       while (pending.length) {
         const item = pending[0];
-        setProgress(`${pending.length} file(s) remaining · ${item.file.name}`);
+        setProgress(tr("{0} file(s) remaining · {1}", [pending.length, item.file.name]));
         if (onStage) await onStage(item.type, item.file, item.token);
         else if (item.baselineId != null) await onUpload(item.baselineId, item.file, { requestToken: item.token });
         else await onExtra(item.type, item.file, { requestToken: item.token });
         pending = pending.slice(1); setRemaining(pending);
       }
-      setProgress(onStage ? 'Photos uploaded to your draft. They join the report only after you confirm the visit.' : 'Files uploaded or queued on this device. Check sync status before reporting.');
+      setProgress(onStage ? tr("Photos uploaded to your draft. They join the report only after you confirm the visit.") : tr("Files uploaded or queued on this device. Check sync status before reporting."));
       onBusyChange?.(false);
     } catch (err) {
-      setError(positionError(err, 'Upload stopped. Unsent files are kept here. Retry or remove them from this upload queue.'));
+      setError(positionError(err, tr("Upload stopped. Unsent files are kept here. Retry or remove them from this upload queue.")));
     } finally { lock.current = false; setUploading(false); }
   };
   return <Stack spacing={1}>
-    <Typography variant="subtitle2">Add evidence · {positionLabel(position)}</Typography>
+    <Typography variant="subtitle2">{tr("Add evidence · ")}<bdi dir="ltr">{positionLabel(position)}</bdi></Typography>
     <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 1 }}>
       {types.map(type => {
         const images = position.images.filter(i => i.image_type === type && i.file_path);
         const baseline = position.images.find(i => i.image_type === type && i.sequence === 1);
         return <Button key={type} size="small" variant="outlined" startIcon={<AddPhotoAlternateIcon />} disabled={disabled || !position.direction || remaining.length > 0}
           onClick={() => { typeRef.current = type; fileInput.current?.click(); }}>
-          {type} · {images.length ? `${images.length} image(s)` : baseline?.evidence_status === 'NOT REQUIRED' ? 'Optional' : 'Missing'}
+          {tr(type)} · {images.length ? tr("{0} image(s)", [images.length]) : baseline?.evidence_status === 'NOT REQUIRED' ? tr("Optional") : tr("Missing")}
         </Button>;
       })}
     </Stack>
@@ -63,7 +65,7 @@ export function PositionEvidenceUpload({ position, types, disabled, onUpload, on
       const baseline = position.images.find(i => i.image_type === type && i.sequence === 1 && !i.file_path);
       if (files.length) void upload(files.map((file, index) => ({ file, type, baselineId: index === 0 ? baseline?.id : undefined, token: crypto.randomUUID() })));
     }} />
-    {progress && <Typography variant="caption" role="status">{progress}</Typography>}
-    {error && <Alert severity="error">{error}<Stack direction="row" spacing={1}><Button disabled={uploading} onClick={() => void upload(remaining)}>Retry unsent files</Button><Button disabled={uploading} onClick={() => { setRemaining([]); setError(''); setProgress(''); onBusyChange?.(false); }}>Remove unsent files from queue</Button></Stack></Alert>}
+    {progress && <Typography variant="caption" role="status">{tr(progress)}</Typography>}
+    {error && <Alert severity="error">{tr(error)}<Stack direction="row" spacing={1}><Button disabled={uploading} onClick={() => void upload(remaining)}>{tr("Retry unsent files")}</Button><Button disabled={uploading} onClick={() => { setRemaining([]); setError(''); setProgress(''); onBusyChange?.(false); }}>{tr("Remove unsent files from queue")}</Button></Stack></Alert>}
   </Stack>;
 }

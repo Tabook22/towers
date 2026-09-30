@@ -1,3 +1,4 @@
+import { tr, useLanguage, locale } from '../i18n';
 import { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
@@ -58,7 +59,7 @@ const EVENT_LABEL: Record<string, string> = {
 function clock(iso: string | null | undefined) {
   if (!iso) return '';
   const d = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
-  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString(locale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function mapsHref(lat: number, lng: number) {
@@ -84,6 +85,7 @@ export function HandoverPackCard({
   onShowTower?: (towerPk: number, visitId: number | null) => void;
   step?: number;
 }) {
+  useLanguage();
   const { data: pack, isLoading, error } = useTeamHandover(teamId, fieldDate);
   const endOuting = useEndOuting(teamId);
   const continueNight = useContinueLastNight(teamId);
@@ -125,12 +127,8 @@ export function HandoverPackCard({
             {step != null && <StepBadge n={step} />}
             <AssignmentReturnRoundedIcon color="primary" sx={{ mt: 0.5 }} />
             <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Handover
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Close tonight and leave the next crew a start point — unfinished towers, skips, hotspots, and notes.
-              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Handover")}</Typography>
+              <Typography variant="body2" color="text.secondary">{tr("Close tonight and leave the next crew a start point — unfinished towers, skips, hotspots, and notes.")}</Typography>
             </Box>
           </Stack>
         </Stack>
@@ -143,20 +141,17 @@ export function HandoverPackCard({
                 variant="outlined"
                 onClick={() => handleContinue(false)}
                 disabled={continueNight.isPending}
-              >
-                Continue last night · {pack.previous_remaining}
+              >{tr("Continue last night · ")}{pack.previous_remaining}
               </Button>
             )}
-            <Button variant="contained" onClick={() => setEndOpen(true)} disabled={endOuting.isPending}>
-              End outing
-            </Button>
+            <Button variant="contained" onClick={() => setEndOpen(true)} disabled={endOuting.isPending}>{tr("End outing")}</Button>
           </Stack>
         )}
         {isLoading && <LinearProgress sx={{ mb: 1 }} />}
-        {error && <Alert severity="error">Could not load the handover pack.</Alert>}
+        {error && <Alert severity="error">{tr("Could not load the handover pack.")}</Alert>}
         {actionError && (
           <Alert severity="error" sx={{ mb: 1 }} onClose={() => setActionError(null)}>
-            {actionError}
+            {tr(actionError)}
           </Alert>
         )}
 
@@ -166,23 +161,21 @@ export function HandoverPackCard({
               {pack.headline}
             </Typography>
             {pack.ended_at && (
-              <Alert severity="success" sx={{ mb: 1.5 }}>
-                Outing closed {clock(pack.ended_at)}
-                {pack.ended_by_name ? ` by ${pack.ended_by_name}` : ''}.
+              <Alert severity="success" sx={{ mb: 1.5 }}>{tr("Outing closed ")}{clock(pack.ended_at)}
+                {pack.ended_by_name ? tr(" by {0}", [pack.ended_by_name]) : ''}.
                 {pack.handover_note ? ` ${pack.handover_note}` : ''}
               </Alert>
             )}
             {pack.continued_from && (
-              <Alert severity="info" sx={{ mb: 1.5 }}>
-                Tonight was seeded from {pack.continued_from}.
+              <Alert severity="info" sx={{ mb: 1.5 }}>{tr("Tonight was seeded from ")}{pack.continued_from}.
               </Alert>
             )}
 
             <Stack direction="row" spacing={1} sx={{ mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
-              <Chip color="success" label={`${pack.completed} done`} />
-              <Chip color="warning" label={`${pack.skipped} skipped`} />
-              <Chip color="info" label={`${pack.in_progress} open`} />
-              <Chip label={`${pack.pending} not started`} />
+              <Chip color="success" label={tr("{0} done", [pack.completed])} />
+              <Chip color="warning" label={tr("{0} skipped", [pack.skipped])} />
+              <Chip color="info" label={tr("{0} open", [pack.in_progress])} />
+              <Chip label={tr("{0} not started", [pack.pending])} />
             </Stack>
 
             {pack.recommended && (
@@ -196,14 +189,10 @@ export function HandoverPackCard({
                       <Button
                         size="small"
                         onClick={() => onShowTower(pack.recommended!.id, pack.recommended!.visit_id)}
-                      >
-                        Show
-                      </Button>
+                      >{tr("Show")}</Button>
                     )}
                     {pack.recommended.visit_id && (
-                      <Button size="small" component={RouterLink} to={`/visits/${pack.recommended.visit_id}`}>
-                        Open
-                      </Button>
+                      <Button size="small" component={RouterLink} to={`/visits/${pack.recommended.visit_id}`}>{tr("Open")}</Button>
                     )}
                     <Button
                       size="small"
@@ -211,21 +200,17 @@ export function HandoverPackCard({
                       target="_blank"
                       rel="noreferrer"
                       startIcon={<DirectionsIcon />}
-                    >
-                      Go
-                    </Button>
+                    >{tr("Go")}</Button>
                   </Stack>
                 }
-              >
-                Start next at <strong>{pack.recommended.tower_id}</strong>
+              >{tr("Start next at ")}<strong>{pack.recommended.tower_id}</strong>
                 {pack.recommended.area ? ` · ${pack.recommended.area}` : ''}. {pack.recommended.reason}
               </Alert>
             )}
 
             {pack.last_gps && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                <PlaceIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'text-bottom' }} />
-                Last GPS {clock(pack.last_gps.recorded_at)}
+                <PlaceIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'text-bottom' }} />{tr("Last GPS ")}{clock(pack.last_gps.recorded_at)}
                 {pack.last_gps.user_name ? ` · ${pack.last_gps.user_name}` : ''}
               </Typography>
             )}
@@ -235,9 +220,9 @@ export function HandoverPackCard({
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Tower</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Why</TableCell>
+                      <TableCell>{tr("Tower")}</TableCell>
+                      <TableCell>{tr("Status")}</TableCell>
+                      <TableCell>{tr("Why")}</TableCell>
                       <TableCell align="right" />
                     </TableRow>
                   </TableHead>
@@ -255,13 +240,9 @@ export function HandoverPackCard({
                         </TableCell>
                         <TableCell align="right">
                           {t.visit_id ? (
-                            <Button size="small" component={RouterLink} to={`/visits/${t.visit_id}`}>
-                              Open
-                            </Button>
+                            <Button size="small" component={RouterLink} to={`/visits/${t.visit_id}`}>{tr("Open")}</Button>
                           ) : onShowTower ? (
-                            <Button size="small" onClick={() => onShowTower(t.id, t.visit_id)}>
-                              Show
-                            </Button>
+                            <Button size="small" onClick={() => onShowTower(t.id, t.visit_id)}>{tr("Show")}</Button>
                           ) : null}
                         </TableCell>
                       </TableRow>
@@ -273,9 +254,7 @@ export function HandoverPackCard({
 
             {!compact && pack.hotspots.length > 0 && (
               <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                  Open hotspots
-                </Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>{tr("Open hotspots")}</Typography>
                 <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
                   {pack.hotspots.map((h) => (
                     <Button
@@ -297,7 +276,7 @@ export function HandoverPackCard({
                       )}
                       <span>
                         {h.tower_id} {h.ohl}-{h.phase}-{h.string}
-                        {h.delta_t != null ? ` · ΔT ${h.delta_t}°C` : ''}
+                        {h.delta_t != null ? tr(" · ΔT {0}°C", [h.delta_t]) : ''}
                         {h.severity ? ` · ${h.severity}` : ''}
                       </span>
                     </Button>
@@ -308,9 +287,7 @@ export function HandoverPackCard({
 
             {!compact && pack.events.length > 0 && (
               <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                  Ops events
-                </Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>{tr("Ops events")}</Typography>
                 {pack.events.slice(0, 8).map((e) => (
                   <Typography key={e.id} variant="body2" sx={{ mb: 0.5 }}>
                     <Chip size="small" label={EVENT_LABEL[e.kind] || e.kind} sx={{ mr: 1 }} />
@@ -327,13 +304,11 @@ export function HandoverPackCard({
 
             {!compact && pack.notes.length > 0 && (
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                  Voice / daily notes
-                </Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>{tr("Voice / daily notes")}</Typography>
                 {pack.notes.slice(0, 5).map((n) => (
                   <Typography key={n.id} variant="body2" sx={{ mb: 0.5 }}>
                     {n.has_audio ? '🎙 ' : ''}
-                    {n.note || '(voice note)'}
+                    {n.note || tr("(voice note)")}
                     <Typography component="span" variant="caption" color="text.secondary">
                       {' '}
                       · {clock(n.created_at)}
@@ -345,8 +320,7 @@ export function HandoverPackCard({
             )}
 
             {compact && remainingRows(pack).length > 0 && (
-              <Typography variant="body2" color="text.secondary">
-                Still open: {remainingRows(pack).map((t) => t.tower_id).join(', ')}
+              <Typography variant="body2" color="text.secondary">{tr("Still open: ")}{remainingRows(pack).map((t) => t.tower_id).join(', ')}
               </Typography>
             )}
           </>
@@ -355,15 +329,12 @@ export function HandoverPackCard({
     </Accordion>
 
       <Dialog open={endOpen} onClose={() => setEndOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>End tonight&apos;s outing</DialogTitle>
+        <DialogTitle>{tr("End tonight&apos;s outing")}</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            This does not delete tracking or visits. It stamps the night closed and stores a note the
-            next crew will see when they tap Continue last night.
-          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("This does not delete tracking or visits. It stamps the night closed and stores a note the next crew will see when they tap Continue last night.")}</Typography>
           <TextField
-            label="Handover note"
-            placeholder="Gate at T52 locked. Start at T53. Drone battery low."
+            label={tr("Handover note")}
+            placeholder={tr("Gate at T52 locked. Start at T53. Drone battery low.")}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             fullWidth
@@ -372,10 +343,8 @@ export function HandoverPackCard({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEndOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleEnd} disabled={endOuting.isPending}>
-            End outing
-          </Button>
+          <Button onClick={() => setEndOpen(false)}>{tr("Cancel")}</Button>
+          <Button variant="contained" onClick={handleEnd} disabled={endOuting.isPending}>{tr("End outing")}</Button>
         </DialogActions>
       </Dialog>
     </>

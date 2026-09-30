@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, Marker, TileLayer, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -35,6 +36,7 @@ type SearchHit = {
 };
 
 function FitToPoints({ positions }: { positions: [number, number][] }) {
+  useLanguage();
   const map = useMap();
   const key = positions.map((p) => p.join(',')).join('|');
   useEffect(() => {
@@ -53,6 +55,7 @@ function FlyToTower({
   target: [number, number] | null;
   nonce: number;
 }) {
+  useLanguage();
   const map = useMap();
   useEffect(() => {
     if (!target) return;
@@ -70,6 +73,7 @@ export function TowersGpsEditorDialog({
   onClose: () => void;
   towers: TowerWithStats[];
 }) {
+  useLanguage();
   const withGps = useMemo(
     () => (towers || []).filter((t) => t.latitude != null && t.longitude != null),
     [towers],
@@ -145,7 +149,7 @@ export function TowersGpsEditorDialog({
       return;
     }
     if (t.latitude == null || t.longitude == null) {
-      setError(`${t.tower_id} has no GPS yet. Open it from the table to drop a pin first.`);
+      setError(tr("{0} has no GPS yet. Open it from the table to drop a pin first.", [t.tower_id]));
       return;
     }
     setError(null);
@@ -181,7 +185,7 @@ export function TowersGpsEditorDialog({
     if (!renameTower) return;
     const next = renameValue.trim();
     if (!next) {
-      setError('Tower ID cannot be empty.');
+      setError(tr("Tower ID cannot be empty."));
       return;
     }
     if (next.toLowerCase() === displayId(renameTower).toLowerCase()) {
@@ -199,7 +203,7 @@ export function TowersGpsEditorDialog({
         },
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setError(typeof detail === 'string' ? detail : `Could not rename ${displayId(renameTower)}`);
+          setError(typeof detail === 'string' ? detail : tr("Could not rename {0}", [displayId(renameTower)]));
         },
       },
     );
@@ -223,7 +227,7 @@ export function TowersGpsEditorDialog({
         onError: (err: unknown) => {
           saving.current.delete(t.id);
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setError(typeof detail === 'string' ? detail : `Could not save ${displayId(t)}`);
+          setError(typeof detail === 'string' ? detail : tr("Could not save {0}", [displayId(t)]));
         },
       },
     );
@@ -244,9 +248,7 @@ export function TowersGpsEditorDialog({
     <Dialog open={open} onClose={onClose} fullScreen>
       <AppBar sx={{ position: 'relative' }} color="default" elevation={1}>
         <Toolbar sx={{ gap: 2, flexWrap: 'wrap' }}>
-          <Typography sx={{ fontWeight: 800 }} variant="h6">
-            Move towers on the map
-          </Typography>
+          <Typography sx={{ fontWeight: 800 }} variant="h6">{tr("Move towers on the map")}</Typography>
           <Autocomplete
             sx={{ flex: 1, minWidth: 260, maxWidth: 520, bgcolor: 'background.paper', borderRadius: 1 }}
             options={filteredOptions}
@@ -257,12 +259,12 @@ export function TowersGpsEditorDialog({
             getOptionLabel={(o) => o.label}
             isOptionEqualToValue={(a, b) => a.id === b.id}
             filterOptions={(opts) => opts}
-            noOptionsText="No tower matches that number or name"
+            noOptionsText={tr("No tower matches that number or name")}
             renderInput={(params) => (
               <TextField
                 {...params}
                 size="small"
-                placeholder="Search number, e.g. 12 or Ashoor-Saada-12"
+                placeholder={tr("Search number, e.g. 12 or Ashoor-Saada-12")}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && filteredOptions.length === 1) {
                     e.preventDefault();
@@ -278,7 +280,7 @@ export function TowersGpsEditorDialog({
             onClick={() => {
               if (
                 !window.confirm(
-                  'Match Tower IDs to pin numbers?\n\nExample: Ashoor-Saada-100 with pin 67 becomes Ashoor-Saada-67.',
+                  tr("Match Tower IDs to pin numbers?\n\nExample: Ashoor-Saada-100 with pin 67 becomes Ashoor-Saada-67."),
                 )
               ) {
                 return;
@@ -294,41 +296,35 @@ export function TowersGpsEditorDialog({
                   },
                   onError: (err: unknown) => {
                     const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-                    setError(typeof detail === 'string' ? detail : 'Could not match IDs to pin numbers');
+                    setError(typeof detail === 'string' ? detail : tr("Could not match IDs to pin numbers"));
                   },
                 },
               );
             }}
           >
-            {matchPinIds.isPending ? 'Matching IDs…' : 'Match IDs to pin numbers'}
+            {matchPinIds.isPending ? tr("Matching IDs…") : tr("Match IDs to pin numbers")}
           </Button>
-          <Button color="inherit" onClick={onClose} startIcon={<CloseIcon />}>
-            Done
-          </Button>
+          <Button color="inherit" onClick={onClose} startIcon={<CloseIcon />}>{tr("Done")}</Button>
         </Toolbar>
       </AppBar>
       <Stack sx={{ height: '100%', minHeight: 0 }}>
         <Box sx={{ px: 2, py: 1, borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
-          <Typography variant="body2" color="text.secondary">
-            Search or click a pin to rename its Tower ID. Drag a pin to move GPS. Both save immediately.
-            {withGps.length ? ` Showing ${withGps.length} tower${withGps.length === 1 ? '' : 's'} with coordinates.` : ''}
+          <Typography variant="body2" color="text.secondary">{tr("Search or click a pin to rename its Tower ID. Drag a pin to move GPS. Both save immediately.")}{withGps.length ? tr(" Showing {0} tower{1} with coordinates.", [withGps.length, withGps.length === 1 ? '' : tr("s")]) : ''}
           </Typography>
           {status && (
             <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
-              {status}
+              {tr(status)}
             </Typography>
           )}
           {error && (
             <Alert severity="error" sx={{ mt: 1 }} onClose={() => setError(null)}>
-              {error}
+              {tr(error)}
             </Alert>
           )}
         </Box>
         <Box sx={{ flex: 1, minHeight: 0, position: 'relative' }}>
           {withGps.length === 0 ? (
-            <Typography color="text.secondary" sx={{ p: 3 }}>
-              No towers have GPS yet. Add or edit a tower and drop a pin first.
-            </Typography>
+            <Typography color="text.secondary" sx={{ p: 3 }}>{tr("No towers have GPS yet. Add or edit a tower and drop a pin first.")}</Typography>
           ) : (
             <MapContainer center={center} zoom={12} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
               <TileLayer
@@ -384,16 +380,14 @@ export function TowersGpsEditorDialog({
                         {numbers.get(t.id) != null ? `#${numbers.get(t.id)} · ` : ''}
                         {displayId(t)}
                       </strong>
-                      <br />
-                      Click to rename · drag to move GPS
-                    </LeafletTooltip>
+                      <br />{tr("Click to rename · drag to move GPS")}</LeafletTooltip>
                   </Marker>
                 );
               })}
             </MapContainer>
           )}
           <Box sx={{ position: 'absolute', top: 12, right: 12, zIndex: 1000 }}>
-            <Tooltip title={layer === 'street' ? 'Satellite' : 'Street map'}>
+            <Tooltip title={layer === 'street' ? tr("Satellite") : tr("Street map")}>
               <IconButton
                 size="small"
                 onClick={() => setLayer((v) => (v === 'street' ? 'satellite' : 'street'))}
@@ -407,16 +401,14 @@ export function TowersGpsEditorDialog({
       </Stack>
 
       <Dialog open={!!renameTower} onClose={() => setRenameTower(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Change Tower ID</DialogTitle>
+        <DialogTitle>{tr("Change Tower ID")}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, mt: 0.5 }}>
-            {renameTower && numbers.get(renameTower.id) != null ? `Map #${numbers.get(renameTower.id)} · ` : ''}
-            Saves as soon as you confirm.
-          </Typography>
+            {renameTower && numbers.get(renameTower.id) != null ? tr("Map #{0} · ", [numbers.get(renameTower.id)]) : ''}{tr("Saves as soon as you confirm.")}</Typography>
           <TextField
             autoFocus
             fullWidth
-            label="Tower ID"
+            label={tr("Tower ID")}
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
             onKeyDown={(e) => {
@@ -428,9 +420,9 @@ export function TowersGpsEditorDialog({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRenameTower(null)}>Cancel</Button>
+          <Button onClick={() => setRenameTower(null)}>{tr("Cancel")}</Button>
           <Button variant="contained" onClick={saveRename} disabled={patchGps.isPending || !renameValue.trim()}>
-            {patchGps.isPending ? 'Saving…' : 'Save ID'}
+            {patchGps.isPending ? tr("Saving…") : tr("Save ID")}
           </Button>
         </DialogActions>
       </Dialog>

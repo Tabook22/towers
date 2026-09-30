@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import {
   Box,
@@ -76,6 +77,7 @@ export function ImageSlotCard({
   otherTypes,
   onMakePrimary,
 }: Props) {
+  useLanguage();
   const [reportSaving, setReportSaving] = useState(false);
   const [reportError, setReportError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -150,19 +152,19 @@ export function ImageSlotCard({
         ) : (
           <Stack spacing={0.5} sx={{ color: 'rgba(255,255,255,0.6)', alignItems: 'center' }}>
             {isThermal ? <ThermostatIcon /> : <PhotoCameraIcon />}
-            <Typography variant="caption">No image uploaded</Typography>
+            <Typography variant="caption">{tr("No image uploaded")}</Typography>
           </Stack>
         )}
         {queuedOnPhone && (
           <Chip
-            label="On this phone"
+            label={tr("On this phone")}
             size="small"
             color="warning"
             sx={{ position: 'absolute', bottom: 6, right: 6 }}
           />
         )}
         {image.annotated_path && (
-          <Tooltip title="This photo has a marked-up annotation">
+          <Tooltip title={tr("This photo has a marked-up annotation")}>
             <EditRoundedIcon
               fontSize="small"
               sx={{ position: 'absolute', bottom: 6, left: 6, color: 'white', filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.8))' }}
@@ -171,14 +173,14 @@ export function ImageSlotCard({
         )}
         {image.sequence > 1 && (
           <Chip
-            label={`extra #${image.sequence}`}
+            label={tr("extra #{0}", [image.sequence])}
             size="small"
             sx={{ position: 'absolute', top: 6, left: 6, bgcolor: 'rgba(255,255,255,0.85)' }}
           />
         )}
         {image.file_path && image.file_path !== LOCAL_FILE_SENTINEL && (
           <Stack direction="row" spacing={0.5} sx={{ position: 'absolute', top: 6, right: 6 }}>
-            <Tooltip title="Enlarge & annotate">
+            <Tooltip title={tr("Enlarge & annotate")}>
               <IconButton
                 size="small"
                 onClick={() => setAnnotatorOpen(true)}
@@ -188,7 +190,7 @@ export function ImageSlotCard({
               </IconButton>
             </Tooltip>
             {onRetype && otherTypes && otherTypes.length > 0 && (
-              <Tooltip title="Change image type">
+              <Tooltip title={tr("Change image type")}>
                 <IconButton
                   size="small"
                   onClick={(e) => setRetypeAnchor(e.currentTarget)}
@@ -199,13 +201,13 @@ export function ImageSlotCard({
               </Tooltip>
             )}
             {onMakePrimary && image.sequence > 1 && (
-              <Tooltip title="Use as primary evidence (report checkbox follows the photo)">
+              <Tooltip title={tr("Use as primary evidence (report checkbox follows the photo)")}>
                 <IconButton size="small" onClick={onMakePrimary} sx={{ bgcolor: 'rgba(255,255,255,0.85)' }}>
                   <StarRoundedIcon fontSize="small" sx={{ color: '#f5a623' }} />
                 </IconButton>
               </Tooltip>
             )}
-            <Tooltip title="Delete image">
+            <Tooltip title={tr("Delete image")}>
               <IconButton size="small" onClick={onDelete || onClearFile} sx={{ bgcolor: 'rgba(255,255,255,0.85)' }}>
                 <DeleteOutlineIcon fontSize="small" color="error" />
               </IconButton>
@@ -217,21 +219,21 @@ export function ImageSlotCard({
       <Box sx={{ p: 1.25 }}>
         <Stack direction="row" sx={{ mb: 1, justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-            {image.image_type}
+            {tr(image.image_type)}
           </Typography>
           <EvidenceChip status={image.evidence_status} />
         </Stack>
-        <Tooltip title={queuedOnPhone ? 'Sync this image before choosing it for a report.' : 'Checked images appear in newly generated reports. Unchecked images stay as supporting evidence.'}>
+        <Tooltip title={queuedOnPhone ? tr("Sync this image before choosing it for a report.") : tr("Checked images appear in newly generated reports. Unchecked images stay as supporting evidence.")}>
           <span><FormControlLabel sx={{ m: 0, mb: 0.5 }} control={<Checkbox size="small" checked={reportIncluded} disabled={disabled || reportSaving || queuedOnPhone || !image.file_path}
             onChange={async (_, checked) => {
               setReportSaving(true); setReportError('');
               try { await onUpdate({ include_in_report: checked }); }
-              catch { setReportError('Could not save report selection. Please try again.'); }
+              catch { setReportError(tr("Could not save report selection. Please try again.")); }
               finally { setReportSaving(false); }
-            }} />} label={<Typography variant="caption" sx={{ fontWeight: 700 }}>{reportSaving ? 'Saving selection…' : 'Include in report'}</Typography>} /></span>
+            }} />} label={<Typography variant="caption" sx={{ fontWeight: 700 }}>{reportSaving ? tr("Saving selection…") : tr("Include in report")}</Typography>} /></span>
         </Tooltip>
-        {!reportIncluded && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>Supporting evidence only</Typography>}
-        {reportError && <Alert severity="error" sx={{ mb: 1 }}>{reportError}</Alert>}
+        {!reportIncluded && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{tr("Supporting evidence only")}</Typography>}
+        {reportError && <Alert severity="error" sx={{ mb: 1 }}>{tr(reportError)}</Alert>}
         {image.image_code && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, wordBreak: 'break-all' }}>
             {image.image_code}
@@ -243,7 +245,7 @@ export function ImageSlotCard({
             <TextField
               size="small"
               type="date"
-              label="Capture date"
+              label={tr("Capture date")}
               value={dateDraft}
               onChange={(e) => setDateDraft(e.target.value)}
               onBlur={() => {
@@ -256,7 +258,7 @@ export function ImageSlotCard({
             <TextField
               size="small"
               type="time"
-              label="Capture time"
+              label={tr("Capture time")}
               value={timeDraft}
               onChange={(e) => setTimeDraft(e.target.value)}
               onBlur={() => {
@@ -275,7 +277,7 @@ export function ImageSlotCard({
             onClick={() => setMapOpen(true)}
             disabled={disabled}
           >
-            {image.latitude != null ? `${image.latitude.toFixed(5)}, ${image.longitude?.toFixed(5)}` : 'Set GPS location'}
+            {image.latitude != null ? `${image.latitude.toFixed(5)}, ${image.longitude?.toFixed(5)}` : tr("Set GPS location")}
           </Button>
 
           {isThermal && image.file_path && !queuedOnPhone && <ThermalProcessButton imageId={image.id} disabled={disabled}/>}
@@ -293,7 +295,7 @@ export function ImageSlotCard({
             onClick={() => fileRef.current?.click()}
             disabled={disabled}
           >
-            {image.file_path ? 'Replace image' : 'Upload image'}
+            {image.file_path ? tr("Replace image") : tr("Upload image")}
           </Button>
         </Stack>
       </Box>
@@ -311,14 +313,14 @@ export function ImageSlotCard({
               <ListItemIcon>
                 <SwapHorizIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Move to {t}</ListItemText>
+              <ListItemText>{tr("Move to ")}{t}</ListItemText>
             </MenuItem>
           ))}
         </Menu>
       )}
 
       <Dialog open={mapOpen} onClose={() => setMapOpen(false)} maxWidth="sm" fullWidth PaperComponent={ResizableDialogPaper}>
-        <DialogTitle>{image.image_type} — capture location</DialogTitle>
+        <DialogTitle>{tr(image.image_type)}{tr(" — capture location")}</DialogTitle>
         <DialogContent>
           <MapPicker
             latitude={image.latitude}
@@ -328,9 +330,7 @@ export function ImageSlotCard({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setMapOpen(false)} variant="contained">
-            Done
-          </Button>
+          <Button onClick={() => setMapOpen(false)} variant="contained">{tr("Done")}</Button>
         </DialogActions>
       </Dialog>
 

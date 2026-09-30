@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { Card, CardActionArea, CardContent, Stack, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 
@@ -16,6 +17,7 @@ export function KpiTile({
   onClick?: () => void;
   hint?: string;
 }) {
+  useLanguage();
   const content = (
       <CardContent>
         <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
@@ -42,7 +44,7 @@ export function KpiTile({
             <Typography variant="body2" color="text.secondary">
               {label}
             </Typography>
-            {hint && <Typography variant="caption" color="primary">{hint}</Typography>}
+            {hint && <Typography variant="caption" color="primary">{tr(hint)}</Typography>}
           </Stack>
         </Stack>
       </CardContent>

@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
@@ -103,6 +104,7 @@ async function geoAlreadyAllowed(): Promise<boolean> {
 }
 
 export function useFieldTracking(active: boolean, required = false): TrackingState {
+  useLanguage();
   const [enabled, setEnabledState] = useState(() => readStoredEnabled(required));
   const [status, setStatus] = useState<TrackingStatus>('idle');
   const [lastSentAt, setLastSentAt] = useState<Date | null>(null);
@@ -416,6 +418,7 @@ export function useFieldTracking(active: boolean, required = false): TrackingSta
 const TrackingContext = createContext<TrackingState | undefined>(undefined);
 
 export function TrackingProvider({ active, children }: { active: boolean; children: ReactNode }) {
+  useLanguage();
   const { user } = useAuth();
   const required = isFieldTrackingRole(user?.role) || user?.team_id != null;
   const tracking = useFieldTracking(active && !!user, required);
@@ -423,7 +426,8 @@ export function TrackingProvider({ active, children }: { active: boolean; childr
 }
 
 export function useTracking(): TrackingState {
+  useLanguage();
   const ctx = useContext(TrackingContext);
-  if (!ctx) throw new Error('useTracking must be used within TrackingProvider');
+  if (!ctx) throw new Error(tr("useTracking must be used within TrackingProvider"));
   return ctx;
 }

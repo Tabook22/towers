@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useState } from 'react';
 import {
   Alert,
@@ -104,6 +105,7 @@ const STATUS_COLORS: Record<string, 'success' | 'warning' | 'default'> = {
 };
 
 export function TeamsPage() {
+  useLanguage();
   const { data: teams, isLoading, isError } = useTeams();
   // `isError` alone isn't a reliable signal here — under this app's `networkMode: 'offlineFirst'`
   // query default, a failed fetch can settle as fetchStatus "paused" rather than "error" depending
@@ -241,17 +243,17 @@ export function TeamsPage() {
   const handleSaveLeader = async () => {
     setLeaderError(null);
     if (leaderForm.username.trim().length < 3) {
-      setLeaderError('Username needs at least 3 characters.');
+      setLeaderError(tr("Username needs at least 3 characters."));
       return;
     }
     if (!editingLeader && leaderForm.password.length < 6) {
-      setLeaderError('Password needs at least 6 characters.');
+      setLeaderError(tr("Password needs at least 6 characters."));
       return;
     }
     try {
       if (editingLeader) {
         if (leaderForm.password && leaderForm.password.length < 6) {
-          setLeaderError('New password needs at least 6 characters.');
+          setLeaderError(tr("New password needs at least 6 characters."));
           return;
         }
         await updateUser.mutateAsync({
@@ -323,7 +325,7 @@ export function TeamsPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) {
-      setError('Team name is required');
+      setError(tr("Team name is required"));
       return;
     }
     const payload = {
@@ -365,24 +367,16 @@ export function TeamsPage() {
     <Stack spacing={3}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>
-            Teams
-          </Typography>
-          <Typography color="text.secondary">
-            Field crews, their rosters, missions, and day-by-day progress along the line.
-          </Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>{tr("Teams")}</Typography>
+          <Typography color="text.secondary">{tr("Field crews, their rosters, missions, and day-by-day progress along the line.")}</Typography>
         </Box>
         {canAddTeam && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-            Add team
-          </Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>{tr("Add team")}</Button>
         )}
       </Stack>
 
       {blocked && (
-        <Alert severity="warning">
-          You don't have permission to view teams on this account — ask a full admin to grant it.
-        </Alert>
+        <Alert severity="warning">{tr("You don't have permission to view teams on this account — ask a full admin to grant it.")}</Alert>
       )}
 
       {!blocked && <TeamActivitySummary />}
@@ -392,13 +386,13 @@ export function TeamsPage() {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Team</TableCell>
-              <TableCell>Leader</TableCell>
-              <TableCell>Mission</TableCell>
-              <TableCell>Dates</TableCell>
-              <TableCell align="center">Members</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>{tr("Team")}</TableCell>
+              <TableCell>{tr("Leader")}</TableCell>
+              <TableCell>{tr("Mission")}</TableCell>
+              <TableCell>{tr("Dates")}</TableCell>
+              <TableCell align="center">{tr("Members")}</TableCell>
+              <TableCell>{tr("Status")}</TableCell>
+              <TableCell align="right">{tr("Actions")}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -444,9 +438,7 @@ export function TeamsPage() {
                 <TableCell colSpan={7} align="center">
                   <Stack spacing={1} sx={{ alignItems: 'center', py: 3 }}>
                     <GroupsIcon color="disabled" fontSize="large" />
-                    <Typography color="text.secondary">
-                      No teams yet. Add one to start tracking a crew's mission and daily progress.
-                    </Typography>
+                    <Typography color="text.secondary">{tr("No teams yet. Add one to start tracking a crew's mission and daily progress.")}</Typography>
                   </Stack>
                 </TableCell>
               </TableRow>
@@ -461,31 +453,24 @@ export function TeamsPage() {
           <CardContent>
             <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  Team leaders
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Add a team leader's details and login once, then pick them from the dropdown when creating or
-                  editing a team. A leader who isn't leading a team yet shows as "Unassigned".
-                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Team leaders")}</Typography>
+                <Typography variant="body2" color="text.secondary">{tr("Add a team leader's details and login once, then pick them from the dropdown when creating or editing a team. A leader who isn't leading a team yet shows as \"Unassigned\".")}</Typography>
               </Box>
               {canAddUsers && (
-                <Button variant="outlined" startIcon={<BadgeIcon />} onClick={openCreateLeader}>
-                  Add team leader
-                </Button>
+                <Button variant="outlined" startIcon={<BadgeIcon />} onClick={openCreateLeader}>{tr("Add team leader")}</Button>
               )}
             </Stack>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Mobile</TableCell>
-                    <TableCell>Address</TableCell>
-                    <TableCell>Username</TableCell>
-                    <TableCell>Assigned team</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Actions</TableCell>
+                    <TableCell>{tr("Name")}</TableCell>
+                    <TableCell>{tr("Mobile")}</TableCell>
+                    <TableCell>{tr("Address")}</TableCell>
+                    <TableCell>{tr("Username")}</TableCell>
+                    <TableCell>{tr("Assigned team")}</TableCell>
+                    <TableCell>{tr("Status")}</TableCell>
+                    <TableCell align="right">{tr("Actions")}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -501,13 +486,13 @@ export function TeamsPage() {
                       <TableCell>{u.username}</TableCell>
                       <TableCell>
                         {u.team_id != null ? (
-                          <Chip size="small" color="primary" label={teamById.get(u.team_id) || `Team #${u.team_id}`} />
+                          <Chip size="small" color="primary" label={teamById.get(u.team_id) || tr("Team #{0}", [u.team_id])} />
                         ) : (
-                          <Chip size="small" variant="outlined" label="Unassigned" />
+                          <Chip size="small" variant="outlined" label={tr("Unassigned")} />
                         )}
                       </TableCell>
                       <TableCell>
-                        <Chip size="small" color={u.is_active ? 'success' : 'default'} label={u.is_active ? 'Active' : 'Deactivated'} />
+                        <Chip size="small" color={u.is_active ? 'success' : 'default'} label={u.is_active ? tr("Active") : tr("Deactivated")} />
                       </TableCell>
                       <TableCell align="right">
                         {canManageUsers && (
@@ -521,9 +506,7 @@ export function TeamsPage() {
                   {teamLeaders.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} align="center">
-                        <Typography color="text.secondary" sx={{ py: 2 }}>
-                          No team leaders yet — add one above, then pick them when creating a team.
-                        </Typography>
+                        <Typography color="text.secondary" sx={{ py: 2 }}>{tr("No team leaders yet — add one above, then pick them when creating a team.")}</Typography>
                       </TableCell>
                     </TableRow>
                   )}
@@ -554,7 +537,7 @@ export function TeamsPage() {
                   <ListItemIcon>
                     <EditIcon fontSize="small" />
                   </ListItemIcon>
-                  <ListItemText>Edit team</ListItemText>
+                  <ListItemText>{tr("Edit team")}</ListItemText>
                 </MenuItem>
               ),
               canManageTeams && <Divider key="div" />,
@@ -563,7 +546,7 @@ export function TeamsPage() {
                   <ListItemIcon>
                     <DeleteIcon fontSize="small" color="error" />
                   </ListItemIcon>
-                  <ListItemText>Delete team</ListItemText>
+                  <ListItemText>{tr("Delete team")}</ListItemText>
                 </MenuItem>
               ),
             ];
@@ -583,7 +566,7 @@ export function TeamsPage() {
                 <ListItemIcon>
                   <EditIcon fontSize="small" />
                 </ListItemIcon>
-                <ListItemText>Edit</ListItemText>
+                <ListItemText>{tr("Edit")}</ListItemText>
               </MenuItem>,
               u.is_active && (
                 <MenuItem
@@ -596,7 +579,7 @@ export function TeamsPage() {
                   <ListItemIcon>
                     <ArchiveIcon fontSize="small" />
                   </ListItemIcon>
-                  <ListItemText>Deactivate login</ListItemText>
+                  <ListItemText>{tr("Deactivate login")}</ListItemText>
                 </MenuItem>
               ),
               !u.is_active && (
@@ -610,7 +593,7 @@ export function TeamsPage() {
                   <ListItemIcon>
                     <ArchiveIcon fontSize="small" />
                   </ListItemIcon>
-                  <ListItemText>Reactivate login</ListItemText>
+                  <ListItemText>{tr("Reactivate login")}</ListItemText>
                 </MenuItem>
               ),
               <Divider key="div" />,
@@ -618,19 +601,19 @@ export function TeamsPage() {
                 <ListItemIcon>
                   <DeleteIcon fontSize="small" color="error" />
                 </ListItemIcon>
-                <ListItemText>Delete</ListItemText>
+                <ListItemText>{tr("Delete")}</ListItemText>
               </MenuItem>,
             ];
           })()}
       </Menu>
 
       <Dialog open={leaderDialogOpen} onClose={() => setLeaderDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingLeader ? `Edit ${editingLeader.full_name || editingLeader.username}` : 'Add a team leader'}</DialogTitle>
+        <DialogTitle>{editingLeader ? tr("Edit {0}", [editingLeader.full_name || editingLeader.username]) : tr("Add a team leader")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {leaderError && <Alert severity="error">{leaderError}</Alert>}
+            {leaderError && <Alert severity="error">{tr(leaderError)}</Alert>}
             <TextField
-              label="Full name"
+              label={tr("Full name")}
               fullWidth
               value={leaderForm.full_name}
               onChange={(e) => setLeaderForm((f) => ({ ...f, full_name: e.target.value }))}
@@ -639,7 +622,7 @@ export function TeamsPage() {
             <Grid container spacing={2}>
               <Grid size={6}>
                 <TextField
-                  label="Mobile"
+                  label={tr("Mobile")}
                   fullWidth
                   value={leaderForm.mobile}
                   onChange={(e) => setLeaderForm((f) => ({ ...f, mobile: e.target.value }))}
@@ -647,7 +630,7 @@ export function TeamsPage() {
               </Grid>
               <Grid size={6}>
                 <TextField
-                  label="Address"
+                  label={tr("Address")}
                   fullWidth
                   value={leaderForm.address}
                   onChange={(e) => setLeaderForm((f) => ({ ...f, address: e.target.value }))}
@@ -657,7 +640,7 @@ export function TeamsPage() {
             <Grid container spacing={2}>
               <Grid size={6}>
                 <TextField
-                  label="Username"
+                  label={tr("Username")}
                   fullWidth
                   value={leaderForm.username}
                   onChange={(e) => setLeaderForm((f) => ({ ...f, username: e.target.value }))}
@@ -665,22 +648,22 @@ export function TeamsPage() {
               </Grid>
               <Grid size={6}>
                 <TextField
-                  label={editingLeader ? 'Reset password (optional)' : 'Password'}
+                  label={editingLeader ? tr("Reset password (optional)") : tr("Password")}
                   type="password"
                   fullWidth
                   value={leaderForm.password}
-                  helperText={editingLeader ? 'Leave blank to keep their current password' : 'At least 6 characters'}
+                  helperText={editingLeader ? tr("Leave blank to keep their current password") : tr("At least 6 characters")}
                   onChange={(e) => setLeaderForm((f) => ({ ...f, password: e.target.value }))}
                 />
               </Grid>
             </Grid>
             <TextField
-              label="Notes"
+              label={tr("Notes")}
               multiline
               minRows={2}
               value={leaderForm.notes}
               onChange={(e) => setLeaderForm((f) => ({ ...f, notes: e.target.value }))}
-              placeholder="Anything worth knowing about this leader"
+              placeholder={tr("Anything worth knowing about this leader")}
             />
             <Divider />
             <MenuPermissionsEditor
@@ -688,27 +671,23 @@ export function TeamsPage() {
               onChange={(next) => setLeaderForm((f) => ({ ...f, menu_permissions: next }))}
             />
             {!editingLeader && (
-              <Alert severity="info">
-                This creates their login. Assign them to a team from the team's "Team leader" dropdown above.
-              </Alert>
+              <Alert severity="info">{tr("This creates their login. Assign them to a team from the team's \"Team leader\" dropdown above.")}</Alert>
             )}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setLeaderDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleSaveLeader} disabled={createUser.isPending || updateUser.isPending}>
-            Save
-          </Button>
+          <Button onClick={() => setLeaderDialogOpen(false)}>{tr("Cancel")}</Button>
+          <Button variant="contained" onClick={handleSaveLeader} disabled={createUser.isPending || updateUser.isPending}>{tr("Save")}</Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editing ? `Edit ${editing.name}` : 'Add a new team'}</DialogTitle>
+        <DialogTitle>{editing ? tr("Edit {0}", [editing.name]) : tr("Add a new team")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {error && <Alert severity="error">{error}</Alert>}
+            {error && <Alert severity="error">{tr(error)}</Alert>}
             <TextField
-              label="Team name"
+              label={tr("Team name")}
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               autoFocus
@@ -717,10 +696,10 @@ export function TeamsPage() {
             {isAdmin && (
               <TextField
                 select
-                label="Team leader (linked login)"
+                label={tr("Team leader (linked login)")}
                 fullWidth
                 value={form.leader_user_id}
-                helperText="Pick from the team leaders you've added below — their name & mobile fill in automatically."
+                helperText={tr("Pick from the team leaders you've added below — their name & mobile fill in automatically.")}
                 onChange={(e) => {
                   const value = e.target.value;
                   const picked = teamLeaders.find((u) => String(u.id) === value);
@@ -732,13 +711,13 @@ export function TeamsPage() {
                   }));
                 }}
               >
-                <MenuItem value="">No linked login — enter name/phone manually below</MenuItem>
+                <MenuItem value="">{tr("No linked login — enter name/phone manually below")}</MenuItem>
                 {teamLeaders.map((u) => {
                   const assignedElsewhere = u.team_id != null && u.team_id !== editing?.id;
                   return (
                     <MenuItem key={u.id} value={String(u.id)} disabled={assignedElsewhere}>
                       {u.full_name || u.username} ({u.username})
-                      {assignedElsewhere ? ` — leads ${teamById.get(u.team_id!) || 'another team'}` : ''}
+                      {assignedElsewhere ? tr(" — leads {0}", [teamById.get(u.team_id!) || tr("another team")]) : ''}
                     </MenuItem>
                   );
                 })}
@@ -747,49 +726,49 @@ export function TeamsPage() {
             <Grid container spacing={2}>
               <Grid size={6}>
                 <TextField
-                  label="Team leader"
+                  label={tr("Team leader")}
                   fullWidth
                   value={form.leader_name}
                   disabled={!!form.leader_user_id}
-                  helperText={form.leader_user_id ? 'From the linked login' : undefined}
+                  helperText={form.leader_user_id ? tr("From the linked login") : undefined}
                   onChange={(e) => setForm((f) => ({ ...f, leader_name: e.target.value }))}
                 />
               </Grid>
               <Grid size={6}>
                 <TextField
-                  label="Leader phone"
+                  label={tr("Leader phone")}
                   fullWidth
                   value={form.leader_phone}
                   disabled={!!form.leader_user_id}
-                  helperText={form.leader_user_id ? 'From the linked login' : undefined}
+                  helperText={form.leader_user_id ? tr("From the linked login") : undefined}
                   onChange={(e) => setForm((f) => ({ ...f, leader_phone: e.target.value }))}
                 />
               </Grid>
             </Grid>
             <TextField
-              label="Mission"
+              label={tr("Mission")}
               multiline
               minRows={2}
               value={form.mission}
               onChange={(e) => setForm((f) => ({ ...f, mission: e.target.value }))}
-              placeholder="e.g. Thermal + visual inspection of the OHL1/OHL2 insulator strings"
+              placeholder={tr("e.g. Thermal + visual inspection of the OHL1/OHL2 insulator strings")}
             />
             <Grid container spacing={2}>
               <Grid size={7}>
                 <TextField
-                  label="Primary line sector (optional)"
+                  label={tr("Primary line sector (optional)")}
                   fullWidth
-                  helperText="Which Tower 'Line sector' this team is primarily assigned to"
+                  helperText={tr("Which Tower 'Line sector' this team is primarily assigned to")}
                   value={form.primary_sector}
                   onChange={(e) => setForm((f) => ({ ...f, primary_sector: e.target.value }))}
                 />
               </Grid>
               <Grid size={5}>
                 <TextField
-                  label="Daily target (towers/day)"
+                  label={tr("Daily target (towers/day)")}
                   type="number"
                   fullWidth
-                  helperText="This team's working-plan quota — shown against actual daily progress"
+                  helperText={tr("This team's working-plan quota — shown against actual daily progress")}
                   value={form.daily_target}
                   onChange={(e) => setForm((f) => ({ ...f, daily_target: e.target.value }))}
                   slotProps={{ htmlInput: { min: 0, max: 500 } }}
@@ -799,7 +778,7 @@ export function TeamsPage() {
             <Grid container spacing={2}>
               <Grid size={4}>
                 <TextField
-                  label="Start date"
+                  label={tr("Start date")}
                   type="date"
                   fullWidth
                   value={form.start_date}
@@ -809,7 +788,7 @@ export function TeamsPage() {
               </Grid>
               <Grid size={4}>
                 <TextField
-                  label="End date"
+                  label={tr("End date")}
                   type="date"
                   fullWidth
                   value={form.end_date}
@@ -819,25 +798,25 @@ export function TeamsPage() {
               </Grid>
               <Grid size={4}>
                 <TextField
-                  label="Status"
+                  label={tr("Status")}
                   select
                   fullWidth
                   value={form.status}
                   onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
                 >
-                  <MenuItem value="active">Active</MenuItem>
-                  <MenuItem value="paused">Paused</MenuItem>
-                  <MenuItem value="completed">Completed</MenuItem>
+                  <MenuItem value="active">{tr("Active")}</MenuItem>
+                  <MenuItem value="paused">{tr("Paused")}</MenuItem>
+                  <MenuItem value="completed">{tr("Completed")}</MenuItem>
                 </TextField>
               </Grid>
             </Grid>
             <TextField
-              label="Notes"
+              label={tr("Notes")}
               multiline
               minRows={2}
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              placeholder="Anything else worth knowing about this team or mission"
+              placeholder={tr("Anything else worth knowing about this team or mission")}
             />
 
             <TowerAssignmentPicker
@@ -849,21 +828,17 @@ export function TeamsPage() {
             />
 
             {!editing && (
-              <Alert severity="info">
-                Add the team's roster (members, contacts) and link their login after creating — from the team's page.
-              </Alert>
+              <Alert severity="info">{tr("Add the team's roster (members, contacts) and link their login after creating — from the team's page.")}</Alert>
             )}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={() => setOpen(false)}>{tr("Cancel")}</Button>
           <Button
             variant="contained"
             onClick={handleSave}
             disabled={createTeam.isPending || updateTeam.isPending || bulkAssign.isPending}
-          >
-            Save
-          </Button>
+          >{tr("Save")}</Button>
         </DialogActions>
       </Dialog>
     </Stack>

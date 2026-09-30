@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { MapContainer, Marker, TileLayer, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -18,6 +19,7 @@ function isCompleted(row: DashboardTowerRow): boolean {
 }
 
 function MapRefBridge({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
+  useLanguage();
   const map = useMap();
   useEffect(() => {
     mapRef.current = map;
@@ -33,6 +35,7 @@ function MapRefBridge({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null>
 // where it started, with the newly-filtered markers potentially off-screen entirely. This refits
 // the viewport to whatever points are currently showing, every time that set changes.
 function FitToPoints({ positions }: { positions: [number, number][] }) {
+  useLanguage();
   const map = useMap();
   const key = positions.map((p) => p.join(',')).join('|');
   useEffect(() => {
@@ -58,6 +61,7 @@ export function TowersOverviewMap({
   onTowerClick?: (row: DashboardTowerRow) => void;
   onTowerDoubleClick?: (row: DashboardTowerRow) => void;
 }) {
+  useLanguage();
   const navigate = useNavigate();
   const points = rows.filter((r) => r.tower.latitude != null && r.tower.longitude != null);
   const mapNumbers = towerNumbersById(rows.map((r) => r.tower));
@@ -88,7 +92,7 @@ export function TowersOverviewMap({
           borderRadius: 2,
         }}
       >
-        <Typography color="text.secondary">No towers with GPS coordinates yet</Typography>
+        <Typography color="text.secondary">{tr("No towers with GPS coordinates yet")}</Typography>
       </Box>
     );
   }
@@ -98,14 +102,14 @@ export function TowersOverviewMap({
   return (
     <Box>
       <Stack direction="row" spacing={0.75} sx={{ mb: 1, flexWrap: 'wrap' }}>
-        <Chip size="small" label="Free" sx={{ bgcolor: FREE_TOWER_COLOR, color: '#fff' }} />
+        <Chip size="small" label={tr("Free")} sx={{ bgcolor: FREE_TOWER_COLOR, color: '#fff' }} />
         {legendTeams.map((t) => (
           <Chip key={t.id} size="small" label={t.name} sx={{ bgcolor: colorForTeam(t.id), color: '#fff' }} />
         ))}
         <Chip
           size="small"
           icon={<CheckRoundedIcon sx={{ color: '#fff !important', fontSize: 14 }} />}
-          label="Inspection completed"
+          label={tr("Inspection completed")}
           sx={{ bgcolor: '#2e7d32', color: '#fff' }}
         />
       </Stack>
@@ -157,7 +161,7 @@ export function TowersOverviewMap({
                     {row.tower.tower_id}
                   </strong>
                   <br />
-                  {row.tower.voltage || '—'} · {row.tower.area || 'No area set'}
+                  {row.tower.voltage || '—'} · {row.tower.area || tr("No area set")}
                   {row.tower.tower_type ? (
                     <>
                       <br />
@@ -166,26 +170,20 @@ export function TowersOverviewMap({
                   ) : null}
                   {row.tower.assigned_team_name ? (
                     <>
-                      <br />
-                      Assigned to {row.tower.assigned_team_name} — click for tower actions
-                    </>
+                      <br />{tr("Assigned to ")}{row.tower.assigned_team_name}{tr(" — click for tower actions")}</>
                   ) : (
                     <>
-                      <br />
-                      Free — click for tower actions
-                    </>
+                      <br />{tr("Free — click for tower actions")}</>
                   )}
                   {row.rollup && (
                     <>
                       <br />
-                      {row.rollup.visit_status} · {row.rollup.hotspots} hotspot{row.rollup.hotspots === 1 ? '' : 's'}
+                      {row.rollup.visit_status} · {row.rollup.hotspots}{tr(" hotspot")}{row.rollup.hotspots === 1 ? '' : tr("s")}
                     </>
                   )}
                   {completed && (
                     <>
-                      <br />
-                      ✓ Inspection completed
-                    </>
+                      <br />{tr("✓ Inspection completed")}</>
                   )}
                 </LeafletTooltip>
               </Marker>
@@ -193,7 +191,7 @@ export function TowersOverviewMap({
           })}
         </MapContainer>
         <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          <Tooltip title={layer === 'street' ? 'Switch to satellite view' : 'Switch to street map'}>
+          <Tooltip title={layer === 'street' ? tr("Switch to satellite view") : tr("Switch to street map")}>
             <IconButton
               size="small"
               onClick={() => setLayer((v) => (v === 'street' ? 'satellite' : 'street'))}
@@ -202,7 +200,7 @@ export function TowersOverviewMap({
               {layer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
-          <Tooltip title={expanded ? 'Shrink map' : 'Enlarge map'}>
+          <Tooltip title={expanded ? tr("Shrink map") : tr("Enlarge map")}>
             <IconButton
               size="small"
               onClick={() => setExpanded((v) => !v)}

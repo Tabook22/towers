@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -31,10 +32,10 @@ import { useAuth } from '../auth/AuthContext';
 import type { HelpChatTurn } from '../api/types';
 import { MarkdownLite } from './MarkdownLite';
 
-const GREETING =
-  "Hi, I'm the Insulator Inspector Pro help assistant. Ask me anything about your daily routine — " +
-  'planning a mission, working the Next-towers queue, doing an inspection, or anything else on ' +
-  'the guide below.';
+const GREETING = [
+  "Hi, I'm the Insulator Inspector Pro help assistant. Ask me anything about your daily routine — ",
+  'planning a mission, working the Next-towers queue, doing an inspection, or anything else on ',
+  'the guide below.'];
 
 const SUGGESTIONS = [
   'How do I start inspecting a tower?',
@@ -61,6 +62,7 @@ function SaveToKnowledgeBaseDialog({
   question: string;
   answer: string;
 }) {
+  useLanguage();
   const { user } = useAuth();
   const { data: teams } = useTeams(open);
   const upload = useUploadKnowledgeDocument();
@@ -86,7 +88,7 @@ function SaveToKnowledgeBaseDialog({
   const submit = () => {
     setError(null);
     if (!title.trim()) {
-      setError('A title is required.');
+      setError(tr("A title is required."));
       return;
     }
     upload.mutate(
@@ -95,7 +97,7 @@ function SaveToKnowledgeBaseDialog({
         onSuccess: () => setSaved(true),
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setError(detail || 'Could not save this to the knowledge base.');
+          setError(detail || tr("Could not save this to the knowledge base."));
         },
       },
     );
@@ -103,18 +105,18 @@ function SaveToKnowledgeBaseDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Save to knowledge base</DialogTitle>
+      <DialogTitle>{tr("Save to knowledge base")}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+          {error && <Alert severity="error">{tr(error)}</Alert>}
           {saved ? (
-            <Alert severity="success">Saved — it's now searchable in the knowledge base.</Alert>
+            <Alert severity="success">{tr("Saved — it's now searchable in the knowledge base.")}</Alert>
           ) : (
             <>
-              <TextField label="Title" fullWidth autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
+              <TextField label={tr("Title")} fullWidth autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
               {isAdminOrReviewer && (
-                <TextField select label="Team (optional)" fullWidth value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-                  <MenuItem value="">Company-wide (visible to every team)</MenuItem>
+                <TextField select label={tr("Team (optional)")} fullWidth value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+                  <MenuItem value="">{tr("Company-wide (visible to every team)")}</MenuItem>
                   {(teams || []).map((t) => (
                     <MenuItem key={t.id} value={t.id}>
                       {t.name}
@@ -123,19 +125,17 @@ function SaveToKnowledgeBaseDialog({
                 </TextField>
               )}
               {user?.role === 'team_leader' && (
-                <Alert severity="info">This will be filed under your own team only.</Alert>
+                <Alert severity="info">{tr("This will be filed under your own team only.")}</Alert>
               )}
               <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                  Save as
-                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("Save as")}</Typography>
                 <ToggleButtonGroup size="small" exclusive value={saveAs} onChange={(_e, v) => v && setSaveAs(v)}>
-                  <ToggleButton value="txt">Text file (.txt)</ToggleButton>
-                  <ToggleButton value="pdf">PDF</ToggleButton>
+                  <ToggleButton value="txt">{tr("Text file (.txt)")}</ToggleButton>
+                  <ToggleButton value="pdf">{tr("PDF")}</ToggleButton>
                 </ToggleButtonGroup>
               </Box>
               <TextField
-                label="Preview"
+                label={tr("Preview")}
                 fullWidth
                 multiline
                 minRows={4}
@@ -148,11 +148,9 @@ function SaveToKnowledgeBaseDialog({
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{saved ? 'Close' : 'Cancel'}</Button>
+        <Button onClick={onClose}>{saved ? tr("Close") : tr("Cancel")}</Button>
         {!saved && (
-          <Button variant="contained" onClick={submit} disabled={upload.isPending}>
-            Save
-          </Button>
+          <Button variant="contained" onClick={submit} disabled={upload.isPending}>{tr("Save")}</Button>
         )}
       </DialogActions>
     </Dialog>
@@ -165,6 +163,7 @@ function SaveToKnowledgeBaseDialog({
  * exactly one place that owns the chat's actual behavior. `listMaxHeight`/`listMinHeight` let each
  * host size the scrollable message area to its own layout. */
 export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 }: { listMaxHeight?: number; listMinHeight?: number }) {
+  useLanguage();
   const { user } = useAuth();
   const [turns, setTurns] = useState<DisplayTurn[]>([]);
   const [draft, setDraft] = useState('');
@@ -218,12 +217,12 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
         {turns.length === 0 && (
           <Box>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              {GREETING}
+              {GREETING.map(part => tr(part)).join('')}
             </Typography>
             <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
               {SUGGESTIONS.map((s) => (
-                <Button key={s} size="small" variant="outlined" onClick={() => send(s)}>
-                  {s}
+                <Button key={s} size="small" variant="outlined" onClick={() => send(tr(s))}>
+                  {tr(s)}
                 </Button>
               ))}
             </Stack>
@@ -254,7 +253,7 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
               <>
                 <MarkdownLite text={t.content} />
                 {!t.error && (
-                  <Tooltip title="Save this answer to the knowledge base">
+                  <Tooltip title={tr("Save this answer to the knowledge base")}>
                     <IconButton
                       size="small"
                       sx={{ mt: 0.5, ml: -0.5 }}
@@ -276,39 +275,35 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
         {chat.isPending && (
           <Box sx={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1 }}>
             <CircularProgress size={16} />
-            <Typography variant="body2" color="text.secondary">
-              Thinking…
-            </Typography>
+            <Typography variant="body2" color="text.secondary">{tr("Thinking…")}</Typography>
           </Box>
         )}
       </Box>
 
       <Box sx={{ mb: 1 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-          Search
-        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("Search")}</Typography>
         <ToggleButtonGroup size="small" exclusive value={searchMode} onChange={(_e, v) => v && setSearchMode(v)}>
           <ToggleButton value="local">
-            <Tooltip title="This app's own guide, live data, and knowledge base only — no internet.">
+            <Tooltip title={tr("This app's own guide, live data, and knowledge base only — no internet.")}>
               <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                 <StorageRoundedIcon fontSize="small" />
-                <span>Local</span>
+                <span>{tr("Local")}</span>
               </Stack>
             </Tooltip>
           </ToggleButton>
           <ToggleButton value="internet">
-            <Tooltip title="Only the real internet — none of this app's own data for this message.">
+            <Tooltip title={tr("Only the real internet — none of this app's own data for this message.")}>
               <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                 <PublicRoundedIcon fontSize="small" />
-                <span>Internet</span>
+                <span>{tr("Internet")}</span>
               </Stack>
             </Tooltip>
           </ToggleButton>
           <ToggleButton value="both">
-            <Tooltip title="This app's own data plus the internet.">
+            <Tooltip title={tr("This app's own data plus the internet.")}>
               <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                 <AllInclusiveRoundedIcon fontSize="small" />
-                <span>Both</span>
+                <span>{tr("Both")}</span>
               </Stack>
             </Tooltip>
           </ToggleButton>
@@ -319,7 +314,7 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
         <TextField
           fullWidth
           size="small"
-          placeholder={`Ask a question, ${user?.full_name || user?.username || 'there'}…`}
+          placeholder={tr("Ask a question, {0}…", [user?.full_name || user?.username || tr("there")])}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -335,9 +330,7 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
           endIcon={<SendRoundedIcon />}
           disabled={!draft.trim() || chat.isPending}
           onClick={() => send(draft)}
-        >
-          Send
-        </Button>
+        >{tr("Send")}</Button>
       </Stack>
 
       <SaveToKnowledgeBaseDialog
@@ -351,6 +344,7 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
 }
 
 export function HelpChatWidget() {
+  useLanguage();
   return (
     <Card>
       <CardContent>
@@ -359,13 +353,8 @@ export function HelpChatWidget() {
             <SmartToyRoundedIcon />
           </Avatar>
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Ask me anything
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              A chat assistant trained on this exact guide — for quick questions while you're out
-              in the field.
-            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Ask me anything")}</Typography>
+            <Typography variant="body2" color="text.secondary">{tr("A chat assistant trained on this exact guide — for quick questions while you're out in the field.")}</Typography>
           </Box>
         </Stack>
         <HelpChatConversation />

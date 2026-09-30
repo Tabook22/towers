@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n';
 import { useRef, useState, type ReactNode, type PointerEvent } from 'react';
 import { Box, IconButton, Typography } from '@mui/material';
 import DragIndicatorRounded from '@mui/icons-material/DragIndicatorRounded';
@@ -6,6 +7,7 @@ import { useNoticeDesign } from './noticeDesignUtils';
 
 /** Personal ordering never changes a notice's audience, priority or acknowledgement. */
 export function NoticeGrid({ notes, render, compact = false }: { notes: FieldNotice[]; render: (note: FieldNotice) => ReactNode; compact?: boolean }) {
+  useLanguage();
   const { prefs, setPrefs, t } = useNoticeDesign();
   const grid = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ id: number; x: number; y: number; dx: number; dy: number; target: number | null } | null>(null);

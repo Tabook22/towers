@@ -694,6 +694,7 @@ export interface BrandingSettings {
 export interface PublicBranding {
   org_logo_url: string | null;
   org_name_en: string | null;
+  org_name_ar: string | null;
   login_background_url: string | null;
 }
 

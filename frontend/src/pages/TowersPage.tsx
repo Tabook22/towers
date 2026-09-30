@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useRef, useState } from 'react';
 import {
   Accordion,
@@ -148,6 +149,7 @@ const TOWER_TYPE_OPTIONS = [
 ];
 
 export function TowersPage() {
+  useLanguage();
   const [search, setSearch] = useState('');
   const [area, setArea] = useState('');
   const [lineSector, setLineSector] = useState('');
@@ -350,12 +352,8 @@ export function TowersPage() {
     <Stack spacing={3}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>
-            Manage Towers
-          </Typography>
-          <Typography color="text.secondary">
-            Add any number of towers with any Tower ID — no fixed list or format required.
-          </Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>{tr("Manage Towers")}</Typography>
+          <Typography color="text.secondary">{tr("Add any number of towers with any Tower ID — no fixed list or format required.")}</Typography>
         </Box>
         <Stack direction="row" spacing={1.5}>
           {canImport && (
@@ -365,17 +363,13 @@ export function TowersPage() {
                 startIcon={<DownloadRoundedIcon />}
                 component="a"
                 href={mediaUrl('/api/towers/export.xlsx')}
-              >
-                Download Excel
-              </Button>
+              >{tr("Download Excel")}</Button>
               <Button
                 variant="outlined"
                 startIcon={<EditLocationAltIcon />}
                 onClick={() => setGpsEditorOpen(true)}
                 disabled={!towers?.length}
-              >
-                Move towers on map
-              </Button>
+              >{tr("Move towers on map")}</Button>
               <Button
                 variant="outlined"
                 startIcon={<TableChartIcon />}
@@ -385,9 +379,7 @@ export function TowersPage() {
                   importTowers.reset();
                   setImportOpen(true);
                 }}
-              >
-                Import from Excel
-              </Button>
+              >{tr("Import from Excel")}</Button>
               <Button
                 variant="outlined"
                 disabled={!towers?.length || matchPinIds.isPending}
@@ -395,7 +387,7 @@ export function TowersPage() {
                   const scope = area ? `towers in ${area}` : 'all towers';
                   if (
                     !window.confirm(
-                      `Match Tower IDs to pin numbers for ${scope}?\n\nExample: Ashoor-Saada-100 with pin 67 becomes Ashoor-Saada-67.`,
+                      tr("Match Tower IDs to pin numbers for {0}?\n\nExample: Ashoor-Saada-100 with pin 67 becomes Ashoor-Saada-67.", [scope]),
                     )
                   ) {
                     return;
@@ -413,7 +405,7 @@ export function TowersPage() {
                   });
                 }}
               >
-                {matchPinIds.isPending ? 'Matching IDs…' : 'Match IDs to pin numbers'}
+                {matchPinIds.isPending ? tr("Matching IDs…") : tr("Match IDs to pin numbers")}
               </Button>
               <Button
                 variant="outlined"
@@ -425,15 +417,11 @@ export function TowersPage() {
                   setDeleteOpen(true);
                 }}
                 disabled={!towers?.length}
-              >
-                Delete all
-              </Button>
+              >{tr("Delete all")}</Button>
             </>
           )}
           {canAddTower && (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-              Add tower
-            </Button>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>{tr("Add tower")}</Button>
           )}
         </Stack>
       </Stack>
@@ -441,7 +429,7 @@ export function TowersPage() {
       <Stack direction="row" spacing={2}>
         <TextField
           size="small"
-          placeholder="Search by Tower ID or area…"
+          placeholder={tr("Search by Tower ID or area…")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           sx={{ minWidth: 280 }}
@@ -450,14 +438,14 @@ export function TowersPage() {
         <TextField
           select
           size="small"
-          label="Area"
+          label={tr("Area")}
           value={area}
           onChange={(e) => setArea(e.target.value)}
           sx={{ minWidth: 180 }}
           slotProps={{
             select: {
               endAdornment: canImport && (
-                <Tooltip title="Add, rename, or delete areas">
+                <Tooltip title={tr("Add, rename, or delete areas")}>
                   <IconButton
                     size="small"
                     sx={{ mr: 2 }}
@@ -474,7 +462,7 @@ export function TowersPage() {
             },
           }}
         >
-          <MenuItem value="">All areas</MenuItem>
+          <MenuItem value="">{tr("All areas")}</MenuItem>
           {areas?.map((a) => (
             <MenuItem key={a} value={a}>
               {a}
@@ -484,28 +472,28 @@ export function TowersPage() {
         <TextField
           select
           size="small"
-          label="Line sector"
+          label={tr("Line sector")}
           value={lineSector}
           onChange={(e) => setLineSector(e.target.value)}
           sx={{ minWidth: 200 }}
         >
-          <MenuItem value="">All line sectors</MenuItem>
+          <MenuItem value="">{tr("All line sectors")}</MenuItem>
           {lineSectorOptions.map((s) => (
             <MenuItem key={s} value={s}>
-              {s}
+              {tr(s)}
             </MenuItem>
           ))}
         </TextField>
         <TextField
           select
           size="small"
-          label="Assigned team"
+          label={tr("Assigned team")}
           value={teamFilter}
           onChange={(e) => setTeamFilter(e.target.value)}
           sx={{ minWidth: 180 }}
         >
-          <MenuItem value="">All teams</MenuItem>
-          <MenuItem value="unassigned">Unassigned</MenuItem>
+          <MenuItem value="">{tr("All teams")}</MenuItem>
+          <MenuItem value="unassigned">{tr("Unassigned")}</MenuItem>
           {teams?.map((t) => (
             <MenuItem key={t.id} value={t.id}>
               {t.name}
@@ -526,8 +514,7 @@ export function TowersPage() {
       {selected.size > 0 && canImport && (
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', p: 1.5, bgcolor: 'primary.50', borderRadius: 2 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {selected.size} tower{selected.size === 1 ? '' : 's'} selected
-          </Typography>
+            {selected.size}{tr(" tower")}{selected.size === 1 ? '' : tr("s")}{tr(" selected")}</Typography>
           <Button
             size="small"
             variant="contained"
@@ -536,9 +523,7 @@ export function TowersPage() {
               setAssignTeamId('');
               setAssignOpen(true);
             }}
-          >
-            Assign to team
-          </Button>
+          >{tr("Assign to team")}</Button>
           <Button
             size="small"
             color="error"
@@ -549,12 +534,8 @@ export function TowersPage() {
               setDeleteError(null);
               setDeleteOpen(true);
             }}
-          >
-            Delete selected
-          </Button>
-          <Button size="small" onClick={() => setSelected(new Set())}>
-            Clear selection
-          </Button>
+          >{tr("Delete selected")}</Button>
+          <Button size="small" onClick={() => setSelected(new Set())}>{tr("Clear selection")}</Button>
         </Stack>
       )}
 
@@ -564,21 +545,14 @@ export function TowersPage() {
 
       <Card>
         <CardContent>
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-            Tower locations
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            Click a tower pin or table row to view its details, open inspections, or choose an assignment action.
-          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>{tr("Tower locations")}</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{tr("Click a tower pin or table row to view its details, open inspections, or choose an assignment action.")}</Typography>
           {(isTeamLeader || canEditCatalog) && (
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-              <Typography variant="caption" color="text.secondary">
-                Each team has its own pin color (see the legend on the map below) and a ✓ marks a tower whose
-                inspection is complete. The number in the circle is the Tower ID number (Ashoor-Saada-2 → 2).
-              </Typography>
+              <Typography variant="caption" color="text.secondary">{tr("Each team has its own pin color (see the legend on the map below) and a ✓ marks a tower whose inspection is complete. The number in the circle is the Tower ID number (Ashoor-Saada-2 → 2).")}</Typography>
             </Stack>
           )}
-          {assignmentMessage && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setAssignmentMessage('')}>{assignmentMessage}</Alert>}
+          {assignmentMessage && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setAssignmentMessage('')}>{tr(assignmentMessage)}</Alert>}
           <TowersOverviewMap
             rows={mapRows}
             height={380}
@@ -593,13 +567,9 @@ export function TowersPage() {
             <CardContent>
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
                 <InsightsRoundedIcon color="primary" fontSize="small" />
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  Towers per line
-                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Towers per line")}</Typography>
               </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                How the current search/area result is split across each line sector.
-              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("How the current search/area result is split across each line sector.")}</Typography>
               <HorizontalBarChart data={towersByLine} emptyMessage="No towers to summarize yet." />
             </CardContent>
           </Card>
@@ -609,13 +579,9 @@ export function TowersPage() {
             <CardContent>
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
                 <CheckIcon color="success" fontSize="small" />
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  Towers completed per team
-                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Towers completed per team")}</Typography>
               </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Assigned towers whose latest visit is fully completed, by team.
-              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("Assigned towers whose latest visit is fully completed, by team.")}</Typography>
               <HorizontalBarChart data={completedByTeam} emptyMessage="No completed towers yet." />
             </CardContent>
           </Card>
@@ -624,8 +590,7 @@ export function TowersPage() {
 
       <Accordion defaultExpanded disableGutters variant="outlined">
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            All towers ({(visibleTowers || []).length})
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("All towers (")}{(visibleTowers || []).length})
           </Typography>
         </AccordionSummary>
         <AccordionDetails sx={{ p: 0 }}>
@@ -643,16 +608,16 @@ export function TowersPage() {
                   />
                 </TableCell>
               )}
-              <TableCell>Tower ID</TableCell>
-              <TableCell>Voltage</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>Area</TableCell>
-              <TableCell>Line sector</TableCell>
-              <TableCell>Assigned team</TableCell>
-              <TableCell align="center">Visits</TableCell>
-              <TableCell align="center">Open hotspots</TableCell>
-              <TableCell>Latest visit status</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>{tr("Tower ID")}</TableCell>
+              <TableCell>{tr("Voltage")}</TableCell>
+              <TableCell>{tr("Type")}</TableCell>
+              <TableCell>{tr("Area")}</TableCell>
+              <TableCell>{tr("Line sector")}</TableCell>
+              <TableCell>{tr("Assigned team")}</TableCell>
+              <TableCell align="center">{tr("Visits")}</TableCell>
+              <TableCell align="center">{tr("Open hotspots")}</TableCell>
+              <TableCell>{tr("Latest visit status")}</TableCell>
+              <TableCell align="right">{tr("Actions")}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -688,9 +653,7 @@ export function TowersPage() {
                   {t.assigned_team_name ? (
                     <Chip size="small" color="primary" variant="outlined" label={t.assigned_team_name} />
                   ) : (
-                    <Typography variant="caption" color="text.secondary">
-                      Unassigned
-                    </Typography>
+                    <Typography variant="caption" color="text.secondary">{tr("Unassigned")}</Typography>
                   )}
                 </TableCell>
                 <TableCell align="center">{t.visit_count}</TableCell>
@@ -705,26 +668,24 @@ export function TowersPage() {
                         <Button
                           size="small"
                           onClick={() => setTowerActionId(t.id)}
-                        >
-                          Unassign
-                        </Button>
+                        >{tr("Unassign")}</Button>
                       )}
-                      <Tooltip title="Edit tower details">
+                      <Tooltip title={tr("Edit tower details")}>
                         <IconButton size="small" onClick={() => openEdit(t)}>
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Inspection visits">
+                      <Tooltip title={tr("Inspection visits")}>
                         <IconButton size="small" onClick={() => navigate(`/towers/${t.id}`)}>
                           <CellTowerIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Deactivate tower">
+                      <Tooltip title={tr("Deactivate tower")}>
                         <IconButton
                           size="small"
                           color="error"
                           onClick={() => {
-                            if (confirm(`Deactivate tower ${t.tower_id}?`)) deactivateTower.mutate(t.id);
+                            if (confirm(tr("Deactivate tower {0}?", [t.tower_id]))) deactivateTower.mutate(t.id);
                           }}
                         >
                           <ArchiveIcon fontSize="small" />
@@ -732,16 +693,12 @@ export function TowersPage() {
                       </Tooltip>
                     </>
                   ) : isTeamLeader && t.assigned_team_id == null ? (
-                    <Button size="small" onClick={() => setTowerActionId(t.id)}>
-                      Add to my team
-                    </Button>
+                    <Button size="small" onClick={() => setTowerActionId(t.id)}>{tr("Add to my team")}</Button>
                   ) : isTeamLeader && t.assigned_team_id === user?.team_id ? (
                     <Button
                       size="small"
                       onClick={() => setTowerActionId(t.id)}
-                    >
-                      Unassign
-                    </Button>
+                    >{tr("Unassign")}</Button>
                   ) : (
                     <Typography variant="caption" color="text.secondary">
                       {t.assigned_team_name || '—'}
@@ -753,7 +710,7 @@ export function TowersPage() {
             {!isLoading && visibleTowers?.length === 0 && (
               <TableRow>
                 <TableCell colSpan={11} align="center">
-                  {lineSector ? 'No towers on this line sector.' : 'No towers found — add your first one.'}
+                  {lineSector ? tr("No towers on this line sector.") : tr("No towers found — add your first one.")}
                 </TableCell>
               </TableRow>
             )}
@@ -770,13 +727,13 @@ export function TowersPage() {
         fullWidth
         PaperComponent={ResizableDialogPaper}
       >
-        <DialogTitle>{editing ? `Edit tower ${editing.tower_id}` : 'Add a new tower'}</DialogTitle>
+        <DialogTitle>{editing ? tr("Edit tower {0}", [editing.tower_id]) : tr("Add a new tower")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {errorMsg && <Alert severity="error">{errorMsg}</Alert>}
+            {errorMsg && <Alert severity="error">{tr(errorMsg)}</Alert>}
             <TextField
-              label="Tower ID"
-              helperText="Any format you want — this is not restricted to a fixed list."
+              label={tr("Tower ID")}
+              helperText={tr("Any format you want — this is not restricted to a fixed list.")}
               value={form.tower_id}
               onChange={(e) => setForm((f) => ({ ...f, tower_id: e.target.value }))}
               autoFocus
@@ -785,7 +742,7 @@ export function TowersPage() {
             <Stack direction="row" spacing={2}>
               <TextField
                 select
-                label="Voltage"
+                label={tr("Voltage")}
                 value={form.voltage}
                 onChange={(e) => setForm((f) => ({ ...f, voltage: e.target.value }))}
                 fullWidth
@@ -793,16 +750,16 @@ export function TowersPage() {
                 <MenuItem value="">—</MenuItem>
                 {VOLTAGE_OPTIONS.map((v) => (
                   <MenuItem key={v} value={v}>
-                    {v}
+                    {tr(v)}
                   </MenuItem>
                 ))}
                 {form.voltage && !VOLTAGE_OPTIONS.includes(form.voltage) && (
-                  <MenuItem value={form.voltage}>{form.voltage} (existing)</MenuItem>
+                  <MenuItem value={form.voltage}>{form.voltage}{tr(" (existing)")}</MenuItem>
                 )}
               </TextField>
               <TextField
                 select
-                label="Tower type"
+                label={tr("Tower type")}
                 value={form.tower_type}
                 onChange={(e) => setForm((f) => ({ ...f, tower_type: e.target.value }))}
                 fullWidth
@@ -810,24 +767,22 @@ export function TowersPage() {
                 <MenuItem value="">—</MenuItem>
                 {TOWER_TYPE_OPTIONS.map((t) => (
                   <MenuItem key={t} value={t}>
-                    {t}
+                    {tr(t)}
                   </MenuItem>
                 ))}
                 {form.tower_type && !TOWER_TYPE_OPTIONS.includes(form.tower_type) && (
-                  <MenuItem value={form.tower_type}>{form.tower_type} (existing)</MenuItem>
+                  <MenuItem value={form.tower_type}>{form.tower_type}{tr(" (existing)")}</MenuItem>
                 )}
               </TextField>
             </Stack>
             <Stack direction="row" spacing={2}>
               <TextField
                 select
-                label="Area / Region"
+                label={tr("Area / Region")}
                 value={form.area}
                 onChange={(e) => setForm((f) => ({ ...f, area: e.target.value }))}
                 helperText={
-                  <>
-                    Managed via the pencil icon next to the Area filter above
-                  </>
+                  <>{tr("Managed via the pencil icon next to the Area filter above")}</>
                 }
                 fullWidth
               >
@@ -837,11 +792,11 @@ export function TowersPage() {
                     {a}
                   </MenuItem>
                 ))}
-                {form.area && !areas?.includes(form.area) && <MenuItem value={form.area}>{form.area} (existing)</MenuItem>}
+                {form.area && !areas?.includes(form.area) && <MenuItem value={form.area}>{form.area}{tr(" (existing)")}</MenuItem>}
               </TextField>
               <TextField
-                label="Line sector (optional)"
-                helperText="Named line segment for project planning docs, e.g. “Ittin - Thumrait”"
+                label={tr("Line sector (optional)")}
+                helperText={tr("Named line segment for project planning docs, e.g. “Ittin - Thumrait”")}
                 value={form.line_sector}
                 onChange={(e) => setForm((f) => ({ ...f, line_sector: e.target.value }))}
                 fullWidth
@@ -849,14 +804,14 @@ export function TowersPage() {
             </Stack>
             <Stack direction="row" spacing={2}>
               <TextField
-                label="Location name"
-                helperText="Site/landmark name, e.g. “Al Ain Corridor, Pole 14”"
+                label={tr("Location name")}
+                helperText={tr("Site/landmark name, e.g. “Al Ain Corridor, Pole 14”")}
                 value={form.location_name}
                 onChange={(e) => setForm((f) => ({ ...f, location_name: e.target.value }))}
                 fullWidth
               />
               <TextField
-                label="Height (m)"
+                label={tr("Height (m)")}
                 type="number"
                 value={form.height_m ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, height_m: e.target.value ? Number(e.target.value) : null }))}
@@ -864,7 +819,7 @@ export function TowersPage() {
               />
             </Stack>
             <TextField
-              label="Notes"
+              label={tr("Notes")}
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
               multiline
@@ -872,7 +827,7 @@ export function TowersPage() {
               fullWidth
             />
 
-            <Typography variant="subtitle2">Tower photo</Typography>
+            <Typography variant="subtitle2">{tr("Tower photo")}</Typography>
             {editing ? (
               <Stack spacing={1.5}>
                 {editing.photo_path ? (
@@ -910,7 +865,7 @@ export function TowersPage() {
                     onClick={() => photoInputRef.current?.click()}
                     disabled={uploadPhoto.isPending}
                   >
-                    {editing.photo_path ? 'Replace photo' : 'Upload photo'}
+                    {editing.photo_path ? tr("Replace photo") : tr("Upload photo")}
                   </Button>
                   {editing.photo_path && (
                     <Button
@@ -919,25 +874,21 @@ export function TowersPage() {
                       startIcon={<DeleteOutlineIcon fontSize="small" />}
                       onClick={handleClearPhoto}
                       disabled={clearPhoto.isPending}
-                    >
-                      Remove
-                    </Button>
+                    >{tr("Remove")}</Button>
                   )}
                 </Stack>
               </Stack>
             ) : (
-              <Typography variant="caption" color="text.secondary">
-                Save the tower first, then reopen it here to add a photo.
-              </Typography>
+              <Typography variant="caption" color="text.secondary">{tr("Save the tower first, then reopen it here to add a photo.")}</Typography>
             )}
 
-            <Typography variant="subtitle2">Tower GPS location</Typography>
+            <Typography variant="subtitle2">{tr("Tower GPS location")}</Typography>
             <MapPicker
               key={editing?.id ?? 'new'}
               latitude={form.latitude}
               longitude={form.longitude}
               onChange={(lat, lng) => setForm((f) => ({ ...f, latitude: lat, longitude: lng }))}
-              label={form.tower_id || 'New tower'}
+              label={form.tower_id || tr("New tower")}
               highlight
               height={420}
               currentId={editing?.id}
@@ -957,14 +908,14 @@ export function TowersPage() {
             />
             <Stack direction="row" spacing={2}>
               <TextField
-                label="Latitude"
+                label={tr("Latitude")}
                 type="number"
                 value={form.latitude ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value ? Number(e.target.value) : null }))}
                 fullWidth
               />
               <TextField
-                label="Longitude"
+                label={tr("Longitude")}
                 type="number"
                 value={form.longitude ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value ? Number(e.target.value) : null }))}
@@ -974,26 +925,21 @@ export function TowersPage() {
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
-          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setDialogOpen(false)}>{tr("Cancel")}</Button>
           <Button
             variant="contained"
             onClick={handleSave}
             disabled={!form.tower_id.trim() || createTower.isPending || updateTower.isPending}
-          >
-            Save
-          </Button>
+          >{tr("Save")}</Button>
         </DialogActions>
       </Dialog>
 
       {canImport && (
         <Dialog open={importOpen} onClose={() => setImportOpen(false)} maxWidth="xs" fullWidth>
-          <DialogTitle>Import towers from Excel</DialogTitle>
+          <DialogTitle>{tr("Import towers from Excel")}</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 1 }}>
-              <Typography variant="body2" color="text.secondary">
-                Upload a spreadsheet with one row per tower. A Tower ID that already exists gets its
-                fields updated; a new one gets created — nothing is deleted.
-              </Typography>
+              <Typography variant="body2" color="text.secondary">{tr("Upload a spreadsheet with one row per tower. A Tower ID that already exists gets its fields updated; a new one gets created — nothing is deleted.")}</Typography>
               <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
                 <Button
                   size="small"
@@ -1001,27 +947,22 @@ export function TowersPage() {
                   startIcon={<DownloadRoundedIcon fontSize="small" />}
                   component="a"
                   href={mediaUrl('/api/towers/export.xlsx')}
-                >
-                  Download current towers
-                </Button>
+                >{tr("Download current towers")}</Button>
                 <Button
                   size="small"
                   variant="text"
                   startIcon={<DownloadRoundedIcon fontSize="small" />}
                   component="a"
                   href={mediaUrl('/api/towers/import/template')}
-                >
-                  Blank template
-                </Button>
+                >{tr("Blank template")}</Button>
               </Stack>
 
-              {importError && <Alert severity="error">{importError}</Alert>}
+              {importError && <Alert severity="error">{tr(importError)}</Alert>}
 
               {importTowers.data && (
                 <Alert severity={importTowers.data.warnings.length > 0 ? 'warning' : 'success'}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                    {importTowers.data.created} created, {importTowers.data.updated} updated.
-                  </Typography>
+                    {importTowers.data.created}{tr(" created, ")}{importTowers.data.updated}{tr(" updated.")}</Typography>
                   {importTowers.data.warnings.length > 0 && (
                     <Stack component="ul" spacing={0.25} sx={{ mt: 1, mb: 0, pl: 2 }}>
                       {importTowers.data.warnings.map((w, i) => (
@@ -1049,12 +990,12 @@ export function TowersPage() {
                 startIcon={<UploadFileIcon />}
                 onClick={() => importFileRef.current?.click()}
               >
-                {importFile ? importFile.name : 'Choose .xlsx file'}
+                {importFile ? importFile.name : tr("Choose .xlsx file")}
               </Button>
             </Stack>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setImportOpen(false)}>Close</Button>
+            <Button onClick={() => setImportOpen(false)}>{tr("Close")}</Button>
             <Button
               variant="contained"
               disabled={!importFile || importTowers.isPending}
@@ -1072,23 +1013,20 @@ export function TowersPage() {
                 });
               }}
             >
-              {importTowers.isPending ? 'Importing…' : 'Upload & import'}
+              {importTowers.isPending ? tr("Importing…") : tr("Upload & import")}
             </Button>
           </DialogActions>
         </Dialog>
       )}
 
       <Dialog open={assignOpen} onClose={() => setAssignOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Assign {selected.size} tower{selected.size === 1 ? '' : 's'} to a team</DialogTitle>
+        <DialogTitle>{tr("Assign ")}{selected.size}{tr(" tower")}{selected.size === 1 ? '' : tr("s")}{tr(" to a team")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              That team becomes responsible for inspecting and fixing these towers — they'll show up
-              on the team's Job Map, and progress is measured against them.
-            </Typography>
-            <TextField select label="Team" value={assignTeamId} onChange={(e) => setAssignTeamId(e.target.value)}>
+            <Typography variant="body2" color="text.secondary">{tr("That team becomes responsible for inspecting and fixing these towers — they'll show up on the team's Job Map, and progress is measured against them.")}</Typography>
+            <TextField select label={tr("Team")} value={assignTeamId} onChange={(e) => setAssignTeamId(e.target.value)}>
               <MenuItem value="">
-                <em>Unassign (remove from any team)</em>
+                <em>{tr("Unassign (remove from any team)")}</em>
               </MenuItem>
               {teams?.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
@@ -1099,7 +1037,7 @@ export function TowersPage() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAssignOpen(false)}>Cancel</Button>
+          <Button onClick={() => setAssignOpen(false)}>{tr("Cancel")}</Button>
           <Button
             variant="contained"
             disabled={bulkAssign.isPending}
@@ -1115,7 +1053,7 @@ export function TowersPage() {
               );
             }}
           >
-            {bulkAssign.isPending ? 'Assigning…' : assignTeamId ? 'Assign' : 'Unassign'}
+            {bulkAssign.isPending ? tr("Assigning…") : assignTeamId ? tr("Assign") : tr("Unassign")}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1127,19 +1065,17 @@ export function TowersPage() {
       />
 
       <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{deleteAll ? 'Delete all towers' : `Delete ${selected.size} selected tower${selected.size === 1 ? '' : 's'}`}</DialogTitle>
+        <DialogTitle>{deleteAll ? tr("Delete all towers") : tr("Delete {0} selected tower{1}", [selected.size, selected.size === 1 ? '' : tr("s")])}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Alert severity="error">
-              {deleteAll
-                ? `This permanently deletes every tower in the catalog (${towers?.length ?? 0}), including inspection visits and photos on those towers. This cannot be undone.`
-                : `This permanently deletes ${selected.size} tower${selected.size === 1 ? '' : 's'} and any inspection visits and photos on them. This cannot be undone.`}
+              {deleteAll ? tr("This permanently deletes every tower in the catalog ({0}), including inspection visits and photos on those towers. This cannot be undone.", [towers?.length ?? 0]) : tr("This permanently deletes {0} tower{1} and any inspection visits and photos on them. This cannot be undone.", [selected.size, selected.size === 1 ? '' : tr("s")])}
             </Alert>
-            {deleteError && <Alert severity="error">{deleteError}</Alert>}
+            {deleteError && <Alert severity="error">{tr(deleteError)}</Alert>}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteOpen(false)}>Cancel</Button>
+          <Button onClick={() => setDeleteOpen(false)}>{tr("Cancel")}</Button>
           <Button
             color="error"
             variant="contained"
@@ -1153,35 +1089,32 @@ export function TowersPage() {
                     setDeleteOpen(false);
                     setSelected(new Set());
                     setDeleteAll(false);
-                    if (!res.deleted) setDeleteError('No towers were deleted.');
+                    if (!res.deleted) setDeleteError(tr("No towers were deleted."));
                   },
                   onError: (err: unknown) => {
                     const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-                    setDeleteError(typeof detail === 'string' ? detail : 'Could not delete those towers');
+                    setDeleteError(typeof detail === 'string' ? detail : tr("Could not delete those towers"));
                   },
                 },
               );
             }}
           >
-            {bulkDelete.isPending ? 'Deleting…' : deleteAll ? 'Delete all towers' : 'Delete selected'}
+            {bulkDelete.isPending ? tr("Deleting…") : deleteAll ? tr("Delete all towers") : tr("Delete selected")}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={areasDialogOpen} onClose={() => setAreasDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Manage areas</DialogTitle>
+        <DialogTitle>{tr("Manage areas")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              Areas are the named regions a tower's line runs through — e.g. "Ashoor-Saada", "Ittin-Thumrait".
-              Renaming one updates every tower already using it; deleting one clears it off any tower that was.
-            </Typography>
-            {areaError && <Alert severity="error">{areaError}</Alert>}
+            <Typography variant="body2" color="text.secondary">{tr("Areas are the named regions a tower's line runs through — e.g. \"Ashoor-Saada\", \"Ittin-Thumrait\". Renaming one updates every tower already using it; deleting one clears it off any tower that was.")}</Typography>
+            {areaError && <Alert severity="error">{tr(areaError)}</Alert>}
             <Stack direction="row" spacing={1}>
               <TextField
                 size="small"
                 fullWidth
-                label="New area name"
+                label={tr("New area name")}
                 value={newAreaName}
                 onChange={(e) => setNewAreaName(e.target.value)}
                 onKeyDown={(e) => {
@@ -1218,9 +1151,7 @@ export function TowersPage() {
                     },
                   );
                 }}
-              >
-                Add
-              </Button>
+              >{tr("Add")}</Button>
             </Stack>
 
             <Stack component={Paper} variant="outlined" spacing={0} sx={{ maxHeight: 320, overflow: 'auto' }}>
@@ -1249,7 +1180,7 @@ export function TowersPage() {
                           if (e.key === 'Escape') setEditingAreaId(null);
                         }}
                       />
-                      <Tooltip title="Save">
+                      <Tooltip title={tr("Save")}>
                         <IconButton
                           size="small"
                           color="primary"
@@ -1264,7 +1195,7 @@ export function TowersPage() {
                           <CheckIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Cancel">
+                      <Tooltip title={tr("Cancel")}>
                         <IconButton size="small" onClick={() => setEditingAreaId(null)}>
                           <CloseIcon fontSize="small" />
                         </IconButton>
@@ -1278,9 +1209,9 @@ export function TowersPage() {
                       <Chip
                         size="small"
                         variant="outlined"
-                        label={`${a.tower_count} tower${a.tower_count === 1 ? '' : 's'}`}
+                        label={tr("{0} tower{1}", [a.tower_count, a.tower_count === 1 ? '' : tr("s")])}
                       />
-                      <Tooltip title="Rename">
+                      <Tooltip title={tr("Rename")}>
                         <IconButton
                           size="small"
                           onClick={() => {
@@ -1291,7 +1222,7 @@ export function TowersPage() {
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Delete area">
+                      <Tooltip title={tr("Delete area")}>
                         <span>
                           <IconButton
                             size="small"
@@ -1315,15 +1246,13 @@ export function TowersPage() {
                 </Stack>
               ))}
               {areasFull?.length === 0 && (
-                <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
-                  No areas yet — add the first one above.
-                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>{tr("No areas yet — add the first one above.")}</Typography>
               )}
             </Stack>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAreasDialogOpen(false)}>Done</Button>
+          <Button onClick={() => setAreasDialogOpen(false)}>{tr("Done")}</Button>
         </DialogActions>
       </Dialog>
     </Stack>

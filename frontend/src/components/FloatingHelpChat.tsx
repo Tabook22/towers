@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Box, Fab, IconButton, Paper, Stack, Tooltip, Typography, Zoom } from '@mui/material';
@@ -28,6 +29,7 @@ type Axis = 'x' | 'y' | 'xy';
  * left edge (or the top-left corner) — mirrored from ResizableDialogPaper's top-left-anchored
  * dialogs, since this panel grows "backwards" from its bottom-right-docked default. */
 export function FloatingHelpChat() {
+  useLanguage();
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
@@ -139,10 +141,8 @@ export function FloatingHelpChat() {
             <DragIndicatorRoundedIcon sx={{ opacity: 0.6 }} />
             <SmartToyRoundedIcon />
             <Box sx={{ flex: 1 }}>
-              <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>Help assistant</Typography>
-              <Typography variant="caption" sx={{ opacity: 0.85 }}>
-                Ask anything about the app — drag here to move
-              </Typography>
+              <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>{tr("Help assistant")}</Typography>
+              <Typography variant="caption" sx={{ opacity: 0.85 }}>{tr("Ask anything about the app — drag here to move")}</Typography>
             </Box>
             <IconButton size="small" onClick={() => setOpen(false)} sx={{ color: '#fff' }}>
               <CloseRoundedIcon fontSize="small" />
@@ -182,8 +182,8 @@ export function FloatingHelpChat() {
       </Zoom>
 
       <Box sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: (t) => t.zIndex.speedDial }}>
-        <Tooltip title={open ? 'Close help assistant' : 'Need help? Ask the assistant'} placement="left">
-          <Fab color="primary" onClick={() => setOpen((o) => !o)} aria-label="Help assistant">
+        <Tooltip title={open ? tr("Close help assistant") : tr("Need help? Ask the assistant")} placement="left">
+          <Fab color="primary" onClick={() => setOpen((o) => !o)} aria-label={tr("Help assistant")}>
             {open ? <CloseRoundedIcon /> : <SmartToyRoundedIcon />}
           </Fab>
         </Tooltip>

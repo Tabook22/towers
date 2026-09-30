@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import {
   createContext,
   useCallback,
@@ -39,6 +40,7 @@ interface OfflineState {
 const OfflineContext = createContext<OfflineState | undefined>(undefined);
 
 export function OfflineProvider({ children }: { children: ReactNode }) {
+  const uiLanguage = useLanguage();
   const qc = useQueryClient();
   const online = useSyncExternalStore(subscribeOnline, isBrowserOnline, () => true);
   const [items, setItems] = useState<OutboxItem[]>([]);
@@ -86,7 +88,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
       const result = await flushOutbox();
       if (result.failed > 0 && result.sent === 0) {
         const leftover = await listOutbox();
-        setLastFlushError(leftover[0]?.lastError || 'Could not send saved work');
+        setLastFlushError(leftover[0]?.lastError || tr("Could not send saved work"));
       }
       const keys = queryKeysTouched(before);
       keys.forEach((key) => {
@@ -94,12 +96,12 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
       });
       await refresh();
     } catch (err) {
-      setLastFlushError(err instanceof Error ? err.message : 'Could not send saved work');
+      setLastFlushError(err instanceof Error ? err.message : tr("Could not send saved work"));
     } finally {
       flushing.current = false;
       setSyncing(false);
     }
-  }, [qc, refresh]);
+  }, [qc, refresh, uiLanguage]);
 
   useEffect(() => {
     if (!online) return;
@@ -159,7 +161,8 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
 }
 
 export function useOffline(): OfflineState {
+  useLanguage();
   const ctx = useContext(OfflineContext);
-  if (!ctx) throw new Error('useOffline must be used within OfflineProvider');
+  if (!ctx) throw new Error(tr("useOffline must be used within OfflineProvider"));
   return ctx;
 }

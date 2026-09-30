@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import {
   Alert,
   Box,
@@ -31,6 +32,7 @@ const MISSION_STATUS_COLORS: Record<string, 'default' | 'info' | 'success'> = {
  * VisitDetailPage a team_leader or admin uses — same full mission-control (positions, images,
  * screening, annotation, photos), just already scoped server-side to this one visit. */
 export function MyMissionsPage() {
+  useLanguage();
   const { user } = useAuth();
   const { data: missions, isLoading, isError } = useMyMissions();
   const navigate = useNavigate();
@@ -44,23 +46,16 @@ export function MyMissionsPage() {
   return (
     <Stack spacing={3}>
       <Box>
-        <Typography variant="h4" sx={{ fontWeight: 800 }}>
-          My missions
-        </Typography>
+        <Typography variant="h4" sx={{ fontWeight: 800 }}>{tr("My missions")}</Typography>
         <Typography color="text.secondary">
-          {user?.full_name || user?.username} — the towers and inspections your team leader has assigned to you.
-        </Typography>
+          {user?.full_name || user?.username}{tr(" — the towers and inspections your team leader has assigned to you.")}</Typography>
       </Box>
 
       <Card>
         <CardContent>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Site map
-          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Site map")}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            {trails?.some((t) => t.is_previous)
-              ? `Your team's last recorded outing (${trails.find((t) => t.field_date)?.field_date}). Live GPS appears when someone is signed in tonight.`
-              : "Your location, the whole crew's GPS track, and every registered tower (number + Tower ID)."}
+            {trails?.some((t) => t.is_previous) ? tr("Your team's last recorded outing ({0}). Live GPS appears when someone is signed in tonight.", [trails.find((t) => t.field_date)?.field_date]) : tr("Your location, the whole crew's GPS track, and every registered tower (number + Tower ID).")}
           </Typography>
           <TeamSiteMap
             towers={jobMap?.towers}
@@ -83,11 +78,9 @@ export function MyMissionsPage() {
           <CircularProgress />
         </Box>
       )}
-      {isError && <Alert severity="error">Could not load your missions.</Alert>}
+      {isError && <Alert severity="error">{tr("Could not load your missions.")}</Alert>}
       {!isLoading && !isError && (!missions || missions.length === 0) && (
-        <Alert severity="info">
-          No missions assigned to you yet — your team leader will assign one when it's ready.
-        </Alert>
+        <Alert severity="info">{tr("No missions assigned to you yet — your team leader will assign one when it's ready.")}</Alert>
       )}
 
       <Grid container spacing={2}>
@@ -102,9 +95,9 @@ export function MyMissionsPage() {
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                     <CellTowerIcon color="action" fontSize="small" />
-                    <Typography sx={{ fontWeight: 700 }}>{m.tower?.tower_id || `Tower #${m.tower_id}`}</Typography>
+                    <Typography sx={{ fontWeight: 700 }}>{m.tower?.tower_id || tr("Tower #{0}", [m.tower_id])}</Typography>
                   </Stack>
-                  {m.mission_seq != null && <Chip size="small" label={`Mission ${m.mission_seq}`} variant="outlined" />}
+                  {m.mission_seq != null && <Chip size="small" label={tr("Mission {0}", [m.mission_seq])} variant="outlined" />}
                 </Stack>
                 {m.tower?.area && (
                   <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mb: 1 }}>
@@ -116,10 +109,10 @@ export function MyMissionsPage() {
                   </Stack>
                 )}
                 <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
-                  <Chip size="small" label={m.mission_status} color={MISSION_STATUS_COLORS[m.mission_status] || 'default'} />
+                  <Chip size="small" label={tr(m.mission_status)} color={MISSION_STATUS_COLORS[m.mission_status] || 'default'} />
                   <VisitStatusChip status={m.rollup?.visit_status} />
                   {(m.rollup?.hotspots ?? 0) > 0 && (
-                    <Chip size="small" color="error" icon={<LocalFireDepartmentIcon />} label={`${m.rollup?.hotspots} hotspot(s)`} />
+                    <Chip size="small" color="error" icon={<LocalFireDepartmentIcon />} label={tr("{0} hotspot(s)", [m.rollup?.hotspots])} />
                   )}
                 </Stack>
                 {(m.inspection_date || m.start_time) && (
@@ -133,8 +126,7 @@ export function MyMissionsPage() {
                 )}
                 {m.rollup && (
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                    {m.rollup.screened}/{m.rollup.installed} screened · {m.rollup.completion_pct}% complete
-                  </Typography>
+                    {m.rollup.screened}/{m.rollup.installed}{tr(" screened · ")}{m.rollup.completion_pct}{tr("% complete")}</Typography>
                 )}
               </CardContent>
             </Card>

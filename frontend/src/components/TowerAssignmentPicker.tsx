@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import { Box, Checkbox, Chip, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import type { DashboardTowerRow, TowerWithStats } from '../api/types';
@@ -28,6 +29,7 @@ interface Props {
  * applies the selection after saving) or a team's own detail page (TeamDetailPage.tsx, where the
  * caller can apply it immediately). */
 export function TowerAssignmentPicker({ towers, areas, currentTeamId, selected, setSelected, title, description }: Props) {
+  useLanguage();
   const [towerArea, setTowerArea] = useState('');
   const [towerLineSector, setTowerLineSector] = useState('');
   const [towerSearch, setTowerSearch] = useState('');
@@ -80,8 +82,8 @@ export function TowerAssignmentPicker({ towers, areas, currentTeamId, selected, 
         </Typography>
       )}
       <Stack direction="row" spacing={1.5} sx={{ mb: 1, flexWrap: 'wrap', rowGap: 1 }}>
-        <TextField select size="small" label="Area" value={towerArea} onChange={(e) => setTowerArea(e.target.value)} sx={{ minWidth: 160 }}>
-          <MenuItem value="">All areas</MenuItem>
+        <TextField select size="small" label={tr("Area")} value={towerArea} onChange={(e) => setTowerArea(e.target.value)} sx={{ minWidth: 160 }}>
+          <MenuItem value="">{tr("All areas")}</MenuItem>
           {areas?.map((a) => (
             <MenuItem key={a} value={a}>
               {a}
@@ -91,21 +93,21 @@ export function TowerAssignmentPicker({ towers, areas, currentTeamId, selected, 
         <TextField
           select
           size="small"
-          label="Line sector"
+          label={tr("Line sector")}
           value={towerLineSector}
           onChange={(e) => setTowerLineSector(e.target.value)}
           sx={{ minWidth: 160 }}
         >
-          <MenuItem value="">All line sectors</MenuItem>
+          <MenuItem value="">{tr("All line sectors")}</MenuItem>
           {lineSectorOptions.map((s) => (
             <MenuItem key={s} value={s}>
-              {s}
+              {tr(s)}
             </MenuItem>
           ))}
         </TextField>
         <TextField
           size="small"
-          label="Search tower ID"
+          label={tr("Search tower ID")}
           value={towerSearch}
           onChange={(e) => setTowerSearch(e.target.value)}
           sx={{ minWidth: 140 }}
@@ -148,10 +150,9 @@ export function TowerAssignmentPicker({ towers, areas, currentTeamId, selected, 
               })
             }
           />
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>
-            Select all {eligibleFiltered.length}
-            {towerArea || towerLineSector || towerSearch ? ' filtered' : ''}
-            {eligibleFiltered.length !== filteredTowers.length ? ` (${filteredTowers.length - eligibleFiltered.length} locked)` : ''}
+          <Typography variant="caption" sx={{ fontWeight: 600 }}>{tr("Select all ")}{eligibleFiltered.length}
+            {towerArea || towerLineSector || towerSearch ? tr(" filtered") : ''}
+            {eligibleFiltered.length !== filteredTowers.length ? tr(" ({0} locked)", [filteredTowers.length - eligibleFiltered.length]) : ''}
           </Typography>
         </Stack>
         {filteredTowers.map((t) => {
@@ -191,30 +192,25 @@ export function TowerAssignmentPicker({ towers, areas, currentTeamId, selected, 
                 {[t.area, t.line_sector].filter(Boolean).join(' · ') || '-'}
               </Typography>
               {locked ? (
-                <Chip size="small" variant="outlined" label={`🔒 on ${t.assigned_team_name}`} />
+                <Chip size="small" variant="outlined" label={tr("🔒 on {0}", [t.assigned_team_name])} />
               ) : t.assigned_team_id == null ? (
-                <Chip size="small" variant="outlined" label="Unassigned" />
+                <Chip size="small" variant="outlined" label={tr("Unassigned")} />
               ) : null}
             </Stack>
           );
         })}
         {filteredTowers.length === 0 && (
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', p: 1.5 }}>
-            No towers match this filter.
-          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', p: 1.5 }}>{tr("No towers match this filter.")}</Typography>
         )}
       </Paper>
       {selected.size > 0 && (
         <Typography variant="caption" color="primary.main" sx={{ display: 'block', mt: 0.5 }}>
-          {selected.size} tower{selected.size === 1 ? '' : 's'} selected.
-        </Typography>
+          {selected.size}{tr(" tower")}{selected.size === 1 ? '' : tr("s")}{tr(" selected.")}</Typography>
       )}
 
       {selected.size > 0 && (
         <Box sx={{ mt: 1.5 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-            Where the {selected.size} selected tower{selected.size === 1 ? '' : 's'} actually are — click a pin for its details.
-          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("Where the ")}{selected.size}{tr(" selected tower")}{selected.size === 1 ? '' : tr("s")}{tr(" actually are — click a pin for its details.")}</Typography>
           <TowersOverviewMap rows={selectedTowerRows} height={220} />
         </Box>
       )}

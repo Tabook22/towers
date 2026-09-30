@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useRef, useState, type RefObject } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import AspectRatioRoundedIcon from '@mui/icons-material/AspectRatioRounded';
@@ -19,6 +20,7 @@ function logoBoxSx(width: number | null | undefined, height: number | null | und
  * canvas. No-op (returns a plain, non-interactive handler) when `editable` or `onChange` is unset,
  * so the same JSX renders identically in the read-only real splash screen. */
 function useDraggable(containerRef: RefObject<HTMLDivElement | null>, editable: boolean, onChange?: (x: number, y: number) => void) {
+  useLanguage();
   const [dragging, setDragging] = useState(false);
   const onPointerDown = (e: React.PointerEvent) => {
     if (!editable || !onChange) return;
@@ -52,6 +54,7 @@ function useResizable(
   editable: boolean,
   onChange?: (width: number, height: number) => void,
 ) {
+  useLanguage();
   const [resizing, setResizing] = useState(false);
   const onPointerDown = (e: React.PointerEvent) => {
     if (!editable || !onChange) return;
@@ -85,12 +88,13 @@ function useResizable(
 /** The little handle rendered at an overlay's bottom-right corner for useResizable — a fixed-size
  * circle so it stays easy to grab regardless of how small the logo itself is scaled down to. */
 function ResizeHandle({ onPointerDown, resizing }: { onPointerDown: (e: React.PointerEvent) => void; resizing: boolean }) {
+  useLanguage();
   return (
     <Box
       onPointerDown={onPointerDown}
+      style={{ right: -8 }}
       sx={{
         position: 'absolute',
-        right: -8,
         bottom: -8,
         width: 20,
         height: 20,
@@ -163,6 +167,7 @@ export function BrandingBanner({
   onMainLogoSizeChange?: (width: number, height: number) => void;
   onSkyLogoSizeChange?: (width: number, height: number) => void;
 }) {
+  useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const mainLogoRef = useRef<HTMLImageElement>(null);
   const skyLogoRef = useRef<HTMLImageElement>(null);
@@ -195,7 +200,7 @@ export function BrandingBanner({
       />
       {mainLogoSrc && (
         <Box
-          sx={{
+          style={{
             position: 'absolute',
             ...(mainHasPos
               ? { left: `${mainLogoPosX}%`, top: `${mainLogoPosY}%`, transform: 'translate(-50%, -50%)' }
@@ -206,7 +211,7 @@ export function BrandingBanner({
             ref={mainLogoRef}
             component="img"
             src={mainLogoSrc}
-            alt="Company logo"
+            alt={tr("Company logo")}
             draggable={false}
             onPointerDown={mainLogoDrag.onPointerDown}
             sx={{
@@ -232,7 +237,7 @@ export function BrandingBanner({
       )}
       {skyHasPos && skyLogoSrc && (
         <Box
-          sx={{
+          style={{
             position: 'absolute',
             left: `${skyLogoPosX}%`,
             top: `${skyLogoPosY}%`,
@@ -243,7 +248,7 @@ export function BrandingBanner({
             ref={skyLogoRef}
             component="img"
             src={skyLogoSrc}
-            alt="Sky Green Line"
+            alt={tr("Sky Green Line")}
             draggable={false}
             onPointerDown={skyLogoDrag.onPointerDown}
             sx={{
@@ -271,11 +276,9 @@ export function BrandingBanner({
       {titleHasPos && (
         <Box
           onPointerDown={titleDrag.onPointerDown}
+          style={{ left: `${titlePosX}%`, top: `${titlePosY}%`, transform: 'translate(-50%, -50%)' }}
           sx={{
             position: 'absolute',
-            left: `${titlePosX}%`,
-            top: `${titlePosY}%`,
-            transform: 'translate(-50%, -50%)',
             bgcolor: 'rgba(255,255,255,0.92)',
             borderRadius: 1,
             boxShadow: 3,
@@ -290,7 +293,7 @@ export function BrandingBanner({
           }}
         >
           <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.15 }} noWrap>
-            {appTitle || 'Insulator Inspector Pro'}
+            {appTitle || tr("Insulator Inspector Pro")}
           </Typography>
           {appVersion && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
@@ -314,12 +317,13 @@ export function BrandingLogoBlock({
   mainLogoWidth?: number | null;
   mainLogoHeight?: number | null;
 }) {
+  useLanguage();
   return (
     <Stack sx={{ alignItems: 'center', mb: 2 }}>
       <Box
         component="img"
         src={mainLogoSrc}
-        alt="Company logo"
+        alt={tr("Company logo")}
         sx={{
           ...(mainLogoWidth || mainLogoHeight
             ? { width: mainLogoWidth || 'auto', height: mainLogoHeight || 'auto', maxWidth: '100%' }
@@ -356,6 +360,7 @@ export function BrandingNameRow({
   onPinSkyLogoToBanner?: () => void;
   onPinTitleToBanner?: () => void;
 }) {
+  useLanguage();
   if (hideSkyLogo && hideTitle) return null;
   return (
     <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 3 }}>
@@ -364,7 +369,7 @@ export function BrandingNameRow({
           <Box
             component="img"
             src={skyLogoSrc}
-            alt="Sky Green Line"
+            alt={tr("Sky Green Line")}
             sx={{
               width: skyLogoWidth || 56,
               height: skyLogoHeight || 56,
@@ -383,9 +388,7 @@ export function BrandingNameRow({
               component="button"
               onClick={onPinSkyLogoToBanner}
               sx={{ border: 0, bgcolor: 'transparent', color: 'primary.main', cursor: 'pointer', p: 0, whiteSpace: 'nowrap' }}
-            >
-              Move onto banner
-            </Typography>
+            >{tr("Move onto banner")}</Typography>
           )}
         </Stack>
       )}
@@ -393,7 +396,7 @@ export function BrandingNameRow({
         <Stack sx={{ minWidth: 0, alignItems: 'flex-start', gap: 0.25 }}>
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.15 }} noWrap>
-              {appTitle || 'Insulator Inspector Pro'}
+              {appTitle || tr("Insulator Inspector Pro")}
             </Typography>
             {appVersion && (
               <Typography variant="body2" color="text.secondary">
@@ -407,9 +410,7 @@ export function BrandingNameRow({
               component="button"
               onClick={onPinTitleToBanner}
               sx={{ border: 0, bgcolor: 'transparent', color: 'primary.main', cursor: 'pointer', p: 0, whiteSpace: 'nowrap' }}
-            >
-              Move onto banner
-            </Typography>
+            >{tr("Move onto banner")}</Typography>
           )}
         </Stack>
       )}

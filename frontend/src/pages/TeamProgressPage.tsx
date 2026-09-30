@@ -1,3 +1,4 @@
+import { tr, useLanguage, locale } from '../i18n';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -53,12 +54,12 @@ function parseHour(value: string): number | undefined {
 
 function clock(iso: string): string {
   const d = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
 }
 
 function datetime(iso: string): string {
   const d = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
-  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString(locale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function fmtDelta(n: number, unit = ''): string {
@@ -83,6 +84,7 @@ function deltaChip(label: string, value: number, betterWhen: 'up' | 'down') {
 }
 
 export function TeamProgressPage() {
+  useLanguage();
   const navigate = useNavigate();
   const { data: shift } = useShiftInfo();
   const [onDate, setOnDate] = useState('');
@@ -118,58 +120,51 @@ export function TeamProgressPage() {
   return (
     <Stack spacing={3}>
       <Box>
-        <Typography variant="h4" sx={{ fontWeight: 800 }}>
-          Team Progress
-        </Typography>
-        <Typography color="text.secondary">
-          Mission recap per team: start and end, kilometres, total time, minutes at each tower, and travel
-          between towers. Compare with the previous field night to see day-to-day improvement.
-        </Typography>
+        <Typography variant="h4" sx={{ fontWeight: 800 }}>{tr("Team Progress")}</Typography>
+        <Typography color="text.secondary">{tr("Mission recap per team: start and end, kilometres, total time, minutes at each tower, and travel between towers. Compare with the previous field night to see day-to-day improvement.")}</Typography>
       </Box>
 
       {error && (
-        <Alert severity="error">Could not load team progress. Admin or reviewer access is required.</Alert>
+        <Alert severity="error">{tr("Could not load team progress. Admin or reviewer access is required.")}</Alert>
       )}
 
       <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <TextField
-          label="Field night of"
+          label={tr("Field night of")}
           type="date"
           size="small"
           value={fieldDate}
           onChange={(e) => setOnDate(e.target.value)}
-          helperText="6:00 PM–6:00 PM Oman"
+          helperText={tr("6:00 PM–6:00 PM Oman")}
           slotProps={{ inputLabel: { shrink: true } }}
         />
         <TextField
-          label="From hour"
+          label={tr("From hour")}
           type="time"
           size="small"
           value={fromTime}
           onChange={(e) => setFromTime(e.target.value)}
-          helperText="e.g. 22:00"
+          helperText={tr("e.g. 22:00")}
           slotProps={{ inputLabel: { shrink: true } }}
         />
         <TextField
-          label="To hour"
+          label={tr("To hour")}
           type="time"
           size="small"
           value={toTime}
           onChange={(e) => setToTime(e.target.value)}
-          helperText="e.g. 05:00"
+          helperText={tr("e.g. 05:00")}
           slotProps={{ inputLabel: { shrink: true } }}
         />
-        <TextField select size="small" label="Team" value={teamId} onChange={(e) => setTeamId(e.target.value)} sx={{ minWidth: 180 }}>
-          <MenuItem value="">All teams</MenuItem>
+        <TextField select size="small" label={tr("Team")} value={teamId} onChange={(e) => setTeamId(e.target.value)} sx={{ minWidth: 180 }}>
+          <MenuItem value="">{tr("All teams")}</MenuItem>
           {(teams || []).map((t) => (
             <MenuItem key={t.id} value={String(t.id)}>
               {t.name}
             </MenuItem>
           ))}
         </TextField>
-        <Button size="small" onClick={() => { setFromTime('22:00'); setToTime('05:00'); }}>
-          10pm–5am
-        </Button>
+        <Button size="small" onClick={() => { setFromTime('22:00'); setToTime('05:00'); }}>{tr("10pm–5am")}</Button>
         <Button
           size="small"
           onClick={() => {
@@ -178,9 +173,7 @@ export function TeamProgressPage() {
             setTeamId('');
             if (shift?.field_date) setOnDate(shift.field_date);
           }}
-        >
-          Tonight
-        </Button>
+        >{tr("Tonight")}</Button>
       </Stack>
 
       {isLoading && <LinearProgress />}
@@ -192,13 +185,9 @@ export function TeamProgressPage() {
               <CardContent>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
                   <InsightsRoundedIcon color="primary" fontSize="small" />
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    Towers visited
-                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Towers visited")}</Typography>
                 </Stack>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Towers visited per team in this window.
-                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("Towers visited per team in this window.")}</Typography>
                 <HorizontalBarChart data={comparisonCharts.towers} emptyMessage="No towers visited yet." />
               </CardContent>
             </Card>
@@ -208,13 +197,9 @@ export function TeamProgressPage() {
               <CardContent>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
                   <InsightsRoundedIcon color="primary" fontSize="small" />
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    Distance travelled
-                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Distance travelled")}</Typography>
                 </Stack>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Kilometres covered per team in this window.
-                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("Kilometres covered per team in this window.")}</Typography>
                 <HorizontalBarChart data={comparisonCharts.distance} emptyMessage="No distance tracked yet." />
               </CardContent>
             </Card>
@@ -224,13 +209,9 @@ export function TeamProgressPage() {
               <CardContent>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
                   <InsightsRoundedIcon color="primary" fontSize="small" />
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    Time on towers
-                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Time on towers")}</Typography>
                 </Stack>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Minutes spent working at towers per team (excludes travel).
-                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("Minutes spent working at towers per team (excludes travel).")}</Typography>
                 <HorizontalBarChart data={comparisonCharts.onTowers} emptyMessage="No time tracked yet." />
               </CardContent>
             </Card>
@@ -251,17 +232,14 @@ export function TeamProgressPage() {
                       {row.team_name}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      {clock(row.started_at)} → {clock(row.ended_at)} · {row.minutes_tracked} min · {row.distance_km} km
-                    </Typography>
+                      {clock(row.started_at)} → {clock(row.ended_at)} · {row.minutes_tracked}{tr(" min · ")}{row.distance_km}{tr(" km")}</Typography>
                     <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                      <Chip size="small" label={`${row.towers_visited} towers`} />
-                      <Chip size="small" label={`${row.dwell_minutes} min on towers`} />
-                      <Chip size="small" label={`${row.travel_minutes} min travelling`} />
+                      <Chip size="small" label={tr("{0} towers", [row.towers_visited])} />
+                      <Chip size="small" label={tr("{0} min on towers", [row.dwell_minutes])} />
+                      <Chip size="small" label={tr("{0} min travelling", [row.travel_minutes])} />
                     </Stack>
                     {row.vs_previous && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                        vs previous night: {fmtDelta(row.vs_previous.towers_delta)} towers, {fmtDelta(row.vs_previous.distance_km_delta)} km
-                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{tr("vs previous night: ")}{fmtDelta(row.vs_previous.towers_delta)}{tr(" towers, ")}{fmtDelta(row.vs_previous.distance_km_delta)}{tr(" km")}</Typography>
                     )}
                   </CardContent>
                 </CardActionArea>
@@ -272,7 +250,7 @@ export function TeamProgressPage() {
       </Grid>
 
       {!isLoading && (!data || data.length === 0) && (
-        <Alert severity="info">No GPS tracks in this date/hour range yet.</Alert>
+        <Alert severity="info">{tr("No GPS tracks in this date/hour range yet.")}</Alert>
       )}
 
       {selected && <TeamMissionDetail row={selected} onOpenVisit={(id) => navigate(`/visits/${id}`)} />}
@@ -281,6 +259,7 @@ export function TeamProgressPage() {
 }
 
 function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisit: (id: number) => void }) {
+  useLanguage();
   const theme = useTheme();
   const pathPts = row.path.map((p) => [p.latitude, p.longitude] as [number, number]);
   const center: [number, number] = pathPts[0] || [17.01972, 54.08972];
@@ -300,21 +279,17 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
       <Typography variant="h5" sx={{ fontWeight: 800 }}>
         {row.team_name}
       </Typography>
-      <Typography color="text.secondary">
-        Started {datetime(row.started_at)} at {row.start_latitude.toFixed(5)}, {row.start_longitude.toFixed(5)}
-        {' · '}
-        Ended {datetime(row.ended_at)} at {row.end_latitude.toFixed(5)}, {row.end_longitude.toFixed(5)}
+      <Typography color="text.secondary">{tr("Started ")}{datetime(row.started_at)}{tr(" at ")}{row.start_latitude.toFixed(5)}, {row.start_longitude.toFixed(5)}
+        {' · '}{tr("Ended ")}{datetime(row.ended_at)}{tr(" at ")}{row.end_latitude.toFixed(5)}, {row.end_longitude.toFixed(5)}
       </Typography>
       {row.logins.length > 0 && (
-        <Typography variant="body2" color="text.secondary">
-          Crew: {row.logins.map((u) => u.full_name || u.username).join(', ')}
+        <Typography variant="body2" color="text.secondary">{tr("Crew: ")}{row.logins.map((u) => u.full_name || u.username).join(', ')}
         </Typography>
       )}
 
       {row.vs_previous && (
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-          <Typography variant="body2" sx={{ alignSelf: 'center' }}>
-            vs previous field night ({String(row.vs_previous.field_date).slice(0, 10)}):
+          <Typography variant="body2" sx={{ alignSelf: 'center' }}>{tr("vs previous field night (")}{String(row.vs_previous.field_date).slice(0, 10)}):
           </Typography>
           {deltaChip('Towers', row.vs_previous.towers_delta, 'up')}
           {deltaChip('km', row.vs_previous.distance_km_delta, 'up')}
@@ -325,17 +300,17 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
-          <KpiTile label="Total time" value={`${row.minutes_tracked} min`} icon={<TimerIcon />} />
+          <KpiTile label={tr("Total time")} value={`${row.minutes_tracked} min`} icon={<TimerIcon />} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
-          <KpiTile label="Distance" value={`${row.distance_km} km`} icon={<RouteIcon />} color="#1565c0" />
+          <KpiTile label={tr("Distance")} value={`${row.distance_km} km`} icon={<RouteIcon />} color="#1565c0" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
-          <KpiTile label="Towers" value={row.towers_visited} icon={<CellTowerIcon />} color="#2e7d32" />
+          <KpiTile label={tr("Towers")} value={row.towers_visited} icon={<CellTowerIcon />} color="#2e7d32" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
           <KpiTile
-            label="Avg time at tower"
+            label={tr("Avg time at tower")}
             value={`${row.avg_minutes_per_tower} min`}
             icon={<TimerIcon />}
             color="#6a1b9a"
@@ -343,7 +318,7 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
           <KpiTile
-            label="Avg travel between towers"
+            label={tr("Avg travel between towers")}
             value={`${row.avg_travel_minutes} min`}
             icon={<DirectionsWalkIcon />}
             color="#ef6c00"
@@ -351,7 +326,7 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
           <KpiTile
-            label="On towers / travelling"
+            label={tr("On towers / travelling")}
             value={`${row.dwell_minutes} / ${row.travel_minutes}`}
             icon={<RouteIcon />}
             color="#00838f"
@@ -361,13 +336,11 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
 
       <Card variant="outlined">
         <CardContent>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-            Time breakdown
-          </Typography>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>{tr("Time breakdown")}</Typography>
           <HorizontalBarChart
             data={[
-              { label: 'On towers', value: row.dwell_minutes, color: theme.palette.success.main },
-              { label: 'Travelling', value: row.travel_minutes, color: theme.palette.warning.main },
+              { label: tr("On towers"), value: row.dwell_minutes, color: theme.palette.success.main },
+              { label: tr("Travelling"), value: row.travel_minutes, color: theme.palette.warning.main },
             ]}
             emptyMessage="No time tracked yet."
           />
@@ -389,7 +362,7 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
               <Marker position={[row.end_latitude, row.end_longitude]} icon={startEndIcon('end')} />
             </MapContainer>
             <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-              <Tooltip title={mapLayer === 'street' ? 'Switch to satellite view' : 'Switch to street map'}>
+              <Tooltip title={mapLayer === 'street' ? tr("Switch to satellite view") : tr("Switch to street map")}>
                 <IconButton
                   size="small"
                   onClick={() => setMapLayer((v) => (v === 'street' ? 'satellite' : 'street'))}
@@ -398,7 +371,7 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
                   {mapLayer === 'street' ? <SatelliteAltIcon fontSize="small" /> : <MapIcon fontSize="small" />}
                 </IconButton>
               </Tooltip>
-              <Tooltip title={mapExpanded ? 'Shrink map' : 'Enlarge map'}>
+              <Tooltip title={mapExpanded ? tr("Shrink map") : tr("Enlarge map")}>
                 <IconButton
                   size="small"
                   onClick={() => setMapExpanded((v) => !v)}
@@ -417,12 +390,12 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Tower</TableCell>
-                <TableCell>Travel from previous</TableCell>
-                <TableCell>Arrived</TableCell>
-                <TableCell>Left</TableCell>
-                <TableCell align="right">Minutes at tower</TableCell>
-                <TableCell>Visit</TableCell>
+                <TableCell>{tr("Tower")}</TableCell>
+                <TableCell>{tr("Travel from previous")}</TableCell>
+                <TableCell>{tr("Arrived")}</TableCell>
+                <TableCell>{tr("Left")}</TableCell>
+                <TableCell align="right">{tr("Minutes at tower")}</TableCell>
+                <TableCell>{tr("Visit")}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -435,9 +408,7 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    {stay.travel_from_prev_minutes == null
-                      ? 'Start'
-                      : `${stay.travel_from_prev_minutes} min${stay.travel_from_prev_km != null ? ` · ${stay.travel_from_prev_km} km` : ''}`}
+                    {stay.travel_from_prev_minutes == null ? tr("Start") : tr("{0} min{1}", [stay.travel_from_prev_minutes, stay.travel_from_prev_km != null ? tr(" · {0} km", [stay.travel_from_prev_km]) : ''])}
                   </TableCell>
                   <TableCell>{clock(stay.arrived_at)}</TableCell>
                   <TableCell>{clock(stay.departed_at)}</TableCell>
@@ -445,21 +416,17 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
                   <TableCell>
                     {stay.visit_id ? (
                       <Button size="small" onClick={() => onOpenVisit(stay.visit_id!)}>
-                        {stay.visit_status || 'open'}
+                        {stay.visit_status || tr("open")}
                       </Button>
                     ) : (
-                      <Typography variant="caption" color="text.secondary">
-                        GPS only
-                      </Typography>
+                      <Typography variant="caption" color="text.secondary">{tr("GPS only")}</Typography>
                     )}
                   </TableCell>
                 </TableRow>
               ))}
               {row.stays.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
-                    No tower stays in this period (GPS did not sit within 80 m of a tower).
-                  </TableCell>
+                  <TableCell colSpan={6} align="center">{tr("No tower stays in this period (GPS did not sit within 80 m of a tower).")}</TableCell>
                 </TableRow>
               )}
             </TableBody>

@@ -1685,6 +1685,7 @@ class PublicBrandingOut(BaseModel):
 
     org_logo_url: str | None = None
     org_name_en: str | None = None
+    org_name_ar: str | None = None
     login_background_url: str | None = None
 
 

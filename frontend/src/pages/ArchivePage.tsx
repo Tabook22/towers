@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useState } from 'react';
 import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, MenuItem, Paper, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
@@ -17,6 +18,7 @@ const months = [
 ];
 
 export function ArchivePage() {
+  useLanguage();
   const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
   const { user } = useAuth();
   const canUpload = user?.role === 'admin' || user?.role === 'reviewer';
@@ -43,25 +45,19 @@ export function ArchivePage() {
   return (
     <Stack spacing={3}>
       <Box>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 800 }}>Image Archive</Typography>
-        <Typography color="text.secondary">Review the full picture: thermal, RGB, annotations and additional evidence for every insulator.</Typography>
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 800 }}>{tr("Image Archive")}</Typography>
+        <Typography color="text.secondary">{tr("Review the full picture: thermal, RGB, annotations and additional evidence for every insulator.")}</Typography>
       </Box>
       <InspectionEvidenceArchive />
       <Accordion disableGutters slotProps={{ transition: { unmountOnExit: true } }}>
-        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="h6">General team uploads</Typography></AccordionSummary>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Typography variant="h6">{tr("General team uploads")}</Typography></AccordionSummary>
         <AccordionDetails>
       <Card>
         <CardContent>
           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>
             <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Team photo uploads
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                General photos for a team — site conditions, equipment, handovers — not tied to
-                one specific tower inspection. Auto-filed by year/month/day, with location pulled
-                from the photo itself when available.
-              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Team photo uploads")}</Typography>
+              <Typography variant="body2" color="text.secondary">{tr("General photos for a team — site conditions, equipment, handovers — not tied to one specific tower inspection. Auto-filed by year/month/day, with location pulled from the photo itself when available.")}</Typography>
             </Box>
             {canUpload && (
               <Button
@@ -75,31 +71,29 @@ export function ArchivePage() {
                   uploadMutation.reset();
                   setUploadOpen(true);
                 }}
-              >
-                Upload images
-              </Button>
+              >{tr("Upload images")}</Button>
             )}
           </Stack>
 
           <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap', mb: 2 }}>
-            <TextField select size="small" label="Team" value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} sx={{ minWidth: 180 }}>
-              <MenuItem value="">All teams</MenuItem>
+            <TextField select size="small" label={tr("Team")} value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} sx={{ minWidth: 180 }}>
+              <MenuItem value="">{tr("All teams")}</MenuItem>
               {teams?.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
                   {t.name}
                 </MenuItem>
               ))}
             </TextField>
-            <TextField select size="small" label="Year" value={teamYear} onChange={(e) => setTeamYear(e.target.value)} sx={{ minWidth: 120 }}>
-              <MenuItem value="">Any</MenuItem>
+            <TextField select size="small" label={tr("Year")} value={teamYear} onChange={(e) => setTeamYear(e.target.value)} sx={{ minWidth: 120 }}>
+              <MenuItem value="">{tr("Any")}</MenuItem>
               {years.map((y) => (
                 <MenuItem key={y} value={y}>
                   {y}
                 </MenuItem>
               ))}
             </TextField>
-            <TextField select size="small" label="Month" value={teamMonth} onChange={(e) => setTeamMonth(e.target.value)} sx={{ minWidth: 160 }}>
-              <MenuItem value="">Any</MenuItem>
+            <TextField select size="small" label={tr("Month")} value={teamMonth} onChange={(e) => setTeamMonth(e.target.value)} sx={{ minWidth: 160 }}>
+              <MenuItem value="">{tr("Any")}</MenuItem>
               {months.map((m, i) => (
                 <MenuItem key={m} value={i + 1}>
                   {m}
@@ -108,7 +102,7 @@ export function ArchivePage() {
             </TextField>
             <TextField
               size="small"
-              label="Day"
+              label={tr("Day")}
               type="number"
               value={teamDay}
               onChange={(e) => setTeamDay(e.target.value)}
@@ -118,9 +112,7 @@ export function ArchivePage() {
           </Stack>
 
           {!teamImagesLoading && teamImages && teamImages.length === 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-              No team photos match these filters.
-            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>{tr("No team photos match these filters.")}</Typography>
           )}
 
           <Stack spacing={1.5}>
@@ -150,18 +142,18 @@ export function ArchivePage() {
                         img.has_thumbnail ? `/api/archive/team-images/${img.id}/thumbnail` : `/api/archive/team-images/${img.id}/file`,
                         img.uploaded_at,
                       )}
-                      alt={img.original_filename || 'Team photo'}
+                      alt={img.original_filename || tr("Team photo")}
                       sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                     />
                   </Box>
                   <Box sx={{ flex: 1, minWidth: 220 }}>
                     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5, flexWrap: 'wrap' }}>
-                      <Chip size="small" color="primary" variant="outlined" label={img.team_name || 'Unknown team'} />
+                      <Chip size="small" color="primary" variant="outlined" label={img.team_name || tr("Unknown team")} />
                       {img.latitude != null && img.longitude != null && (
                         <Chip
                           size="small"
                           icon={<PlaceRoundedIcon fontSize="small" />}
-                          label="Location"
+                          label={tr("Location")}
                           component="a"
                           href={`https://www.google.com/maps/search/?api=1&query=${img.latitude},${img.longitude}`}
                           target="_blank"
@@ -178,16 +170,16 @@ export function ArchivePage() {
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                       {img.capture_date}
                       {img.original_filename ? ` · ${img.original_filename}` : ''}
-                      {img.uploaded_by_name ? ` · uploaded by ${img.uploaded_by_name}` : ''}
+                      {img.uploaded_by_name ? tr(" · uploaded by {0}", [img.uploaded_by_name]) : ''}
                     </Typography>
                   </Box>
                   {canUpload && (
-                    <Tooltip title="Delete photo">
+                    <Tooltip title={tr("Delete photo")}>
                       <IconButton
                         size="small"
                         color="error"
                         onClick={() => {
-                          if (window.confirm('Delete this photo? This cannot be undone.')) deleteTeamImage.mutate(img.id);
+                          if (window.confirm(tr("Delete this photo? This cannot be undone."))) deleteTeamImage.mutate(img.id);
                         }}
                       >
                         <DeleteOutlineIcon fontSize="small" />
@@ -206,26 +198,26 @@ export function ArchivePage() {
         <ImageLightbox
           open
           onClose={() => setTeamLightbox(null)}
-          title={teamLightbox.team_name || 'Team photo'}
+          title={teamLightbox.team_name || tr("Team photo")}
           subtitle={`${teamLightbox.capture_date}${teamLightbox.caption ? ` — ${teamLightbox.caption}` : ''}`}
           imageUrl={mediaUrl(`/api/archive/team-images/${teamLightbox.id}/file`, teamLightbox.uploaded_at)}
         />
       )}
 
       <Dialog open={uploadOpen} onClose={() => setUploadOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Upload team photos</DialogTitle>
+        <DialogTitle>{tr("Upload team photos")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {uploadError && <Alert severity="error">{uploadError}</Alert>}
+            {uploadError && <Alert severity="error">{tr(uploadError)}</Alert>}
             <TextField
               select
-              label="Team"
+              label={tr("Team")}
               value={uploadTeamId}
               onChange={(e) => setUploadTeamId(e.target.value)}
               required
               fullWidth
             >
-              <MenuItem value="">Choose a team…</MenuItem>
+              <MenuItem value="">{tr("Choose a team…")}</MenuItem>
               {teams?.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
                   {t.name}
@@ -233,7 +225,7 @@ export function ArchivePage() {
               ))}
             </TextField>
             <Button variant="outlined" component="label" startIcon={<UploadFileIcon />}>
-              {uploadFiles.length > 0 ? `${uploadFiles.length} file${uploadFiles.length === 1 ? '' : 's'} selected` : 'Choose images'}
+              {uploadFiles.length > 0 ? tr("{0} file{1} selected", [uploadFiles.length, uploadFiles.length === 1 ? '' : tr("s")]) : tr("Choose images")}
               <input
                 type="file"
                 accept="image/*"
@@ -243,20 +235,17 @@ export function ArchivePage() {
               />
             </Button>
             <TextField
-              label="Caption (optional)"
+              label={tr("Caption (optional)")}
               value={uploadCaption}
               onChange={(e) => setUploadCaption(e.target.value)}
               fullWidth
-              helperText="Applied to every photo in this batch, if given."
+              helperText={tr("Applied to every photo in this batch, if given.")}
             />
-            <Typography variant="caption" color="text.secondary">
-              Date and location are read automatically from each photo when available, otherwise
-              it's filed under today's date with no location.
-            </Typography>
+            <Typography variant="caption" color="text.secondary">{tr("Date and location are read automatically from each photo when available, otherwise it's filed under today's date with no location.")}</Typography>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setUploadOpen(false)}>Cancel</Button>
+          <Button onClick={() => setUploadOpen(false)}>{tr("Cancel")}</Button>
           <Button
             variant="contained"
             disabled={!uploadTeamId || uploadFiles.length === 0 || uploadMutation.isPending}
@@ -271,13 +260,13 @@ export function ArchivePage() {
                   },
                   onError: (err) => {
                     const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-                    setUploadError(typeof detail === 'string' ? detail : 'Could not upload these photos');
+                    setUploadError(typeof detail === 'string' ? detail : tr("Could not upload these photos"));
                   },
                 },
               );
             }}
           >
-            {uploadMutation.isPending ? 'Uploading…' : 'Upload'}
+            {uploadMutation.isPending ? tr("Uploading…") : tr("Upload")}
           </Button>
         </DialogActions>
       </Dialog>

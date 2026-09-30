@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { useState } from 'react';
 import {
   Accordion,
@@ -73,6 +74,7 @@ export function NextTowersCard({
   compact?: boolean;
   step?: number;
 }) {
+  useLanguage();
   if (loading && !plan) return <LinearProgress />;
   if (!plan) return null;
 
@@ -95,16 +97,12 @@ export function NextTowersCard({
             {step != null && <StepBadge n={step} />}
             <NavigationIcon color="primary" sx={{ mt: 0.5 }} />
             <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Next towers tonight
-              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Next towers tonight")}</Typography>
               <Typography variant="body2" color="text.secondary">
                 {plan.headline}
               </Typography>
               {onClaim && (
-                <Typography variant="caption" color="text.secondary">
-                  Claim a tower so the other car doesn&apos;t drive there too. Skip posts to Tonight.
-                </Typography>
+                <Typography variant="caption" color="text.secondary">{tr("Claim a tower so the other car doesn&apos;t drive there too. Skip posts to Tonight.")}</Typography>
               )}
             </Box>
           </Stack>
@@ -115,23 +113,21 @@ export function NextTowersCard({
                 size="small"
                 icon={<FlagIcon />}
                 color={plan.behind_by != null && plan.behind_by > 0 ? 'warning' : 'success'}
-                label={`${plan.towers_done_tonight}/${plan.daily_target} tonight`}
+                label={tr("{0}/{1} tonight", [plan.towers_done_tonight, plan.daily_target])}
               />
             )}
-            <Chip size="small" label={`${plan.remaining_assigned} still open`} />
+            <Chip size="small" label={tr("{0} still open", [plan.remaining_assigned])} />
           </Stack>
         </Stack>
       </AccordionSummary>
       <AccordionDetails>
 
         {plan.remaining_assigned === 0 && (
-          <Alert severity="success">No assigned towers left open for this team.</Alert>
+          <Alert severity="success">{tr("No assigned towers left open for this team.")}</Alert>
         )}
         {plan.remaining_assigned > 0 && plan.stops.length === 0 && (
           <Alert severity="info">
-            {plan.skipped_no_gps
-              ? `${plan.skipped_no_gps} open tower${plan.skipped_no_gps === 1 ? '' : 's'} have no GPS pin yet — add coordinates on the Towers page.`
-              : 'Waiting for a GPS fix to rank the next stops.'}
+            {plan.skipped_no_gps ? tr("{0} open tower{1} have no GPS pin yet — add coordinates on the Towers page.", [plan.skipped_no_gps, plan.skipped_no_gps === 1 ? '' : tr("s")]) : tr("Waiting for a GPS fix to rank the next stops.")}
           </Alert>
         )}
 
@@ -141,9 +137,9 @@ export function NextTowersCard({
               <TableHead>
                 <TableRow>
                   <TableCell>#</TableCell>
-                  <TableCell>Tower</TableCell>
-                  {!compact && <TableCell>Drive</TableCell>}
-                  <TableCell>Why / who</TableCell>
+                  <TableCell>{tr("Tower")}</TableCell>
+                  {!compact && <TableCell>{tr("Drive")}</TableCell>}
+                  <TableCell>{tr("Why / who")}</TableCell>
                   <TableCell align="right" />
                 </TableRow>
               </TableHead>
@@ -169,15 +165,13 @@ export function NextTowersCard({
                         </Typography>
                       )}
                       {!stop.fits_tonight && (
-                        <Chip size="small" label="After tonight's window" variant="outlined" sx={{ mt: 0.5 }} />
+                        <Chip size="small" label={tr("After tonight's window")} variant="outlined" sx={{ mt: 0.5 }} />
                       )}
                     </TableCell>
                     {!compact && (
                       <TableCell>
-                        {stop.travel_minutes} min
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                          {stop.travel_km} km
-                        </Typography>
+                        {stop.travel_minutes}{tr(" min")}<Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                          {stop.travel_km}{tr(" km")}</Typography>
                       </TableCell>
                     )}
                     <TableCell>
@@ -217,9 +211,7 @@ export function NextTowersCard({
         )}
         {plan.can_fit_tonight > 0 && plan.stops.length > 0 && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            {plan.can_fit_tonight} of these {plan.can_fit_tonight === 1 ? 'fits' : 'fit'} in the time left
-            (about {plan.dwell_minutes} min on each tower plus driving).
-          </Typography>
+            {plan.can_fit_tonight}{tr(" of these ")}{plan.can_fit_tonight === 1 ? tr("fits") : tr("fit")}{tr(" in the time left (about ")}{plan.dwell_minutes}{tr(" min on each tower plus driving).")}</Typography>
         )}
       </AccordionDetails>
     </Accordion>
@@ -249,6 +241,7 @@ function StopActions({
   onClaim?: (stop: NextTowerStop, assignedUserId?: number) => void;
   onStatus?: (stop: NextTowerStop, status: NightClaimStatus, skipReason?: string) => void;
 }) {
+  useLanguage();
   const [assignTo, setAssignTo] = useState('');
   const [skipOpen, setSkipOpen] = useState(false);
   const [skipReason, setSkipReason] = useState('');
@@ -268,54 +261,36 @@ function StopActions({
   return (
     <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
       <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-        <Button size="small" startIcon={<NavigationIcon />} href={mapsUrl} target="_blank" rel="noopener noreferrer">
-          Go
-        </Button>
+        <Button size="small" startIcon={<NavigationIcon />} href={mapsUrl} target="_blank" rel="noopener noreferrer">{tr("Go")}</Button>
         {!stop.claim_id && onClaim && (
-          <Button size="small" variant="contained" disabled={busy} onClick={() => onClaim(stop)}>
-            I&apos;ll take it
-          </Button>
+          <Button size="small" variant="contained" disabled={busy} onClick={() => onClaim(stop)}>{tr("I&apos;ll take it")}</Button>
         )}
         {mine && stop.claim_status === 'claimed' && (
-          <Button size="small" variant="contained" disabled={busy} onClick={() => onStatus?.(stop, 'en_route')}>
-            On my way
-          </Button>
+          <Button size="small" variant="contained" disabled={busy} onClick={() => onStatus?.(stop, 'en_route')}>{tr("On my way")}</Button>
         )}
         {mine && stop.claim_status === 'en_route' && (
-          <Button size="small" variant="contained" disabled={busy} onClick={() => onStatus?.(stop, 'on_site')}>
-            On site
-          </Button>
+          <Button size="small" variant="contained" disabled={busy} onClick={() => onStatus?.(stop, 'on_site')}>{tr("On site")}</Button>
         )}
         {mine && stop.claim_status === 'on_site' && (
-          <Button size="small" variant="contained" color="success" disabled={busy} onClick={() => onStatus?.(stop, 'done')}>
-            Done
-          </Button>
+          <Button size="small" variant="contained" color="success" disabled={busy} onClick={() => onStatus?.(stop, 'done')}>{tr("Done")}</Button>
         )}
         {mine && stop.claim_status && !['done', 'skipped'].includes(stop.claim_status) && (
-          <Button size="small" color="warning" disabled={busy} onClick={openSkip}>
-            Skip
-          </Button>
+          <Button size="small" color="warning" disabled={busy} onClick={openSkip}>{tr("Skip")}</Button>
         )}
         {taken && canAssign && onClaim && (
-          <Button size="small" disabled={busy} onClick={() => onClaim(stop, currentUserId || undefined)}>
-            Take over
-          </Button>
+          <Button size="small" disabled={busy} onClick={() => onClaim(stop, currentUserId || undefined)}>{tr("Take over")}</Button>
         )}
         {stop.visit_id ? (
-          <Button size="small" component={RouterLink} to={`/visits/${stop.visit_id}`}>
-            Open
-          </Button>
+          <Button size="small" component={RouterLink} to={`/visits/${stop.visit_id}`}>{tr("Open")}</Button>
         ) : canStart && (mine || !stop.claim_id) ? (
-          <Button size="small" onClick={() => onStart?.(stop)}>
-            Start
-          </Button>
+          <Button size="small" onClick={() => onStart?.(stop)}>{tr("Start")}</Button>
         ) : null}
       </Stack>
       {canAssign && onClaim && plan.crew.length > 0 && !mine && (
         <TextField
           select
           size="small"
-          label="Assign"
+          label={tr("Assign")}
           value={assignTo}
           onChange={(e) => {
             const id = Number(e.target.value);
@@ -325,7 +300,7 @@ function StopActions({
           sx={{ minWidth: 140 }}
           disabled={busy}
         >
-          <MenuItem value="">Someone…</MenuItem>
+          <MenuItem value="">{tr("Someone…")}</MenuItem>
           {plan.crew.map((c) => (
             <MenuItem key={c.user_id} value={c.user_id}>
               {c.full_name || c.username}
@@ -334,27 +309,22 @@ function StopActions({
         </TextField>
       )}
       <Dialog open={skipOpen} onClose={() => setSkipOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Why skip {stop.tower_id || 'this tower'}?</DialogTitle>
+        <DialogTitle>{tr("Why skip ")}{stop.tower_id || tr("this tower")}?</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ mb: 2 }}>
-            The admin sees this explanation in the crew channel, so please be specific (e.g. "Gate locked,
-            no keyholder answered" rather than "Skipping this tower").
-          </DialogContentText>
+          <DialogContentText sx={{ mb: 2 }}>{tr("The admin sees this explanation in the crew channel, so please be specific (e.g. \"Gate locked, no keyholder answered\" rather than \"Skipping this tower\").")}</DialogContentText>
           <TextField
             autoFocus
             fullWidth
             multiline
             minRows={2}
-            placeholder="Explain why you're skipping this tower…"
+            placeholder={tr("Explain why you're skipping this tower…")}
             value={skipReason}
             onChange={(e) => setSkipReason(e.target.value)}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setSkipOpen(false)}>Cancel</Button>
-          <Button variant="contained" color="warning" disabled={!skipReason.trim()} onClick={confirmSkip}>
-            Skip tower
-          </Button>
+          <Button onClick={() => setSkipOpen(false)}>{tr("Cancel")}</Button>
+          <Button variant="contained" color="warning" disabled={!skipReason.trim()} onClick={confirmSkip}>{tr("Skip tower")}</Button>
         </DialogActions>
       </Dialog>
     </Stack>

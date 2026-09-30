@@ -1,3 +1,4 @@
+import { tr, useLanguage } from '../i18n';
 import { Box, Stack, Typography } from '@mui/material';
 
 export interface BarDatum {
@@ -12,10 +13,11 @@ export interface BarDatum {
  * surface in the app so far and a plain bar-list covers both use cases (single-hue magnitude,
  * per-category identity color) without needing axes, ticks, or a tooltip layer. */
 export function HorizontalBarChart({ data, emptyMessage }: { data: BarDatum[]; emptyMessage?: string }) {
+  useLanguage();
   if (data.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary">
-        {emptyMessage || 'No data yet.'}
+        {emptyMessage || tr("No data yet.")}
       </Typography>
     );
   }
