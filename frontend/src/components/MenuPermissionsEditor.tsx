@@ -4,8 +4,7 @@ import { MENU_ITEMS, MENU_PERMISSION_LEVELS, MENU_PERMISSION_LEVEL_LABELS } from
 
 /** Admin-only control (see routers/auth.py's create_user/update_user — any other actor's edits to
  * this are silently ignored) for exactly which sidebar items an account can see at all, and at
- * what level. An item with no level selected here never renders in that account's nav — click the
- * currently-selected level again to clear it back to hidden. */
+ * what level. No View removes the grant, using the existing hidden-menu representation. */
 export function MenuPermissionsEditor({
   value,
   onChange,
@@ -15,8 +14,9 @@ export function MenuPermissionsEditor({
 }) {
   useLanguage();
   const setLevel = (itemId: string, level: string | null) => {
+    if (level === null) return; // Keep the selected option until another is explicitly chosen.
     const next = { ...value };
-    if (level) next[itemId] = level;
+    if (level !== 'none') next[itemId] = level;
     else delete next[itemId];
     onChange(next);
   };
@@ -25,7 +25,7 @@ export function MenuPermissionsEditor({
     <Stack spacing={1.25}>
       <Box>
         <Typography variant="subtitle2">{tr("Menu access")}</Typography>
-        <Typography variant="caption" color="text.secondary">{tr("A menu item is completely hidden from this account unless a level is selected. Click the selected level again to hide it.")}</Typography>
+        <Typography variant="caption" color="text.secondary">{tr("Select No View to hide a menu item from this account. Select another level to show it.")}</Typography>
       </Box>
       {MENU_ITEMS.map((item) => (
         <Box
@@ -38,9 +38,12 @@ export function MenuPermissionsEditor({
           <ToggleButtonGroup
             size="small"
             exclusive
-            value={value[item.id] || null}
+            value={value[item.id] || 'none'}
+            aria-label={tr(item.label)}
             onChange={(_e, level) => setLevel(item.id, level)}
+            sx={{ flexWrap: 'wrap' }}
           >
+            <ToggleButton value="none" sx={{ px: 1.25 }}>{tr("No View")}</ToggleButton>
             {MENU_PERMISSION_LEVELS.map((level) => (
               <ToggleButton key={level} value={level} sx={{ px: 1.25 }}>
                 {tr(MENU_PERMISSION_LEVEL_LABELS[level])}

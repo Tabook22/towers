@@ -684,6 +684,8 @@
   "Lat:": "خط العرض:",
   ", Lng:": "، خط الطول:",
   "Menu access": "صلاحيات القوائم",
+  "No View": "إخفاء",
+  "Select No View to hide a menu item from this account. Select another level to show it.": "اختر «إخفاء» لإخفاء عنصر القائمة عن هذا الحساب. اختر مستوى آخر لإظهاره.",
   "A menu item is completely hidden from this account unless a level is selected. Click the selected level again to hide it.": "يُخفى عنصر القائمة تماماً عن هذا الحساب ما لم يُحدد مستوى صلاحية. انقر على المستوى المحدد مجدداً لإخفائه.",
   "Mission history": "سجل المهام",
   "Every mission this team has planned. Pick one below to review or edit, or add a new one.": "جميع المهام التي خطط لها هذا الفريق. اختر مهمة للمراجعة أو التعديل، أو أضف مهمة جديدة.",

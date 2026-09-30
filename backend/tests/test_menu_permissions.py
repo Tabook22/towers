@@ -77,6 +77,36 @@ def test_admin_creating_a_user_with_no_menu_permissions_gets_the_role_default(db
     assert created.menu_permissions == default_menu_permissions_for_role("reviewer")
 
 
+@pytest.mark.parametrize('role', ['admin', 'reviewer', 'team_leader'])
+def test_explicit_all_hidden_survives_creation_and_startup_backfill(db, role):
+    from app.migrations import backfill_menu_permissions
+    created = auth.create_user(UserCreate(username='hidden_user', password='secret123',
+        role=role, is_super_admin=False, menu_permissions={}), db=db, actor=_super_admin())
+    assert created.menu_permissions == {}
+    assert created.menu_permissions_csv == ''
+    backfill_menu_permissions(db.bind)
+    db.refresh(created)
+    assert created.menu_permissions == {}
+
+
+def test_clearing_every_menu_survives_update_and_startup_backfill(db):
+    from app.migrations import backfill_menu_permissions
+    target = User(username='hidden_after_edit', role='admin', is_super_admin=False,
+                  hashed_password='x', menu_permissions_csv='dashboard:full,reports:full')
+    db.add(target); db.commit()
+    updated = auth.update_user(target.id, UserUpdate(menu_permissions={}), db=db, actor=_super_admin())
+    assert updated.menu_permissions_csv == ''
+    backfill_menu_permissions(db.bind)
+    db.refresh(updated)
+    assert updated.menu_permissions == {}
+
+
+def test_full_admin_creation_retains_full_menu_with_empty_editor_payload(db):
+    created = auth.create_user(UserCreate(username='full_admin', password='secret123',
+        role='admin', is_super_admin=True, menu_permissions={}), db=db, actor=_super_admin())
+    assert created.menu_permissions == default_menu_permissions_for_role('admin')
+
+
 def test_create_user_rejects_an_unknown_menu_item(db):
     actor = _super_admin()
     payload = UserCreate(

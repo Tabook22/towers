@@ -234,7 +234,7 @@ export function TeamsPage() {
       username: u.username,
       password: '',
       notes: u.notes || '',
-      menu_permissions: Object.keys(u.menu_permissions || {}).length ? u.menu_permissions : DEFAULT_LEADER_MENU_PERMISSIONS,
+      menu_permissions: u.menu_permissions ?? DEFAULT_LEADER_MENU_PERMISSIONS,
     });
     setLeaderError(null);
     setLeaderDialogOpen(true);

@@ -66,8 +66,8 @@ class UserCreate(BaseModel):
     can_delete_report_images: bool = False
     # Which sidebar menu items this account sees, and at what level (view/edit/download/full) —
     # see models.User.menu_permissions_csv. Only honored when the actor creating this account is an
-    # admin (routers/auth.py's create_user); left empty (or the actor isn't an admin), the new
-    # account gets deps.default_menu_permissions_for_role(role) instead.
+    # admin (routers/auth.py's create_user); omitted (or the actor isn't an admin), the new
+    # account gets role defaults. An explicitly empty dictionary hides every menu.
     menu_permissions: dict[str, str] = Field(default_factory=dict)
 
 

@@ -137,19 +137,19 @@ def _validate_menu_permissions(raw: dict[str, str]) -> dict[str, str]:
     return cleaned
 
 
-def _encode_menu_permissions(perms: dict[str, str]) -> str | None:
-    return ",".join(f"{k}:{v}" for k, v in perms.items()) or None
+def _encode_menu_permissions(perms: dict[str, str]) -> str:
+    # Empty string is an intentional all-hidden selection. NULL is reserved for legacy
+    # accounts awaiting the startup backfill and would silently restore role defaults.
+    return ",".join(f"{k}:{v}" for k, v in perms.items())
 
 
-def _resolve_menu_permissions(role: str, provided: dict[str, str], actor: User) -> str | None:
+def _resolve_menu_permissions(role: str, provided: dict[str, str] | None, actor: User) -> str:
     """Only an admin actor (super or restricted) may hand-pick an account's per-menu-item grants
     — every other creator (a team_leader adding a team_member) always gets
     default_menu_permissions_for_role(role) instead, so "only for users created by admin" holds
-    regardless of who technically submits the row. An admin who submits nothing (or clears every
-    item) also falls back to that same role default, rather than leaving the new account with an
-    empty, completely hidden nav — if that's genuinely what's wanted, it can be edited down to
-    nothing afterward via update_user."""
-    if actor.role == UserRole.ADMIN.value and provided:
+    regardless of who technically submits the row. An omitted selection uses role defaults;
+    an explicitly empty selection means every menu is hidden."""
+    if actor.role == UserRole.ADMIN.value and provided is not None:
         perms = _validate_menu_permissions(provided)
     else:
         perms = default_menu_permissions_for_role(role)
@@ -166,7 +166,10 @@ def create_user(
     if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status_code=400, detail="Username already taken")
     is_super_admin, permissions_csv = _clean_permissions(payload.role, payload.is_super_admin, payload.permissions)
-    menu_permissions_csv = _resolve_menu_permissions(payload.role, payload.menu_permissions, actor)
+    selected_menus = payload.menu_permissions if "menu_permissions" in payload.model_fields_set else None
+    if payload.role == UserRole.ADMIN.value and is_super_admin:
+        selected_menus = None  # Full administrators retain their complete menu.
+    menu_permissions_csv = _resolve_menu_permissions(payload.role, selected_menus, actor)
     user = User(
         username=payload.username,
         email=payload.email,

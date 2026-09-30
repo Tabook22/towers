@@ -996,7 +996,7 @@ function AdminAccountsSection() {
     setEditFullAdmin(admin.is_super_admin);
     setEditPerms(admin.permissions);
     setEditMenuPermissions(
-      Object.keys(admin.menu_permissions || {}).length ? admin.menu_permissions : DEFAULT_ADMIN_MENU_PERMISSIONS,
+      admin.menu_permissions ?? DEFAULT_ADMIN_MENU_PERMISSIONS,
     );
     setEditUsername(admin.username);
     setEditPassword('');
