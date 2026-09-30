@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.models import (
     CONFIDENCE_CHOICES,
     DIRECTION_CHOICES,
+    LEGACY_DIRECTION_CHOICES,
     EVIDENCE_STATUS_CHOICES,
     HOTSPOT_CHOICES,
     IMAGE_TYPE_CHOICES,
@@ -384,7 +385,7 @@ class PositionUpdate(BaseModel):
     @field_validator("direction")
     @classmethod
     def check_direction(cls, v):
-        if v is not None and v not in DIRECTION_CHOICES:
+        if v is not None and v not in DIRECTION_CHOICES + LEGACY_DIRECTION_CHOICES:
             raise ValueError(f"direction must be one of {DIRECTION_CHOICES}")
         return v
 
@@ -511,7 +512,7 @@ class PositionCreate(BaseModel):
     @field_validator("direction")
     @classmethod
     def check_direction(cls, v):
-        if v not in DIRECTION_CHOICES:
+        if v not in DIRECTION_CHOICES + LEGACY_DIRECTION_CHOICES:
             raise ValueError(f"direction must be one of {DIRECTION_CHOICES}")
         return v
 

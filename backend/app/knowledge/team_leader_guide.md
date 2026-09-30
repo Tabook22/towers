@@ -101,7 +101,7 @@ This is the real, verified sequence — not a guess:
    settings), then add each position with **Add position** — pick, in order: **Tower type**
    (Suspension / Tension / Gantry; Direction greys out automatically for Suspension, since it
    doesn't need one), **OHL**, **Phase**, **String** (shown as "S1 — Outer" / "S2 — Inner"), and
-   **Direction** if applicable (a line/segment name: Ashoor, Saada, Shaoon, Ittin, or Thumrait) —
+   **Direction** if applicable (a line/segment name: Saada, Ashoor, Ittin, Thumrait, or Shahaon) —
    then its screening result, upload evidence photos per position. Further down each added
    position, the "Insulator record (official report)" panel has more optional fields (Manufacturer,
    Insulator type, GS side, String count, Inner/Outer, Pollution condition, Thermal/Visual

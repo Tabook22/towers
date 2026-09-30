@@ -6,6 +6,31 @@ rather than the original hardcoded 4."""
 from app.services.id_gen import image_code, image_sequence_number, position_code, slugify_tower_id
 
 
+def test_dropdown_expansion_preserves_every_historical_image_sequence():
+    from app.models import IMAGE_TYPE_CHOICES, OHL_CHOICES, PHASE_CHOICES, STRING_CHOICES
+    old_directions = ['Ashoor', 'Saada', 'Shaoon', 'Ittin', 'Thumrait']
+    for oi, ohl in enumerate(OHL_CHOICES):
+        for pi, phase in enumerate(PHASE_CHOICES):
+            for si, string in enumerate(STRING_CHOICES):
+                for di, direction in enumerate(old_directions):
+                    for ti, image_type in enumerate(IMAGE_TYPE_CHOICES, 1):
+                        expected = ((((oi * 3 + pi) * 2 + si) * 5 + di) * 4) + ti
+                        assert image_sequence_number(ohl, phase, string, direction, image_type) == expected
+                        if direction == 'Shaoon':
+                            assert image_sequence_number(ohl, phase, string, 'Shahaon', image_type) == expected
+
+
+def test_direction_choices_and_validation_preserve_legacy_spelling():
+    import pytest
+    from pydantic import ValidationError
+    from app.schemas import ChoiceLists, PositionUpdate
+    assert ChoiceLists().direction == ['Saada', 'Ashoor', 'Ittin', 'Thumrait', 'Shahaon']
+    for direction in [*ChoiceLists().direction, 'Shaoon']:
+        assert PositionUpdate(direction=direction).direction == direction
+    with pytest.raises(ValidationError):
+        PositionUpdate(direction='Unknown direction')
+
+
 def test_slugify_strips_only_whitespace():
     assert slugify_tower_id("ARSD 92") == "ARSD92"
     assert slugify_tower_id("T-114B") == "T-114B"

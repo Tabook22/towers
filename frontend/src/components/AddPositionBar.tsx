@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { Alert, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlineRounded';
 import type { ChoiceLists, Position } from '../api/types';
-import { deriveDirectionFromArea, deriveDirectionsFromArea } from '../utils/direction';
+import { deriveDirectionFromArea } from '../utils/direction';
 import { positionError } from '../utils/positionChanges';
 
 // Display-only hint — S1/S2 stay the actual stored values (position codes, the 12-slot identity,
@@ -21,8 +21,7 @@ interface Props {
   positions: Position[];
   hiddenIds: Set<number>;
   lists: ChoiceLists;
-  /** The tower's own line/area name — used to auto-fill Direction for Suspension, and to offer
-   * only this tower's own line directions (e.g. "Ashoor-Saada" -> Ashoor, Saada) for Tension. */
+  /** The tower's line/area name supplies a Suspension default, never a Tension restriction. */
   towerArea?: string | null;
   onAdd: (position: Position, direction: string, mountType: string, stringCount: string) => Promise<void>;
   /** Creates a missing slot after an edit/deletion, or an additional Tension direction. */
@@ -45,11 +44,8 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
   const hidden = positions.filter((p) => hiddenIds.has(p.id));
   const match = hidden.find((p) => p.ohl === ohl && p.phase === phase && p.string === stringVal);
 
-  // This tower's own line directions (typically 2, from its area name, e.g. "Ashoor-Saada") — a
-  // Tension tower needs both, not just the single best guess Suspension uses. Falls back to the
-  // full choice list when the area doesn't match any of them, so nothing is ever fully blocked.
-  const towerDirections = deriveDirectionsFromArea(towerArea, lists.direction);
-  const tensionDirections = towerDirections.length > 0 ? towerDirections : lists.direction;
+  // Branches can face destinations beyond the two names in the tower's line.
+  const tensionDirections = lists.direction;
 
   // Every (ohl, direction, phase, string) combo already on screen (a claimed baseline slot or an
   // already-created extra) — everything else is still available to add for a Tension tower.

@@ -35,7 +35,7 @@ export function PositionConfiguration({ position, lists, towerArea, onChange }: 
         {(position.string_count === 'Double' || position.string === 'S2') && <MenuItem value="S2">{tr("S2 — Inner")}</MenuItem>}
       </TextField>
       <TextField select size="small" label={tr("Direction")} value={position.direction || ''} onChange={e => onChange({ direction: e.target.value })} sx={{ minWidth: 140 }}>
-        {lists.direction.map(value => <MenuItem key={value} value={value}>{tr(value)}</MenuItem>)}
+        {[...new Set([...lists.direction, ...(position.direction ? [position.direction] : [])])].map(value => <MenuItem key={value} value={value}>{tr(value)}</MenuItem>)}
       </TextField>
     </Stack>
   </Stack>;

@@ -2,7 +2,7 @@ import { tr, useLanguage } from '../i18n';
 import { useState } from 'react';
 import { Alert, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import type { ChoiceLists, PositionSlot, VisitDetail } from '../api/types';
-import { deriveDirectionFromArea, deriveDirectionsFromArea } from '../utils/direction';
+import { deriveDirectionFromArea } from '../utils/direction';
 import { layoutSlots } from '../utils/visitWorkflow';
 import { positionError, positionLabel } from '../utils/positionChanges';
 
@@ -18,8 +18,8 @@ export function PreparePositionsDialog({ visit, lists, canSaveTemplate, disabled
   const [slots, setSlots] = useState<PositionSlot[]>([]);
   const [saveTemplate, setSaveTemplate] = useState(false);
   const [error, setError] = useState('');
-  const towerDirections = deriveDirectionsFromArea(visit.tower?.area, lists.direction);
-  const directionOptions = towerDirections.length ? towerDirections : lists.direction;
+  // Keep legacy template values visible without offering them for new layouts.
+  const directionOptions = [...new Set([...lists.direction, ...directions])];
   const loadLayout = (layout: PositionSlot[]) => {
     setSlots(layout);
     if (layout[0]) { setMount(layout[0].mount_type); setCount(layout[0].string_count); }

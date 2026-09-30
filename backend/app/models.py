@@ -288,7 +288,9 @@ class Visit(Base):
 OHL_CHOICES = ["OHL1", "OHL2"]
 PHASE_CHOICES = ["R", "Y", "B"]
 STRING_CHOICES = ["S1", "S2"]
-DIRECTION_CHOICES = ["Ashoor", "Saada", "Shaoon", "Ittin", "Thumrait"]
+DIRECTION_CHOICES = ["Saada", "Ashoor", "Ittin", "Thumrait", "Shahaon"]
+# Existing records keep the original spelling and image sequence assignment.
+LEGACY_DIRECTION_CHOICES = ["Shaoon"]
 # Which of (sometimes) two physical insulator strings at the same OHL/Phase/String/Direction slot
 # this one is — the one nearer the tower body ("Inner") vs. the one farther out ("Outer"). Purely
 # descriptive (doesn't feed position/image code generation, unlike Direction) — most positions only

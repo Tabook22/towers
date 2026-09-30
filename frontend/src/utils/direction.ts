@@ -13,12 +13,10 @@ export function deriveDirectionFromArea(area: string | null | undefined, directi
 }
 
 /** Every Direction segment found in the tower's line/area name, in the order they appear (e.g.
- * "Ashoor-Saada" -> ["Ashoor", "Saada"]) — a Tension position (see AddPositionBar) needs to offer
- * ALL of them, not just a single best guess, since the line genuinely runs toward each one from
- * that tower. Empty if the area doesn't match any known Direction, so callers can fall back to the
- * full choice list rather than showing nothing. */
+ * "Ashoor-Saada" -> ["Ashoor", "Saada"]). Used for suggested defaults only;
+ * the area name must never restrict the available direction choices. */
 export function deriveDirectionsFromArea(area: string | null | undefined, directionChoices: string[]): string[] {
   if (!area) return [];
-  const segments = area.split(/[-–—]/).map((s) => s.trim());
+  const segments = area.split(/[-–—]/).map((s) => s.trim()).map(s => s === 'Shaoon' && directionChoices.includes('Shahaon') ? 'Shahaon' : s);
   return segments.filter((seg) => directionChoices.includes(seg));
 }

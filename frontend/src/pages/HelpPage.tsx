@@ -116,7 +116,7 @@ export function HelpPage() {
         <Stack component="ul" spacing={0.5} sx={{ mt: 0.5, mb: 2, pl: 3 }}>
           <Typography component="li" variant="body2">{tr("The Add-position row has a new ")}<strong>{tr("Tower type")}</strong>{tr(" field (Suspension / Tension / Gantry) — it's the first field, before OHL, so it's set the moment you create the position.")}</Typography>
           <Typography component="li" variant="body2">{tr("When Tower type is ")}<strong>{tr("Suspension")}</strong>{tr(", Direction is derived from the tower area. Check it before adding the position. Tension and Gantry let you select the direction.")}</Typography>
-          <Typography component="li" variant="body2">{tr("Direction's list of values changed to line/segment names — ")}<strong>{tr("Ashoor, Saada, Shaoon, Ittin, Thumrait")}</strong>{tr(" — instead of the old compass codes.")}</Typography>
+          <Typography component="li" variant="body2">{tr("Direction's list of values changed to line/segment names — ")}<strong>{tr("Saada, Ashoor, Ittin, Thumrait, Shahaon")}</strong>{tr(" — instead of the old compass codes.")}</Typography>
           <Typography component="li" variant="body2">{tr("The String field now shows ")}<strong>{tr("\"S1 — Outer\"")}</strong> / <strong>{tr("\"S2 — Inner\"")}</strong>{tr(" so it's clear which physical string each one is, right in the picker.")}</Typography>
         </Stack>
 
