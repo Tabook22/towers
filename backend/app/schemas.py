@@ -220,6 +220,24 @@ class TowerBulkAssignRequest(BaseModel):
     team_id: int | None = None  # None = unassign
 
 
+class TowerLineAssignmentItem(BaseModel):
+    tower_id: int = Field(gt=0)
+    # Required original value provides optimistic concurrency, including NULL.
+    expected_line_sector: str | None = Field(max_length=200)
+
+
+class TowerBulkLineRequest(BaseModel):
+    towers: list[TowerLineAssignmentItem] = Field(min_length=1, max_length=5000)
+    line_sector: Literal['Ashoor-Saada', 'Saada-Shahaon', 'Ittin-Thumrait']
+
+    @field_validator('towers')
+    @classmethod
+    def unique_towers(cls, items):
+        if len({item.tower_id for item in items}) != len(items):
+            raise ValueError('Select each tower only once')
+        return items
+
+
 class TowerBulkDeleteRequest(BaseModel):
     tower_ids: list[int] = []
     delete_all: bool = False

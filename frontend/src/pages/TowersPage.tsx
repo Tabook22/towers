@@ -56,6 +56,7 @@ import {
   useAreasFull,
   useBulkAssignTowers,
   useBulkDeleteTowers,
+  useBulkSetTowerLine,
   useClearTowerPhoto,
   useCreateArea,
   useCreateTower,
@@ -82,6 +83,7 @@ import { ResizableDialogPaper } from '../components/ResizableDialogPaper';
 import { HorizontalBarChart, type BarDatum } from '../components/HorizontalBarChart';
 import { colorForTeam } from '../components/towerMapPins';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { PROJECT_LINES, UNASSIGNED_LINE, towerLineKey, towerLineOptions, towerLineSummary, towersOnLine } from '../utils/towerLines';
 
 interface TowerFormState {
   tower_id: string;
@@ -162,6 +164,14 @@ export function TowersPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [towerActionId, setTowerActionId] = useState<number | null>(null);
   const [assignmentMessage, setAssignmentMessage] = useState('');
+  const registerRef = useRef<HTMLDivElement>(null);
+  const [registerExpanded, setRegisterExpanded] = useState(true);
+  const bulkSetLine = useBulkSetTowerLine();
+  const [lineAssignmentRows, setLineAssignmentRows] = useState<TowerWithStats[]>([]);
+  const [lineAssignmentOpen, setLineAssignmentOpen] = useState(false);
+  const [targetLine, setTargetLine] = useState('');
+  const [lineAssignmentError, setLineAssignmentError] = useState('');
+  const [lineAssignmentMessage, setLineAssignmentMessage] = useState('');
 
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -182,7 +192,7 @@ export function TowersPage() {
   const canAddTower = towersLevel === 'add' || towersLevel === 'full';
   const isTeamLeader = user?.role === 'team_leader';
   const debouncedSearch = useDebouncedValue(search);
-  const { data: towers, isLoading } = useTowers({
+  const { data: towers, isLoading, refetch: refreshTowers } = useTowers({
     search: debouncedSearch || undefined,
     area: area || undefined,
     limit: 5000,
@@ -231,10 +241,23 @@ export function TowersPage() {
 
   // "Line sector" groups towers by physical line/OHL (e.g. "Ashoor-Saada OHL") — a finer-grained
   // split than Area, useful for viewing/filtering one specific line's towers on the map below.
-  const lineSectorOptions = Array.from(new Set((towers || []).map((t) => t.line_sector).filter((s): s is string => !!s))).sort();
-  let visibleTowers = lineSector ? (towers || []).filter((t) => t.line_sector === lineSector) : towers;
+  const lineSectorOptions = towerLineOptions(towers || []);
+  let visibleTowers = towersOnLine(towers || [], lineSector);
   if (teamFilter === 'unassigned') visibleTowers = (visibleTowers || []).filter((t) => t.assigned_team_id == null);
   else if (teamFilter) visibleTowers = (visibleTowers || []).filter((t) => t.assigned_team_id === Number(teamFilter));
+  const selectedTowers = visibleTowers.filter(tower => selected.has(tower.id));
+  const lineLabel = lineSector === UNASSIGNED_LINE ? tr('Line not assigned') : lineSector;
+  const selectChartLine = (datum: BarDatum) => {
+    setLineSector(datum.id || '');
+    // Chart counts include every team in the current search/area scope.
+    setTeamFilter('');
+    setSelected(new Set());
+    setRegisterExpanded(true);
+    requestAnimationFrame(() => {
+      registerRef.current?.focus({ preventScroll: true });
+      registerRef.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    });
+  };
   const mapRows: DashboardTowerRow[] = (visibleTowers || []).map((t) => ({
     tower: t,
     latest_visit: null,
@@ -255,15 +278,9 @@ export function TowersPage() {
   // These two overview charts read the current search/area result set (before the line-sector/team
   // quick filters below it), so they stay a stable "whole picture" summary rather than shrinking to
   // whatever the quick filters narrow the table down to.
-  const towersByLine: BarDatum[] = Array.from(
-    (towers || []).reduce((acc, t) => {
-      const key = t.line_sector || 'No line sector';
-      acc.set(key, (acc.get(key) || 0) + 1);
-      return acc;
-    }, new Map<string, number>()),
-  )
-    .map(([label, value]) => ({ label, value, color: theme.palette.primary.main }))
-    .sort((a, b) => b.value - a.value);
+  const towersByLine: BarDatum[] = towerLineSummary(towers || [])
+    .map(item => ({ ...item, label: tr(item.label), color: item.id === UNASSIGNED_LINE ? theme.palette.warning.main : theme.palette.primary.main }));
+  const missingLineCount = towersByLine.find(item => item.id === UNASSIGNED_LINE)?.value || 0;
 
   const completedByTeam: BarDatum[] = (() => {
     const counts = new Map<number, { name: string; count: number }>();
@@ -325,7 +342,7 @@ export function TowersPage() {
       voltage: form.voltage || null,
       tower_type: form.tower_type || null,
       area: form.area || null,
-      line_sector: form.line_sector || null,
+      line_sector: form.line_sector.trim() || null,
       location_name: form.location_name || null,
       height_m: form.height_m,
       latitude: form.latitude,
@@ -383,7 +400,7 @@ export function TowersPage() {
           label={tr("Search towers")}
           placeholder={tr("Search by Tower ID or area…")}
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setSelected(new Set()); }}
           sx={{ flex: 1, minWidth: { xs: 0, md: 240 } }}
           slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }}
         />
@@ -392,7 +409,7 @@ export function TowersPage() {
           size="small"
           label={tr("Area")}
           value={area}
-          onChange={(e) => setArea(e.target.value)}
+          onChange={(e) => { setArea(e.target.value); setSelected(new Set()); }}
           sx={{ minWidth: 180 }}
           slotProps={{
             inputLabel: { shrink: true },
@@ -428,12 +445,13 @@ export function TowersPage() {
           select
           size="small"
           label={tr("Line sector")}
-          slotProps={{ inputLabel: { shrink: true }, input: { startAdornment: <InputAdornment position="start"><RouteRounded fontSize="small" /></InputAdornment> }, select: { displayEmpty: true, renderValue: () => lineSector || tr('All line sectors') } }}
+          slotProps={{ inputLabel: { shrink: true }, input: { startAdornment: <InputAdornment position="start"><RouteRounded fontSize="small" /></InputAdornment> }, select: { displayEmpty: true, renderValue: () => lineLabel || tr('All line sectors') } }}
           value={lineSector}
-          onChange={(e) => setLineSector(e.target.value)}
+          onChange={(e) => { setLineSector(e.target.value); setSelected(new Set()); }}
           sx={{ minWidth: 200 }}
         >
           <MenuItem value="">{tr("All line sectors")}</MenuItem>
+          <MenuItem value={UNASSIGNED_LINE}>{tr('Line not assigned')}</MenuItem>
           {lineSectorOptions.map((s) => (
             <MenuItem key={s} value={s}>
               {tr(s)}
@@ -446,7 +464,7 @@ export function TowersPage() {
           label={tr("Assigned team")}
           slotProps={{ inputLabel: { shrink: true }, input: { startAdornment: <InputAdornment position="start"><GroupsIcon fontSize="small" /></InputAdornment> }, select: { displayEmpty: true, renderValue: () => teamFilter === 'unassigned' ? tr('Unassigned') : teams?.find(t => String(t.id) === String(teamFilter))?.name || tr('All teams') } }}
           value={teamFilter}
-          onChange={(e) => setTeamFilter(e.target.value)}
+          onChange={(e) => { setTeamFilter(e.target.value); setSelected(new Set()); }}
           sx={{ minWidth: 180 }}
         >
           <MenuItem value="">{tr("All teams")}</MenuItem>
@@ -459,9 +477,10 @@ export function TowersPage() {
         </TextField>
       </Stack>
 
-      <Stack direction="row" sx={{ mt: 2, gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+      <Stack direction="row" role="status" aria-live="polite" sx={{ mt: 2, gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
         <Chip size="small" icon={<TransmissionTowerIcon />} label={tr('Matching towers: {0}', [visibleTowers?.length || 0])} />
-        {(search || area || lineSector || teamFilter) && <Button size="small" startIcon={<RestartAltRounded />} onClick={() => { setSearch(''); setArea(''); setLineSector(''); setTeamFilter(''); }}>{tr('Clear filters')}</Button>}
+        {lineSector && <Chip size="small" icon={<RouteRounded />} color={lineSector === UNASSIGNED_LINE ? 'warning' : 'primary'} label={lineLabel} onDelete={() => { setLineSector(''); setSelected(new Set()); }} />}
+        {(search || area || lineSector || teamFilter) && <Button size="small" startIcon={<RestartAltRounded />} onClick={() => { setSearch(''); setArea(''); setLineSector(''); setTeamFilter(''); setSelected(new Set()); }}>{tr('Clear filters')}</Button>}
       </Stack>
       </Box>
       </DashboardSection>
@@ -475,10 +494,18 @@ export function TowersPage() {
         </Alert>
       )}
 
-      {selected.size > 0 && canImport && (
+      {lineAssignmentMessage && <Alert severity="success" onClose={() => setLineAssignmentMessage('')}>{lineAssignmentMessage}</Alert>}
+      {lineSector === UNASSIGNED_LINE && <Alert severity="warning">
+        {tr('These towers have no saved line assignment. They are not a separate line. Verify the line, then select the towers and choose Assign to line.')}
+      </Alert>}
+
+      {selectedTowers.length > 0 && canImport && (
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1, p: 2, bgcolor: alpha(theme.palette.primary.main, .08), borderRadius: 3 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {selected.size}{tr(" tower")}{selected.size === 1 ? '' : tr("s")}{tr(" selected")}</Typography>
+            {selectedTowers.length}{tr(" tower")}{selectedTowers.length === 1 ? '' : tr("s")}{tr(" selected")}</Typography>
+          <Button size="small" variant="contained" startIcon={<RouteRounded />} onClick={() => {
+            setLineAssignmentRows([...selectedTowers]); setTargetLine(''); setLineAssignmentError(''); setLineAssignmentOpen(true);
+          }}>{tr('Assign to line')}</Button>
           <Button
             size="small"
             variant="contained"
@@ -507,7 +534,8 @@ export function TowersPage() {
         ownTeamId={isTeamLeader ? user?.team_id : null} onClose={() => setTowerActionId(null)}
         onSuccess={setAssignmentMessage} onEdit={() => { setTowerActionId(null); openEdit(actionTower); }} />}
 
-      <DashboardSection icon={<TransmissionTowerIcon />} title={tr('Tower register')} description={canImport ? tr('Open a tower to see its details and inspection history. Select rows to manage team assignments.') : tr('Open a tower to see its details and inspection history.')} eyebrow={tr('THE ASSETS BEHIND THE FIELDWORK')} tone="teal" badge={<Chip size="small" label={tr('Matching towers: {0}', [visibleTowers?.length || 0])} sx={{ color: 'white', bgcolor: '#ffffff20' }} />}>
+      <Box ref={registerRef} tabIndex={-1} sx={{ scrollMarginTop: 80 }} aria-label={tr('Tower register')}>
+      <DashboardSection expanded={registerExpanded} onExpandedChange={setRegisterExpanded} icon={<TransmissionTowerIcon />} title={tr('Tower register')} description={canImport ? tr('Open a tower to see its details and inspection history. Select rows to manage line and team assignments.') : tr('Open a tower to see its details and inspection history.')} eyebrow={tr('THE ASSETS BEHIND THE FIELDWORK')} tone="teal" badge={<Chip size="small" label={tr('Matching towers: {0}', [visibleTowers?.length || 0])} sx={{ color: 'white', bgcolor: '#ffffff20' }} />}>
       <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: '16px', '& .MuiIconButton-root': { borderRadius: 2, minWidth: 38, minHeight: 38 } }}>
         <Table>
           <TableHead>
@@ -516,8 +544,9 @@ export function TowersPage() {
                 <TableCell padding="checkbox">
                   <Checkbox
                     size="small"
-                    indeterminate={selected.size > 0 && selected.size < (visibleTowers?.length || 0)}
-                    checked={!!visibleTowers?.length && selected.size === visibleTowers.length}
+                    indeterminate={selectedTowers.length > 0 && selectedTowers.length < visibleTowers.length}
+                    checked={!!visibleTowers.length && selectedTowers.length === visibleTowers.length}
+                    slotProps={{ input: { 'aria-label': tr('Select all matching towers') } }}
                     onChange={(e) => setSelected(e.target.checked ? new Set(visibleTowers?.map((t) => t.id)) : new Set())}
                   />
                 </TableCell>
@@ -542,6 +571,7 @@ export function TowersPage() {
                     <Checkbox
                       size="small"
                       checked={selected.has(t.id)}
+                      slotProps={{ input: { 'aria-label': tr('Select tower {0}', [t.tower_id]) } }}
                       onChange={(e) =>
                         setSelected((prev) => {
                           const next = new Set(prev);
@@ -626,6 +656,7 @@ export function TowersPage() {
         </Table>
       </TableContainer>
       </DashboardSection>
+      </Box>
 
       <DashboardSection icon={<MapRounded />} title={tr('Tower locations')} description={tr('Click a tower pin or table row to view its details, open inspections, or choose an assignment action.')} eyebrow={tr('EXPLORE THE NETWORK')} tone="blue">
           {(isTeamLeader || canEditCatalog) && (
@@ -643,9 +674,13 @@ export function TowersPage() {
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 6 }}>
-          <DashboardSection icon={<RouteRounded />} title={tr('Towers per line')} description={tr('How the current search/area result is split across each line sector.')} tone="violet" compact>
+          <DashboardSection icon={<RouteRounded />} title={tr('Towers per line')} description={tr('Click a line to see its towers in the register and map. Counts follow the current search and area.')} tone="violet" compact>
             <Box sx={{ p: 2.5 }}>
-              <HorizontalBarChart data={towersByLine} emptyMessage="No towers to summarize yet." />
+              <HorizontalBarChart data={towersByLine} emptyMessage={tr('No towers to summarize yet.')} onSelect={selectChartLine} selectedId={lineSector}
+                selectionLabel={item => tr('View {0} towers: {1}', [item.value, item.label])} />
+              {missingLineCount > 0 && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+                {tr('Line not assigned means the line field is empty, not another transmission line. Click it to review those towers.')}
+              </Typography>}
             </Box>
           </DashboardSection>
         </Grid>
@@ -802,12 +837,18 @@ export function TowersPage() {
                 {form.area && !areas?.includes(form.area) && <MenuItem value={form.area}>{form.area}{tr(" (existing)")}</MenuItem>}
               </TextField>
               <TextField
-                label={tr("Line sector (optional)")}
-                helperText={tr("Named line segment for project planning docs, e.g. “Ittin - Thumrait”")}
+                select
+                required={!editing}
+                label={tr('Line')}
+                helperText={tr('Choose the confirmed transmission line. Existing unassigned records can be reviewed later.')}
                 value={form.line_sector}
                 onChange={(e) => setForm((f) => ({ ...f, line_sector: e.target.value }))}
                 fullWidth
-              />
+              >
+                <MenuItem value="">{tr('Line not assigned')}</MenuItem>
+                {PROJECT_LINES.map(line => <MenuItem key={line} value={line}>{line}</MenuItem>)}
+                {form.line_sector && !PROJECT_LINES.some(line => line === form.line_sector) && <MenuItem value={form.line_sector}>{form.line_sector}{tr(' (existing)')}</MenuItem>}
+              </TextField>
             </Stack>
             <Stack direction="row" spacing={2}>
               <TextField
@@ -936,7 +977,7 @@ export function TowersPage() {
           <Button
             variant="contained"
             onClick={handleSave}
-            disabled={!form.tower_id.trim() || createTower.isPending || updateTower.isPending}
+            disabled={!form.tower_id.trim() || (!editing && !form.line_sector) || createTower.isPending || updateTower.isPending}
           >{tr("Save")}</Button>
         </DialogActions>
       </Dialog>
@@ -1026,8 +1067,46 @@ export function TowersPage() {
         </Dialog>
       )}
 
+      <Dialog open={lineAssignmentOpen} onClose={() => { if (!bulkSetLine.isPending) setLineAssignmentOpen(false); }} maxWidth="sm" fullWidth>
+        <DialogTitle>{tr('Assign {0} towers to a line', [lineAssignmentRows.length])}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Alert severity="info">{tr('Only the line assignment changes. Tower IDs, inspections, photos, team assignments and issued report files stay unchanged.')}</Alert>
+            <TextField select required label={tr('Confirmed line')} value={targetLine} disabled={bulkSetLine.isPending} onChange={event => setTargetLine(event.target.value)}>
+              {PROJECT_LINES.map(line => <MenuItem key={line} value={line}>{line}</MenuItem>)}
+            </TextField>
+            <Typography variant="body2" color="text.secondary">{tr('Review every selected tower before saving. Names can help identify a line, but are not proof of the physical assignment.')}</Typography>
+            <TableContainer sx={{ maxHeight: 260 }}>
+              <Table size="small" stickyHeader>
+                <TableHead><TableRow><TableCell>{tr('Tower ID')}</TableCell><TableCell>{tr('Current line')}</TableCell></TableRow></TableHead>
+                <TableBody>{lineAssignmentRows.map(tower => <TableRow key={tower.id}><TableCell>{tower.tower_id}</TableCell><TableCell>{towerLineKey(tower) === UNASSIGNED_LINE ? tr('Line not assigned') : tower.line_sector}</TableCell></TableRow>)}</TableBody>
+              </Table>
+            </TableContainer>
+            {lineAssignmentError && <Alert severity="error" action={<Button color="inherit" disabled={bulkSetLine.isPending} onClick={() => {
+              setLineAssignmentOpen(false); setSelected(new Set()); void refreshTowers();
+            }}>{tr('Refresh and review')}</Button>}>{lineAssignmentError}</Alert>}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={bulkSetLine.isPending} onClick={() => setLineAssignmentOpen(false)}>{tr('Cancel')}</Button>
+          <Button variant="contained" disabled={!targetLine || !lineAssignmentRows.length || bulkSetLine.isPending} onClick={() => {
+            setLineAssignmentError('');
+            bulkSetLine.mutate({ towers: lineAssignmentRows.map(tower => ({ tower_id: tower.id, expected_line_sector: tower.line_sector ?? null })), line_sector: targetLine }, {
+              onSuccess: () => {
+                setLineAssignmentOpen(false); setSelected(new Set()); setLineSector(targetLine);
+                setLineAssignmentMessage(tr('Assigned {0} towers to {1}. Inspection data was not changed.', [lineAssignmentRows.length, targetLine]));
+              },
+              onError: (error: unknown) => {
+                const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+                setLineAssignmentError(typeof detail === 'string' ? tr(detail) : tr('Could not assign the line. Refresh and review the selected towers.'));
+              },
+            });
+          }}>{bulkSetLine.isPending ? tr('Saving…') : tr('Confirm line assignment')}</Button>
+        </DialogActions>
+      </Dialog>
+
       <Dialog open={assignOpen} onClose={() => setAssignOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{tr("Assign ")}{selected.size}{tr(" tower")}{selected.size === 1 ? '' : tr("s")}{tr(" to a team")}</DialogTitle>
+        <DialogTitle>{tr("Assign ")}{selectedTowers.length}{tr(" tower")}{selectedTowers.length === 1 ? '' : tr("s")}{tr(" to a team")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Typography variant="body2" color="text.secondary">{tr("That team becomes responsible for inspecting and fixing these towers — they'll show up on the team's Job Map, and progress is measured against them.")}</Typography>
@@ -1047,10 +1126,10 @@ export function TowersPage() {
           <Button onClick={() => setAssignOpen(false)}>{tr("Cancel")}</Button>
           <Button
             variant="contained"
-            disabled={bulkAssign.isPending}
+            disabled={bulkAssign.isPending || !selectedTowers.length}
             onClick={() => {
               bulkAssign.mutate(
-                { tower_ids: Array.from(selected), team_id: assignTeamId ? Number(assignTeamId) : null },
+                { tower_ids: selectedTowers.map(tower => tower.id), team_id: assignTeamId ? Number(assignTeamId) : null },
                 {
                   onSuccess: () => {
                     setAssignOpen(false);
@@ -1072,11 +1151,11 @@ export function TowersPage() {
       />
 
       <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{deleteAll ? tr("Delete all towers") : tr("Delete {0} selected tower{1}", [selected.size, selected.size === 1 ? '' : tr("s")])}</DialogTitle>
+        <DialogTitle>{deleteAll ? tr("Delete all towers") : tr("Delete {0} selected tower{1}", [selectedTowers.length, selectedTowers.length === 1 ? '' : tr("s")])}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Alert severity="error">
-              {deleteAll ? tr("This permanently deletes every tower in the catalog ({0}), including inspection visits and photos on those towers. This cannot be undone.", [towers?.length ?? 0]) : tr("This permanently deletes {0} tower{1} and any inspection visits and photos on them. This cannot be undone.", [selected.size, selected.size === 1 ? '' : tr("s")])}
+              {deleteAll ? tr("This permanently deletes every tower in the catalog ({0}), including inspection visits and photos on those towers. This cannot be undone.", [towers?.length ?? 0]) : tr("This permanently deletes {0} tower{1} and any inspection visits and photos on them. This cannot be undone.", [selectedTowers.length, selectedTowers.length === 1 ? '' : tr("s")])}
             </Alert>
             {deleteError && <Alert severity="error">{tr(deleteError)}</Alert>}
           </Stack>
@@ -1086,11 +1165,11 @@ export function TowersPage() {
           <Button
             color="error"
             variant="contained"
-            disabled={bulkDelete.isPending || (!deleteAll && selected.size === 0)}
+            disabled={bulkDelete.isPending || (!deleteAll && selectedTowers.length === 0)}
             onClick={() => {
               setDeleteError(null);
               bulkDelete.mutate(
-                deleteAll ? { delete_all: true } : { tower_ids: Array.from(selected) },
+                deleteAll ? { delete_all: true } : { tower_ids: selectedTowers.map(tower => tower.id) },
                 {
                   onSuccess: (res) => {
                     setDeleteOpen(false);

@@ -26,6 +26,7 @@ from app.models import (
 )
 from app.schemas import (
     TowerBulkAssignRequest,
+    TowerBulkLineRequest,
     TowerBulkDeleteRequest,
     TowerBulkDeleteResult,
     TowerRenumberRequest,
@@ -189,6 +190,34 @@ def bulk_assign_towers(
     for t in towers:
         db.refresh(t)
     return [_tower_out(t) for t in towers]
+
+
+@router.post('/bulk-line', response_model=list[TowerOut])
+def assign_tower_line(
+    payload: TowerBulkLineRequest,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_permission_level('manage_towers', 'full', UserRole.REVIEWER.value)),
+):
+    """Change only the confirmed line labels, atomically; never infer from names."""
+    ids = [item.tower_id for item in payload.towers]
+    towers = db.query(Tower).filter(Tower.id.in_(ids)).all()
+    if len(towers) != len(ids):
+        raise HTTPException(status_code=404, detail='A selected tower no longer exists. Refresh and try again.')
+    try:
+        for item in payload.towers:
+            original = Tower.line_sector.is_(None) if item.expected_line_sector is None else Tower.line_sector == item.expected_line_sector
+            changed = db.query(Tower).filter(Tower.id == item.tower_id, Tower.is_active.is_(True), original).update(
+                {Tower.line_sector: payload.line_sector}, synchronize_session=False,
+            )
+            if changed != 1:
+                raise HTTPException(status_code=409, detail='A selected tower changed or was deactivated. Nothing was assigned. Refresh and review the selection again.')
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    for tower in towers:
+        db.refresh(tower)
+    return [_tower_out(tower) for tower in towers]
 
 
 @router.post("/match-pin-ids", response_model=TowerRenumberResult)

@@ -166,6 +166,21 @@ export function useCreateTower() {
   });
 }
 
+export function useBulkSetTowerLine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      towers: { tower_id: number; expected_line_sector: string | null }[];
+      line_sector: string;
+    }) => (await apiClient.post<Tower[]>('/api/towers/bulk-line', payload)).data,
+    onSuccess: () => {
+      for (const key of ['towers', 'dashboard', 'team-job-map', 'team-progress']) {
+        qc.invalidateQueries({ queryKey: [key] });
+      }
+    },
+  });
+}
+
 export function useUpdateTower() {
   const qc = useQueryClient();
   return useMutation({
