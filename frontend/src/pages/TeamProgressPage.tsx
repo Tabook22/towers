@@ -27,7 +27,7 @@ import {
 } from '@mui/material';
 import RouteIcon from '@mui/icons-material/RouteRounded';
 import TimerIcon from '@mui/icons-material/TimerRounded';
-import CellTowerIcon from '@mui/icons-material/CellTowerRounded';
+import TransmissionTowerIcon from '../components/TransmissionTowerIcon';
 import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalkRounded';
 import OpenInFullIcon from '@mui/icons-material/OpenInFullRounded';
 import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreenRounded';
@@ -306,7 +306,7 @@ function TeamMissionDetail({ row, onOpenVisit }: { row: TeamProgress; onOpenVisi
           <KpiTile label={tr("Distance")} value={`${row.distance_km} km`} icon={<RouteIcon />} color="#1565c0" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
-          <KpiTile label={tr("Towers")} value={row.towers_visited} icon={<CellTowerIcon />} color="#2e7d32" />
+          <KpiTile label={tr("Towers")} value={row.towers_visited} icon={<TransmissionTowerIcon />} color="#2e7d32" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
           <KpiTile

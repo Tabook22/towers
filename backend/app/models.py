@@ -32,6 +32,19 @@ def utcnow() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
 
 
+class VisitCreationRequest(Base):
+    """Receipt for a creation attempt, including tombstones for deleted visits."""
+    __tablename__ = "visit_creation_requests"
+    __table_args__ = (UniqueConstraint("user_id", "token", name="uq_visit_creation_request"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    token: Mapped[str] = mapped_column(String(36))
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    visit_id: Mapped[int | None] = mapped_column(ForeignKey("visits.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
+    visit: Mapped["Visit | None"] = relationship(back_populates="creation_requests")
+
+
 class VisitEntryDraft(Base):
     """Private working copy; never read by reports or progress calculations."""
     __tablename__ = "visit_entry_drafts"
@@ -148,6 +161,7 @@ class User(Base):
     # Teams also has a `created_by -> users.id` FK, so the join column has to be spelled out
     # explicitly here — otherwise SQLAlchemy can't tell which of the two FKs this relationship means.
     team: Mapped["Team | None"] = relationship(back_populates="users", foreign_keys=[team_id])
+    creation_requests: Mapped[list["VisitCreationRequest"]] = relationship(cascade="all, delete-orphan")
 
     @property
     def permissions(self) -> list[str]:
@@ -279,6 +293,7 @@ class Visit(Base):
     photos: Mapped[list["VisitPhoto"]] = relationship(
         back_populates="visit", cascade="all, delete-orphan", order_by="VisitPhoto.uploaded_at"
     )
+    creation_requests: Mapped[list["VisitCreationRequest"]] = relationship(back_populates="visit")
 
 
 # The 12 baseline positions generated per visit: 2 OHL x 3 phase x 2 string. A Tension-type tower
@@ -341,7 +356,7 @@ class Position(Base):
 
     __tablename__ = "positions"
     __table_args__ = (
-        UniqueConstraint("visit_id", "ohl", "phase", "string", "direction", name="uq_position_slot"),
+        UniqueConstraint("visit_id", "ohl", "phase", "string", "direction", "view_side", name="uq_position_slot"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -351,6 +366,8 @@ class Position(Base):
     phase: Mapped[str] = mapped_column(String(5))
     string: Mapped[str] = mapped_column(String(5))
     direction: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    # Historical readings have no reliable viewing-side attribution. Never guess or copy them.
+    view_side: Mapped[str] = mapped_column(String(16), default="Unspecified", server_default="Unspecified")
     # "Inner" (near the tower) or "Outer" (away from it) — for the occasional tower where this
     # slot actually carries two separate insulator strings at different distances from the tower.
     tower_proximity: Mapped[str | None] = mapped_column(String(10), nullable=True)
@@ -494,10 +511,9 @@ OVERALL_CONDITION_CHOICES = ["Acceptable", "Monitor", "Maintenance Required", "U
 class LineInspectionReport(Base):
     """One generated "official" OETC-format report (services/oetc_report.py) — a whole line/team's
     campaign over a date range, rendered into the customer's exact Word template. The raw readings
-    it pulls from (Position/Visit/Tower) are never duplicated here; this row only keeps the things
-    that exist ONLY at report time and can't be derived from the field data — the report number, the
-    engineer's overall assessment/sign-off — so a past report's paperwork can be traced/reprinted
-    later instead of living only as a one-off download."""
+    it pulls from remain editable only in Position/Visit/Tower. This row keeps report-specific
+    assessment/sign-off, the issued document and an immutable customer-safe inspection snapshot
+    for audit/review. That snapshot is historical provenance, not another data-entry workflow."""
 
     __tablename__ = "line_inspection_reports"
 
@@ -540,6 +556,9 @@ class LineInspectionReport(Base):
     report_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Freeze tower membership and display names even when catalog assignments later change.
     scope_towers: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    # Immutable, customer-safe field-data copy at issue time. NULL means a legacy report;
+    # never reconstruct an apparent historical snapshot from today's edited readings.
+    inspection_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
@@ -841,7 +860,7 @@ class PushSubscription(Base):
 class TeamArchiveImage(Base):
     """A photo an admin uploads straight into a team's own archive — not tied to any specific
     tower/visit/position, unlike Image (inspection evidence). Auto-filed under the Image Archive
-    page's Team view by capture date (from EXIF when the photo has it, else the upload date), with
+    page's Team view by upload date (Oman time), retaining EXIF capture date separately, with
     GPS location pulled from EXIF the same best-effort way as everywhere else in this app."""
 
     __tablename__ = "team_archive_images"
@@ -856,6 +875,7 @@ class TeamArchiveImage(Base):
     thumbnail_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     original_filename: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    relative_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     uploaded_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow, index=True)
@@ -1009,7 +1029,7 @@ class AppSetting(Base):
     # A wide banner photo shown across the top of the splash (e.g. a tower/field shot) — purely
     # decorative, so null just means "don't show a banner" rather than falling back to a placeholder.
     hero_image_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Organization identity used on generated PDF reports (see services/reports.py's ReportPDF) —
+    # Organization identity used on generated PDF reports (see services/reports.py) —
     # deliberately separate from the two splash-only logos above, since a report's letterhead and
     # the app's own welcome screen are different surfaces an admin may want to brand differently.
     org_logo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)

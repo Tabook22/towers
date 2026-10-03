@@ -1,17 +1,20 @@
 """A team's own photo archive — general photos an admin uploads directly (site conditions,
 equipment, handover shots, whatever doesn't belong to one specific inspection), distinct from the
 per-position evidence images the Image Archive page already shows. Auto-filed by year/month/day
-(from EXIF capture date when present, else the upload date) and geo-tagged from EXIF GPS the same
+(by upload date in Oman local time) and geo-tagged from EXIF GPS the same
 best-effort way as every other photo path in this app.
 """
 from __future__ import annotations
 
 import datetime as dt
+import io
 from uuid import uuid4
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
+from PIL import Image as PillowImage
 
 from app.config import settings
 from app.database import get_db
@@ -29,6 +32,34 @@ from app.services.archive import (
 
 router = APIRouter(tags=["team-archive"])
 
+OMAN_TIME = dt.timezone(dt.timedelta(hours=4))
+IMAGE_CONTENT_TYPE_BY_EXT = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+    ".tif": "image/tiff", ".tiff": "image/tiff", ".webp": "image/webp",
+}
+
+
+def archive_upload_date(value: dt.datetime) -> dt.date:
+    """Stored timestamps are UTC; archive calendar folders follow Oman time."""
+    return (value.replace(tzinfo=dt.timezone.utc) if value.tzinfo is None else value).astimezone(OMAN_TIME).date()
+
+
+def upload_content_type(upload: UploadFile) -> str:
+    """Use the browser MIME type, falling back to the extension for folder uploads."""
+    value = (upload.content_type or "").split(";")[0].strip().lower()
+    if value in ACCEPTED_IMAGE_CONTENT_TYPES:
+        return value
+    return IMAGE_CONTENT_TYPE_BY_EXT.get(Path(upload.filename or "").suffix.lower(), "")
+
+
+def safe_relative_path(value: str | None, fallback: str | None) -> str:
+    """Keep the user's folder/subfolder labels as metadata without allowing traversal."""
+    raw = (value or fallback or "").replace("\\", "/")
+    parts = [part for part in raw.split("/") if part not in ("", ".", "..")]
+    clean = "/".join(parts)
+    return clean[:500] or "image"
+
+
 
 def _out(row: TeamArchiveImage) -> TeamArchiveImageOut:
     return TeamArchiveImageOut(
@@ -36,11 +67,13 @@ def _out(row: TeamArchiveImage) -> TeamArchiveImageOut:
         team_id=row.team_id,
         team_name=row.team.name if row.team else None,
         capture_date=row.capture_date,
+        upload_date=archive_upload_date(row.uploaded_at),
         latitude=row.latitude,
         longitude=row.longitude,
         caption=row.caption,
         content_type=row.content_type,
         original_filename=row.original_filename,
+        relative_path=row.relative_path,
         file_size=row.file_size,
         has_thumbnail=bool(row.thumbnail_path),
         uploaded_by=row.uploaded_by,
@@ -68,6 +101,7 @@ async def upload_team_archive_images(
     team_id: int,
     files: list[UploadFile] = File(...),
     caption: str | None = Form(default=None),
+    relative_paths: list[str] = Form(default=[]),
     db: Session = Depends(get_db),
     user: User = Depends(require_role(UserRole.ADMIN.value, UserRole.REVIEWER.value)),
 ):
@@ -77,41 +111,76 @@ async def upload_team_archive_images(
     if not files:
         raise HTTPException(status_code=400, detail="Choose at least one image")
 
-    created: list[TeamArchiveImage] = []
+    # Validate actual image bytes and size before storing any part of the batch.
+    upload_limit = settings.max_upload_size_mb * 1024 * 1024
     for upload in files:
-        content_type = (upload.content_type or "").split(";")[0].strip().lower()
+        content_type = upload_content_type(upload)
         if content_type not in ACCEPTED_IMAGE_CONTENT_TYPES:
             raise HTTPException(status_code=400, detail=f"{upload.filename}: not a supported image type")
-        raw = await upload.read()
+        raw = await upload.read(upload_limit + 1)
+        if len(raw) > upload_limit:
+            raise HTTPException(status_code=413, detail=f"{upload.filename}: image exceeds the upload limit")
         if not raw:
-            continue
-        exif = extract_exif_gps_datetime(raw)
-        capture_date = exif.get("capture_date") or dt.date.today()
-        ext = file_extension(upload.filename, upload.content_type)
-        code = f"img-{uuid4().hex[:12]}"
-        rel_path = team_archive_relative_path(team_id, capture_date, code, ext)
-        rel_path, size, _checksum = save_upload(raw, rel_path)
-        thumb_path = build_thumbnail(rel_path)
+            raise HTTPException(status_code=400, detail=f"{upload.filename}: image is empty")
+        try:
+            with PillowImage.open(io.BytesIO(raw)) as image:
+                image.verify()
+        except Exception:
+            raise HTTPException(status_code=422, detail=f"{upload.filename}: this file could not be read as an image")
+        await upload.seek(0)
 
-        row = TeamArchiveImage(
-            team_id=team_id,
-            capture_date=capture_date,
-            latitude=exif.get("latitude"),
-            longitude=exif.get("longitude"),
-            caption=(caption or "").strip() or None,
-            file_path=rel_path,
-            thumbnail_path=thumb_path,
-            content_type=upload.content_type,
-            original_filename=upload.filename,
-            file_size=size,
-            uploaded_by=user.id,
-        )
-        db.add(row)
-        created.append(row)
+    uploaded_at = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    upload_date = archive_upload_date(uploaded_at)
+    stored_paths: list[tuple[Path, str]] = []
+    created: list[TeamArchiveImage] = []
+    try:
+        for index, upload in enumerate(files):
+            content_type = upload_content_type(upload)
+            if content_type not in ACCEPTED_IMAGE_CONTENT_TYPES:
+                raise HTTPException(status_code=400, detail=f"{upload.filename}: not a supported image type")
+            raw = await upload.read(upload_limit + 1)
+            if not raw:
+                continue
+            exif = extract_exif_gps_datetime(raw)
+            capture_date = exif.get("capture_date") or upload_date
+            ext = file_extension(upload.filename, content_type)
+            code = f"img-{uuid4().hex[:12]}"
+            rel_path = team_archive_relative_path(team_id, upload_date, code, ext)
+            rel_path, size, _checksum = save_upload(raw, rel_path)
+            stored_paths.append((settings.images_dir, rel_path))
+            thumb_path = build_thumbnail(rel_path)
+            if thumb_path:
+                stored_paths.append((settings.thumbnails_dir, thumb_path))
 
-    if not created:
-        raise HTTPException(status_code=400, detail="No files were uploaded")
-    db.commit()
+            row = TeamArchiveImage(
+                team_id=team_id,
+                capture_date=capture_date,
+                latitude=exif.get("latitude"),
+                longitude=exif.get("longitude"),
+                caption=(caption or "").strip() or None,
+                file_path=rel_path,
+                thumbnail_path=thumb_path,
+                content_type=content_type,
+                original_filename=Path(safe_relative_path(relative_paths[index] if index < len(relative_paths) else None, upload.filename)).name,
+                relative_path=safe_relative_path(relative_paths[index] if index < len(relative_paths) else None, upload.filename),
+                file_size=size,
+                uploaded_by=user.id,
+                uploaded_at=uploaded_at,
+            )
+            db.add(row)
+            created.append(row)
+
+        if not created:
+            raise HTTPException(status_code=400, detail="No files were uploaded")
+        db.commit()
+    except Exception:
+        db.rollback()
+        for base, relative in stored_paths:
+            try:
+                (base / relative).unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
     for row in created:
         db.refresh(row)
         row.team = team
@@ -130,19 +199,24 @@ def list_team_archive_images(
     skip: int = 0,
     limit: int = 200,
 ):
+    if skip < 0 or not 1 <= limit <= 500:
+        raise HTTPException(status_code=422, detail="Invalid archive page")
+    if (year is not None and not 1 <= year <= 9999) or (month is not None and not 1 <= month <= 12) or (day is not None and not 1 <= day <= 31):
+        raise HTTPException(status_code=422, detail="Invalid upload date filter")
     q = db.query(TeamArchiveImage).options(joinedload(TeamArchiveImage.team), joinedload(TeamArchiveImage.uploader))
     if user.role in (UserRole.TEAM_LEADER.value, UserRole.TEAM_MEMBER.value):
         q = q.filter(TeamArchiveImage.team_id == user.team_id) if user.team_id else q.filter(False)
     elif team_id:
         q = q.filter(TeamArchiveImage.team_id == team_id)
-    rows = q.order_by(TeamArchiveImage.capture_date.desc(), TeamArchiveImage.id.desc()).all()
+    rows = q.order_by(TeamArchiveImage.uploaded_at.desc(), TeamArchiveImage.id.desc()).all()
 
     def matches(row: TeamArchiveImage) -> bool:
-        if year and row.capture_date.year != year:
+        filed = archive_upload_date(row.uploaded_at)
+        if year and filed.year != year:
             return False
-        if month and row.capture_date.month != month:
+        if month and filed.month != month:
             return False
-        if day and row.capture_date.day != day:
+        if day and filed.day != day:
             return False
         return True
 

@@ -42,7 +42,7 @@ import { LOCAL_FILE_SENTINEL } from '../offline/types';
 
 interface Props {
   image: ImageRow;
-  onUpload: (file: File, meta: { captureDate?: string; captureTime?: string; latitude?: number; longitude?: number }) => void;
+  onUpload: (file: File, meta: { captureDate?: string; captureTime?: string; latitude?: number; longitude?: number; replace?: boolean; expectedChecksum?: string }) => void;
   onUpdate: (payload: Partial<ImageRow>) => void | Promise<unknown>;
   reportIncluded?: boolean;
   onClearFile: () => void;
@@ -106,6 +106,8 @@ export function ImageSlotCard({
   const handleFile = (file: File | null) => {
     if (!file) return;
     onUpload(file, {
+      replace: !!image.file_path && !queuedOnPhone,
+      expectedChecksum: image.checksum || undefined,
       captureDate: image.capture_date || undefined,
       captureTime: image.capture_time || undefined,
       latitude: image.latitude ?? undefined,

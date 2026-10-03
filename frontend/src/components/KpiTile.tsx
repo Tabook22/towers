@@ -1,6 +1,7 @@
 import { tr, useLanguage } from '../i18n';
 import { Card, CardActionArea, CardContent, Stack, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
+import { alpha, lighten } from '@mui/material/styles';
 
 export function KpiTile({
   label,
@@ -9,6 +10,7 @@ export function KpiTile({
   color = '#0d475c',
   onClick,
   hint,
+  illustrated = false,
 }: {
   label: string;
   value: ReactNode;
@@ -16,19 +18,21 @@ export function KpiTile({
   color?: string;
   onClick?: () => void;
   hint?: string;
+  illustrated?: boolean;
 }) {
   useLanguage();
   const content = (
-      <CardContent>
+      <CardContent sx={illustrated ? { p: 2.5, '&:last-child': { pb: 2.5 } } : undefined}>
         <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
           {icon && (
             <Stack
               sx={{
-                width: 44,
-                height: 44,
-                borderRadius: '50%',
-                bgcolor: `${color}1a`,
-                color,
+                width: illustrated ? 58 : 44,
+                height: illustrated ? 58 : 44,
+                borderRadius: illustrated ? '18px' : '50%',
+                bgcolor: alpha(color, .1),
+                color: theme => illustrated && theme.palette.mode === 'dark' ? lighten(color, .5) : color,
+                '& svg': { fontSize: illustrated ? 30 : 24 },
                 flexShrink: 0,
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -49,7 +53,7 @@ export function KpiTile({
         </Stack>
       </CardContent>
   );
-  return <Card sx={{ height: '100%' }}>
+  return <Card sx={{ height: '100%', ...(illustrated ? { borderRadius: '20px', border: '1px solid', borderColor: 'divider', borderTop: `3px solid ${color}`, boxShadow: 'none', backgroundImage: `linear-gradient(120deg, ${alpha(color, .06)}, transparent)` } : {}) }}>
     {onClick ? <CardActionArea onClick={onClick} sx={{ height: '100%' }} aria-label={`${label}: ${value}. ${hint || 'View details'}`}>{content}</CardActionArea> : content}
   </Card>;
 }

@@ -1,11 +1,7 @@
 import { tr, useLanguage } from '../i18n';
 import { useState } from 'react';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
-  Box,
   Button,
   Chip,
   Dialog,
@@ -25,13 +21,13 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
-import NavigationIcon from '@mui/icons-material/NavigationRounded';
+import NavigationIcon from '@mui/icons-material/DirectionsCarRounded';
 import FlagIcon from '@mui/icons-material/FlagRounded';
 import PlaceIcon from '@mui/icons-material/PlaceRounded';
 import { Link as RouterLink } from 'react-router-dom';
 import type { NextTowerStop, NextTowersPlan, NightClaimStatus } from '../api/types';
 import { StepBadge } from './StepBadge';
+import { DashboardSection } from './DashboardSection';
 
 function hoursLabel(minutes: number, stillNight: boolean): string {
   const h = minutes / 60;
@@ -90,37 +86,16 @@ export function NextTowersCard({
   };
 
   return (
-    <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap', width: '100%', pr: 1 }}>
-          <Stack direction="row" spacing={1.5}>
-            {step != null && <StepBadge n={step} />}
-            <NavigationIcon color="primary" sx={{ mt: 0.5 }} />
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Next towers tonight")}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                {plan.headline}
-              </Typography>
-              {onClaim && (
-                <Typography variant="caption" color="text.secondary">{tr("Claim a tower so the other car doesn&apos;t drive there too. Skip posts to Tonight.")}</Typography>
-              )}
-            </Box>
-          </Stack>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-            <Chip size="small" icon={<PlaceIcon />} label={hoursLabel(plan.minutes_left, plan.still_night)} variant="outlined" />
-            {plan.daily_target != null && (
-              <Chip
-                size="small"
-                icon={<FlagIcon />}
-                color={plan.behind_by != null && plan.behind_by > 0 ? 'warning' : 'success'}
-                label={tr("{0}/{1} tonight", [plan.towers_done_tonight, plan.daily_target])}
-              />
-            )}
-            <Chip size="small" label={tr("{0} still open", [plan.remaining_assigned])} />
-          </Stack>
-        </Stack>
-      </AccordionSummary>
-      <AccordionDetails>
+    <DashboardSection icon={<NavigationIcon />} tone="blue" title={tr("Next towers tonight")}
+      description={tr("See suggested next stops and coordinate which crew goes to each tower.")}
+      badge={step != null ? <StepBadge n={step} /> : undefined}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{plan.headline}</Typography>
+      {onClaim && <Alert severity="info" sx={{ mb: 1.5 }}>{tr("Claim a tower so the other car doesn&apos;t drive there too. Skip posts to Tonight.")}</Alert>}
+      <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1, mb: 2 }}>
+        <Chip size="small" icon={<PlaceIcon />} label={hoursLabel(plan.minutes_left, plan.still_night)} variant="outlined" />
+        {plan.daily_target != null && <Chip size="small" icon={<FlagIcon />} color={plan.behind_by != null && plan.behind_by > 0 ? 'warning' : 'success'} label={tr("{0}/{1} tonight", [plan.towers_done_tonight, plan.daily_target])} />}
+        <Chip size="small" label={tr("{0} still open", [plan.remaining_assigned])} />
+      </Stack>
 
         {plan.remaining_assigned === 0 && (
           <Alert severity="success">{tr("No assigned towers left open for this team.")}</Alert>
@@ -213,8 +188,7 @@ export function NextTowersCard({
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
             {plan.can_fit_tonight}{tr(" of these ")}{plan.can_fit_tonight === 1 ? tr("fits") : tr("fit")}{tr(" in the time left (about ")}{plan.dwell_minutes}{tr(" min on each tower plus driving).")}</Typography>
         )}
-      </AccordionDetails>
-    </Accordion>
+    </DashboardSection>
   );
 }
 

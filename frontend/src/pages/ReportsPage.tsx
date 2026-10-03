@@ -1,14 +1,10 @@
 import { tr, useLanguage, locale } from '../i18n';
 import { useRef, useState, type ReactNode } from 'react';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
   Chip,
-  Divider,
   MenuItem,
   Paper,
   Stack,
@@ -25,7 +21,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import UploadFileIcon from '@mui/icons-material/UploadFileRounded';
@@ -33,6 +28,12 @@ import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import FolderCopyRoundedIcon from '@mui/icons-material/FolderCopyRounded';
+import EngineeringRounded from '@mui/icons-material/EngineeringRounded';
+import InsightsRounded from '@mui/icons-material/InsightsRounded';
+import RouteRounded from '@mui/icons-material/RouteRounded';
+import DesignServicesRounded from '@mui/icons-material/DesignServicesRounded';
+import TransmissionTowerIcon from '../components/TransmissionTowerIcon';
+import { DashboardSection } from '../components/DashboardSection';
 import { ReportHistoryTable } from '../components/ReportHistoryTable';
 import {
   useAreas,
@@ -49,36 +50,13 @@ import { FieldExecutionPlanForm } from '../components/FieldExecutionPlanForm';
 import { OfficialReportForm } from '../components/OfficialReportForm';
 import { useAuth } from '../auth/AuthContext';
 
-// Secondary exports and template tools stay collapsed until needed.
-function ReportSection({
-  title,
-  useWhen,
-  defaultExpanded,
-  children,
-}: {
-  title: string;
-  useWhen: string;
-  defaultExpanded?: boolean;
-  children: ReactNode;
+// Reuse the Teams section design; children stay mounted when collapsed.
+function ReportSection({ title, useWhen, icon, tone = 'teal', defaultExpanded = false, children }: {
+  title: string; useWhen: string; icon: ReactNode;
+  tone?: 'teal' | 'green' | 'blue' | 'violet' | 'amber';
+  defaultExpanded?: boolean; children: ReactNode;
 }) {
-  useLanguage();
-  return (
-    <Accordion defaultExpanded={defaultExpanded} disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-        <Box>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            {title}
-          </Typography>
-        </Box>
-      </AccordionSummary>
-      <AccordionDetails>
-        <Alert severity="info" icon={false} sx={{ mb: 2 }}>
-          <strong>{tr("Use this when:")}</strong> {useWhen}
-        </Alert>
-        {children}
-      </AccordionDetails>
-    </Accordion>
-  );
+  return <DashboardSection title={title} description={useWhen} icon={icon} tone={tone} defaultExpanded={defaultExpanded}>{children}</DashboardSection>;
 }
 
 // One kind's upload/replace/remove/download-starter controls — used twice below (Word, PDF form)
@@ -118,12 +96,13 @@ function TemplateSlot({
   };
 
   return (
-    <Box>
+    <Box sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>{kind === 'pdf' ? <PictureAsPdfIcon color="primary" /> : <DescriptionRoundedIcon color="primary" />}<Chip size="small" variant="outlined" label={kind === 'pdf' ? 'PDF' : 'Word'} /></Stack>
       <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }}>
         {label}
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-        {description}
+        {tr(description)}
       </Typography>
 
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -174,7 +153,7 @@ function TemplateSlot({
             variant="text"
             color="error"
             startIcon={<DeleteOutlineIcon fontSize="small" />}
-            onClick={() => deleteTemplate.mutate(kind)}
+            onClick={() => { setUploadError(null); deleteTemplate.mutate(kind, { onError: () => setUploadError(tr('Could not remove the template. Please try again.')) }); }}
             disabled={deleteTemplate.isPending}
           >{tr("Remove")}</Button>
         )}
@@ -215,37 +194,39 @@ export function ReportsPage() {
   const overallReportUrl = mediaUrl(`/api/reports/overall.pdf${area ? `?area=${encodeURIComponent(area)}` : ''}`);
 
   return (
-    <Stack spacing={3}>
-      <Box sx={{ p: { xs: 3, md: 4 }, borderRadius: '22px', color: '#fff', position: 'relative', overflow: 'hidden', background: 'radial-gradient(ellipse at 95% 0%, #246d76 0%, transparent 55%), linear-gradient(115deg, #102c3b, #123c48)', '&::after': { content: '""', position: 'absolute', width: 280, height: 280, border: '1px solid #ffffff12', borderRadius: '50%', right: -90, bottom: -190, pointerEvents: 'none' } }}>
+    <Stack spacing={2.5}>
+      <Box sx={{ p: { xs: 2.5, md: 3 }, borderRadius: '22px', color: '#fff', position: 'relative', overflow: 'hidden', background: 'radial-gradient(ellipse at 95% 0%, #246d76 0%, transparent 55%), linear-gradient(115deg, #102c3b, #123c48)', '&::after': { content: '""', position: 'absolute', width: 280, height: 280, border: '1px solid #ffffff12', borderRadius: '50%', right: -90, bottom: -190, pointerEvents: 'none' } }}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, position: 'relative', zIndex: 1 }}>
           <Box>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}><FolderCopyRoundedIcon sx={{ fontSize: 19, color: '#76d5c6' }} /><Typography variant="overline" sx={{ color: '#9fe4da', letterSpacing: 2 }}>{tr("Inspection intelligence")}</Typography></Stack>
-            <Typography variant="h3" component="h1" sx={{ fontWeight: 750, letterSpacing: '-0.04em', fontSize: { xs: 32, md: 40 }, mb: 1 }}>{tr("Every inspection. Clearly reported.")}</Typography>
+            <Typography variant="h3" component="h1" sx={{ fontWeight: 750, letterSpacing: '-0.04em', fontSize: { xs: 27, md: 32 }, mb: 1 }}>{tr("Every inspection. Clearly reported.")}</Typography>
             <Typography sx={{ color: '#bed3dc', maxWidth: 650 }}>{tr("Your reporting workspace. Create customer-ready documents and keep every saved report within reach.")}</Typography>
           </Box>
           {canManageProjectPlans && <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setTab('create')} sx={{ bgcolor: '#b9f2df', color: '#103b35', px: 2.5, py: 1.3, flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' }, '&:hover': { bgcolor: '#d6f9ed' } }}>{tr("Create report")}</Button>}
         </Stack>
       </Box>
-      <Tabs value={tab} onChange={(_, value) => setTab(value)} aria-label={tr("Reporting workspace")} variant="scrollable" sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tab value="library" label={tr("Report library")} id="report-tab-library" aria-controls="report-panel-library" />
-        {canManageProjectPlans && <Tab value="create" label={tr("Create report")} id="report-tab-create" aria-controls="report-panel-create" />}
-        <Tab value="tools" label={tr("Exports & templates")} id="report-tab-tools" aria-controls="report-panel-tools" />
+      <Tabs value={tab} onChange={(_, value) => setTab(value)} aria-label={tr("Reporting workspace")} variant="scrollable" sx={{ '& .MuiTabs-indicator': { display: 'none' }, '& .MuiTabs-list': { gap: 1.5 }, '& .MuiTab-root': { flex: 1, minWidth: { xs: 170, sm: 200 }, maxWidth: 'none', alignItems: 'flex-start', textAlign: 'start', border: '1px solid', borderColor: 'divider', borderRadius: '14px', bgcolor: 'background.paper', p: 1.5, minHeight: 88, textTransform: 'none', '&.Mui-selected': { borderColor: 'primary.main', bgcolor: 'action.hover', boxShadow: 'inset 0 3px 0 currentColor' }, '&.Mui-focusVisible': { outline: '3px solid', outlineColor: 'primary.main', outlineOffset: -4 } } }}>
+        <Tab value="library" icon={<FolderCopyRoundedIcon />} label={<Box><Typography component="span" sx={{ display: 'block', fontWeight: 800, mb: .5 }}>{tr("Report library")}</Typography><Typography component="span" variant="caption" color="text.secondary">{tr("Find saved reports, review evidence and download documents.")}</Typography></Box>} id="report-tab-library" aria-controls="report-panel-library" />
+        {canManageProjectPlans && <Tab value="create" icon={<DescriptionRoundedIcon />} label={<Box><Typography component="span" sx={{ display: 'block', fontWeight: 800, mb: .5 }}>{tr("Create report")}</Typography><Typography component="span" variant="caption" color="text.secondary">{tr("Choose the scope, add findings and prepare the customer report.")}</Typography></Box>} id="report-tab-create" aria-controls="report-panel-create" />}
+        <Tab value="tools" icon={<DesignServicesRounded />} label={<Box><Typography component="span" sx={{ display: 'block', fontWeight: 800, mb: .5 }}>{tr("Exports & templates")}</Typography><Typography component="span" variant="caption" color="text.secondary">{tr("Explore team activity, tower exports and document templates.")}</Typography></Box>} id="report-tab-tools" aria-controls="report-panel-tools" />
       </Tabs>
-      <Box role="tabpanel" id="report-panel-library" aria-labelledby="report-tab-library" hidden={tab !== 'library'}><ReportHistoryTable key={libraryVersion} /></Box>
-      {canManageProjectPlans && <Box role="tabpanel" id="report-panel-create" aria-labelledby="report-tab-create" hidden={tab !== 'create'}><Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: '16px' }}><OfficialReportForm showHistory={false} onCreated={() => { setCreated(true); setLibraryVersion((n) => n + 1); setTab('library'); }} /></Paper></Box>}
+      <Box role="tabpanel" id="report-panel-library" aria-labelledby="report-tab-library" hidden={tab !== 'library'}><ReportHistoryTable key={libraryVersion} onCreate={canManageProjectPlans ? () => setTab('create') : undefined} /></Box>
+      {canManageProjectPlans && <Box role="tabpanel" id="report-panel-create" aria-labelledby="report-tab-create" hidden={tab !== 'create'}><Box><OfficialReportForm showHistory={false} onCreated={() => { setCreated(true); setLibraryVersion((n) => n + 1); setTab('library'); }} /></Box></Box>}
       <Box role="tabpanel" id="report-panel-tools" aria-labelledby="report-tab-tools" hidden={tab !== 'tools'}>
       <Stack spacing={2}>
 
       <ReportSection
         title={tr("Team activity report")}
-        useWhen="you just want to see or export what a team has actually done so far — not the customer template, a plain internal breakdown you can filter and download as Excel."
+        icon={<EngineeringRounded />} tone="green"
+        useWhen={tr("Follow each team’s visits, readings and evidence. Export the activity to Excel.")}
       >
         <TeamActivityReport />
       </ReportSection>
 
       <ReportSection
         title={tr("Overall summary (PDF)")}
-        useWhen="you want a quick internal snapshot PDF across all towers (optionally one area) — a fast status check for yourself, not something to hand the customer."
+        icon={<InsightsRounded />} tone="blue"
+        useWhen={tr("Download an internal snapshot of tower progress across all areas or one selected area.")}
       >
         <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
           <TextField
@@ -277,7 +258,8 @@ export function ReportsPage() {
       {canManageProjectPlans && (
         <ReportSection
           title={tr("Field execution plan")}
-          useWhen="you're mobilizing and need a plan document showing tower/team counts and a day-by-day schedule — a planning tool, not an inspection report."
+          icon={<RouteRounded />} tone="amber"
+        useWhen={tr("Prepare the mobilization document with tower counts, teams and a daily schedule.")}
         >
           <FieldExecutionPlanForm />
         </ReportSection>
@@ -286,17 +268,15 @@ export function ReportsPage() {
       {canManageProjectPlans && (
       <ReportSection
         title={tr("Custom report templates")}
-        useWhen="you want reports in your own branded layout (logo, colors, fonts) instead of the built-in one — advanced, and not needed for the official customer report in Create report, which already uses the customer's own fixed template."
+        icon={<DesignServicesRounded />} tone="violet"
+        useWhen={tr("Manage branded Word and PDF layouts for custom tower exports.")}
       >
-        <Stack spacing={2.5} divider={<Divider />}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
           <TemplateSlot
             kind="docx"
             label={tr("Word template")}
             accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            description={
-              'A Word (.docx) mail-merge template — full layout freedom, and it supports a repeating table row ' +
-              'per position automatically.'
-            }
+            description={tr("A flexible Word layout with an automatically repeating row for each inspection position.")}
             template={templates?.docx}
             loading={templatesLoading}
             canRemove={canRemoveTemplate}
@@ -305,22 +285,19 @@ export function ReportsPage() {
             kind="pdf"
             label={tr("PDF template")}
             accept=".pdf,application/pdf"
-            description={
-              'A fillable PDF form — design the page and place named form fields (in Acrobat, LibreOffice, or ' +
-              'a similar PDF form editor); since a PDF form can’t repeat rows the way Word can, the starter ' +
-              'gives one fixed field per position slot (1–12) instead of a loop.'
-            }
+            description={tr("A fixed PDF form with named fields. The starter includes position slots 1–12.")}
             template={templates?.pdf}
             loading={templatesLoading}
             canRemove={canRemoveTemplate}
           />
-        </Stack>
+        </Box>
       </ReportSection>
       )}
 
       <ReportSection
         title={tr("Per-tower reports")}
-        useWhen="you want a one-off PDF or Word download for a single tower's latest visit only — not the official customer report in Create report."
+        icon={<TransmissionTowerIcon />} tone="teal"
+        useWhen={tr("Download the latest visit for one tower as a PDF or a custom document.")}
       >
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
@@ -397,7 +374,7 @@ export function ReportsPage() {
       </ReportSection>
       </Stack>
       </Box>
-      <Snackbar open={created} autoHideDuration={6000} onClose={() => setCreated(false)} message="Report created and saved to your library. Your download is ready." />
+      <Snackbar open={created} autoHideDuration={6000} onClose={() => setCreated(false)} message={tr("Report created and saved to your library. Your download is ready.")} />
     </Stack>
   );
 }

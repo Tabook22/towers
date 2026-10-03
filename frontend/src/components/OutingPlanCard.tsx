@@ -1,9 +1,6 @@
 import { tr, useLanguage, locale } from '../i18n';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -17,19 +14,19 @@ import {
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpwardRounded';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownwardRounded';
 import CheckCircleIcon from '@mui/icons-material/CheckCircleRounded';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import HourglassBottomIcon from '@mui/icons-material/HourglassBottomRounded';
 import MapRoundedIcon from '@mui/icons-material/MapRounded';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
 import { useOutingPlan, useSaveOutingPlan } from '../api/hooks';
 import type { TeamJobMapTower, Tower } from '../api/types';
 import { StepBadge } from './StepBadge';
+import { DashboardSection } from './DashboardSection';
 
 // t.status is the tower's INSPECTION progress this team has made on it (has a Visit been started
 // yet?) — nothing to do with whether it's assigned to the team or picked for tonight's mission.
 // Green tick = inspected, red = not inspected yet, amber = started but not finished.
 const VISIT_STATUS_CONFIG: Record<TeamJobMapTower['status'], { label: string; color: string; icon: React.ReactElement }> = {
-  completed: { label: 'Inspected', color: '#2e7d32', icon: <CheckCircleIcon fontSize="small" /> },
+  completed: { label: 'Ready for review', color: '#2e7d32', icon: <CheckCircleIcon fontSize="small" /> },
   in_progress: { label: 'In progress', color: '#f57c00', icon: <HourglassBottomIcon fontSize="small" /> },
   pending: { label: 'Not inspected yet', color: '#d32f2f', icon: <RadioButtonUncheckedIcon fontSize="small" /> },
 };
@@ -151,29 +148,17 @@ export function OutingPlanCard({
     endTime !== (plan?.end_time || '').slice(0, 5) ||
     JSON.stringify(selected) !== JSON.stringify(plan?.tower_ids || []);
 
-  const title = name.trim() || plan?.name || "Tonight's mission";
+  const title = name.trim() || plan?.name || tr("Tonight's mission");
 
   return (
-    <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1, width: '100%', pr: 1 }}>
-          {step != null && <StepBadge n={step} />}
-          <MapRoundedIcon color="primary" />
-          <Box sx={{ flex: 1, minWidth: 200 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Mission plan")}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              {canEdit ? tr("Name tonight’s mission, pick the towers to visit, and set the order. The crew sees this list on the map and in Next towers.") : title}
-            </Typography>
-          </Box>
-          <Chip
-            color={selected.length ? 'primary' : 'default'}
-            label={
-              selected.length ? tr("{0} · {1} tower{2}", [title, selected.length, selected.length === 1 ? '' : tr("s")]) : tr("No towers yet")
-            }
-          />
-        </Stack>
-      </AccordionSummary>
-      <AccordionDetails>
+    <DashboardSection tone="amber" icon={<MapRoundedIcon />} title={tr("Mission plan")}
+      eyebrow={tr("PLAN THE FIELDWORK")}
+      description={canEdit ? tr("Choose the towers, set the visit order and save one plan for your team.") : tr("See this mission’s towers and follow the planned visit order.")}
+      badge={<Stack direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        {step != null && <StepBadge n={step} />}
+        <Chip size="small" label={selected.length ? tr("{0} · {1} tower{2}", [title, selected.length, selected.length === 1 ? '' : tr("s")]) : tr("No towers yet")} sx={{ color: '#fff', bgcolor: '#ffffff20', maxWidth: '100%', '& .MuiChip-label': { whiteSpace: 'normal', py: .5 }, height: 'auto' }} />
+      </Stack>}>
+
         {pool.length === 0 && (
           <Alert severity="info">
             {catalogTowers ? tr("No active towers exist yet — add towers on the Towers page first.") : tr("No towers are assigned to this team yet. An admin must assign towers on the Towers page first; then the leader can plan tonight’s mission.")}
@@ -337,7 +322,6 @@ export function OutingPlanCard({
             )}
           </>
         )}
-      </AccordionDetails>
-    </Accordion>
+    </DashboardSection>
   );
 }

@@ -79,6 +79,30 @@ Focused coverage is in `backend/tests/test_visit_entry.py`, `backend/tests/test_
 `frontend/tests/visitEntry.test.mjs` and `frontend/tests/visitWorkflow.test.mjs`, alongside the
 existing official-report and evidence tests.
 
+### Starting inspections without accidental duplicates
+
+Both visit-creation endpoints accept an optional UUID `request_token`. The client retains the
+token and original request on this device until a response confirms the created visit. Repeating
+that request returns the same visit and does not create another position/image checklist. Tokens
+are scoped to the signed-in account; using one with a different request is rejected. A late retry
+after deliberate deletion is rejected instead of recreating the inspection.
+
+The team tower-work **Start inspection** action also sends `resume_existing: true`, which opens
+the newest visit for that tower, team and inspection date if one exists. Concurrent starts from
+different crew accounts therefore converge on the same visit. Explicit **New repeat visit** entry
+continues to create a separate inspection after confirmation of its creation response. Clients
+without a request token retain the original creation behavior. Mission numbering is allocated
+under a team transaction lock, preserving existing numbers while preventing simultaneous new
+requests from calculating the same number.
+
+Inspection and planning date defaults follow the Oman calendar (`Asia/Muscat`) even when a
+device uses a different timezone. Archive batches validate actual image bytes and per-file size
+before storing any files. The new `visit_creation_requests` table is created at startup; its
+receipts are excluded from exported backups, and earlier backup schemas remain importable.
+Deploy frontend and backend together. Coverage: `backend/tests/test_visit_creation.py`,
+`backend/tests/test_team_archive_upload.py`, `backend/tests/test_backups.py`,
+`frontend/tests/visitCreation.test.mjs`, and `frontend/tests/teamTowerWork.test.mjs`.
+
 ## Dashboard tower history
 
 Click **Towers** in **At a glance** to see visited towers and their visit history, including
@@ -139,7 +163,8 @@ pytest                        # ID-generation and roll-up calculation tests
 The Reports page opens on saved official reports. Search by report number, team, tower or line;
 filter by team, tower, report type and overlapping inspection dates; and sort by creation date,
 inspection date, team, tower or report number. Open documents in the viewer, download Word files,
-or delete a report after confirmation if your role permits it. Deleting a report retains field
+or open the guided **Overview → Inspection data → Evidence → Discussion** review workspace.
+Authorized accounts can also delete a report after confirmation. Deleting a report retains field
 inspections and original evidence images.
 
 New reports snapshot their tower membership so filters remain accurate after tower reassignment
@@ -151,6 +176,22 @@ archive each team section separately; the combined document downloads at generat
 
 Frontend filter/error regression tests: `cd frontend` then `npm test`.
 
+Internal and customer accounts share the accessible, paginated report library. Advanced filters
+are optional; latest-reply filters identify conversations whose last message came from the other
+side, not an unread count or a formal approval status. Comments refresh every 30 seconds while
+the Discussion step is active, retain drafts between steps, and prevent repeated submissions.
+
+Newly generated official reports freeze customer-safe readings, notes, equipment/environment
+details per visit, selected evidence references, and the original assessment. The review screen
+and **Inspection data · PDF** register use that issue-time snapshot. Older reports are explicitly
+labelled when no snapshot exists; no historical copy is fabricated from current field data.
+Online assessment/sign-off edits do not change the archived Word document or register: issue a
+new report for a revised deliverable. The supplied official Word template's layout is preserved.
+
+Visit PDFs include wrapping field details and selected photographs; overall PDFs repeat table
+headers across pages and wrap long tower names. Unicode exports require Arial (Windows) or
+DejaVu Sans (Linux). Snapshot/permissions/PDF regressions: `pytest tests/test_report_snapshot.py`.
+
 ## Image archive
 
 The archive collects every page of inspection images and field photos, grouped by team, tower,
@@ -160,9 +201,9 @@ Capture months do not split one insulator's evidence into separate groups. Untag
 remain visible under their tower. Search, team/tower filters, capture dates and inspection order
 help navigate the collection; missing capture dates fall back to inspection or upload dates.
 
-The report library's image action opens the archive filtered to the image references recorded
-when that report was generated. Older reports without recorded references may show no matches;
-clear the report filter to browse all uploads. References point to current image rows, so the
+The report review's Evidence step shows image references recorded when the report was generated.
+Checksums flag replacements where the original checksum is known; legacy images are labelled
+unverified. References point to current image rows, so the
 archived report document remains the record of the exact images embedded at generation time.
 Archive regression tests: `cd backend` then `pytest tests/test_archive_completeness.py`.
 
@@ -173,6 +214,32 @@ Previous files remain on disk for recovery. Primary slots are selected ahead of 
 when generating reports. Generate a new report to include replacements; existing saved documents
 are unchanged. Invalid images and stale replacement requests are rejected.
 Replacement/report regression tests: `pytest tests/test_archive_replace.py`.
+
+## Faster tower inspection entry
+
+Open a visit's **Visual tower form** and use **Quick inspection** (the default).
+Check Drawing setup once, then tap a string on the compact tower navigator. Enter its screening
+result, Tmax/Tref and evidence in the same editor; use **Next incomplete position** to continue.
+Voice notes, position configuration and official-report fields remain available as disclosures.
+**Detailed worksheet** retains the full drawing for inspectors who prefer it. Review and confirm
+the whole visit once, or use Finish later to retain the working draft.
+
+Only the chosen viewing side is prepared. Front/back, OHL, direction, phase and string identities
+remain separate; switching the drawing never copies observations or relabels existing evidence.
+Shared asset details fills manufacturer, installation year and insulator type for the current
+view, with "Fill empty fields only" enabled by default. Measurements and findings are never copied.
+
+Identical photo bytes for the same position/category are reused instead of creating another
+image. Different positions, categories and visits remain separate. Confirmation checks the
+evidence IDs shown during review; files added in another tab require a fresh review. Invalid
+temperature input blocks navigation/confirmation, and invalid image files are rejected before
+being marked complete. No historical duplicates are deleted or merged automatically.
+Draft evidence requirements update immediately after a result change, following the same rules
+as the server (for example, close-up categories are optional for Normal). Existing images and
+explicit recapture flags are preserved. Temperature entry accepts Arabic and Western digits.
+
+Regression coverage: `pytest tests/test_visit_entry.py tests/test_visit_workflow.py` in backend;
+`node --test tests/*.test.mjs` in frontend, including draft-navigation isolation and conflict tests.
 
 ## Shared conversation
 

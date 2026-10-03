@@ -1,7 +1,7 @@
 import { tr, useLanguage } from '../i18n';
 import { MenuItem, Stack, TextField, Typography } from '@mui/material';
 import type { ChoiceLists, Position } from '../api/types';
-import { deriveDirectionFromArea } from '../utils/direction';
+
 
 /** Configuration fields share the parent position's unsaved draft. */
 export function PositionConfiguration({ position, lists, towerArea, onChange }: {
@@ -12,10 +12,13 @@ export function PositionConfiguration({ position, lists, towerArea, onChange }: 
   return <Stack spacing={1.5} sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
     <Typography variant="subtitle2">{tr("Position configuration")}</Typography>
     <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1.5 }}>
+      <TextField select size="small" label={tr('Viewing side')} value={position.view_side || 'Unspecified'} onChange={e => onChange({ view_side: e.target.value })} sx={{ minWidth: 180 }}>
+        <MenuItem value="Unspecified">{tr('View not recorded')}</MenuItem><MenuItem value="Front">{tr('Front view')}</MenuItem><MenuItem value="Back">{tr('Back view')}</MenuItem>
+      </TextField>
       <TextField select size="small" label={tr("Tower type")} value={position.mount_type || ''} onChange={e => {
         const mount_type = e.target.value;
-        const direction = mount_type === 'Suspension' && !position.direction ? deriveDirectionFromArea(towerArea, lists.direction) : null;
-        onChange({ mount_type, ...(direction ? { direction } : {}) });
+        const direction = mount_type === 'Suspension' && !position.direction ? 'NA' : null;
+        onChange({ mount_type, ...(direction ? { direction } : {}), ...(mount_type !== 'Suspension' && position.direction === 'NA' ? { direction: null } : {}) });
       }} sx={{ minWidth: 140 }}>
         {lists.mount_type.map(value => <MenuItem key={value} value={value}>{tr(value)}</MenuItem>)}
       </TextField>
@@ -34,9 +37,9 @@ export function PositionConfiguration({ position, lists, towerArea, onChange }: 
         <MenuItem value="S1">{position.string_count === 'Double' ? tr("S1 — Outer") : tr("S1")}</MenuItem>
         {(position.string_count === 'Double' || position.string === 'S2') && <MenuItem value="S2">{tr("S2 — Inner")}</MenuItem>}
       </TextField>
-      <TextField select size="small" label={tr("Direction")} value={position.direction || ''} onChange={e => onChange({ direction: e.target.value })} sx={{ minWidth: 140 }}>
-        {[...new Set([...lists.direction, ...(position.direction ? [position.direction] : [])])].map(value => <MenuItem key={value} value={value}>{tr(value)}</MenuItem>)}
-      </TextField>
+      {position.mount_type === 'Suspension' ? <TextField size="small" label={tr('Line')} value={towerArea || tr('Not needed for Suspension')} slotProps={{ input: { readOnly: true } }} /> : <TextField select size="small" label={tr("Direction")} value={position.direction || ''} onChange={e => onChange({ direction: e.target.value })} sx={{ minWidth: 140 }}>
+        {[...new Set([...lists.direction, ...(position.direction && position.direction !== 'NA' ? [position.direction] : [])])].map(value => <MenuItem key={value} value={value}>{tr(value)}</MenuItem>)}
+      </TextField>}
     </Stack>
   </Stack>;
 }

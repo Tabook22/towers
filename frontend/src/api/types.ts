@@ -46,6 +46,7 @@ export interface TowerWithStats extends Tower {
 }
 
 export interface ImageRow {
+  view_side?: string | null;
   id: number;
   position_id: number;
   image_type: 'TH Full' | 'TH Close' | 'RGB Full' | 'RGB Close';
@@ -85,6 +86,7 @@ export interface ImageRow {
 }
 
 export interface Position {
+  view_side?: string;
   in_scope?: boolean;
   prepared_only?: boolean;
   updated_at: string;
@@ -125,6 +127,7 @@ export interface Position {
 }
 
 export interface PositionSlot {
+  view_side?: string;
   ohl: string;
   phase: string;
   string: string;
@@ -145,6 +148,7 @@ export interface VisitRollup {
 }
 
 export interface Visit {
+  has_working_draft?: boolean;
   id: number;
   tower_id: number;
   inspection_date: string | null;
@@ -319,6 +323,9 @@ export interface LineInspectionReportOut {
   has_file: boolean;
   image_count: number;
   comment_count: number;
+  has_inspection_snapshot?: boolean;
+  last_comment_role?: string | null;
+  last_comment_at?: string | null;
 }
 
 export interface LineInspectionReportUpdate {
@@ -345,6 +352,30 @@ export interface ReportImageOut {
   area: string | null;
   capture_date: string | null;
   capture_time: string | null;
+  version_status?: 'unchanged' | 'changed' | 'unverified';
+  sequence?: number;
+}
+
+export type ReportValue = string | number | boolean | null;
+export interface InspectionSnapshot {
+  version: number;
+  team_name: string;
+  assessment: Record<string, ReportValue>;
+  visits: (Record<string, ReportValue | SnapshotPosition[]> & { id: number; tower: string; inspection_date: string | null; positions: SnapshotPosition[] })[];
+}
+export interface SnapshotPosition {
+  [key: string]: ReportValue | SnapshotEvidence[];
+  id: number;
+  screening_result: string | null;
+  evidence: SnapshotEvidence[];
+}
+export interface SnapshotEvidence {
+  image_id: number;
+  image_type: string;
+  checksum: string | null;
+  capture_date: string | null;
+  capture_time: string | null;
+  evidence_status: string | null;
 }
 
 // One message in a report's comment thread (see backend models.ReportComment) — how a client
@@ -367,6 +398,9 @@ export interface OetcReportPreview {
   position_count: number;
   hotspot_count: number;
   message: string | null;
+  draft_visit_count?: number;
+  uninspected_position_count?: number;
+  without_selected_evidence_count?: number;
 }
 
 export interface LoginResponse {
@@ -773,6 +807,7 @@ export interface TeamActivityImage {
 }
 
 export interface TeamActivityPosition {
+  view_side?: string | null;
   id: number;
   ohl: string;
   phase: string;
@@ -1102,6 +1137,7 @@ export interface VisitPhoto {
 // VisitPhoto plus the Team/Tower context the Image Archive page needs to fold these free-form
 // photos into the same team/tower tree as the formal checklist images (ImageRow above).
 export interface ArchiveVisitPhoto extends VisitPhoto {
+  view_side?: string | null;
   inspection_date?: string | null;
   archive_date?: string | null;
   team_id: number | null;
@@ -1143,12 +1179,14 @@ export interface TeamArchiveImage {
   id: number;
   team_id: number;
   team_name: string | null;
+  upload_date: string;
   capture_date: string;
   latitude: number | null;
   longitude: number | null;
   caption: string | null;
   content_type: string | null;
   original_filename: string | null;
+  relative_path: string | null;
   file_size: number | null;
   has_thumbnail: boolean;
   uploaded_by: number | null;

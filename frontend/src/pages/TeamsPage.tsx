@@ -1,8 +1,13 @@
 import { tr, useLanguage } from '../i18n';
+import { localInspectionDate } from '../utils/teamTowerWork';
+import { TeamInspectionGuide } from '../components/TeamInspectionGuide';
 import { useState } from 'react';
 import {
   Alert,
   Box,
+  Avatar,
+  LinearProgress,
+  InputAdornment,
   Button,
   Card,
   CardContent,
@@ -36,6 +41,14 @@ import ArchiveIcon from '@mui/icons-material/InventoryRounded';
 import MoreVertIcon from '@mui/icons-material/MoreVertRounded';
 import GroupsIcon from '@mui/icons-material/GroupsRounded';
 import BadgeIcon from '@mui/icons-material/BadgeRounded';
+import EngineeringRounded from '@mui/icons-material/EngineeringRounded';
+import TransmissionTowerIcon from '../components/TransmissionTowerIcon';
+import SearchRounded from '@mui/icons-material/SearchRounded';
+import InsightsRounded from '@mui/icons-material/InsightsRounded';
+import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
+import CalendarMonthRounded from '@mui/icons-material/CalendarMonthRounded';
+import { DashboardSection } from '../components/DashboardSection';
+import { TeamJourney } from '../components/TeamJourney';
 import { useNavigate } from 'react-router-dom';
 import {
   useAreas,
@@ -92,7 +105,7 @@ const emptyForm: TeamFormState = {
   mission_to: '',
   primary_sector: '',
   daily_target: '',
-  start_date: new Date().toISOString().slice(0, 10),
+  start_date: localInspectionDate(),
   end_date: '',
   status: 'active',
   notes: '',
@@ -147,6 +160,8 @@ export function TeamsPage() {
   const teamLeaders = (allUsers || []).filter((u) => u.role === 'team_leader');
   const teamById = new Map((teams || []).map((t) => [t.id, t.name]));
 
+  const [teamSearch, setTeamSearch] = useState('');
+  const visibleTeams = (teams || []).filter(team => `${team.name} ${team.leader_name || ''} ${team.mission || ''}`.toLocaleLowerCase().includes(teamSearch.trim().toLocaleLowerCase()));
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Team | null>(null);
   const [form, setForm] = useState<TeamFormState>(emptyForm);
@@ -367,8 +382,8 @@ export function TeamsPage() {
     <Stack spacing={3}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>{tr("Teams")}</Typography>
-          <Typography color="text.secondary">{tr("Field crews, their rosters, missions, and day-by-day progress along the line.")}</Typography>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}><Avatar sx={{ width: 54, height: 54, bgcolor: 'primary.main', color: 'primary.contrastText', borderRadius: '18px' }}><EngineeringRounded sx={{ fontSize: 34 }} /></Avatar><Typography variant="h4" sx={{ fontWeight: 800 }}>{tr("Teams")}</Typography></Stack>
+          <Typography color="text.secondary">{tr("Open a team to assign towers, continue inspections and review its work.")}</Typography>
         </Box>
         {canAddTeam && (
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>{tr("Add team")}</Button>
@@ -379,77 +394,41 @@ export function TeamsPage() {
         <Alert severity="warning">{tr("You don't have permission to view teams on this account — ask a full admin to grant it.")}</Alert>
       )}
 
-      {!blocked && <TeamActivitySummary />}
+
+      {!blocked && <TeamJourney teams={teams || []} canPlan={canManageTeams || user?.role === 'team_leader'} />}
+      {!blocked && <TeamInspectionGuide teams={teams || []} />}
 
       {!blocked && (
-      <TableContainer component={Paper} variant="outlined">
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>{tr("Team")}</TableCell>
-              <TableCell>{tr("Leader")}</TableCell>
-              <TableCell>{tr("Mission")}</TableCell>
-              <TableCell>{tr("Dates")}</TableCell>
-              <TableCell align="center">{tr("Members")}</TableCell>
-              <TableCell>{tr("Status")}</TableCell>
-              <TableCell align="right">{tr("Actions")}</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {teams?.map((t) => (
-              <TableRow key={t.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/teams/${t.id}`)}>
-                <TableCell sx={{ fontWeight: 700 }}>{t.name}</TableCell>
-                <TableCell>
-                  {t.leader_name || '-'}
-                  {t.leader_phone && (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      {t.leader_phone}
-                    </Typography>
-                  )}
-                </TableCell>
-                <TableCell sx={{ maxWidth: 280 }}>
-                  <Typography variant="body2" noWrap title={t.mission || ''}>
-                    {t.mission || '-'}
-                  </Typography>
-                  {(t.mission_from || t.mission_to) && (
-                    <Typography variant="caption" color="text.secondary">
-                      {t.mission_from || '?'} → {t.mission_to || '?'}
-                    </Typography>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {t.start_date || '-'} {t.end_date ? `→ ${t.end_date}` : ''}
-                </TableCell>
-                <TableCell align="center">{t.members.length}</TableCell>
-                <TableCell>
-                  <Chip size="small" label={t.status} color={STATUS_COLORS[t.status] || 'default'} />
-                </TableCell>
-                <TableCell align="right">
-                  {canManageTeams && (
-                    <IconButton size="small" onClick={(e) => openMenu(e, `team:${t.id}`)}>
-                      <MoreVertIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-            {!isLoading && (!teams || teams.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={7} align="center">
-                  <Stack spacing={1} sx={{ alignItems: 'center', py: 3 }}>
-                    <GroupsIcon color="disabled" fontSize="large" />
-                    <Typography color="text.secondary">{tr("No teams yet. Add one to start tracking a crew's mission and daily progress.")}</Typography>
-                  </Stack>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <DashboardSection icon={<GroupsIcon />} title={tr("Choose your team")} eyebrow={tr("YOUR FIELD CREWS")} tone="green"
+        description={tr("Open a crew to plan its route, continue tower visits and review completed work.")}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2, alignItems: { sm: 'center' } }}>
+          <TextField size="small" label={tr("Find a team or leader")} value={teamSearch} onChange={event => setTeamSearch(event.target.value)} sx={{ flex: 1 }} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRounded /></InputAdornment> } }} />
+          <Chip icon={<GroupsIcon />} label={tr("Teams: {0}", [teams?.length ?? '—'])} variant="outlined" />
+        </Stack>
+        {isLoading && <LinearProgress />}
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 330px), 1fr))', gap: 2 }}>
+          {visibleTeams.map(t => <Paper component="article" key={t.id} variant="outlined" sx={{ p: 2.5, borderRadius: '22px', borderTop: '3px solid', borderTopColor: t.status === 'active' ? 'success.main' : 'divider', display: 'flex', flexDirection: 'column', gap: 1.8 }}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+              <Avatar sx={{ width: 48, height: 48, bgcolor: 'action.hover', color: 'primary.main', borderRadius: '16px' }}><EngineeringRounded sx={{ fontSize: 30 }} /></Avatar>
+              <Box sx={{ flex: 1, minWidth: 0 }}><Typography sx={{ fontSize: '1.12rem', fontWeight: 800, overflowWrap: 'anywhere' }}>{t.name}</Typography><Chip size="small" label={tr(t.status === 'active' ? 'Active' : t.status === 'paused' ? 'Paused' : t.status === 'completed' ? 'Completed' : t.status)} color={STATUS_COLORS[t.status] || 'default'} sx={{ mt: .5 }} /></Box>
+              {canManageTeams && <IconButton size="small" aria-label={tr("Team actions: {0}", [t.name])} onClick={event => openMenu(event, `team:${t.id}`)}><MoreVertIcon /></IconButton>}
+            </Stack>
+            <Box sx={{ p: 1.5, borderRadius: '14px', bgcolor: 'action.hover' }}><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><BadgeIcon color="primary" /><Box><Typography variant="caption" color="text.secondary">{tr("Team leader")}</Typography><Typography sx={{ fontWeight: 700 }}>{t.leader_name || tr("Leader not assigned")}</Typography>{t.leader_phone && <Typography variant="caption" dir="ltr">{t.leader_phone}</Typography>}</Box></Stack></Box>
+            <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}><Chip icon={<TransmissionTowerIcon />} variant="outlined" label={tr("Assigned towers: {0}", [allTowers ? allTowers.filter(tower => tower.is_active && tower.assigned_team_id === t.id).length : '—'])} /><Chip icon={<GroupsIcon />} variant="outlined" label={tr("Members: {0}", [t.members.length])} /></Stack>
+            {t.mission && <Box><Typography variant="caption" color="text.secondary">{tr("Team brief")}</Typography><Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>{t.mission}</Typography></Box>}
+            {(t.mission_from || t.mission_to) && <Typography variant="caption" color="text.secondary">{t.mission_from || '—'} → {t.mission_to || '—'}</Typography>}
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', color: 'text.secondary' }}><CalendarMonthRounded fontSize="small" /><Typography variant="caption">{t.start_date || tr("Date not set")}{t.end_date ? ` → ${t.end_date}` : ''}</Typography></Stack>
+            <Button variant="contained" disableElevation onClick={() => navigate(`/teams/${t.id}`)} aria-label={tr("Open team: {0}", [t.name])} endIcon={<ArrowForwardRounded sx={{ transform: theme => theme.direction === 'rtl' ? 'rotate(180deg)' : 'none' }} />} sx={{ mt: 'auto', alignSelf: 'flex-start' }}>{tr("Open team")}</Button>
+          </Paper>)}
+        </Box>
+        {!isLoading && !visibleTeams.length && <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center', py: 4 }}><GroupsIcon sx={{ fontSize: 48, color: 'text.secondary' }} /><Typography color="text.secondary">{tr(teams?.length ? "No teams match your search." : "No teams yet. Add one to start tracking a crew's mission and daily progress.")}</Typography></Stack>}
+      </DashboardSection>
       )}
 
+      {!blocked && <DashboardSection defaultExpanded={false} icon={<InsightsRounded />} tone="violet" title={tr('Performance')} description={tr("Compare recorded team activity and see where follow-up is needed.")}><TeamActivitySummary /></DashboardSection>}
+
       {isAdmin && !blocked && (
-        <Card>
+        <DashboardSection defaultExpanded={false} icon={<BadgeIcon />} tone="amber" title={tr("Team leaders & logins")} description={tr("Set up leader accounts once, then connect each leader to their team.")}><Card sx={{ boxShadow: 'none' }}>
           <CardContent>
             <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>
               <Box>
@@ -514,7 +493,7 @@ export function TeamsPage() {
               </Table>
             </TableContainer>
           </CardContent>
-        </Card>
+        </Card></DashboardSection>
       )}
 
       <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={closeMenu}>
@@ -746,7 +725,7 @@ export function TeamsPage() {
               </Grid>
             </Grid>
             <TextField
-              label={tr("Mission")}
+              label={tr("Team brief")}
               multiline
               minRows={2}
               value={form.mission}

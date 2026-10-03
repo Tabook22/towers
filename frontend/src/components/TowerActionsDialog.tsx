@@ -2,7 +2,7 @@ import { tr, useLanguage } from '../i18n';
 import { useState } from 'react';
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Radio, RadioGroup, Stack, TextField, Typography } from '@mui/material';
 import CloseIcon from '@mui/icons-material/CloseRounded';
-import TowerIcon from '@mui/icons-material/CellTowerRounded';
+import TransmissionTowerIcon from './TransmissionTowerIcon';
 import GroupsIcon from '@mui/icons-material/GroupsRounded';
 import FactCheckIcon from '@mui/icons-material/FactCheckRounded';
 import InfoIcon from '@mui/icons-material/InfoOutlined';
@@ -68,7 +68,7 @@ export function TowerActionsDialog({ tower, canManage, ownTeamId, onClose, onEdi
   ];
   return <Dialog open onClose={() => { if (!pending) onClose(); }} maxWidth="sm" fullWidth aria-labelledby="tower-actions-title">
     <DialogTitle sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', pr: 7 }} id="tower-actions-title">
-      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}><TowerIcon /><Box><Typography component="span" variant="h6">{tower.tower_id}</Typography><Typography variant="body2">{details ? tr("Registered tower details") : tr("What would you like to do?")}</Typography></Box></Stack>
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}><TransmissionTowerIcon /><Box><Typography component="span" variant="h6">{tower.tower_id}</Typography><Typography variant="body2">{details ? tr("Registered tower details") : tr("What would you like to do?")}</Typography></Box></Stack>
       <IconButton aria-label={tr("Close tower actions")} disabled={pending} onClick={onClose} sx={{ position: 'absolute', right: 12, top: 14, color: 'inherit' }}><CloseIcon /></IconButton>
     </DialogTitle>
     <DialogContent sx={{ pt: '20px !important' }}>

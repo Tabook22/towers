@@ -17,6 +17,7 @@ from app.migrations import (
     backfill_visit_team_id_from_towers,
     rebuild_images_table_for_multi_image_support,
     rebuild_positions_table_for_multi_direction_support,
+    repair_obsolete_position_foreign_keys,
 )
 from app.routers import (
     backups,
@@ -55,6 +56,7 @@ with maintenance(exclusive=True, timeout=60):
     rebuild_images_table_for_multi_image_support(engine)
     rebuild_positions_table_for_multi_direction_support(engine)
     add_missing_columns(engine, Base)
+    repair_obsolete_position_foreign_keys(engine)
     backfill_report_image_selection(engine)
     backfill_areas_from_towers(engine)
     backfill_visit_team_id_from_towers(engine)

@@ -111,6 +111,7 @@ def build_team_activity_tree(visits: list[Visit]) -> list[dict]:
                     "phase": pos.phase,
                     "string": pos.string,
                     "direction": pos.direction,
+                    "view_side": pos.view_side,
                     "tower_proximity": pos.tower_proximity,
                     "position_code": pos.position_code,
                     "screening_result": pos.screening_result,
@@ -175,7 +176,7 @@ def build_team_activity_workbook(tree: list[dict]) -> bytes:
                     base = [
                         team["team_name"], day["date"], tower["tower_code"], tower["area"] or "",
                         tower["mission_seq"] or "", tower["mission_status"],
-                        pos["ohl"], pos["phase"], pos["string"], pos["direction"] or "",
+                        pos["ohl"], pos["phase"], pos["string"], (pos["direction"] or "") + " / " + (pos.get("view_side") or "Unspecified"),
                         pos["tower_proximity"] or "", pos["position_code"] or "",
                     ]
                     if not pos["images"]:

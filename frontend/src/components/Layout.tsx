@@ -32,7 +32,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import DashboardIcon from '@mui/icons-material/SpaceDashboardRounded';
-import TowerIcon from '@mui/icons-material/CellTowerRounded';
+import TransmissionTowerIcon from './TransmissionTowerIcon';
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibraryRounded';
 import AssessmentIcon from '@mui/icons-material/AssessmentRounded';
 import GroupsIcon from '@mui/icons-material/GroupsRounded';
@@ -310,6 +310,14 @@ export function Layout({ children }: { children: ReactNode }) {
   useLanguage();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const openHelp = () => {
+    if (/^\/teams(\/\d+)?\/?$/.test(location.pathname)) {
+      const params = new URLSearchParams(location.search);
+      params.set('guide', 'inspection');
+      navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+    } else navigate('/help');
+  };
   const { mode, toggleMode } = useColorMode();
   const isClient = user?.role === 'client';
   const unreadMessages = useMessagesUnreadCount();
@@ -321,7 +329,7 @@ export function Layout({ children }: { children: ReactNode }) {
   // this replaces what used to be a fixed role-based nav hardcoded here.
   const navItemDefs: { id: string; label: string; to: string; icon: ReactNode }[] = [
     { id: 'dashboard', label: tr("Dashboard"), to: '/', icon: <DashboardIcon /> },
-    { id: 'towers', label: tr("Towers"), to: '/towers', icon: <TowerIcon /> },
+    { id: 'towers', label: tr("Towers"), to: '/towers', icon: <TransmissionTowerIcon /> },
     { id: 'image_archive', label: tr("Image Archive"), to: '/archive', icon: <PhotoLibraryIcon /> },
     // A client (customer) login's report link goes to the portal page, not the staff one — see
     // App.tsx's route guard for the server-side-equivalent enforcement (app/client_guard.py).
@@ -423,7 +431,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 color="inherit"
                 size="small"
                 startIcon={<HelpOutlineIcon />}
-                onClick={() => navigate('/help')}
+                onClick={openHelp}
                 sx={{ borderRadius: 5, px: 1.5, bgcolor: 'rgba(255,255,255,0.12)', '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}
               >{tr("Help me")}</Button>
             </Tooltip>
@@ -474,7 +482,7 @@ export function Layout({ children }: { children: ReactNode }) {
               <MenuItem
                 onClick={() => {
                   setMenuAnchor(null);
-                  navigate('/help');
+                  openHelp();
                 }}
               >
                 <ListItemIcon>

@@ -76,6 +76,8 @@ def apply_position_update(db: Session, pos: Position, payload: PositionUpdate) -
     if ("string" in data or "string_count" in data) and (string not in ("S1", "S2") or (count == "Single" and string != "S1")):
         raise HTTPException(status_code=422, detail="A one-string position must use S1. Choose a valid string before saving.")
     direction = data.get("direction", pos.direction)
+    if direction == 'NA' and data.get('mount_type', pos.mount_type) != 'Suspension':
+        raise HTTPException(422, 'Direction is not applicable only for Suspension')
     if 'hotspot' in data or 'screening_result' in data:
         result = data.get('screening_result', pos.screening_result)
         hotspot = data.get('hotspot', pos.hotspot)
@@ -83,9 +85,10 @@ def apply_position_update(db: Session, pos: Position, payload: PositionUpdate) -
             raise HTTPException(422, 'Screening result and hotspot determination disagree. Review both before saving.')
     ohl = data.get("ohl", pos.ohl)
     phase = data.get("phase", pos.phase)
-    if (ohl, phase, string, direction) != (pos.ohl, pos.phase, pos.string, pos.direction):
+    view_side = data.get('view_side', pos.view_side)
+    if (ohl, phase, string, direction, view_side) != (pos.ohl, pos.phase, pos.string, pos.direction, pos.view_side):
         conflict = db.query(Position).filter(Position.visit_id == pos.visit_id, Position.ohl == ohl,
-            Position.phase == phase, Position.string == string, Position.direction == direction,
+            Position.phase == phase, Position.string == string, Position.direction == direction, Position.view_side == view_side,
             Position.id != pos.id).first()
         if conflict:
             raise HTTPException(status_code=409, detail="This OHL, phase, string and direction already have a position. Open that position instead; no data has been overwritten.")
@@ -151,7 +154,7 @@ async def add_extra_image(
     baseline slot or evidence/roll-up counting (see visit_rollup); purely additional evidence."""
     pos = _load_position(db, position_id, user)
     token = request_token if isinstance(request_token, str) else None
-    raw = await file.read()
+    raw = await file.read(settings.max_upload_size_mb * 1024 * 1024 + 1)
     # Serialize sequence allocation with other uploads/preparation without invalidating field drafts.
     db.execute(update(Position).where(Position.id == pos.id).values(updated_at=Position.updated_at))
     db.refresh(pos)
@@ -166,6 +169,11 @@ async def add_extra_image(
             return prior
     if image_type not in IMAGE_TYPE_CHOICES:
         raise HTTPException(status_code=400, detail=f"image_type must be one of {IMAGE_TYPE_CHOICES}")
+    duplicate = db.query(Image).filter(Image.position_id == pos.id, Image.image_type == image_type,
+        Image.checksum == hashlib.sha256(raw).hexdigest(), Image.file_path.isnot(None)).first()
+    if duplicate:
+        db.commit()
+        return duplicate
     if not pos.direction:
         raise HTTPException(status_code=400, detail="Set the position's Direction before uploading images")
 

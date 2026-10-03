@@ -31,6 +31,18 @@ def position_image_code(position: Position, image_type: str) -> str | None:
 
 
 def refresh_position_codes(position: Position) -> None:
+    if position.direction == 'NA' and position.mount_type != 'Suspension':
+        from fastapi import HTTPException
+        raise HTTPException(422, 'Direction is not applicable only for Suspension')
+    if position.mount_type == 'Suspension' and position.direction:
+        from fastapi import HTTPException
+        db = object_session(position)
+        if db:
+            duplicate = db.query(Position.id).filter(Position.visit_id == position.visit_id,
+                Position.ohl == position.ohl, Position.phase == position.phase, Position.string == position.string,
+                Position.mount_type == 'Suspension', Position.direction.isnot(None), Position.view_side == (position.view_side or 'Unspecified'), Position.id != position.id).first()
+            if duplicate:
+                raise HTTPException(409, 'A historical Suspension position already exists for this string. Use that position; evidence cannot be merged automatically.')
     # Enforce the workbook's invariant: an uninstalled position is always screened as
     # "Not installed" (never left at "Not inspected" or a stale real screening result).
     # Re-enabling Installed afterwards resets it to "Not inspected" so it isn't stuck.
@@ -55,6 +67,8 @@ def refresh_position_codes(position: Position) -> None:
 
     tower_id = position.visit.tower.tower_id
     pcode = position_code(tower_id, position.ohl, position.phase, position.string, position.direction)
+    if pcode and position.view_side in ('Front', 'Back'):
+        pcode += '-' + position.view_side
     position.position_code = pcode
     prepare_image_namespace(position)
 

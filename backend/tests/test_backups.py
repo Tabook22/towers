@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import Base
 from app.deps import get_current_user, get_db
-from app.models import User, Tower, Visit, Position, Image, Team, VisitPhoto, VisitEntryDraft, VisitDraftImage, ReportImage, KnowledgeDocument
+from app.models import User, Tower, Visit, Position, Image, Team, VisitPhoto, VisitEntryDraft, VisitDraftImage, ReportImage, KnowledgeDocument, VisitCreationRequest
 from app.services import backups as service, backup_jobs as jobs
 from app.backup_gate import initialize_gate, maintenance, BackupMaintenanceMiddleware
 from app.routers import backups as routes
@@ -56,6 +56,7 @@ def setup(tmp_path, monkeypatch):
                     db.add(Image(id=ident, position_id=ident, image_type='RGB Full', sequence=1, file_path=filename, thumbnail_path=filename, content_type='image/jpeg', evidence_status='COMPLETE', checksum=service.digest(settings.images_dir / filename), include_in_report=True))
                 db.add(VisitPhoto(visit_id=1, position_id=1, file_path='evidence-1.jpg', thumbnail_path='evidence-1.jpg', original_filename='Context.jpg', content_type='image/jpeg', uploaded_by=1))
                 db.add(VisitEntryDraft(id=1, visit_id=1, user_id=1, payload={'headerDraft': {'weather': 'Clear'}}, last_commit_token='SECRET-CONFIRM-TOKEN'))
+                db.add(VisitCreationRequest(user_id=1, visit_id=1, token='SECRET-CREATION-TOKEN', fingerprint='receipt'))
                 db.flush()
                 db.add(VisitDraftImage(draft_id=1, token='idempotency-only', position_key=1, image_type='RGB Full', filename='Draft.jpg', content_type='image/jpeg', file_path='evidence-1.jpg', checksum=service.digest(settings.images_dir / 'evidence-1.jpg')))
                 inline = settings.knowledge_base_dir / 'inline'; inline.mkdir()
@@ -81,12 +82,87 @@ def package(tmp_path):
     return manifest, archive, validated
 
 
+@pytest.mark.parametrize('before_creation_requests', [False, True])
+@pytest.mark.parametrize('before_report_fields', [False, True])
+def test_backup_before_viewing_sides_imports_without_assigning_old_readings(setup, before_creation_requests, before_report_fields):
+    instance, engine, directory, tmp = setup
+    folder = tmp / 'old-snapshot'
+    manifest = service.snapshot(folder)
+    database = folder / 'database.sqlite3'
+    with service.connect(database) as conn:
+        conn.execute('PRAGMA foreign_keys=OFF')
+        if before_creation_requests:
+            conn.execute('DROP TABLE visit_creation_requests')
+            manifest['counts'].pop('visit_creation_requests')
+        if before_report_fields:
+            conn.execute('ALTER TABLE line_inspection_reports DROP COLUMN inspection_snapshot')
+            conn.execute('ALTER TABLE team_archive_images DROP COLUMN relative_path')
+        ddl = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='positions'").fetchone()[0]
+        ddl = '\n'.join(line for line in ddl.splitlines() if not line.strip().startswith('view_side '))
+        ddl = ddl.replace('direction, view_side)', 'direction)').replace('CREATE TABLE positions', 'CREATE TABLE old_view_positions', 1)
+        conn.execute(ddl)
+        columns = ','.join('"'+r['name']+'"' for r in conn.execute('PRAGMA table_info(positions)') if r['name'] != 'view_side')
+        conn.execute(f'INSERT INTO old_view_positions ({columns}) SELECT {columns} FROM positions')
+        conn.execute('DROP TABLE positions')
+        conn.execute('ALTER TABLE old_view_positions RENAME TO positions')
+    manifest['schema_version'] = service.schema_signature(before_view_side=True, before_creation_requests=before_creation_requests,
+        before_report_snapshot=before_report_fields, before_archive_relative_path=before_report_fields)
+    if before_creation_requests and before_report_fields:
+        # Actual deployed release signature, not merely a fixture-derived expectation.
+        assert manifest['schema_version'] == '23922df3695b4c5c747d75db57e2fad84416d916f1a91a1c0dbd3aa375f79e72'
+    for item in manifest['members']:
+        if item['path'] == 'database.sqlite3':
+            item.update(size=database.stat().st_size, sha256=service.digest(database))
+    (folder / 'manifest.json').write_text(json.dumps(manifest), encoding='utf8')
+    archive = tmp / 'old-backup.zip'; service.pack(folder, archive)
+    original_checksum = service.digest(archive)
+    validated = tmp / 'old-validated'
+    migrated = service.validate_archive(archive, validated)
+    assert service.digest(archive) == original_checksum
+    assert migrated['schema_version'] == service.schema_signature()
+    assert migrated['source_schema_version'] == manifest['schema_version']
+    with service.connect(validated / 'database.sqlite3') as conn:
+        assert {r[0] for r in conn.execute('SELECT view_side FROM positions')} == {'Unspecified'}
+        assert service.counts(conn) == migrated['counts']
+        if before_report_fields:
+            assert conn.execute('SELECT inspection_snapshot FROM line_inspection_reports').fetchone()[0] is None
+    instance('old-backup-destination')
+    service.restore(validated, 'full', [], 'recovery-admin')
+    with service.connect(service.live_path()) as conn:
+        assert {r[0] for r in conn.execute('SELECT view_side FROM positions')} == {'Unspecified'}
+        assert service.counts(conn) == migrated['counts']
+
+
+def test_backup_before_creation_receipts_restores_without_replay_tokens(setup):
+    instance, _, _, tmp = setup
+    folder = tmp / 'before-receipts'
+    manifest = service.snapshot(folder)
+    database = folder / 'database.sqlite3'
+    with service.connect(database) as conn:
+        conn.execute('DROP TABLE visit_creation_requests')
+    manifest['counts'].pop('visit_creation_requests')
+    manifest['schema_version'] = service.schema_signature(before_creation_requests=True)
+    for item in manifest['members']:
+        if item['path'] == 'database.sqlite3':
+            item.update(size=database.stat().st_size, sha256=service.digest(database))
+    (folder / 'manifest.json').write_text(json.dumps(manifest), encoding='utf8')
+    archive = tmp / 'before-receipts.zip'; service.pack(folder, archive)
+    validated = tmp / 'before-receipts-validated'
+    migrated = service.validate_archive(archive, validated)
+    assert migrated['counts']['visit_creation_requests'] == 0
+    instance('before-receipts-destination')
+    service.restore(validated, 'full', [], 'recovery-admin')
+    with service.connect(service.live_path()) as conn:
+        assert service.counts(conn) == migrated['counts']
+        assert conn.execute('SELECT COUNT(*) FROM visits').fetchone()[0] == 2
+
+
 def test_full_roundtrip_counts_images_metadata_reports_and_credentials(setup):
     instance, engine, directory, tmp = setup
     manifest, archive, validated = package(tmp)
     with zipfile.ZipFile(archive) as z:
         raw = z.read('database.sqlite3')
-        assert b'SECRET-HASH' not in raw and b'SECRET-CONFIRM' not in raw
+        assert b'SECRET-HASH' not in raw and b'SECRET-CONFIRM' not in raw and b'SECRET-CREATION' not in raw
         assert any('Ashoor-Saada/Ashoor-Saada-66__tower-1/visit-1/images/' in p for p in z.namelist())
         assert 'RECOVERY-TEST' not in z.read('inspection-index.csv').decode('utf-8-sig')
     dest_engine, dest_dir = instance('destination')

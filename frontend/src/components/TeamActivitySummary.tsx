@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded';
-import CellTowerRounded from '@mui/icons-material/CellTowerRounded';
+import TransmissionTowerIcon from './TransmissionTowerIcon';
 import GroupsRounded from '@mui/icons-material/GroupsRounded';
 import RefreshRounded from '@mui/icons-material/RefreshRounded';
 import DescriptionRounded from '@mui/icons-material/DescriptionRounded';
@@ -114,7 +114,7 @@ export function TeamActivitySummary() {
     <Dialog open={Boolean(detail)} onClose={() => setDetail(null)} fullWidth maxWidth="md">
       <DialogTitle>{detail?.title}</DialogTitle><DialogContent dividers>
         <Stack spacing={2}>{detail?.towers.map(tower => <Paper key={tower.id} variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-          <Stack direction="row" sx={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}><Button component={Link} to={`/towers/${tower.id}`} startIcon={<CellTowerRounded />}>{tower.name}</Button>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}><Button component={Link} to={`/towers/${tower.id}`} startIcon={<TransmissionTowerIcon />}>{tower.name}</Button>
             {!detail.reportsOnly && <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>{keys.filter(k => tower[k]).map(k => <Chip key={k} size="small" label={labels[k]} color={k === 'reported' ? 'success' : 'default'} />)}</Stack>}
           </Stack>
           {!detail.reportsOnly && <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}>{tower.visit_ids?.map(id => <Button key={id} component={Link} to={`/visits/${id}`} size="small">{tr("Inspection #")}{id}</Button>)}</Stack>}

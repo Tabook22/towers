@@ -29,6 +29,8 @@ The placeholder/context contract (what a template author can reference) is:
 """
 from __future__ import annotations
 
+from app.services.position_labels import inspection_direction_label as direction_label, view_label, position_label
+
 import datetime as dt
 import io
 
@@ -101,11 +103,13 @@ def _position_context(tpl, position: Position) -> dict:
     visual = _pick_image(position, "RGB Full", "RGB Close")
     thermal = _pick_image(position, "TH Full", "TH Close")
     return {
+        "view_side": view_label(position),
+        "position_label": position_label(position),
         "position_code": position.position_code,
         "ohl": position.ohl,
         "phase": position.phase,
         "string": position.string,
-        "direction": position.direction,
+        "direction": direction_label(position),
         "tower_proximity": position.tower_proximity,
         "installed": position.installed,
         "screening_result": position.screening_result,

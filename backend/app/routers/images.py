@@ -209,6 +209,15 @@ async def apply_upload(
         raise HTTPException(status_code=413, detail=f"File exceeds {settings.max_upload_size_mb} MB limit")
     if content_type not in ACCEPTED_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {content_type}")
+    try:
+        with PILImage.open(io.BytesIO(raw)) as candidate:
+            if candidate.format not in ('JPEG', 'PNG', 'TIFF', 'WEBP'):
+                raise ValueError('Unsupported image format')
+            candidate.verify()
+        with PILImage.open(io.BytesIO(raw)) as candidate:
+            candidate.load()
+    except (UnidentifiedImageError, OSError, ValueError, PILImage.DecompressionBombError):
+        raise HTTPException(422, 'Choose a readable JPEG, PNG, TIFF or WebP image')
 
     exif = extract_exif_gps_datetime(raw)
 
@@ -264,14 +273,14 @@ async def upload_image(
 ):
     img = _load_image(db, image_id, user)
     token = request_token if isinstance(request_token, str) else None
-    raw = await file.read()
+    raw = await file.read(settings.max_upload_size_mb * 1024 * 1024 + 1)
     db.execute(update(Position).where(Position.id == img.position_id).values(updated_at=Position.updated_at))
     db.refresh(img.position)
     db.refresh(img)
     if not img.position.in_scope:
         raise HTTPException(409, 'This position is outside the prepared layout. Include it before uploading evidence.')
-    if token and img.file_path:
-        if img.upload_token == token and img.checksum == hashlib.sha256(raw).hexdigest():
+    if img.file_path:
+        if token and img.upload_token == token and img.checksum == hashlib.sha256(raw).hexdigest():
             db.commit()
             return img
         raise HTTPException(409, 'This evidence slot was filled while you were uploading. Reload and add the file as supplementary evidence; the saved image was preserved.')
@@ -302,6 +311,8 @@ async def replace_image(
     if user.role not in (UserRole.ADMIN.value, UserRole.REVIEWER.value, UserRole.TEAM_LEADER.value):
         raise HTTPException(status_code=403, detail="You cannot replace inspection evidence")
     img = _load_image(db, image_id, user)
+    db.execute(update(Position).where(Position.id == img.position_id).values(updated_at=Position.updated_at))
+    db.refresh(img)
     if not img.file_path:
         raise HTTPException(status_code=400, detail="This image slot is empty. Upload evidence from the inspection first.")
     if expected_checksum and expected_checksum != img.checksum:

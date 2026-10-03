@@ -13,6 +13,7 @@ import stat
 import uuid
 import zipfile
 from pathlib import Path, PurePosixPath
+from sqlalchemy.schema import CreateIndex, CreateTable
 
 from app.config import settings
 from app.database import Base, engine
@@ -21,7 +22,7 @@ from app.routers import live_help  # its four transient models also belong to th
 
 FORMAT_VERSION = 1
 APP_VERSION = '1.0.0'
-EXCLUDED_TABLES = {'push_subscriptions', 'thermal_edit_grants', 'live_help_presence', 'live_help_rooms', 'live_help_seats', 'live_help_signals'}
+EXCLUDED_TABLES = {'push_subscriptions', 'thermal_edit_grants', 'live_help_presence', 'live_help_rooms', 'live_help_seats', 'live_help_signals', 'visit_creation_requests'}
 EXCLUSIONS = [
     'Password hashes, login tokens, thermal editor grants and push subscriptions/keys.',
     'Environment files, server/SSH credentials, API keys, application code and server configuration.',
@@ -55,10 +56,23 @@ FILE_FIELDS = {
 }
 
 
-def schema_signature():
+def legacy_columns(*, before_view_side=False, before_report_snapshot=False, before_archive_relative_path=False):
+    return {name: {column} for name, column, missing in (
+        ('positions', 'view_side', before_view_side),
+        ('line_inspection_reports', 'inspection_snapshot', before_report_snapshot),
+        ('team_archive_images', 'relative_path', before_archive_relative_path),
+    ) if missing}
+
+
+def schema_signature(*, before_view_side=False, before_creation_requests=False,
+                     before_report_snapshot=False, before_archive_relative_path=False):
+    missing = legacy_columns(before_view_side=before_view_side, before_report_snapshot=before_report_snapshot,
+                             before_archive_relative_path=before_archive_relative_path)
     schema = {name: [(c.name, str(c.type), c.nullable, c.primary_key,
-                        sorted(f.target_fullname for f in c.foreign_keys)) for c in table.columns]
-              for name, table in sorted(Base.metadata.tables.items())}
+                        sorted(f.target_fullname for f in c.foreign_keys)) for c in table.columns
+                        if c.name not in missing.get(name, set())]
+              for name, table in sorted(Base.metadata.tables.items())
+              if not (before_creation_requests and name == 'visit_creation_requests')}
     return hashlib.sha256(json.dumps(schema, sort_keys=True).encode()).hexdigest()
 
 
@@ -121,16 +135,22 @@ def resolve_file(base, rel):
     return result
 
 
-def check_database(conn):
+def check_database(conn, *, before_view_side=False, before_creation_requests=False,
+                   before_report_snapshot=False, before_archive_relative_path=False):
+    missing = legacy_columns(before_view_side=before_view_side, before_report_snapshot=before_report_snapshot,
+                             before_archive_relative_path=before_archive_relative_path)
     if conn.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
         raise ValueError('Database integrity check failed.')
     if conn.execute("SELECT 1 FROM sqlite_master WHERE type IN ('trigger','view') OR sql LIKE '%VIRTUAL TABLE%'").fetchone():
         raise ValueError('Database contains unsupported executable schema objects.')
     actual = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
-    if actual != set(Base.metadata.tables):
+    expected = set(Base.metadata.tables) - ({'visit_creation_requests'} if before_creation_requests else set())
+    if actual != expected:
         raise ValueError('Database tables are incompatible with this application version.')
     for name, table in Base.metadata.tables.items():
-        if {r['name'] for r in conn.execute(f'PRAGMA table_info("{name}")')} != set(table.columns.keys()):
+        if name not in expected:
+            continue
+        if {r['name'] for r in conn.execute(f'PRAGMA table_info("{name}")')} != (set(table.columns.keys()) - missing.get(name, set())):
             raise ValueError(f'Incompatible database columns: {name}.')
     # Validate using the trusted application relationships, not archive-supplied constraints.
     for name, table in Base.metadata.tables.items():
@@ -158,8 +178,9 @@ def inline_references(conn):
             yield 'knowledge_documents', row['id'], 'body_html', 'knowledge_base', 'inline/' + name
 
 
-def counts(conn):
-    return {name: conn.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0] for name in Base.metadata.tables}
+def counts(conn, *, before_creation_requests=False):
+    return {name: conn.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0] for name in Base.metadata.tables
+            if not (before_creation_requests and name == 'visit_creation_requests')}
 
 
 def summary(conn):
@@ -288,14 +309,14 @@ def snapshot(destination, progress=lambda *a: None, allow_missing=False):
         index = destination / 'inspection-index.csv'
         with index.open('w', encoding='utf-8-sig', newline='') as out:
             writer = csv.writer(out)
-            writer.writerow(['Line/project','Tower','Tower ID','Visit ID','Visit date','Position ID','OHL','Phase','String','Direction','Result','Images in archive'])
+            writer.writerow(['Line/project','Tower','Tower ID','Visit ID','Visit date','Position ID','OHL','Phase','String','Direction','Result','Viewing side','Images in archive'])
             paths = {(f['root'],f['relative_path']): f['path'] for f in files}
             for visit in visits:
                 positions = conn.execute('SELECT * FROM positions WHERE visit_id=? ORDER BY ohl,phase,string,direction,id', (visit['id'],)).fetchall() or [None]
                 for pos in positions:
                     evidence = [paths.get(('images', r[0]), 'MISSING: ' + r[0]) for r in conn.execute('SELECT file_path FROM images WHERE position_id=? AND file_path IS NOT NULL', (pos['id'],))] if pos else []
                     cells = [visit['line'],visit['tower_id'],visit['tower_pk'],visit['id'],visit['inspection_date'],
-                             *([pos[k] for k in ('id','ohl','phase','string','direction','screening_result')] if pos else [''] * 6), '; '.join(evidence)]
+                             *([pos[k] for k in ('id','ohl','phase','string','direction','screening_result')] if pos else [''] * 6), (pos['view_side'] if pos and 'view_side' in pos.keys() else 'Unspecified'), '; '.join(evidence)]
                     writer.writerow(["'"+x if isinstance(x,str) and x.startswith(('=','+','-','@')) else x for x in cells])
         readme = destination / 'RESTORE.txt'
         readme.write_text(instructions(), encoding='utf-8')
@@ -341,8 +362,18 @@ def validate_archive(archive, destination, progress=lambda *a: None):
             raise ValueError('Malformed backup manifest.')
         if manifest.get('missing_files'):
             raise ValueError('This recovery snapshot records previously missing files. It is for manual recovery, not a complete import.')
-        if manifest.get('format_version') != FORMAT_VERSION or manifest.get('schema_version') != schema_signature() or manifest.get('app_version') != APP_VERSION:
+        supported = {}
+        for side in (False, True):
+            for creation in (False, True):
+                for snapshot in (False, True):
+                    for relative in (False, True):
+                        options = dict(before_view_side=side, before_creation_requests=creation,
+                                       before_report_snapshot=snapshot, before_archive_relative_path=relative)
+                        supported[schema_signature(**options)] = options
+        if manifest.get('format_version') != FORMAT_VERSION or manifest.get('schema_version') not in supported or manifest.get('app_version') != APP_VERSION:
             raise ValueError('Incompatible backup format, application or schema version.')
+        options = supported[manifest['schema_version']]
+        before_creation_requests = options['before_creation_requests']
         expected = manifest.get('members', []) + manifest.get('files', [])
         for item in expected:
             if not isinstance(item, dict) or not isinstance(item.get('path'), str) or type(item.get('size')) is not int or item['size'] < 0 or not re.fullmatch(r'[a-f0-9]{64}', str(item.get('sha256', ''))):
@@ -374,10 +405,11 @@ def validate_archive(archive, destination, progress=lambda *a: None):
                 raise ValueError('Duplicate attachment mapping.')
             lookup[key] = item
         with connect(destination / 'database.sqlite3') as conn:
-            check_database(conn)
-            if counts(conn) != manifest['counts'] or summary(conn) != manifest['visits']:
+            check_database(conn, **options)
+            if counts(conn, before_creation_requests=before_creation_requests) != manifest['counts'] or summary(conn) != manifest['visits']:
                 raise ValueError('Manifest record counts or visit index do not match the database.')
-            if any(conn.execute(f'SELECT 1 FROM "{t}" LIMIT 1').fetchone() for t in EXCLUDED_TABLES):
+            excluded = EXCLUDED_TABLES - ({'visit_creation_requests'} if before_creation_requests else set())
+            if any(conn.execute(f'SELECT 1 FROM "{t}" LIMIT 1').fetchone() for t in excluded):
                 raise ValueError('Archive contains excluded authentication records.')
             if conn.execute("SELECT 1 FROM users WHERE hashed_password != '!backup-password-excluded' OR is_active != 0 LIMIT 1").fetchone():
                 raise ValueError('Archive contains credentials or enabled source accounts.')
@@ -386,6 +418,28 @@ def validate_archive(archive, destination, progress=lambda *a: None):
             for table, pk, field, root, rel in [*file_references(conn), *inline_references(conn)]:
                 if (root, safe_relative(rel)) not in lookup:
                     raise ValueError(f'Missing required attachment: {table} #{pk}, {field}.')
+        if any(options.values()):
+            # Only the verified extracted copy is upgraded. The uploaded archive remains intact.
+            # Restore inserts into trusted current tables, so its old unique constraint is harmless.
+            with connect(destination / 'database.sqlite3') as conn:
+                if options['before_view_side']:
+                    conn.execute("ALTER TABLE positions ADD COLUMN view_side VARCHAR(16) NOT NULL DEFAULT 'Unspecified'")
+                if options['before_report_snapshot']:
+                    conn.execute('ALTER TABLE line_inspection_reports ADD COLUMN inspection_snapshot JSON')
+                if options['before_archive_relative_path']:
+                    conn.execute('ALTER TABLE team_archive_images ADD COLUMN relative_path VARCHAR(500)')
+                if before_creation_requests:
+                    conn.execute(str(CreateTable(models.VisitCreationRequest.__table__).compile(dialect=engine.dialect)))
+                    for index in models.VisitCreationRequest.__table__.indexes:
+                        conn.execute(str(CreateIndex(index).compile(dialect=engine.dialect)))
+                check_database(conn)
+                manifest['counts'] = counts(conn)
+            manifest['source_schema_version'] = manifest['schema_version']
+            manifest['schema_version'] = schema_signature()
+            database = destination / 'database.sqlite3'
+            for member in manifest['members']:
+                if member['path'] == 'database.sqlite3':
+                    member.update(size=database.stat().st_size, sha256=digest(database))
         (destination / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False), encoding='utf-8')
     return manifest
 

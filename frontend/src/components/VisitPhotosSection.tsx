@@ -4,8 +4,6 @@ import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   Dialog,
   DialogActions,
@@ -21,6 +19,8 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { DashboardSection } from './DashboardSection';
+import PhotoLibraryRounded from '@mui/icons-material/PhotoLibraryRounded';
 import UploadIcon from '@mui/icons-material/UploadFileRounded';
 import DeleteIcon from '@mui/icons-material/DeleteRounded';
 import SwapHorizIcon from '@mui/icons-material/SwapHorizRounded';
@@ -33,7 +33,7 @@ import { useOffline } from '../offline/OfflineProvider';
 
 const IMAGE_TYPES = ['TH Full', 'TH Close', 'RGB Full', 'RGB Close'];
 
-const positionLabel = (p: Position) => `${p.ohl} ${p.phase} ${p.string}${p.direction ? ` ${p.direction}` : ''}`;
+import { positionLabel } from '../utils/positionChanges';
 
 /** The free-form "drop a photo in, no setup needed" gallery on a visit — separate from the formal
  * Position/Image checklist above (which needs a position + direction + image type picked first).
@@ -177,9 +177,10 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
   );
 
   return (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>{tr("Photos")}</Typography>
+    <DashboardSection tone="violet" icon={<PhotoLibraryRounded />} title={tr("Site photos & supporting evidence")} eyebrow={tr("THE VISIT IN PICTURES")}
+      description={tr("Keep site overviews and extra photos together. Assign a photo to an official position image when needed.")}
+      defaultExpanded={false} badge={<Typography variant="caption">{tr("{0} photos · {1} queued", [photos?.length ?? 0, queuedPhotos.length])}</Typography>}>
+      <Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("Anything that doesn't fit the position checklist above — an overview shot, a site condition, anything worth attaching. Tag a photo to an insulator when uploading to keep the gallery grouped by which one it's for. Found a better shot on closer look? Use the swap icon to make it a position's official evidence image instead of uploading again.")}</Typography>
 
         <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
@@ -270,7 +271,7 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
             </Box>
           ))}
         </Stack>
-      </CardContent>
+      </Box>
 
       {lightboxPhoto && (
         <ImageLightbox
@@ -361,6 +362,6 @@ export function VisitPhotosSection({ visitId, positions }: { visitId: number; po
           </DialogActions>
         </Dialog>
       )}
-    </Card>
+    </DashboardSection>
   );
 }

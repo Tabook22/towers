@@ -37,8 +37,8 @@ from app.deps import (
     require_team_read,
     require_team_scope,
 )
-from app.models import LineInspectionReport, LocationPing, Position, Team, TeamDailyLog, TeamDailyLogFile, TeamMember, TeamOutingPlan, TeamOutingTower, Tower, TrackingMission, User, UserRole, Visit
-from app.routers.visits import _load_visit, attach_rollup, create_visit_row, delete_visit_completely
+from app.models import LineInspectionReport, LocationPing, Position, Team, TeamDailyLog, TeamDailyLogFile, TeamMember, TeamOutingPlan, TeamOutingTower, Tower, TrackingMission, User, UserRole, Visit, VisitEntryDraft, VisitDraftImage
+from app.routers.visits import _load_visit, attach_rollup, delete_visit_completely
 from app.services.channel import post_assignment_event
 from app.schemas import (
     LiveTeamMember,
@@ -80,6 +80,7 @@ from app.services.movement import build_team_progress, current_field_date, haver
 from app.utils import natural_sort_key
 from app.services.next_towers import build_next_towers
 from app.services.rollup import visit_rollup
+from app.services.visit_creation import create_visit_once
 from app.services.transcribe import transcribe_audio
 
 router = APIRouter(prefix="/api/teams", tags=["teams"])
@@ -789,7 +790,22 @@ def list_missions(team_id: int, db: Session = Depends(get_db), _user: User = Dep
         .order_by(Visit.mission_seq)
         .all()
     )
-    return [attach_rollup(v) for v in visits]
+    # Working copies remain private to their author and never change confirmed rollups.
+    drafts = db.query(VisitEntryDraft).join(Visit, Visit.id == VisitEntryDraft.visit_id).filter(
+        Visit.team_id == team_id, VisitEntryDraft.user_id == _user.id).all()
+    staged_by_draft = {}
+    if drafts:
+        for draft_id, image_id in db.query(VisitDraftImage.draft_id, VisitDraftImage.id).filter(
+                VisitDraftImage.draft_id.in_([d.id for d in drafts]), VisitDraftImage.consumed.is_(False)):
+            staged_by_draft.setdefault(draft_id, set()).add(image_id)
+    pending = set()
+    for draft in drafts:
+        payload = draft.payload or {}
+        changes = any(payload.get(key) for key in ('drafts', 'additions', 'headerDraft', 'layoutIds', 'excludedImages'))
+        retained_image = staged_by_draft.get(draft.id, set()) - set(payload.get('excludedImages') or [])
+        if changes or retained_image:
+            pending.add(draft.visit_id)
+    return [attach_rollup(v).model_copy(update={'has_working_draft': v.id in pending}) for v in visits]
 
 
 @router.post("/{team_id}/missions", response_model=VisitDetail, status_code=201)
@@ -802,11 +818,8 @@ def create_mission(
     """Creates the mission as a real Visit already tied to this team and numbered (Mission 1, 2,
     3...) — go straight to /visits/{id} afterward to run it: positions, images, screening, all of it."""
     _load_team(db, team_id)
-    next_seq = (db.query(func.max(Visit.mission_seq)).filter(Visit.team_id == team_id).scalar() or 0) + 1
     payload = payload.model_copy(update={"team_id": team_id})
-    visit = create_visit_row(payload, db, user)
-    visit.mission_seq = next_seq
-    db.commit()
+    visit = create_visit_once(payload, db, user, numbered=True)
     return attach_rollup(_load_visit(db, visit.id), detail=True)
 
 

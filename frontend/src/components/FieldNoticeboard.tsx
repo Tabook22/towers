@@ -12,7 +12,7 @@ import CheckCircleOutlineRounded from '@mui/icons-material/CheckCircleOutlineRou
 import AssignmentTurnedInRounded from '@mui/icons-material/AssignmentTurnedInRounded';
 import StickyNote2Rounded from '@mui/icons-material/StickyNote2Rounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
-import CellTowerRounded from '@mui/icons-material/CellTowerRounded';
+import TransmissionTowerIcon from './TransmissionTowerIcon';
 import ScheduleRounded from '@mui/icons-material/ScheduleRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import Inventory2Outlined from '@mui/icons-material/Inventory2Outlined';
@@ -24,6 +24,7 @@ import { NoticeEditor } from './NoticeEditor';
 import { BoardToolbar, NoticePreferences } from './NoticeDesign';
 import { noteDesign, noteTextStyle, paperStyle, useNoticeDesign } from './noticeDesignUtils';
 import { NoticeGrid } from './NoticeGrid';
+import { DashboardSection } from './DashboardSection';
 
 const appearance = {
   urgent: { label: 'Urgent', colour: '#ad3434', icon: CampaignRounded },
@@ -59,7 +60,7 @@ function NoteCard({ note, open }: { note: FieldNotice; open: () => void }) {
     </Box>
     <Box sx={{ bgcolor: '#ffffffdc', borderRadius: 1, px: 1, pb: 1, mt: 1.5, color: '#24343c' }}><Stack direction="row" sx={{ gap: .75, flexWrap: 'wrap', mt: 1.5 }}>
       <Chip size="small" label={note.team_name || t('Everyone')} sx={{ bgcolor: '#ffffffd9', color: '#24343c', fontSize: 11, maxWidth: '100%' }} />
-      {note.tower_name && <Chip size="small" icon={<CellTowerRounded />} label={note.tower_name} sx={{ bgcolor: '#ffffffd9', color: '#24343c', fontSize: 11, maxWidth: '100%' }} />}
+      {note.tower_name && <Chip size="small" icon={<TransmissionTowerIcon />} label={note.tower_name} sx={{ bgcolor: '#ffffffd9', color: '#24343c', fontSize: 11, maxWidth: '100%' }} />}
     </Stack>
     {note.owner_name && <Typography component="span" variant="caption" sx={{ display: 'block', mt: 1, fontWeight: 600 }}>{t('For')} {note.owner_name}</Typography>}
     {note.due_on && <Typography component="span" variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: .5, color: overdue ? '#ad3434' : '#40555d', mt: .7 }}><ScheduleRounded sx={{ fontSize: 14 }} />{t(overdue ? 'Overdue' : 'Due')} · {day(note.due_on)}</Typography>}
@@ -97,7 +98,7 @@ function NoticeDetail({ notice, close, followTower, edit, act, busy, error }: { 
         <Typography id={`notice-title-${notice.id}`} dir={design.direction} variant="h6" sx={{ ...noteTextStyle(notice, prefs.zoom), fontSize: (design.font_size + 3) * prefs.zoom / 100, fontWeight: 800 }}>{design.marker && <span dir="auto">{design.marker} </span>}{notice.title}</Typography>
         <Typography dir={design.direction} sx={{ ...noteTextStyle(notice, prefs.zoom), mt: 2 }}>{notice.body}</Typography>
       </Box>
-      <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}><Chip label={notice.team_name || t('Everyone · all field staff')} />{notice.tower_id && <Button component={Link} to={`/towers/${notice.tower_id}`} startIcon={<CellTowerRounded />} onClick={followTower}>{notice.tower_name}</Button>}</Stack>
+      <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}><Chip label={notice.team_name || t('Everyone · all field staff')} />{notice.tower_id && <Button component={Link} to={`/towers/${notice.tower_id}`} startIcon={<TransmissionTowerIcon />} onClick={followTower}>{notice.tower_name}</Button>}</Stack>
       {(notice.owner_name || notice.due_on || notice.expires_on) && <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
         {notice.owner_name && <Typography variant="body2"><b>{t('Action owner:')}</b> {notice.owner_name}</Typography>}
         {notice.due_on && <Typography variant="body2"><b>{t('Due:')}</b> {notice.due_on}</Typography>}
@@ -152,6 +153,7 @@ function NoticeboardContent({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { prefs, t } = useNoticeDesign();
   const location = useLocation();
+  const teamsPage = /^\/teams(\/|$)/.test(location.pathname);
   const enabled = Boolean(user && user.role !== 'client') && (location.pathname === '/' || /^\/(teams|towers|visits)(\/|$)/.test(location.pathname));
   const query = useNotices({ limit: 3 }, enabled);
   const change = useChangeNotice();
@@ -174,11 +176,11 @@ function NoticeboardContent({ children }: { children: ReactNode }) {
       <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' }, gap: 1 }}><Box><Typography variant="caption" sx={{ fontWeight: 800, letterSpacing: 1 }}>{t('FIELD ALERT')}{(query.data?.urgent_unacknowledged || 0) > 1 ? tr(" · {0} need acknowledgement", [query.data?.urgent_unacknowledged]) : ''}</Typography><Typography dir={urgent.appearance?.direction || 'auto'} sx={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{urgent.title}</Typography><Typography variant="caption">{urgent.team_name || t('All field staff')} · {t('Please read before continuing your work.')}</Typography></Box><Button variant="contained" color="error" size="small" sx={{ flexShrink: 0 }} onClick={() => open(urgent)}>{t('Read urgent notice')}</Button></Stack>
     </Alert>}
     <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 3, '@media (min-width: 1500px)': { gridTemplateColumns: 'minmax(0, 1fr) 330px', alignItems: 'start' } }}>
-      <Box sx={{ minWidth: 0, gridRow: 2, '@media (min-width: 1500px)': { gridRow: 1, gridColumn: 1 } }}>{children}</Box>
-      <Paper component="aside" dir={prefs.language == "ar" ? "rtl" : "ltr"} aria-label={tr("Field Noticeboard")} variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden', gridRow: 1, '@media (min-width: 1500px)': { gridColumn: 2, position: 'sticky', top: 88 }, bgcolor: 'background.paper' }}>
-        <Box sx={{ px: 2.25, py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><Box sx={{ display: 'grid', placeItems: 'center', width: 35, height: 35, borderRadius: 2, bgcolor: 'primary.main', color: 'primary.contrastText' }}><PushPinRounded sx={{ fontSize: 19 }} /></Box><Box><Typography sx={{ fontWeight: 800, fontSize: 17 }}>{t('Field Noticeboard')}</Typography><Typography variant="caption" color="text.secondary">{t('The briefing before the work.')}</Typography></Box></Stack>{query.data?.can_publish && <Tooltip title={tr("Publish a notice")}><IconButton aria-label={t('New notice')} onClick={() => setEditor(null)} size="small" sx={{ bgcolor: 'action.hover' }}><AddRounded /></IconButton></Tooltip>}</Stack>
-        </Box>
+      <Box sx={{ minWidth: 0, gridRow: teamsPage ? 1 : 2, '@media (min-width: 1500px)': { gridRow: 1, gridColumn: 1 } }}>{children}</Box>
+      <Paper component="aside" dir={prefs.language == "ar" ? "rtl" : "ltr"} aria-label={tr("Field Noticeboard")} variant="outlined" sx={{ borderRadius: '24px', border: 0, overflow: 'hidden', gridRow: teamsPage ? 2 : 1, '@media (min-width: 1500px)': { gridRow: 1, gridColumn: 2, position: 'sticky', top: 88 }, bgcolor: 'background.paper' }}>
+        <DashboardSection compact tone="teal" icon={<PushPinRounded />} title={t('Field Noticeboard')}
+          description={t("Read team instructions, updates and actions before heading out.")}>
+        {query.data?.can_publish && <Box sx={{ px: 2, pt: 1.5 }}><Button size="small" startIcon={<AddRounded />} onClick={() => setEditor(null)}>{t('New notice')}</Button></Box>}
         <BoardToolbar />
         <Box sx={{ p: 2.25, bgcolor: prefs.board, maxHeight: { xs: 400, sm: 480 }, overflowY: 'auto', backgroundImage: 'radial-gradient(rgba(110,140,145,.13) .7px, transparent .7px)', backgroundSize: '9px 9px', '@media (min-width: 1500px)': { maxHeight: 'max(180px, calc(100vh - 365px))' } }}>
           {query.isLoading && <LinearProgress aria-label={tr("Loading noticeboard")} />}
@@ -187,6 +189,7 @@ function NoticeboardContent({ children }: { children: ReactNode }) {
           <NoticeGrid compact notes={query.data?.items || []} render={note => <NoteCard note={note} open={() => open(note)} />} />
         </Box>
         <Button fullWidth endIcon={<ArrowForwardRounded />} sx={{ py: 1.5, borderTop: '1px solid', borderColor: 'divider', borderRadius: 0 }} onClick={() => setLibrary(true)}>{t('View all notices')}{query.data?.active_count ? ` · ${query.data.active_count}` : ''}</Button>
+        </DashboardSection>
       </Paper>
     </Box>
     {library && <NoticeLibrary close={() => setLibrary(false)} open={open} canPublish={Boolean(query.data?.can_publish)} create={() => setEditor(null)} />}

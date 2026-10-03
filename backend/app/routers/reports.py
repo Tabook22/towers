@@ -51,6 +51,9 @@ from app.services.oetc_grouped_report import (
 from app.services.oetc_report import generate_report_number, render_oetc_line_report_docx, used_image_ids
 from app.services.pdf_form_reports import render_visit_report_pdf_form
 from app.services.reports import build_overall_report, build_visit_report
+from app.services.report_snapshot import capture_inspection_snapshot, snapshot_image_status
+from app.services.inspection_data_pdf import build_inspection_data_pdf
+from app.services.report_images import selected_images
 from app.services.rollup import visit_rollup
 from app.services.team_activity_report import (
     _position_has_activity,
@@ -362,15 +365,21 @@ def oetc_report_preview(
     tower_ids = {v.tower_id for v in visits}
     position_count = 0
     hotspot_count = 0
+    uninspected_count = 0
+    without_evidence_count = 0
     for v in visits:
         for pos in v.positions:
             if not _position_has_activity(pos):
                 continue
             position_count += 1
-            if pos.hotspot == "Yes":
+            if pos.screening_result in (None, 'Not inspected'):
+                uninspected_count += 1
+            if not selected_images(pos):
+                without_evidence_count += 1
+            if pos.hotspot == "Yes" or pos.screening_result == "Hotspot detected":
                 hotspot_count += 1
 
-    ok = len(visits) > 0
+    ok = position_count > 0
     return OetcReportPreview(
         ok=ok,
         team_count=len(team_ids),
@@ -378,7 +387,10 @@ def oetc_report_preview(
         visit_count=len(visits),
         position_count=position_count,
         hotspot_count=hotspot_count,
-        message=None if ok else "No visits found for this scope in that date range",
+        message=None if ok else ("Visits exist, but no reportable position observations were recorded" if visits else "No visits found for this scope in that date range"),
+        draft_visit_count=sum(v.status != 'closed' for v in visits),
+        uninspected_position_count=uninspected_count,
+        without_selected_evidence_count=without_evidence_count,
     )
 
 
@@ -468,6 +480,7 @@ def oetc_line_report(
         file_path=_save_report_file(payload.report_number, generated_at, docx_bytes),
         report_type="tower" if tower else "team",
         scope_towers=_report_tower_scope(visits),
+        inspection_snapshot=capture_inspection_snapshot(team, visits, payload),
     )
     db.add(record)
     db.flush()
@@ -516,6 +529,7 @@ def _persist_blocks(
             report_type=report_type,
             line_sector=b.area,
             scope_towers=_report_tower_scope(b.visits),
+            inspection_snapshot=capture_inspection_snapshot(b.team, b.visits, payload),
             file_path=_save_report_file(b.report_number, generated_at, b.docx_bytes),
         )
         db.add(record)
@@ -623,8 +637,8 @@ def oetc_line_report_history(
     out = []
     for r in rows:
         item = LineInspectionReportOut.model_validate(r)
-        item.team_name = r.team.name if r.team else None
-        item.tower_name = r.tower.tower_id if r.tower else None
+        item.team_name = r.inspection_snapshot['team_name'] if r.inspection_snapshot else (r.team.name if r.team else None)
+        item.tower_name = next((t['name'] for t in (r.scope_towers or []) if t['id'] == r.tower_id), r.tower.tower_id if r.tower else None)
         # Older reports have no scope snapshot. Only infer membership from recorded evidence,
         # never today's team assignments, which could include towers absent from the report.
         scope = r.scope_towers
@@ -641,8 +655,35 @@ def oetc_line_report_history(
         item.has_file = bool(r.file_path and (settings.reports_dir / r.file_path).is_file())
         item.image_count = len(r.images)
         item.comment_count = len(r.comments)
+        item.has_inspection_snapshot = r.inspection_snapshot is not None
+        if r.comments:
+            last = max(r.comments, key=lambda c: (c.created_at, c.id))
+            item.last_comment_role = last.author_role
+            item.last_comment_at = last.created_at
         out.append(item)
     return out
+
+
+@router.get("/oetc-line-report/{report_id}/inspection-data")
+def report_inspection_data(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Report not found")
+    _check_report_access(record, user)
+    return {"snapshot": record.inspection_snapshot}
+
+
+@router.get("/oetc-line-report/{report_id}/inspection-data.pdf")
+def report_inspection_data_pdf(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Report not found")
+    _check_report_access(record, user)
+    if not record.inspection_snapshot:
+        raise HTTPException(status_code=404, detail="This older report has no frozen inspection data. Use the archived document.")
+    data = build_inspection_data_pdf(record.inspection_snapshot, record.report_number, record.created_at)
+    safe_number = re.sub(r"[^A-Za-z0-9._-]+", "-", record.report_number)
+    return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{safe_number}-inspection-data.pdf"'})
 
 
 @router.get("/oetc-line-report/{report_id}/images", response_model=list[ReportImageOut])
@@ -669,7 +710,7 @@ def oetc_line_report_images(
     out = []
     for ri in rows:
         img = ri.image
-        if img is None:
+        if img is None or ri.position is None or ri.position.visit is None:
             # The snapshotted Image row was later deleted (only ever possible for a non-baseline
             # extra — see routers/images.py's delete_image) — the snapshot itself stays as a
             # permanent record that this image WAS part of the report, but there's nothing left to
@@ -689,6 +730,8 @@ def oetc_line_report_images(
                 area=tower.area,
                 capture_date=img.capture_date,
                 capture_time=img.capture_time,
+                version_status=snapshot_image_status(record.inspection_snapshot, img),
+                sequence=img.sequence,
             )
         )
     return out
@@ -706,7 +749,7 @@ def oetc_line_report_comments(
     if not record:
         raise HTTPException(status_code=404, detail="Report not found")
     _check_report_access(record, user)
-    return db.query(ReportComment).filter(ReportComment.report_id == report_id).order_by(ReportComment.created_at).all()
+    return db.query(ReportComment).filter(ReportComment.report_id == report_id).order_by(ReportComment.created_at, ReportComment.id).all()
 
 
 @router.post("/oetc-line-report/{report_id}/comments", response_model=ReportCommentOut, status_code=201)
@@ -770,6 +813,7 @@ def update_oetc_line_report(
     item.has_file = bool(record.file_path and (settings.reports_dir / record.file_path).is_file())
     item.image_count = len(record.images)
     item.comment_count = len(record.comments)
+    item.has_inspection_snapshot = record.inspection_snapshot is not None
     return item
 
 

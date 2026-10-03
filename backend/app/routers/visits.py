@@ -5,6 +5,7 @@ import datetime as dt
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import update
 
 from app.config import settings
 from app.database import get_db
@@ -21,6 +22,9 @@ from app.models import (
     UserRole,
     Visit,
     VisitPhoto,
+    VisitCreationRequest,
+    VisitEntryDraft,
+    VisitDraftImage,
 )
 from app.routers.images import apply_upload
 from app.schemas import (
@@ -48,6 +52,7 @@ from app.services.archive import (
 from app.services.codes import refresh_position_codes
 from app.services.id_gen import slugify_tower_id
 from app.services.rollup import visit_rollup
+from app.services.visit_creation import create_visit_once
 
 router = APIRouter(prefix="/api/visits", tags=["visits"])
 
@@ -136,7 +141,7 @@ def create_visit_row(payload: VisitCreate, db: Session, user: User) -> Visit:
         raise HTTPException(status_code=404, detail="Tower not found")
     _validate_assigned_member(db, payload.team_id, payload.assigned_member_id)
 
-    visit = Visit(**payload.model_dump(), created_by=user.id)
+    visit = Visit(**payload.model_dump(exclude={'request_token', 'resume_existing'}), created_by=user.id)
     db.add(visit)
     db.flush()  # get visit.id
 
@@ -165,8 +170,7 @@ def create_visit(payload: VisitCreate, db: Session = Depends(get_db), user: User
         if not tid:
             raise HTTPException(status_code=403, detail="Your login is not linked to a team yet")
         payload = payload.model_copy(update={"team_id": tid})
-    visit = create_visit_row(payload, db, user)
-    db.commit()
+    visit = create_visit_once(payload, db, user)
     return attach_rollup(_load_visit(db, visit.id), detail=True)
 
 
@@ -217,7 +221,7 @@ def prepare_positions(visit_id: int, payload: PreparePositions,
     if payload.save_template and user.role == 'team_member':
         raise HTTPException(403, 'A team leader must save the tower template')
     def key(p):
-        return (p.ohl, p.phase, p.string, p.direction)
+        return (p.ohl, p.phase, p.string, p.direction, p.view_side)
     keys = [key(slot) for slot in payload.slots]
     if len(set(keys)) != len(keys):
         raise HTTPException(422, 'The layout contains duplicate positions')
@@ -254,7 +258,7 @@ def prepare_positions(visit_id: int, payload: PreparePositions,
                 db.flush()
                 pos.images = [Image(image_type=kind, evidence_status='NOT REQUIRED') for kind in IMAGE_TYPE_CHOICES]
                 db.flush()
-            for field in ('direction', 'mount_type', 'string_count'):
+            for field in ('direction', 'mount_type', 'string_count', 'view_side'):
                 setattr(pos, field, getattr(slot, field))
             pos.in_scope = True
             pos.prepared_only = True
@@ -293,6 +297,7 @@ def add_extra_position(
             Position.phase == payload.phase,
             Position.string == payload.string,
             Position.direction == payload.direction,
+            Position.view_side == payload.view_side,
         )
         .first()
     )
@@ -305,6 +310,7 @@ def add_extra_position(
         phase=payload.phase,
         string=payload.string,
         direction=payload.direction,
+        view_side=payload.view_side,
         mount_type=payload.mount_type,
         string_count=payload.string_count,
         tower_proximity=("Outer" if payload.string == "S1" else "Inner") if payload.string_count == "Double" else None,
@@ -346,6 +352,14 @@ def delete_visit_completely(db: Session, visit: Visit) -> None:
     disk alike — then the visit row itself. Shared by delete_visit below and by teams.py's
     delete_team (a team's missions ARE its Visits — deleting the team means deleting these too).
     Caller commits; this only stages the deletes."""
+    # A delayed creation retry must never resurrect a deliberately deleted inspection.
+    db.execute(update(VisitCreationRequest).where(VisitCreationRequest.visit_id == visit.id).values(visit_id=None))
+    # SQLite deployments may have foreign-key enforcement disabled. Explicit cleanup avoids
+    # private drafts outliving their visit; leave staging bytes for safe storage cleanup rather
+    # than risk unlinking a file shared with confirmed evidence.
+    draft_ids = db.query(VisitEntryDraft.id).filter(VisitEntryDraft.visit_id == visit.id)
+    db.query(VisitDraftImage).filter(VisitDraftImage.draft_id.in_(draft_ids)).delete(synchronize_session=False)
+    db.query(VisitEntryDraft).filter(VisitEntryDraft.visit_id == visit.id).delete(synchronize_session=False)
     for pos in visit.positions:
         for img in pos.images:
             for rel_path, base_dir in (

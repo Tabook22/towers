@@ -2,9 +2,6 @@ import { tr, useLanguage, locale } from '../i18n';
 import { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -24,7 +21,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import FlagIcon from '@mui/icons-material/FlagRounded';
 import PlaceIcon from '@mui/icons-material/PlaceRounded';
 import DirectionsIcon from '@mui/icons-material/DirectionsRounded';
@@ -33,6 +29,7 @@ import { mediaUrl } from '../api/client';
 import { useContinueLastNight, useEndOuting, useTeamHandover } from '../api/hooks';
 import type { HandoverPack, HandoverTower, HandoverTowerStatus } from '../api/types';
 import { StepBadge } from './StepBadge';
+import { DashboardSection } from './DashboardSection';
 
 const STATUS_COLOR: Record<HandoverTowerStatus, 'success' | 'warning' | 'info' | 'default'> = {
   completed: 'success',
@@ -77,6 +74,7 @@ export function HandoverPackCard({
   compact,
   onShowTower,
   step,
+  defaultExpanded = true,
 }: {
   teamId: number;
   fieldDate?: string;
@@ -84,6 +82,7 @@ export function HandoverPackCard({
   compact?: boolean;
   onShowTower?: (towerPk: number, visitId: number | null) => void;
   step?: number;
+  defaultExpanded?: boolean;
 }) {
   useLanguage();
   const { data: pack, isLoading, error } = useTeamHandover(teamId, fieldDate);
@@ -120,20 +119,9 @@ export function HandoverPackCard({
 
   return (
     <>
-    <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, width: '100%', pr: 1 }}>
-          <Stack direction="row" spacing={1.5}>
-            {step != null && <StepBadge n={step} />}
-            <AssignmentReturnRoundedIcon color="primary" sx={{ mt: 0.5 }} />
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Handover")}</Typography>
-              <Typography variant="body2" color="text.secondary">{tr("Close tonight and leave the next crew a start point — unfinished towers, skips, hotspots, and notes.")}</Typography>
-            </Box>
-          </Stack>
-        </Stack>
-      </AccordionSummary>
-      <AccordionDetails>
+    <DashboardSection defaultExpanded={defaultExpanded} icon={<AssignmentReturnRoundedIcon />} tone="amber" title={tr("Handover")}
+      description={tr("Close tonight and leave the next crew a start point — unfinished towers, skips, hotspots, and notes.")}
+      badge={step != null ? <StepBadge n={step} /> : undefined}>
         {canManage && (
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, justifyContent: 'flex-end', mb: 1.5 }}>
             {pack && pack.previous_remaining > 0 && (
@@ -325,8 +313,7 @@ export function HandoverPackCard({
             )}
           </>
         )}
-      </AccordionDetails>
-    </Accordion>
+    </DashboardSection>
 
       <Dialog open={endOpen} onClose={() => setEndOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>{tr("End tonight&apos;s outing")}</DialogTitle>

@@ -38,16 +38,26 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SubtitlesRoundedIcon from '@mui/icons-material/SubtitlesRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import ThermostatRounded from '@mui/icons-material/ThermostatRounded';
+import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined';
 import { mediaUrl } from '../api/client';
 import type { ChoiceLists, ImageRow, Position } from '../api/types';
 import { PositionConfiguration } from './PositionConfiguration';
 import { PositionEvidenceUpload } from './PositionEvidenceUpload';
+import { InspectionReadingField } from './InspectionReadingField';
+import { visualScreeningPatch } from '../utils/visualTower';
 import { HotspotChip, ScreeningChip, SeverityChip } from './Badges';
 import { ImageSlotCard } from './ImageSlotCard';
 import { VoiceNoteControls, VoiceNotePlayer } from './VoiceNoteControls';
+import type { DraftImage } from '../api/visitEntry';
+import type { VisitCheckTarget } from '../utils/visitWorkflow';
 import { positionChangeRows, positionError, positionLabel as formatPositionLabel, positionPatch } from '../utils/positionChanges';
 
 interface Props {
+  stagedImages?: DraftImage[];
+  compact?: boolean;
+  onInvalidChange?: (invalid: boolean) => void;
+  checkFocus?: { target: VisitCheckTarget; request: number };
   visitEntryMode?: boolean;
   draftEvidence?: ReactNode;
   onStageEvidence?: (type: string, file: File, token: string) => Promise<unknown>;
@@ -86,6 +96,10 @@ interface Props {
 }
 
 export function PositionPanel({
+  checkFocus,
+  stagedImages,
+  compact = false,
+  onInvalidChange,
   visitEntryMode = false,
   draftEvidence,
   onStageEvidence,
@@ -127,6 +141,13 @@ export function PositionPanel({
   const dirty = Object.keys(patch).length > 0;
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [invalidReadings, setInvalidReadings] = useState<Record<string, boolean>>({});
+  const readingsInvalid = Object.values(invalidReadings).some(Boolean);
+  const invalidCallback = useRef(onInvalidChange);
+  useEffect(() => { invalidCallback.current = onInvalidChange; });
+  useEffect(() => { invalidCallback.current?.(readingsInvalid); }, [readingsInvalid]);
+  useEffect(() => () => { invalidCallback.current?.(false); }, []);
+  const markReading = (field: string, bad: boolean) => setInvalidReadings(current => current[field] === bad ? current : { ...current, [field]: bad });
   const [lastSaved, setLastSaved] = useState('');
   const [review, setReview] = useState<{ before: Position; patch: Partial<Position> } | null>(null);
   const saveLock = useRef(false);
@@ -154,7 +175,7 @@ export function PositionPanel({
       setSaveError(positionError(err, tr("Save not confirmed. Your changes remain in this draft. Check your connection and retry; do not rely on these changes in a report yet.")));
     } finally { saveLock.current = false; setSaving(false); }
   };
-  const reviewChanges = () => { setSaveError(''); setReview({ before: savedPosition, patch }); };
+  const reviewChanges = () => { if (!readingsInvalid) { setSaveError(''); setReview({ before: savedPosition, patch }); } };
   const discard = () => {
     if (window.confirm(tr("Discard these unsaved position changes? The saved inspection will stay unchanged."))) {
       setDraft({}); setSaveError('');
@@ -163,6 +184,26 @@ export function PositionPanel({
   const pendingCount = position.images.filter((i) => i.evidence_status === 'PENDING CAPTURE' || i.evidence_status === 'RECAPTURE REQUIRED').length;
   const configurationRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(!!defaultExpanded);
+  const screeningField = useRef<HTMLDivElement>(null);
+  const maxInput = useRef<HTMLInputElement>(null);
+  const refInput = useRef<HTMLInputElement>(null);
+  const evidenceSection = useRef<HTMLDivElement>(null);
+  const focusCheckField = () => {
+    if (!checkFocus) return;
+    const target = checkFocus.target === 'screening' ? screeningField.current?.querySelector<HTMLElement>('[role="combobox"]')
+      : checkFocus.target === 'temperatures' ? (position.tmax_c == null ? maxInput.current : refInput.current)
+      : evidenceSection.current;
+    target?.scrollIntoView({ block: 'center' });
+    target?.focus({ preventScroll: true });
+  };
+  useEffect(() => {
+    if (!checkFocus) return;
+    setExpanded(true);
+    const frame = requestAnimationFrame(focusCheckField);
+    return () => cancelAnimationFrame(frame);
+    // Only a navigation request moves focus, never a draft edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkFocus]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -206,28 +247,38 @@ export function PositionPanel({
       return typeDiff !== 0 ? typeDiff : a.sequence - b.sequence;
     });
 
-  return (
-    <Box sx={{ position: 'relative' }}>
-    <Stack direction="row" spacing={0.5} sx={{ position: 'absolute', right: 40, top: 12, zIndex: 1 }}>
+  const evidenceUpload = <Stack spacing={1} ref={compact ? evidenceSection : undefined} tabIndex={compact ? -1 : undefined} sx={{ scrollMarginTop: 80 }}>
+<PositionEvidenceUpload compact={compact} stagedImages={stagedImages} position={visitEntryMode ? position : savedPosition} types={lists.image_type} onStage={onStageEvidence}
+              disabled={saving || externalSaving} onUpload={onUploadImage} onExtra={onAddExtraImage} onBusyChange={onUploadBusyChange} />
+            {draftEvidence}
+  </Stack>;
+
+  const positionActions = (<Stack direction="row" useFlexGap spacing={0.5} sx={compact ? { justifyContent: 'flex-end', flexWrap: 'wrap', mt: 1, '& .MuiButton-root': { minHeight: 44 } } : { position: 'absolute', right: 40, top: 12, zIndex: 1 }}>
       <Button size="small" startIcon={<EditRoundedIcon />} aria-label={tr("Edit position {0}", [positionLabel])} onClick={() => {
         setExpanded(true);
-        requestAnimationFrame(() => configurationRef.current?.focus());
+        requestAnimationFrame(() => { if (compact) configurationRef.current?.setAttribute('open', ''); configurationRef.current?.focus(); });
       }}>{tr("Edit")}</Button>
       <Button size="small" color="error" disabled={externalSaving} startIcon={<DeleteRoundedIcon />} aria-label={`${savedPosition.id < 0 ? 'Remove draft position' : 'Delete position'} ${positionLabel}`} onClick={() => {
         if (savedPosition.id < 0) { void onDelete(); return; }
         setDeleteError(''); setDeleteAcknowledged(false); setDeleteOpen(true);
       }}>{savedPosition.id < 0 ? tr("Remove from draft") : tr("Delete")}</Button>
-    </Stack>
-    <Accordion expanded={expanded} onChange={(_, value) => setExpanded(value)} disableGutters variant="outlined" sx={{ '&:before': { display: 'none' } }}>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ '& .MuiAccordionSummary-content': { pr: { sm: 20 }, pt: { xs: 4, sm: 0 }, minHeight: 48, alignItems: 'center' } }}>
+    </Stack>);
+
+  return (
+    <Box sx={{ position: 'relative', ...(compact ? { display: 'flex', flexDirection: 'column', '& .MuiInputBase-root': { minHeight: 48, borderRadius: '10px' }, '& details': { border: '1px solid', borderColor: 'divider', borderRadius: '12px', px: 1.5, py: .5 }, '& summary': { minHeight: 40, alignContent: 'center', color: 'text.secondary', fontSize: 13 }, '& details[open] summary': { mb: 1.5 }, '& .MuiInputLabel-root': { fontSize: 13 } } : {}) }}>
+    {!compact && positionActions}
+
+    <Accordion slotProps={{ transition: { onEntered: focusCheckField } }} expanded={expanded} onChange={(_, value) => setExpanded(value)} disableGutters variant="outlined" sx={{ '&:before': { display: 'none' }, ...(compact ? { borderRadius: '20px !important', overflow: 'hidden', boxShadow: '0 8px 24px rgba(16,47,63,.04)' } : {}) }}>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: compact ? 'action.hover' : undefined, px: compact ? 2.5 : 2, '& .MuiAccordionSummary-content': { pr: compact ? 0 : { sm: 20 }, pt: compact ? 0 : { xs: 4, sm: 0 }, minHeight: 48, alignItems: 'center' } }}>
         <Box sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 1 }}>
-          <Grid container spacing={2} sx={{ flex: 1, pr: 2, alignItems: 'center' }}>
-            <Grid size={{ xs: 12, sm: 3 }}>
+          <Grid container spacing={compact ? 1 : 2} sx={{ flex: 1, pr: 2, alignItems: 'center' }}>
+            <Grid size={{ xs: 12, sm: compact ? 12 : 3 }}>
               <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
-                <Typography sx={{ fontWeight: 700 }}>
-                  {displayPosition.ohl} · {displayPosition.phase} · {displayPosition.string_count === 'Double' ? `${displayPosition.string} — ${displayPosition.string === 'S1' ? 'Outer' : 'Inner'}` : displayPosition.string}
+                {compact && <Chip size="small" label={displayPosition.phase} sx={{ fontWeight: 900, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }} />}
+                <Typography sx={{ fontWeight: 800, fontSize: compact ? 15 : undefined }}>
+                  {tr(displayPosition.view_side === 'Front' ? 'Front view' : displayPosition.view_side === 'Back' ? 'Back view' : 'View not recorded')} · {displayPosition.ohl} · {!compact && `${displayPosition.phase} · `}{displayPosition.string_count === 'Double' ? `${displayPosition.string} — ${tr(displayPosition.string === 'S1' ? 'Outer' : 'Inner')}` : displayPosition.string}
                 </Typography>
-                {displayPosition.tower_proximity && (
+                {!compact && displayPosition.tower_proximity && (
                   <Chip
                     size="small"
                     variant="outlined"
@@ -237,20 +288,20 @@ export function PositionPanel({
                 )}
               </Stack>
               <Typography variant="caption" color="text.secondary">
-                {tr(displayPosition.mount_type) || tr("Tower type not set")} · {displayPosition.string_count === 'Double' ? tr("2 strings") : displayPosition.string_count === 'Single' ? tr("1 string") : tr("String count not set")} · {visitEntryMode ? displayPosition.direction || tr("Direction not set") : savedPosition.position_code || tr("Direction not set")}
+                {tr(displayPosition.mount_type) || tr("Tower type not set")} · {displayPosition.string_count === 'Double' ? tr("2 strings") : displayPosition.string_count === 'Single' ? tr("1 string") : tr("String count not set")} · {visitEntryMode ? (displayPosition.mount_type === 'Suspension' ? tr("Not needed for Suspension") : displayPosition.direction || tr("Direction not set")) : savedPosition.position_code || tr("Direction not set")}
                 {(dirty || savedPosition.id < 0) && <Chip size="small" color="warning" label={visitEntryMode ? tr("Draft") : tr("Unsaved changes")} sx={{ ml: 1 }} />}
               </Typography>
             </Grid>
-            <Grid size={{ xs: 6, sm: 2 }}>
+            <Grid size={{ xs: 6, sm: compact ? 6 : 2 }}>
               <ScreeningChip result={displayPosition.screening_result} />
             </Grid>
-            <Grid size={{ xs: 6, sm: 2 }}>
+            {!compact && <Grid size={{ xs: 6, sm: 2 }}>
               <HotspotChip value={displayPosition.hotspot} />
-            </Grid>
-            <Grid size={{ xs: 6, sm: 2 }}>
+            </Grid>}
+            {!compact && <Grid size={{ xs: 6, sm: 2 }}>
               <SeverityChip severity={displayPosition.severity} />
-            </Grid>
-            <Grid size={{ xs: 6, sm: 2 }}>
+            </Grid>}
+            <Grid size={{ xs: 6, sm: compact ? 6 : 2 }}>
               {visitEntryMode && (dirty || savedPosition.id < 0) ? (
                 <Chip size="small" label={tr("Draft · check evidence below")} color="warning" variant="outlined" />
               ) : pendingCount > 0 ? (
@@ -262,7 +313,7 @@ export function PositionPanel({
           </Grid>
         </Box>
       </AccordionSummary>
-      <AccordionDetails>
+      <AccordionDetails sx={compact ? { p: { xs: 1.5, sm: 2.5 } } : undefined}>
         <Stack component="fieldset" disabled={saving || deleting || externalSaving} spacing={2} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
           {!visitEntryMode && <><Alert severity={dirty ? 'warning' : lastSaved ? 'success' : 'info'}>
             {dirty ? tr("Unsaved changes — review and confirm saving before using these changes in a report.") : lastSaved ? tr("Saved on the server. Confirmed at {0}.", [lastSaved]) : tr("No unsaved field edits in this card. Changes require review and confirmation before saving.")}
@@ -272,11 +323,15 @@ export function PositionPanel({
             <Button disabled={!dirty || saving} onClick={discard}>{tr("Discard changes")}</Button>
           </Stack>
           </>}
-          <Box ref={configurationRef} tabIndex={-1} sx={{ outline: 'none', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', borderRadius: 2 } }}>
+          {!compact && <Box component="div" ref={configurationRef} tabIndex={-1} sx={{ outline: 'none', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', borderRadius: 2 } }}>
+            {compact && <Typography component="summary" sx={{ cursor: 'pointer', fontWeight: 700, py: 1 }}>{tr("Position configuration")}</Typography>}
             <PositionConfiguration position={position} lists={lists} towerArea={towerArea} onChange={onUpdate} />
-          </Box>
+          </Box>}
+
+          <Box sx={compact ? { p: 2, bgcolor: 'action.hover', borderRadius: '14px' } : undefined}>
+          {compact && <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}><FactCheckOutlined sx={{ color: 'primary.main', fontSize: 20 }} /><Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{tr('Inspection result')}</Typography></Stack>}
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 4, md: 2 }}>
+            {!compact && <Grid size={{ xs: 12, sm: 4, md: 2 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -286,8 +341,8 @@ export function PositionPanel({
                 }
                 label={tr("Installed")}
               />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4, md: 2 }}>
+            </Grid>}
+            {!compact && <Grid size={{ xs: 12, sm: 4, md: 2 }}>
               <TextField
                 select
                 size="small"
@@ -307,22 +362,21 @@ export function PositionPanel({
                   </MenuItem>
                 ))}
               </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4, md: 3 }}>
+            </Grid>}
+            <Grid size={{ xs: 12, sm: 4, md: compact ? 4 : 3 }}>
               <TextField
                 select
                 size="small"
                 label={tr("Screening result")}
+                ref={screeningField}
                 fullWidth
-                disabled={!position.installed}
+                disabled={!compact && !position.installed}
                 helperText={
-                  !position.installed ? tr("Locked to \"Not installed\" until you toggle Installed on") : position.screening_result === 'Not inspected' ? tr("Still counts as unscreened — this is what \"Inspection incomplete\" means. Setting Hotspot? below fills this in automatically.") : undefined
+                  compact ? undefined : !position.installed ? tr("Locked to \"Not installed\" until you toggle Installed on") : position.screening_result === 'Not inspected' ? tr("Still counts as unscreened — this is what \"Inspection incomplete\" means. Setting Hotspot? below fills this in automatically.") : undefined
                 }
                 value={position.screening_result}
                 onChange={(e) => {
-                  const screening_result = e.target.value;
-                  const hotspot = ({ Normal: 'No', 'Hotspot detected': 'Yes', Inconclusive: 'Unconfirmed' } as Record<string, string>)[screening_result];
-                  onUpdate({ screening_result, ...(hotspot ? { hotspot } : {}) });
+                  onUpdate(visualScreeningPatch(e.target.value));
                 }}
               >
                 {lists.screening_result.map((s) => (
@@ -332,7 +386,7 @@ export function PositionPanel({
                 ))}
               </TextField>
             </Grid>
-            <Grid size={{ xs: 12, sm: 4, md: 2 }}>
+            {!compact && <Grid size={{ xs: 12, sm: 4, md: 2 }}>
               <TextField
                 select
                 size="small"
@@ -351,8 +405,8 @@ export function PositionPanel({
                   </MenuItem>
                 ))}
               </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4, md: 1.5 }}>
+            </Grid>}
+            <Grid size={{ xs: 12, sm: 4, md: compact ? 4 : 1.5 }}>
               <TextField
                 select
                 size="small"
@@ -368,7 +422,7 @@ export function PositionPanel({
                 ))}
               </TextField>
             </Grid>
-            <Grid size={{ xs: 12, sm: 4, md: 1.5 }}>
+            <Grid size={{ xs: 12, sm: 4, md: compact ? 4 : 1.5 }}>
               <TextField
                 select
                 size="small"
@@ -386,46 +440,53 @@ export function PositionPanel({
             </Grid>
           </Grid>
 
+          </Box>
+          <Box sx={compact ? { p: 2, border: '1px solid', borderColor: 'divider', borderRadius: '14px' } : undefined}>
+          {compact && <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}><ThermostatRounded sx={{ color: 'primary.main', fontSize: 20 }} /><Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{tr('Thermal readings')}</Typography><Typography variant="caption" color="text.secondary" sx={{ marginInlineStart: 'auto' }}>°C</Typography></Stack>}
           <Grid container spacing={2}>
-            <Grid size={{ xs: 6, sm: 3, md: 2 }}>
-              <TextField
-                size="small"
-                type="number"
+            <Grid size={{ xs: 6, sm: compact ? 4 : 3, md: compact ? 4 : 2 }}>
+              <InspectionReadingField
                 label={tr("Tmax (°C)")}
-                fullWidth
-                autoComplete="off"
-                value={tmaxDraft ?? ''}
-                onChange={(e) => onUpdate({ tmax_c: e.target.value ? Number(e.target.value) : null })}
+                inputRef={maxInput}
+                value={tmaxDraft}
+                onInvalid={bad => markReading('max', bad)}
+                onChange={value => onUpdate({ tmax_c: value })}
               />
             </Grid>
-            <Grid size={{ xs: 6, sm: 3, md: 2 }}>
-              <TextField
-                size="small"
-                type="number"
+            <Grid size={{ xs: 6, sm: compact ? 4 : 3, md: compact ? 4 : 2 }}>
+              <InspectionReadingField
                 label={tr("Tref (°C)")}
-                fullWidth
-                autoComplete="off"
-                value={trefDraft ?? ''}
-                onChange={(e) => onUpdate({ tref_c: e.target.value ? Number(e.target.value) : null })}
+                inputRef={refInput}
+                value={trefDraft}
+                onInvalid={bad => markReading('ref', bad)}
+                onChange={value => onUpdate({ tref_c: value })}
               />
             </Grid>
-            <Grid size={{ xs: 6, sm: 3, md: 2 }}>
-              <TextField size="small" label={tr("ΔT (°C)")} fullWidth value={deltaT ?? '-'} disabled />
+            <Grid size={{ xs: compact ? 12 : 6, sm: compact ? 4 : 3, md: compact ? 4 : 2 }}>
+              <TextField size="small" label={tr("ΔT (°C)")} fullWidth value={deltaT ?? '—'} slotProps={{ input: { readOnly: true }, inputLabel: { shrink: true } }} sx={compact ? { '& .MuiInputBase-root': { bgcolor: 'action.hover' }, '& input': { fontWeight: 800, color: 'primary.main', fontVariantNumeric: 'tabular-nums' } } : undefined} />
             </Grid>
-            <Grid size={{ xs: 12, sm: 12, md: 6 }}>
+            <Grid size={{ xs: 12, sm: 12, md: compact ? 12 : 6 }}>
               <TextField
                 size="small"
                 label={tr("Inspector notes")}
                 fullWidth
                 autoComplete="off"
+                multiline={compact}
+                minRows={compact ? 2 : undefined}
                 value={notesDraft}
                 onChange={(e) => onUpdate({ inspector_notes: e.target.value })}
               />
             </Grid>
           </Grid>
+          </Box>
 
-          <Box>
-            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{tr("Voice note")}</Typography>
+          {compact && evidenceUpload}
+          {compact && <Box component={compact ? "details" : "div"} ref={configurationRef} tabIndex={-1} sx={{ outline: 'none', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', borderRadius: 2 } }}>
+            {compact && <Typography component="summary" sx={{ cursor: 'pointer', fontWeight: 700, py: 1 }}>{tr("Position configuration")}</Typography>}
+            <PositionConfiguration position={position} lists={lists} towerArea={towerArea} onChange={onUpdate} />
+          </Box>}
+          <Box component={compact ? 'details' : 'div'}>
+            <Typography component={compact ? 'summary' : 'div'} variant="subtitle2" sx={{ mb: 0.5, cursor: compact ? 'pointer' : undefined }}>{tr("Voice note")}</Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{tr("Recorded for this insulator only — S1/S2, Inner/Outer, whichever this position is, never mixed with any other one on this tower.")}</Typography>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <VoiceNoteControls
@@ -469,8 +530,8 @@ export function PositionPanel({
             <Typography variant="caption" color="warning.main">{tr("Set the Direction to generate this position's image IDs and enable uploads.")}</Typography>
           )}
 
-          <Box>
-            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{tr("Insulator record (official report)")}</Typography>
+          <Box component={compact ? 'details' : 'div'}>
+            <Typography component={compact ? 'summary' : 'div'} variant="subtitle2" sx={{ mb: 0.5, cursor: compact ? 'pointer' : undefined }}>{tr("Insulator record (official report)")}</Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{tr("Fills the customer's OETC inspection report — only needed for a position that's actually going in it.")}</Typography>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 4, md: 2.5 }}>
@@ -596,10 +657,9 @@ export function PositionPanel({
             </Grid>
           </Box>
 
-          <Box>
-            <PositionEvidenceUpload position={visitEntryMode ? position : savedPosition} types={lists.image_type} onStage={onStageEvidence}
-              disabled={saving || externalSaving} onUpload={onUploadImage} onExtra={onAddExtraImage} onBusyChange={onUploadBusyChange} />
-            {draftEvidence}
+          {(!compact || uploadedImages.length > 0) && <Box ref={compact ? undefined : evidenceSection} tabIndex={-1} role="region" aria-label={tr("Evidence")}
+            sx={{ scrollMarginTop: 96, '&:focus': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 6, borderRadius: 1 } }}>
+            {!compact && evidenceUpload}
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>{tr("Every uploaded image for this position is grouped by type below. Check \"Include in report\" on every image you want in the next report — you can choose more than one per type. Unchecked images remain supporting evidence. Saved reports are unchanged.")}</Typography>
             {uploadedImages.length === 0 ? (
               <Typography variant="body2" color="text.secondary">{tr("No images uploaded yet — use one of the four evidence buttons above.")}</Typography>
@@ -625,7 +685,7 @@ export function PositionPanel({
                 ))}
               </Grid>
             )}
-          </Box>
+          </Box>}
           {!visitEntryMode && <Stack direction="row" spacing={1}>
             <Button variant="contained" disabled={!dirty || saving} onClick={reviewChanges}>{tr("Review and save changes")}</Button>
             <Button disabled={!dirty || saving} onClick={discard}>{tr("Discard changes")}</Button>
@@ -633,6 +693,7 @@ export function PositionPanel({
         </Stack>
       </AccordionDetails>
     </Accordion>
+    {compact && positionActions}
     <Dialog open={!!review} onClose={() => { if (!saving) setReview(null); }} fullWidth maxWidth="md" aria-labelledby={`save-position-${position.id}`}>
       <DialogTitle id={`save-position-${position.id}`}>{tr("Confirm inspection changes")}</DialogTitle>
       <DialogContent>

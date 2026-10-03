@@ -14,7 +14,7 @@ from app.services.archive import team_archive_relative_path
 
 def test_team_archive_relative_path_format():
     rel = team_archive_relative_path(7, dt.date(2026, 9, 16), "img-abc123", ".jpg")
-    assert rel == "team_archive/team-7/2026/09/16/img-abc123.jpg"
+    assert rel == "team_archive/2026/09/16/team-7/img-abc123.jpg"
 
 
 def _engine():
@@ -33,11 +33,13 @@ def _seed(db: Session):
             TeamArchiveImage(
                 team_id=alpha.id,
                 capture_date=dt.date(2026, 9, 10),
+                uploaded_at=dt.datetime(2026, 9, 10, 10),
                 file_path="team_archive/team-a/2026/09/10/img-1.jpg",
             ),
             TeamArchiveImage(
                 team_id=bravo.id,
                 capture_date=dt.date(2026, 9, 12),
+                uploaded_at=dt.datetime(2026, 9, 12, 10),
                 file_path="team_archive/team-b/2026/09/12/img-2.jpg",
             ),
         ]

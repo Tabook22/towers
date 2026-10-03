@@ -154,8 +154,12 @@ def test_edit_then_readd_old_slot_does_not_overwrite_evidence(db):
     visit = _make_visit(db)
     pos = add(db, visit)
     image = pos.images[0]
-    # Thumbnail generation is intentionally best-effort for these test bytes.
-    asyncio.run(apply_upload(image, b'original evidence', 'original.jpg', 'image/jpeg', None, None, None, None))
+    from PIL import Image as PillowImage
+    def photo(color):
+        output = io.BytesIO(); PillowImage.new('RGB', (20, 20), color).save(output, format='JPEG')
+        return output.getvalue()
+    original_bytes, new_bytes = photo('red'), photo('blue')
+    asyncio.run(apply_upload(image, original_bytes, 'original.jpg', 'image/jpeg', None, None, None, None))
     db.commit()
     original_path = image.file_path
     def annotate(target, raw):
@@ -170,19 +174,19 @@ def test_edit_then_readd_old_slot_does_not_overwrite_evidence(db):
     update_position(pos.id, PositionUpdate(ohl='OHL2', phase='B', direction='Saada', string_count='Double', string='S2'), db, _admin_user())
     fresh = add(db, visit)
     fresh_image = next(i for i in fresh.images if i.image_type == image.image_type)
-    asyncio.run(apply_upload(fresh_image, b'new inspection', 'new.jpg', 'image/jpeg', None, None, None, None))
+    asyncio.run(apply_upload(fresh_image, new_bytes, 'new.jpg', 'image/jpeg', None, None, None, None))
     db.commit(); db.expire_all()
     annotate(fresh_image, b'new annotation')
     saved = db.get(Image, image_id)
     assert saved.image_code.startswith(pos.position_code)
     assert saved.file_path == original_path
     assert pos.inspector_notes == 'Retain this inspection' and pos.voice_note_path == 'recording.webm'
-    assert (settings.images_dir / saved.file_path).read_bytes() == b'original evidence'
-    assert (settings.images_dir / fresh_image.file_path).read_bytes() == b'new inspection'
+    assert (settings.images_dir / saved.file_path).read_bytes() == original_bytes
+    assert (settings.images_dir / fresh_image.file_path).read_bytes() == new_bytes
     assert (settings.images_dir / original_annotation).read_bytes() == b'original annotation'
     assert (settings.images_dir / fresh_image.annotated_path).read_bytes() == b'new annotation'
     delete_position(fresh.id, db, _admin_user())
-    assert (settings.images_dir / original_path).read_bytes() == b'original evidence'
+    assert (settings.images_dir / original_path).read_bytes() == original_bytes
     assert (settings.images_dir / original_annotation).read_bytes() == b'original annotation'
 
 

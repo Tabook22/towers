@@ -17,5 +17,5 @@ def reportable_position(pos):
         return False
     if getattr(pos, 'prepared_only', False):
         return has_observations(pos)
-    # Preserve the legacy inclusion rule for existing inspections.
-    return bool(pos.direction) or any(image.file_path for image in pos.images)
+    # Keep legacy direction-only records, without dropping readings/notes on suspension towers.
+    return bool(pos.direction) or has_observations(pos)

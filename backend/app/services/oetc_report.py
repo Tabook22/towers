@@ -26,6 +26,8 @@ image — same bar team_activity_report.py uses; an untouched 12-slot placeholde
 """
 from __future__ import annotations
 
+from app.services.position_labels import position_label, direction_label, view_label
+
 import datetime as dt
 import io
 import random
@@ -110,7 +112,10 @@ def _finding_context(tpl, seq: int, visit: Visit, pos: Position) -> dict:
         "ohl": pos.ohl,
         "phase": pos.phase,
         "mount_type": pos.mount_type,
-        "gs_side": pos.gs_side,
+        "gs_side": pos.gs_side or (pos.direction if pos.mount_type == "Tension" else None),
+        "direction": direction_label(pos),
+        "position_label": position_label(pos),
+        "view_side": view_label(pos),
         # Every insulator on this line is composite — the field stays a real, editable dropdown
         # (see PositionPanel's "Insulator record" section) for the rare exception, but the report's
         # checkbox defaults to Composite rather than leaving both boxes unticked whenever an
@@ -170,7 +175,7 @@ def _measurement_context(seq: int, visit: Visit, pos: Position) -> dict:
         "severity_label": severity_label,
         "severity_fill": severity_fill,
         "severity_text_color": severity_text_color,
-        "remarks": pos.inspector_notes,
+        "remarks": position_label(pos) + (" — " + pos.inspector_notes if pos.inspector_notes else ""),
     }
 
 
@@ -194,10 +199,14 @@ def build_oetc_line_report_context(
     measurements: list[dict] = []
     inspectors: set[str] = set()
     seq = 0
-    # The camera/calibration/environment fields are captured per visit but genuinely don't vary
-    # within one campaign (same crew, same instrument) — the first visit that actually recorded a
-    # camera stands in for the whole report rather than repeating a "which visit" question per field.
+    # Never silently assign one visit's conditions to a multi-visit campaign.
     equip = next((v for v in visits if v.camera_drone), visits[0] if visits else None)
+    def campaign_value(field):
+        values = {getattr(v, field, None) for v in visits}
+        if len(values) > 1:
+            return 'Varies by visit; see inspection data register'
+        value = next(iter(values), None)
+        return value.isoformat() if isinstance(value, dt.date) else value
 
     for v in visits:
         if v.inspector_name:
@@ -231,17 +240,17 @@ def build_oetc_line_report_context(
         "inspectors": ", ".join(sorted(inspectors)) or team.leader_name,
         "inspection_date": date_range,
         "inspection_time": "",
-        "camera_make_model": equip.camera_drone if equip else None,
-        "camera_serial_no": equip.camera_serial_no if equip else None,
-        "calibration_cert_no": equip.calibration_cert_no if equip else None,
-        "calibration_due_date": equip.calibration_due_date.isoformat() if equip and equip.calibration_due_date else None,
-        "emissivity": equip.emissivity if equip else None,
-        "distance_to_target": equip.distance_to_target_m if equip else None,
-        "ambient_temp": equip.ambient_temp_c if equip else None,
-        "humidity": equip.humidity_pct if equip else None,
-        "wind_speed": equip.weather_wind if equip else None,
+        "camera_make_model": campaign_value('camera_drone'),
+        "camera_serial_no": campaign_value('camera_serial_no'),
+        "calibration_cert_no": campaign_value('calibration_cert_no'),
+        "calibration_due_date": campaign_value('calibration_due_date'),
+        "emissivity": campaign_value('emissivity'),
+        "distance_to_target": campaign_value('distance_to_target_m'),
+        "ambient_temp": campaign_value('ambient_temp_c'),
+        "humidity": campaign_value('humidity_pct'),
+        "wind_speed": campaign_value('weather_wind'),
         "is_day": is_day,
-        "load_current": equip.electrical_load if equip else None,
+        "load_current": campaign_value('electrical_load'),
         "findings": findings,
         "measurements": measurements,
         "overall_condition": payload.overall_condition,

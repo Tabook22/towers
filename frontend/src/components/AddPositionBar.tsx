@@ -1,9 +1,14 @@
 import { tr, useLanguage } from '../i18n';
-import { useRef, useState } from 'react';
-import { Alert, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
+import { useRef, useState, type ReactNode } from 'react';
+import { Alert, Box, Button, Chip, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlineRounded';
+import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
+import ExploreRounded from '@mui/icons-material/ExploreRounded';
+import CableRounded from '@mui/icons-material/CableRounded';
+import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
+import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
 import type { ChoiceLists, Position } from '../api/types';
-import { deriveDirectionFromArea } from '../utils/direction';
+
 import { positionError } from '../utils/positionChanges';
 
 // Display-only hint — S1/S2 stay the actual stored values (position codes, the 12-slot identity,
@@ -23,13 +28,15 @@ interface Props {
   lists: ChoiceLists;
   /** The tower's line/area name supplies a Suspension default, never a Tension restriction. */
   towerArea?: string | null;
-  onAdd: (position: Position, direction: string, mountType: string, stringCount: string) => Promise<void>;
+  onAdd: (position: Position, direction: string, mountType: string, stringCount: string, viewSide: string) => Promise<void>;
   /** Creates a missing slot after an edit/deletion, or an additional Tension direction. */
-  onCreate: (ohl: string, phase: string, string_: string, direction: string, mountType: string, stringCount: string) => Promise<void>;
+  onCreate: (ohl: string, phase: string, string_: string, direction: string, mountType: string, stringCount: string, viewSide: string) => Promise<void>;
 }
 
-export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, onCreate }: Props) {
+export function AddPositionBar({ positions: allPositions, hiddenIds, lists, onAdd, onCreate }: Props) {
   useLanguage();
+  const [viewSide, setViewSide] = useState('Front');
+  const positions = allPositions.filter(p => p.view_side === viewSide || (!p.direction && hiddenIds.has(p.id)));
   const [mountType, setMountType] = useState('');
   const [ohl, setOhl] = useState('');
   const [direction, setDirection] = useState('');
@@ -62,13 +69,6 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
 
   const reset = () => { setStringVal(''); };
 
-  if (remaining.length === 0 && tensionRemaining.length === 0) {
-    return (
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography color="text.secondary">{tr("All positions have been added.")}</Typography>
-      </Paper>
-    );
-  }
 
   const ohlOptions = isTension ? [...new Set(tensionRemaining.map((c) => c.ohl))] : [...new Set(remaining.map((p) => p.ohl))];
   const directionOptions = isTension
@@ -89,9 +89,9 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
     try {
       if (!ohl || !phase || !stringVal || (isTension && !direction)) return;
       if (match) {
-        await onAdd(match, direction, mountType, stringCount);
+        await onAdd(match, mountType === 'Suspension' ? 'NA' : direction, mountType, stringCount, viewSide);
       } else {
-        await onCreate(ohl, phase, stringVal, direction, mountType, stringCount);
+        await onCreate(ohl, phase, stringVal, mountType === 'Suspension' ? 'NA' : direction, mountType, stringCount, viewSide);
       }
       reset();
 
@@ -100,18 +100,13 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
     } finally { saveLock.current = false; setSaving(false); }
   };
 
-  return (
-    <Paper
-      elevation={4}
-      sx={{
-        p: 2,
-        bgcolor: 'background.paper',
-        border: '1px solid',
-        borderColor: 'success.light',
-      }}
-    >
-      <Stack component="fieldset" disabled={saving} direction="row" spacing={2} sx={{ m: 0, p: 0, border: 0, alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-        <Typography sx={{ fontWeight: 700 }}>{tr("Add position")}</Typography>
+  const ready = !saving && !!mountType && !!stringCount && stringOptions.includes(stringVal) && !!(ohl && phase && stringVal) && (Boolean(match) || !!direction) && (!isTension || !!direction);
+  const hint = !mountType ? 'Choose the tower type to begin.' : !ohl ? 'Choose the OHL side of the tower.' : isTension && !direction ? 'Choose the direction for this tension position.' : !phase ? 'Choose the phase: R, Y or B.' : !stringCount ? 'Choose whether this position has one or two strings.' : !stringVal ? 'Choose the string you are inspecting.' : !ready ? 'Complete the remaining position details.' : 'Ready to add to the visit draft. Enter readings and photos next.';
+  return <Paper variant="outlined" sx={{ p: { xs: 1.5, sm: 2.5 }, borderRadius: '20px', bgcolor: 'background.paper' }}>
+    <Stack component="fieldset" disabled={saving} spacing={2} sx={{ m: 0, p: 0, border: 0, minWidth: 0 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
+        <PositionStep number={1} icon={<VisibilityRounded />} title={tr('View & tower type')} description={tr('Identify the observation side and tower design.')} complete={!!mountType}>
+        <TextField select size="small" label={tr('Viewing side')} value={viewSide} onChange={e => { setViewSide(e.target.value); setPhase(''); setStringVal(''); }} sx={{ minWidth: 150 }}><MenuItem value="Front">{tr('Front view')}</MenuItem><MenuItem value="Back">{tr('Back view')}</MenuItem></TextField>
         <TextField
           select
           size="small"
@@ -124,10 +119,7 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
             setPhase('');
             setStringCount('');
             setStringVal('');
-            // Suspension runs straight through — no direction to record. Auto-fill it from the
-            // tower's own line so the position still gets a valid image code. Tension needs a real
-            // choice (it can run toward more than one direction), so clear it instead.
-            setDirection(value === 'Suspension' ? deriveDirectionFromArea(towerArea, lists.direction) || '' : '');
+            setDirection(value === 'Suspension' ? 'NA' : '');
           }}
           sx={{ minWidth: 130 }}
         >
@@ -138,10 +130,14 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
             </MenuItem>
           ))}
         </TextField>
+
+        </PositionStep>
+        <PositionStep number={2} icon={<ExploreRounded />} title={tr('Locate the position')} description={tr('Choose the OHL, direction when needed, and phase.')} complete={!!ohl && !!phase && (!isTension || !!direction)}>
         <TextField
           select
           size="small"
           label={tr("OHL")}
+          disabled={!mountType}
           value={ohl}
           onChange={(e) => {
             setOhl(e.target.value);
@@ -180,6 +176,25 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
             ))}
           </TextField>
         )}
+        {mountType && !isTension && mountType !== 'Suspension' && (
+          <TextField
+            select
+            size="small"
+            label={tr("Direction")}
+            value={direction}
+            onChange={(e) => setDirection(e.target.value)}
+            disabled={mountType === 'Suspension'}
+            helperText={mountType === 'Suspension' ? tr("Not needed for Suspension") : undefined}
+            sx={{ minWidth: 110 }}
+          >
+            <MenuItem value="">—</MenuItem>
+            {lists.direction.map((d) => (
+              <MenuItem key={d} value={d}>
+                {tr(d)}
+              </MenuItem>
+            ))}
+          </TextField>
+        )}
         <TextField
           select
           size="small"
@@ -201,6 +216,10 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
             </MenuItem>
           ))}
         </TextField>
+
+          {mountType === 'Suspension' && <Typography variant="caption" color="text.secondary">{tr('Not needed for Suspension')}</Typography>}
+        </PositionStep>
+        <PositionStep number={3} icon={<CableRounded />} title={tr('Identify the string')} description={tr('For double strings: S1 is outer and S2 is inner.')} complete={!!stringVal && stringOptions.includes(stringVal)}>
         <TextField select size="small" label={tr("Number of strings")} value={stringCount}
           disabled={!phase} onChange={e => { setStringCount(e.target.value); setStringVal(''); }} sx={{ minWidth: 160 }}>
           <MenuItem value="Single">1</MenuItem><MenuItem value="Double">2</MenuItem>
@@ -220,25 +239,18 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
             </MenuItem>
           ))}
         </TextField>
-        {!isTension && (
-          <TextField
-            select
-            size="small"
-            label={tr("Direction")}
-            value={direction}
-            onChange={(e) => setDirection(e.target.value)}
-            disabled={mountType === 'Suspension'}
-            helperText={mountType === 'Suspension' ? tr("Not needed for Suspension") : undefined}
-            sx={{ minWidth: 110 }}
-          >
-            <MenuItem value="">—</MenuItem>
-            {lists.direction.map((d) => (
-              <MenuItem key={d} value={d}>
-                {tr(d)}
-              </MenuItem>
-            ))}
-          </TextField>
-        )}
+
+        </PositionStep>
+      </Box>
+      <Box sx={{ p: 2, borderRadius: '16px', bgcolor: 'action.hover' }}>
+        <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: .75, mb: 1.5 }} aria-label={tr('Position preview')}>
+          {[tr(viewSide === 'Front' ? 'Front view' : 'Back view'), mountType && tr(mountType), ohl, phase, mountType === 'Suspension' ? '' : direction, stringCount && tr(stringCount === 'Single' ? '1 string' : '2 strings'), stringVal && tr(stringCount === 'Double' ? STRING_LABELS[stringVal] || stringVal : stringVal)].filter(Boolean).map((value, i) => <Chip key={i} label={value} size="small" variant="outlined" sx={{ bgcolor: 'background.paper' }} />)}
+        </Stack>
+        <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ alignItems: { sm: 'center' }, gap: 2, justifyContent: 'space-between' }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            {ready ? <CheckCircleRounded color="success" /> : <ArrowForwardRounded color="primary" sx={{ transform: theme => theme.direction === 'rtl' ? 'rotate(180deg)' : 'none' }} />}
+            <Typography variant="body2" aria-live="polite">{tr(hint)}</Typography>
+          </Stack>
         <Button
           variant="contained"
           startIcon={<AddCircleOutlineIcon />}
@@ -247,13 +259,22 @@ export function AddPositionBar({ positions, hiddenIds, lists, towerArea, onAdd, 
         >
           {saving ? tr("Adding…") : tr("Add position")}
         </Button>
-      </Stack>
-      {mountType && phase && stringCount && <Typography variant="body2" sx={{ mt: 1.5 }}>
-        {mountType} · {ohl}{tr(" · Phase ")}{phase} · {stringCount === 'Single' ? tr("1 string") : tr("2 strings")} · {stringVal ? (stringCount === 'Double' ? STRING_LABELS[stringVal] : stringVal) : tr("Choose a string")}
-      </Typography>}
-      {phase && stringCount && !stringOptions.length && <Alert severity="info" sx={{ mt: 1 }}>{tr("The matching string positions have already been added. Edit their inspection cards below.")}</Alert>}
-      {error && <Alert severity="error" sx={{ mt: 1 }}>{tr(error)}</Alert>}
+        </Stack>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{tr('Adds one position to your draft. Confirm the whole visit once when ready.')}</Typography>
+      </Box>
+    </Stack>
+    {phase && stringCount && !stringOptions.length && <Alert severity="info" sx={{ mt: 1 }}>{tr("The matching string positions have already been added. Edit their inspection cards below.")}</Alert>}
+    {error && <Alert severity="error" sx={{ mt: 1 }}>{tr(error)}</Alert>}
+  </Paper>;
+}
 
-    </Paper>
-  );
+function PositionStep({ number, icon, title, description, complete, children }: { number: number; icon: ReactNode; title: string; description: string; complete: boolean; children: ReactNode }) {
+  return <Stack spacing={1.5} sx={{ p: 2, border: '1px solid', borderColor: complete ? 'success.main' : 'divider', borderRadius: '18px', minWidth: 0, '& .MuiTextField-root': { width: '100%', minWidth: '0 !important' }, '& .MuiOutlinedInput-root': { bgcolor: theme => theme.palette.mode === 'dark' ? '#2d3028' : '#fff9df' } }}>
+    <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+      <Box sx={{ display: 'grid', placeItems: 'center', p: 1, bgcolor: 'action.hover', color: 'primary.main', borderRadius: '12px' }}>{icon}</Box>
+      <Chip size="small" icon={complete ? <CheckCircleRounded /> : undefined} label={number} color={complete ? 'success' : 'default'} variant="outlined" />
+    </Stack>
+    <Box><Typography component="h4" sx={{ fontWeight: 800 }}>{title}</Typography><Typography variant="caption" color="text.secondary">{description}</Typography></Box>
+    {children}
+  </Stack>;
 }

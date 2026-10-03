@@ -40,6 +40,9 @@ def image_sequence_number(ohl: str, phase: str, string: str, direction: str, ima
     ohl_idx = OHL_CHOICES.index(ohl)
     phase_idx = PHASE_CHOICES.index(phase)
     str_idx = STRING_CHOICES.index(string)
+    # Separate range: never change the historical direction multiplier or existing codes.
+    if direction == 'NA':
+        return 10000 + ((ohl_idx * 3 + phase_idx) * 2 + str_idx) * 4 + IMAGE_TYPE_CHOICES.index(image_type) + 1
     dir_idx = IMAGE_DIRECTION_ORDER.index("Shaoon" if direction == "Shahaon" else direction)
     type_num = IMAGE_TYPE_CHOICES.index(image_type) + 1  # 1-based, matches MATCH() in the workbook
     return ((((ohl_idx * 3 + phase_idx) * 2 + str_idx) * len(IMAGE_DIRECTION_ORDER) + dir_idx) * 4) + type_num

@@ -1,7 +1,15 @@
-import type { Position } from '../api/types';
+import type { ImageRow, Position } from '../api/types';
+
+/** Mirror the server's empty-slot defaults without changing saved photos or recapture decisions. */
+export function evidenceStatusForPosition(position: Pick<Position, 'installed' | 'screening_result'>, type: string, image?: Pick<ImageRow, 'file_path' | 'evidence_status'>, recalculate = false): ImageRow['evidence_status'] {
+  if (image?.file_path || image?.evidence_status === 'RECAPTURE REQUIRED') return image.evidence_status;
+  if (!position.installed || position.screening_result === 'Not installed' || (position.screening_result === 'Normal' && ['TH Close', 'RGB Close'].includes(type))) return 'NOT REQUIRED';
+  if (image?.evidence_status === 'NOT REQUIRED' && !recalculate) return 'NOT REQUIRED';
+  return 'PENDING CAPTURE';
+}
 
 export const positionFieldLabels: Partial<Record<keyof Position, string>> = {
-  ohl: 'OHL', phase: 'Phase', string: 'String', direction: 'Direction', mount_type: 'Tower type',
+  view_side: 'Viewing side', ohl: 'OHL', phase: 'Phase', string: 'String', direction: 'Direction', mount_type: 'Tower type',
   string_count: 'Number of strings', tower_proximity: 'Inner / Outer', installed: 'Installed',
   screening_result: 'Screening result', hotspot: 'Hotspot', tmax_c: 'Tmax (°C)', tref_c: 'Tref (°C)',
   severity: 'Severity', confidence: 'Confidence', inspector_notes: 'Inspector notes',
@@ -10,8 +18,8 @@ export const positionFieldLabels: Partial<Record<keyof Position, string>> = {
   visual_indications: 'Visual indications',
 };
 
-export function positionLabel(position: Pick<Position, 'ohl' | 'phase' | 'string' | 'direction'>) {
-  return [position.ohl, position.phase, position.string, position.direction].filter(Boolean).join(' · ');
+export function positionLabel(position: Pick<Position, 'ohl' | 'phase' | 'string' | 'direction' | 'view_side'>) {
+  return [position.view_side === 'Front' ? 'Front view' : position.view_side === 'Back' ? 'Back view' : 'View not recorded', position.ohl, position.phase, position.string, position.direction === 'NA' ? 'Suspension' : position.direction].filter(Boolean).join(' · ');
 }
 
 export function displayPositionValue(value: unknown): string {

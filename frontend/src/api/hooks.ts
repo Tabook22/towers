@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { createVisitWithToken } from './visitCreation';
 import { collectArchivePages } from '../utils/archiveEvidence';
 import { asOutboxFile, sendOrQueue } from '../offline/enqueue';
 import { applyPositionPatch, applyQueuedExtraImage, applyQueuedImage, applyVisitPatch, patchVisitCache } from '../offline/optimistic';
@@ -397,7 +398,8 @@ export function useCreateVisit() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      (await apiClient.post<VisitDetail>('/api/visits', payload)).data,
+      createVisitWithToken('/api/visits', payload, async body =>
+        (await apiClient.post<VisitDetail>('/api/visits', body)).data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['visits'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
@@ -519,7 +521,7 @@ export function useUpdatePosition(visitId: number, requireServerConfirmation = f
 export function useCreatePosition(visitId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { ohl: string; phase: string; string: string; direction: string; mount_type?: string; string_count?: string }) => {
+    mutationFn: async (payload: { ohl: string; phase: string; string: string; direction: string; view_side?: string; mount_type?: string; string_count?: string }) => {
       await requireConfirmedPositionWrite(visitId);
       return (await apiClient.post<Position>(`/api/visits/${visitId}/positions`, payload, { timeout: 30_000 })).data;
     },
@@ -559,6 +561,8 @@ export function useUploadImage(visitId: number) {
       imageId,
       file,
       requestToken,
+      replace,
+      expectedChecksum,
       captureDate,
       captureTime,
       latitude,
@@ -567,6 +571,8 @@ export function useUploadImage(visitId: number) {
       imageId: number;
       file: File;
       requestToken?: string;
+      replace?: boolean;
+      expectedChecksum?: string;
       captureDate?: string;
       captureTime?: string;
       latitude?: number;
@@ -574,6 +580,11 @@ export function useUploadImage(visitId: number) {
     }) => {
       const form = new FormData();
       form.set('file', file);
+      if (replace) {
+        await requireConfirmedPositionWrite(visitId);
+        if (expectedChecksum) form.set('expected_checksum', expectedChecksum);
+        return (await apiClient.post<ImageRow>(`/api/images/${imageId}/replace`, form, { timeout: 120_000 })).data;
+      }
       if (requestToken) form.set('request_token', requestToken);
       if (captureDate) form.set('capture_date', captureDate);
       if (captureTime) form.set('capture_time', captureTime);
@@ -894,22 +905,37 @@ export function useArchive(filters: { year?: number; month?: number; day?: numbe
 export function useTeamArchiveImages(filters: { team_id?: number; year?: number; month?: number; day?: number }) {
   return useQuery({
     queryKey: ['team-archive-images', filters],
-    queryFn: async () => (await apiClient.get<TeamArchiveImage[]>('/api/archive/team-images', { params: filters })).data,
+    queryFn: async () => {
+      const rows: TeamArchiveImage[] = [];
+      for (let skip = 0; ; skip += 200) {
+        const page = (await apiClient.get<TeamArchiveImage[]>('/api/archive/team-images', { params: { ...filters, skip, limit: 200 } })).data;
+        rows.push(...page);
+        if (page.length < 200) return [...new Map(rows.map(row => [row.id, row])).values()];
+      }
+    },
   });
 }
 
 export function useUploadTeamArchiveImages(teamId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ files, caption }: { files: File[]; caption?: string }) => {
-      const form = new FormData();
-      files.forEach((f) => form.append('files', f, f.name));
-      if (caption) form.set('caption', caption);
-      return (
-        await apiClient.post<TeamArchiveImage[]>(`/api/teams/${teamId}/archive-images`, form, { timeout: 180_000 })
-      ).data;
+    mutationFn: async ({ files, caption, onBatchUploaded }: { files: File[]; caption?: string; onBatchUploaded?: (files: File[], done: number) => void }) => {
+      const uploaded: TeamArchiveImage[] = [];
+      for (let offset = 0; offset < files.length; offset += 20) {
+        const batch = files.slice(offset, offset + 20);
+        const form = new FormData();
+        batch.forEach(f => {
+          form.append('files', f, f.name);
+          form.append('relative_paths', f.webkitRelativePath || f.name);
+        });
+        if (caption) form.set('caption', caption);
+        const result = (await apiClient.post<TeamArchiveImage[]>(`/api/teams/${teamId}/archive-images`, form, { timeout: 180_000 })).data;
+        uploaded.push(...result);
+        onBatchUploaded?.(batch, uploaded.length);
+      }
+      return uploaded;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['team-archive-images'] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['team-archive-images'] }),
   });
 }
 
@@ -1103,11 +1129,12 @@ export function useDeleteReportImage(reportId?: number) {
 
 // A report's comment thread, oldest first — how a client flags something for the internal team to
 // act on, and how the team answers back (see backend models.ReportComment).
-export function useReportComments(reportId?: number) {
+export function useReportComments(reportId?: number, active = true) {
   return useQuery({
     queryKey: ['oetc-report-comments', reportId],
     queryFn: async () => (await apiClient.get<ReportCommentOut[]>(`/api/reports/oetc-line-report/${reportId}/comments`)).data,
-    enabled: !!reportId,
+    enabled: !!reportId && active,
+    refetchInterval: active ? 30_000 : false,
   });
 }
 
@@ -2255,7 +2282,8 @@ export function useCreateTeamMission(teamId: number) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
-      (await apiClient.post<VisitDetail>(`/api/teams/${teamId}/missions`, payload)).data,
+      createVisitWithToken(`/api/teams/${teamId}/missions`, payload, async body =>
+        (await apiClient.post<VisitDetail>(`/api/teams/${teamId}/missions`, body)).data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['team-missions', teamId] });
       qc.invalidateQueries({ queryKey: ['team-progress', teamId] });

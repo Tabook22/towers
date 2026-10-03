@@ -38,6 +38,34 @@ def make_visit(db):
     return visit, user
 
 
+@pytest.mark.parametrize('first_direction,second_direction', [('NA', 'Ashoor'), ('Ashoor', 'NA')])
+def test_suspension_identity_guard_is_symmetric_and_keeps_views_separate(db, first_direction, second_direction):
+    from app.routers.visits import add_extra_position
+    visit, user = make_visit(db); position = visit.positions[0]
+    update_position(position.id, PositionUpdate(direction=first_direction, mount_type='Suspension', string_count='Single'), db, user)
+    values = dict(ohl=position.ohl, phase=position.phase, string=position.string, direction=second_direction, mount_type='Suspension', string_count='Single')
+    with pytest.raises(HTTPException) as error:
+        add_extra_position(visit.id, PositionCreate(**values), db, user)
+    assert error.value.status_code == 409
+    db.rollback()
+    back = add_extra_position(visit.id, PositionCreate(**values, view_side='Back'), db, user)
+    assert back.view_side == 'Back'
+    assert db.get(Position, position.id).direction == first_direction
+
+
+@pytest.mark.parametrize('raw', [b'', b'not a real image'])
+def test_unreadable_direct_evidence_never_becomes_complete(db, raw):
+    import asyncio
+    from app.routers.images import apply_upload
+    visit, user = make_visit(db)
+    prepare_positions(visit.id, layout(visit), db, user)
+    image = visit.positions[0].images[0]
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(apply_upload(image, raw, 'photo.jpg', 'image/jpeg', None, None, None, None))
+    assert error.value.status_code == 422
+    assert image.file_path is None and image.evidence_status != 'COMPLETE'
+
+
 def layout(visit, count='Single', save=False):
     return PreparePositions(slots=[PositionCreate(ohl=ohl, phase=phase, string=string,
         direction='Ashoor', mount_type='Suspension', string_count=count)
@@ -186,6 +214,12 @@ def test_queued_upload_retries_are_idempotent_and_cannot_overwrite_a_filled_slot
         primary('different-request')
     assert error.value.status_code == 409
     db.rollback()
+    with pytest.raises(HTTPException) as error:
+        primary(None)
+    assert error.value.status_code == 409
+    db.rollback()
+    assert asyncio.run(add_extra_image(pos.id, baseline.image_type, file(), None, None, None, None, db, user, 'duplicate-content')).id == original.id
+    output = io.BytesIO(); PILImage.new('RGB', (20, 20), 'blue').save(output, format='JPEG')
     def extra():
         return asyncio.run(add_extra_image(pos.id, baseline.image_type, file(), None, None, None, None, db, user, 'extra-request'))
     added = extra(); added_id = added.id

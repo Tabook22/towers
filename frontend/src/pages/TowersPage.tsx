@@ -1,14 +1,9 @@
 import { tr, useLanguage } from '../i18n';
 import { useRef, useState } from 'react';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Checkbox,
   Chip,
   Dialog,
@@ -31,21 +26,29 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/AddRounded';
 import SearchIcon from '@mui/icons-material/SearchRounded';
 import EditIcon from '@mui/icons-material/EditRounded';
 import ArchiveIcon from '@mui/icons-material/InventoryRounded';
 import UploadFileIcon from '@mui/icons-material/UploadFileRounded';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineRounded';
-import CellTowerIcon from '@mui/icons-material/CellTowerRounded';
+import TransmissionTowerIcon from '../components/TransmissionTowerIcon';
 import TableChartIcon from '@mui/icons-material/TableChartRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import GroupsIcon from '@mui/icons-material/GroupsRounded';
 import EditLocationAltIcon from '@mui/icons-material/EditLocationAltRounded';
 import CheckIcon from '@mui/icons-material/CheckRounded';
 import CloseIcon from '@mui/icons-material/CloseRounded';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import MapRounded from '@mui/icons-material/MapRounded';
+import RouteRounded from '@mui/icons-material/RouteRounded';
+import BoltRounded from '@mui/icons-material/BoltRounded';
+import LocalFireDepartmentRounded from '@mui/icons-material/LocalFireDepartmentRounded';
+import FactCheckRounded from '@mui/icons-material/FactCheckRounded';
+import SettingsRounded from '@mui/icons-material/SettingsRounded';
+import FilterAltRounded from '@mui/icons-material/FilterAltRounded';
+import RestartAltRounded from '@mui/icons-material/RestartAltRounded';
+import { DashboardSection } from '../components/DashboardSection';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -352,10 +355,311 @@ export function TowersPage() {
     <Stack spacing={3}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>{tr("Manage Towers")}</Typography>
-          <Typography color="text.secondary">{tr("Add any number of towers with any Tower ID — no fixed list or format required.")}</Typography>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}><Box sx={{ p: 1.5, display: 'grid', placeItems: 'center', bgcolor: 'primary.main', color: 'primary.contrastText', borderRadius: 3 }}><TransmissionTowerIcon sx={{ fontSize: 34 }} /></Box><Typography variant="h4" sx={{ fontWeight: 800 }}>{tr("Towers")}</Typography></Stack>
+          <Typography color="text.secondary">{tr("Every tower, its crew and its inspection story — connected in one place.")}</Typography>
         </Box>
-        <Stack direction="row" spacing={1.5}>
+        {canAddTower && <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>{tr("Add tower")}</Button>}
+      </Stack>
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+        {[
+          { label: tr('Matching towers'), value: visibleTowers?.length || 0, icon: <TransmissionTowerIcon />, color: theme.palette.primary.main },
+          { label: tr('Assigned to a team'), value: (visibleTowers || []).filter(t => t.assigned_team_id != null).length, icon: <GroupsIcon />, color: theme.palette.info.main },
+          { label: tr('Completed missions'), value: (visibleTowers || []).filter(t => t.latest_visit_mission_status === 'completed').length, icon: <FactCheckRounded />, color: theme.palette.success.main },
+          { label: tr('Open hotspots'), value: (visibleTowers || []).reduce((total, t) => total + (t.open_hotspots || 0), 0), icon: <LocalFireDepartmentRounded />, color: theme.palette.warning.main },
+        ].map(item => <Paper key={item.label} variant="outlined" sx={{ p: { xs: 1.5, md: 2.5 }, borderRadius: '20px', borderTop: `3px solid ${item.color}` }}>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+            <Box sx={{ display: 'grid', placeItems: 'center', width: 46, height: 46, flexShrink: 0, borderRadius: 3, color: item.color, bgcolor: alpha(item.color, .1) }}>{item.icon}</Box>
+            <Box><Typography variant="h5" sx={{ fontWeight: 800 }}>{isLoading ? '—' : item.value}</Typography><Typography variant="body2" color="text.secondary">{item.label}</Typography></Box>
+          </Stack>
+        </Paper>)}
+      </Box>
+
+      <DashboardSection icon={<FilterAltRounded />} title={tr('Find your towers')} description={tr('Search by tower ID, then narrow by area, line or team. The register and map follow your filters.')} tone="teal" compact>
+      <Box sx={{ p: { xs: 2, md: 3 }, '& .MuiOutlinedInput-root': { borderRadius: '14px', minHeight: 48 } }}>
+      <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ flexWrap: "wrap", gap: 1 }}>
+        <TextField
+          size="small"
+          label={tr("Search towers")}
+          placeholder={tr("Search by Tower ID or area…")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ flex: 1, minWidth: { xs: 0, md: 240 } }}
+          slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }}
+        />
+        <TextField
+          select
+          size="small"
+          label={tr("Area")}
+          value={area}
+          onChange={(e) => setArea(e.target.value)}
+          sx={{ minWidth: 180 }}
+          slotProps={{
+            inputLabel: { shrink: true },
+            select: {
+              displayEmpty: true,
+              renderValue: () => area || tr('All areas'),
+              endAdornment: canImport && (
+                <Tooltip title={tr("Add, rename, or delete areas")}>
+                  <IconButton
+                    size="small"
+                    sx={{ mr: 2 }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAreasDialogOpen(true);
+                    }}
+                  >
+                    <EditLocationAltIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              ),
+            },
+          }}
+        >
+          <MenuItem value="">{tr("All areas")}</MenuItem>
+          {areas?.map((a) => (
+            <MenuItem key={a} value={a}>
+              {a}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          select
+          size="small"
+          label={tr("Line sector")}
+          slotProps={{ inputLabel: { shrink: true }, input: { startAdornment: <InputAdornment position="start"><RouteRounded fontSize="small" /></InputAdornment> }, select: { displayEmpty: true, renderValue: () => lineSector || tr('All line sectors') } }}
+          value={lineSector}
+          onChange={(e) => setLineSector(e.target.value)}
+          sx={{ minWidth: 200 }}
+        >
+          <MenuItem value="">{tr("All line sectors")}</MenuItem>
+          {lineSectorOptions.map((s) => (
+            <MenuItem key={s} value={s}>
+              {tr(s)}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          select
+          size="small"
+          label={tr("Assigned team")}
+          slotProps={{ inputLabel: { shrink: true }, input: { startAdornment: <InputAdornment position="start"><GroupsIcon fontSize="small" /></InputAdornment> }, select: { displayEmpty: true, renderValue: () => teamFilter === 'unassigned' ? tr('Unassigned') : teams?.find(t => String(t.id) === String(teamFilter))?.name || tr('All teams') } }}
+          value={teamFilter}
+          onChange={(e) => setTeamFilter(e.target.value)}
+          sx={{ minWidth: 180 }}
+        >
+          <MenuItem value="">{tr("All teams")}</MenuItem>
+          <MenuItem value="unassigned">{tr("Unassigned")}</MenuItem>
+          {teams?.map((t) => (
+            <MenuItem key={t.id} value={t.id}>
+              {t.name}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Stack>
+
+      <Stack direction="row" sx={{ mt: 2, gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Chip size="small" icon={<TransmissionTowerIcon />} label={tr('Matching towers: {0}', [visibleTowers?.length || 0])} />
+        {(search || area || lineSector || teamFilter) && <Button size="small" startIcon={<RestartAltRounded />} onClick={() => { setSearch(''); setArea(''); setLineSector(''); setTeamFilter(''); }}>{tr('Clear filters')}</Button>}
+      </Stack>
+      </Box>
+      </DashboardSection>
+
+      {renumberMsg && (
+        <Alert
+          severity={renumberMsg.startsWith('Updated') ? 'success' : 'error'}
+          onClose={() => setRenumberMsg(null)}
+        >
+          {renumberMsg}
+        </Alert>
+      )}
+
+      {selected.size > 0 && canImport && (
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1, p: 2, bgcolor: alpha(theme.palette.primary.main, .08), borderRadius: 3 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {selected.size}{tr(" tower")}{selected.size === 1 ? '' : tr("s")}{tr(" selected")}</Typography>
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<GroupsIcon fontSize="small" />}
+            onClick={() => {
+              setAssignTeamId('');
+              setAssignOpen(true);
+            }}
+          >{tr("Assign to team")}</Button>
+          <Button
+            size="small"
+            color="error"
+            variant="outlined"
+            startIcon={<DeleteOutlineIcon fontSize="small" />}
+            onClick={() => {
+              setDeleteAll(false);
+              setDeleteError(null);
+              setDeleteOpen(true);
+            }}
+          >{tr("Delete selected")}</Button>
+          <Button size="small" onClick={() => setSelected(new Set())}>{tr("Clear selection")}</Button>
+        </Stack>
+      )}
+
+      {actionTower && <TowerActionsDialog key={actionTower.id} tower={actionTower} canManage={canEditCatalog}
+        ownTeamId={isTeamLeader ? user?.team_id : null} onClose={() => setTowerActionId(null)}
+        onSuccess={setAssignmentMessage} onEdit={() => { setTowerActionId(null); openEdit(actionTower); }} />}
+
+      <DashboardSection icon={<TransmissionTowerIcon />} title={tr('Tower register')} description={canImport ? tr('Open a tower to see its details and inspection history. Select rows to manage team assignments.') : tr('Open a tower to see its details and inspection history.')} eyebrow={tr('THE ASSETS BEHIND THE FIELDWORK')} tone="teal" badge={<Chip size="small" label={tr('Matching towers: {0}', [visibleTowers?.length || 0])} sx={{ color: 'white', bgcolor: '#ffffff20' }} />}>
+      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: '16px', '& .MuiIconButton-root': { borderRadius: 2, minWidth: 38, minHeight: 38 } }}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              {canImport && (
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    size="small"
+                    indeterminate={selected.size > 0 && selected.size < (visibleTowers?.length || 0)}
+                    checked={!!visibleTowers?.length && selected.size === visibleTowers.length}
+                    onChange={(e) => setSelected(e.target.checked ? new Set(visibleTowers?.map((t) => t.id)) : new Set())}
+                  />
+                </TableCell>
+              )}
+              <TableCell>{tr("Tower ID")}</TableCell>
+              <TableCell><Stack direction="row" spacing={.5} sx={{ alignItems: 'center' }}><RouteRounded fontSize="small" /><span>{tr('Location / line')}</span></Stack></TableCell>
+              <TableCell><Stack direction="row" spacing={.5} sx={{ alignItems: 'center' }}><GroupsIcon fontSize="small" /><span>{tr('Assigned team')}</span></Stack></TableCell>
+              <TableCell><Stack direction="row" spacing={.5} sx={{ alignItems: 'center' }}><FactCheckRounded fontSize="small" /><span>{tr('Inspection progress')}</span></Stack></TableCell>
+              <TableCell align="right">{tr("Actions")}</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {visibleTowers?.map((t) => (
+              <TableRow
+                key={t.id}
+                hover
+                sx={{ cursor: 'pointer' }}
+                onClick={() => setTowerActionId(t.id)}
+              >
+                {canImport && (
+                  <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      size="small"
+                      checked={selected.has(t.id)}
+                      onChange={(e) =>
+                        setSelected((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(t.id);
+                          else next.delete(t.id);
+                          return next;
+                        })
+                      }
+                    />
+                  </TableCell>
+                )}
+                <TableCell sx={{ minWidth: 210 }}><Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}><Box sx={{ width: 42, height: 48, borderRadius: 2.5, display: 'grid', placeItems: 'center', bgcolor: alpha(theme.palette.primary.main, .08), color: 'primary.main', flexShrink: 0 }}><TransmissionTowerIcon /></Box><Box><Button sx={{ p: 0, minWidth: 0, textAlign: 'start', fontWeight: 800, justifyContent: 'flex-start' }} onClick={(e) => { e.stopPropagation(); setTowerActionId(t.id); }}>{t.tower_id}</Button><Stack direction="row" spacing={.5} sx={{ alignItems: 'center', mt: .5, color: 'text.secondary' }}><BoltRounded sx={{ fontSize: 15 }} /><Typography variant="caption">{t.voltage || '—'}</Typography></Stack>{t.tower_type && <Typography variant="caption" sx={{ display: 'block' }} color="text.secondary">{t.tower_type}</Typography>}</Box></Stack></TableCell>
+                <TableCell sx={{ minWidth: 120 }}><Typography variant="body2">{t.area || '—'}</Typography><Typography variant="caption" color="text.secondary">{t.line_sector || '—'}</Typography>{t.location_name && <Typography variant="caption" sx={{ display: 'block' }} color="text.secondary">{t.location_name}</Typography>}</TableCell>
+                <TableCell>
+                  {t.assigned_team_name ? (
+                    <Chip size="small" icon={<GroupsIcon />} color="primary" variant="outlined" label={t.assigned_team_name} />
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">{tr("Unassigned")}</Typography>
+                  )}
+                </TableCell>
+                <TableCell sx={{ minWidth: 180 }}>
+                  <VisitStatusChip status={t.latest_visit_status} />
+                  <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mt: 1, flexWrap: 'wrap' }}>
+                    <Typography variant="caption" color="text.secondary">{tr('Visits: {0}', [t.visit_count])}</Typography>
+                    {t.open_hotspots > 0 && <Chip size="small" icon={<LocalFireDepartmentRounded />} label={tr('Hotspots: {0}', [t.open_hotspots])} color="warning" variant="outlined" />}
+                  </Stack>
+                </TableCell>
+                <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                  {canEditCatalog ? (
+                    <>
+                      {t.assigned_team_id != null && (
+                        <Button
+                          size="small"
+                          onClick={() => setTowerActionId(t.id)}
+                        >{tr("Unassign")}</Button>
+                      )}
+                      <Tooltip title={tr("Edit tower details")}>
+                        <IconButton size="small" onClick={() => openEdit(t)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title={tr("Inspection visits")}>
+                        <IconButton size="small" onClick={() => navigate(`/towers/${t.id}`)}>
+                          <TransmissionTowerIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title={tr("Deactivate tower")}>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => {
+                            if (confirm(tr("Deactivate tower {0}?", [t.tower_id]))) deactivateTower.mutate(t.id);
+                          }}
+                        >
+                          <ArchiveIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  ) : isTeamLeader && t.assigned_team_id == null ? (
+                    <Button size="small" onClick={() => setTowerActionId(t.id)}>{tr("Add to my team")}</Button>
+                  ) : isTeamLeader && t.assigned_team_id === user?.team_id ? (
+                    <Button
+                      size="small"
+                      onClick={() => setTowerActionId(t.id)}
+                    >{tr("Unassign")}</Button>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">
+                      {t.assigned_team_name || '—'}
+                    </Typography>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+            {!isLoading && visibleTowers?.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={canImport ? 6 : 5} align="center">
+                  {lineSector ? tr("No towers on this line sector.") : tr("No towers found — add your first one.")}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+      </DashboardSection>
+
+      <DashboardSection icon={<MapRounded />} title={tr('Tower locations')} description={tr('Click a tower pin or table row to view its details, open inspections, or choose an assignment action.')} eyebrow={tr('EXPLORE THE NETWORK')} tone="blue">
+          {(isTeamLeader || canEditCatalog) && (
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+              <Typography variant="caption" color="text.secondary">{tr("Each team has its own pin color (see the legend on the map below) and a ✓ marks a tower whose inspection is complete. The number in the circle is the Tower ID number (Ashoor-Saada-2 → 2).")}</Typography>
+            </Stack>
+          )}
+          {assignmentMessage && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setAssignmentMessage('')}>{tr(assignmentMessage)}</Alert>}
+          <TowersOverviewMap
+            rows={mapRows}
+            height={380}
+            onTowerClick={(row) => setTowerActionId(row.tower.id)}
+          />
+      </DashboardSection>
+
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <DashboardSection icon={<RouteRounded />} title={tr('Towers per line')} description={tr('How the current search/area result is split across each line sector.')} tone="violet" compact>
+            <Box sx={{ p: 2.5 }}>
+              <HorizontalBarChart data={towersByLine} emptyMessage="No towers to summarize yet." />
+            </Box>
+          </DashboardSection>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <DashboardSection icon={<InsightsRoundedIcon />} title={tr('Towers completed per team')} description={tr('Assigned towers whose latest visit is fully completed, by team.')} tone="green" compact>
+            <Box sx={{ p: 2.5 }}>
+              <HorizontalBarChart data={completedByTeam} emptyMessage="No completed towers yet." />
+            </Box>
+          </DashboardSection>
+        </Grid>
+      </Grid>
+
+      {canImport && <DashboardSection icon={<SettingsRounded />} title={tr('Tower catalog tools')} description={tr('Import or export tower records, update map locations and maintain the catalog.')} tone="amber" defaultExpanded={false}>
+        <Stack direction="row" sx={{ gap: 1.5, flexWrap: 'wrap' }}>
           {canImport && (
             <>
               <Button
@@ -420,305 +724,8 @@ export function TowersPage() {
               >{tr("Delete all")}</Button>
             </>
           )}
-          {canAddTower && (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>{tr("Add tower")}</Button>
-          )}
         </Stack>
-      </Stack>
-
-      <Stack direction="row" spacing={2}>
-        <TextField
-          size="small"
-          placeholder={tr("Search by Tower ID or area…")}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          sx={{ minWidth: 280 }}
-          slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }}
-        />
-        <TextField
-          select
-          size="small"
-          label={tr("Area")}
-          value={area}
-          onChange={(e) => setArea(e.target.value)}
-          sx={{ minWidth: 180 }}
-          slotProps={{
-            select: {
-              endAdornment: canImport && (
-                <Tooltip title={tr("Add, rename, or delete areas")}>
-                  <IconButton
-                    size="small"
-                    sx={{ mr: 2 }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setAreasDialogOpen(true);
-                    }}
-                  >
-                    <EditLocationAltIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              ),
-            },
-          }}
-        >
-          <MenuItem value="">{tr("All areas")}</MenuItem>
-          {areas?.map((a) => (
-            <MenuItem key={a} value={a}>
-              {a}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select
-          size="small"
-          label={tr("Line sector")}
-          value={lineSector}
-          onChange={(e) => setLineSector(e.target.value)}
-          sx={{ minWidth: 200 }}
-        >
-          <MenuItem value="">{tr("All line sectors")}</MenuItem>
-          {lineSectorOptions.map((s) => (
-            <MenuItem key={s} value={s}>
-              {tr(s)}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select
-          size="small"
-          label={tr("Assigned team")}
-          value={teamFilter}
-          onChange={(e) => setTeamFilter(e.target.value)}
-          sx={{ minWidth: 180 }}
-        >
-          <MenuItem value="">{tr("All teams")}</MenuItem>
-          <MenuItem value="unassigned">{tr("Unassigned")}</MenuItem>
-          {teams?.map((t) => (
-            <MenuItem key={t.id} value={t.id}>
-              {t.name}
-            </MenuItem>
-          ))}
-        </TextField>
-      </Stack>
-
-      {renumberMsg && (
-        <Alert
-          severity={renumberMsg.startsWith('Updated') ? 'success' : 'error'}
-          onClose={() => setRenumberMsg(null)}
-        >
-          {renumberMsg}
-        </Alert>
-      )}
-
-      {selected.size > 0 && canImport && (
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', p: 1.5, bgcolor: 'primary.50', borderRadius: 2 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {selected.size}{tr(" tower")}{selected.size === 1 ? '' : tr("s")}{tr(" selected")}</Typography>
-          <Button
-            size="small"
-            variant="contained"
-            startIcon={<GroupsIcon fontSize="small" />}
-            onClick={() => {
-              setAssignTeamId('');
-              setAssignOpen(true);
-            }}
-          >{tr("Assign to team")}</Button>
-          <Button
-            size="small"
-            color="error"
-            variant="outlined"
-            startIcon={<DeleteOutlineIcon fontSize="small" />}
-            onClick={() => {
-              setDeleteAll(false);
-              setDeleteError(null);
-              setDeleteOpen(true);
-            }}
-          >{tr("Delete selected")}</Button>
-          <Button size="small" onClick={() => setSelected(new Set())}>{tr("Clear selection")}</Button>
-        </Stack>
-      )}
-
-      {actionTower && <TowerActionsDialog key={actionTower.id} tower={actionTower} canManage={canEditCatalog}
-        ownTeamId={isTeamLeader ? user?.team_id : null} onClose={() => setTowerActionId(null)}
-        onSuccess={setAssignmentMessage} onEdit={() => { setTowerActionId(null); openEdit(actionTower); }} />}
-
-      <Card>
-        <CardContent>
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>{tr("Tower locations")}</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{tr("Click a tower pin or table row to view its details, open inspections, or choose an assignment action.")}</Typography>
-          {(isTeamLeader || canEditCatalog) && (
-            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-              <Typography variant="caption" color="text.secondary">{tr("Each team has its own pin color (see the legend on the map below) and a ✓ marks a tower whose inspection is complete. The number in the circle is the Tower ID number (Ashoor-Saada-2 → 2).")}</Typography>
-            </Stack>
-          )}
-          {assignmentMessage && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setAssignmentMessage('')}>{tr(assignmentMessage)}</Alert>}
-          <TowersOverviewMap
-            rows={mapRows}
-            height={380}
-            onTowerClick={(row) => setTowerActionId(row.tower.id)}
-          />
-        </CardContent>
-      </Card>
-
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
-                <InsightsRoundedIcon color="primary" fontSize="small" />
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Towers per line")}</Typography>
-              </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("How the current search/area result is split across each line sector.")}</Typography>
-              <HorizontalBarChart data={towersByLine} emptyMessage="No towers to summarize yet." />
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
-                <CheckIcon color="success" fontSize="small" />
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Towers completed per team")}</Typography>
-              </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("Assigned towers whose latest visit is fully completed, by team.")}</Typography>
-              <HorizontalBarChart data={completedByTeam} emptyMessage="No completed towers yet." />
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      <Accordion defaultExpanded disableGutters variant="outlined">
-        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("All towers (")}{(visibleTowers || []).length})
-          </Typography>
-        </AccordionSummary>
-        <AccordionDetails sx={{ p: 0 }}>
-      <TableContainer component={Paper} variant="outlined" sx={{ border: 0 }}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              {canImport && (
-                <TableCell padding="checkbox">
-                  <Checkbox
-                    size="small"
-                    indeterminate={selected.size > 0 && selected.size < (visibleTowers?.length || 0)}
-                    checked={!!visibleTowers?.length && selected.size === visibleTowers.length}
-                    onChange={(e) => setSelected(e.target.checked ? new Set(visibleTowers?.map((t) => t.id)) : new Set())}
-                  />
-                </TableCell>
-              )}
-              <TableCell>{tr("Tower ID")}</TableCell>
-              <TableCell>{tr("Voltage")}</TableCell>
-              <TableCell>{tr("Type")}</TableCell>
-              <TableCell>{tr("Area")}</TableCell>
-              <TableCell>{tr("Line sector")}</TableCell>
-              <TableCell>{tr("Assigned team")}</TableCell>
-              <TableCell align="center">{tr("Visits")}</TableCell>
-              <TableCell align="center">{tr("Open hotspots")}</TableCell>
-              <TableCell>{tr("Latest visit status")}</TableCell>
-              <TableCell align="right">{tr("Actions")}</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {visibleTowers?.map((t) => (
-              <TableRow
-                key={t.id}
-                hover
-                sx={{ cursor: 'pointer' }}
-                onClick={() => setTowerActionId(t.id)}
-              >
-                {canImport && (
-                  <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
-                    <Checkbox
-                      size="small"
-                      checked={selected.has(t.id)}
-                      onChange={(e) =>
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          if (e.target.checked) next.add(t.id);
-                          else next.delete(t.id);
-                          return next;
-                        })
-                      }
-                    />
-                  </TableCell>
-                )}
-                <TableCell sx={{ fontWeight: 700 }}>{t.tower_id}</TableCell>
-                <TableCell>{t.voltage || '-'}</TableCell>
-                <TableCell>{t.tower_type || '-'}</TableCell>
-                <TableCell>{t.area || '-'}</TableCell>
-                <TableCell>{t.line_sector || '-'}</TableCell>
-                <TableCell>
-                  {t.assigned_team_name ? (
-                    <Chip size="small" color="primary" variant="outlined" label={t.assigned_team_name} />
-                  ) : (
-                    <Typography variant="caption" color="text.secondary">{tr("Unassigned")}</Typography>
-                  )}
-                </TableCell>
-                <TableCell align="center">{t.visit_count}</TableCell>
-                <TableCell align="center">{t.open_hotspots || 0}</TableCell>
-                <TableCell>
-                  <VisitStatusChip status={t.latest_visit_status} />
-                </TableCell>
-                <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                  {canEditCatalog ? (
-                    <>
-                      {t.assigned_team_id != null && (
-                        <Button
-                          size="small"
-                          onClick={() => setTowerActionId(t.id)}
-                        >{tr("Unassign")}</Button>
-                      )}
-                      <Tooltip title={tr("Edit tower details")}>
-                        <IconButton size="small" onClick={() => openEdit(t)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title={tr("Inspection visits")}>
-                        <IconButton size="small" onClick={() => navigate(`/towers/${t.id}`)}>
-                          <CellTowerIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title={tr("Deactivate tower")}>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => {
-                            if (confirm(tr("Deactivate tower {0}?", [t.tower_id]))) deactivateTower.mutate(t.id);
-                          }}
-                        >
-                          <ArchiveIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </>
-                  ) : isTeamLeader && t.assigned_team_id == null ? (
-                    <Button size="small" onClick={() => setTowerActionId(t.id)}>{tr("Add to my team")}</Button>
-                  ) : isTeamLeader && t.assigned_team_id === user?.team_id ? (
-                    <Button
-                      size="small"
-                      onClick={() => setTowerActionId(t.id)}
-                    >{tr("Unassign")}</Button>
-                  ) : (
-                    <Typography variant="caption" color="text.secondary">
-                      {t.assigned_team_name || '—'}
-                    </Typography>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-            {!isLoading && visibleTowers?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={11} align="center">
-                  {lineSector ? tr("No towers on this line sector.") : tr("No towers found — add your first one.")}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-        </AccordionDetails>
-      </Accordion>
+      </DashboardSection>}
 
       <Dialog
         open={dialogOpen}
@@ -847,7 +854,7 @@ export function TowersPage() {
                       justifyContent: 'center',
                     }}
                   >
-                    <CellTowerIcon color="disabled" />
+                    <TransmissionTowerIcon color="disabled" />
                   </Box>
                 )}
                 <Stack direction="row" spacing={2}>

@@ -46,7 +46,10 @@ function MapRefBridge({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null>
   const map = useMap();
   useEffect(() => {
     mapRef.current = map;
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(map.getContainer());
     return () => {
+      observer.disconnect();
       if (mapRef.current === map) mapRef.current = null;
     };
   }, [map, mapRef]);

@@ -1,10 +1,7 @@
 import { tr, useLanguage, locale } from '../i18n';
+import { localInspectionDate } from '../utils/teamTowerWork';
 import { useMemo, useState } from 'react';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
-  Box,
   Button,
   Dialog,
   DialogActions,
@@ -27,11 +24,11 @@ import {
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import { useDeleteOutingPlan, useOutingPlans } from '../api/hooks';
 import type { OutingPlanSummary } from '../api/types';
 import { StepBadge } from './StepBadge';
+import { DashboardSection } from './DashboardSection';
 
 type SortKey = 'field_date' | 'name' | 'tower_count';
 
@@ -51,7 +48,7 @@ function timeRange(p: OutingPlanSummary) {
 
 /** A team leader's full mission history: every named plan ever saved for this team, one row per
  * field night — listable, sortable, and editable/deletable/addable here. Picking "Edit" (or
- * "Add mission") just points the Mission plan card below at a different `field_date`; the actual
+ * "Plan another mission") just points the Mission plan card below at a different `field_date`; the actual
  * create/update/save flow still lives there (save_outing_plan handles both new and existing
  * dates identically), so this component only needs to list, sort, delete, and hand off a date. */
 export function MissionHistoryCard({
@@ -73,7 +70,7 @@ export function MissionHistoryCard({
   const [sortKey, setSortKey] = useState<SortKey>('field_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [addOpen, setAddOpen] = useState(false);
-  const [addDate, setAddDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [addDate, setAddDate] = useState(() => localInspectionDate());
   const [deleteTarget, setDeleteTarget] = useState<OutingPlanSummary | null>(null);
 
   const existingDates = useMemo(() => new Set((plans || []).map((p) => p.field_date)), [plans]);
@@ -101,18 +98,11 @@ export function MissionHistoryCard({
 
   return (
     <>
-    <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-          {step != null && <StepBadge n={step} />}
-          <HistoryRoundedIcon color="primary" />
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Mission history")}</Typography>
-            <Typography variant="body2" color="text.secondary">{tr("Every mission this team has planned. Pick one below to review or edit, or add a new one.")}</Typography>
-          </Box>
-        </Stack>
-      </AccordionSummary>
-      <AccordionDetails>
+    <DashboardSection defaultExpanded={false} tone="violet" icon={<HistoryRoundedIcon />}
+      title={tr("Mission plan history")} eyebrow={tr("PREVIOUS MISSIONS")}
+      description={tr("Find earlier mission plans and reopen their dates, towers and route order.")}
+      badge={step != null ? <StepBadge n={step} /> : undefined}>
+
         {canEdit && (
           <Stack direction="row" sx={{ justifyContent: 'flex-end', mb: 1.5 }}>
             <Button
@@ -120,10 +110,10 @@ export function MissionHistoryCard({
               variant="outlined"
               startIcon={<AddRoundedIcon />}
               onClick={() => {
-                setAddDate(new Date().toISOString().slice(0, 10));
+                setAddDate(localInspectionDate());
                 setAddOpen(true);
               }}
-            >{tr("Add mission")}</Button>
+            >{tr("Plan another mission")}</Button>
           </Stack>
         )}
         {isLoading && <LinearProgress sx={{ mb: 1 }} />}
@@ -139,7 +129,7 @@ export function MissionHistoryCard({
                   >{tr("Date")}</TableSortLabel>
                 </TableCell>
                 <TableCell>
-                  <TableSortLabel active={sortKey === 'name'} direction={sortKey === 'name' ? sortDir : 'asc'} onClick={() => toggleSort('name')}>{tr("Mission")}</TableSortLabel>
+                  <TableSortLabel active={sortKey === 'name'} direction={sortKey === 'name' ? sortDir : 'asc'} onClick={() => toggleSort('name')}>{tr("Mission plan")}</TableSortLabel>
                 </TableCell>
                 <TableCell>{tr("Time")}</TableCell>
                 <TableCell align="center">
@@ -170,7 +160,7 @@ export function MissionHistoryCard({
                       </IconButton>
                     </Tooltip>
                     {canEdit && (
-                      <Tooltip title={tr("Delete mission")}>
+                      <Tooltip title={tr("Delete mission plan")}>
                         <IconButton size="small" color="error" onClick={() => setDeleteTarget(p)}>
                           <DeleteRoundedIcon fontSize="small" />
                         </IconButton>
@@ -182,18 +172,17 @@ export function MissionHistoryCard({
               {!isLoading && sorted.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} align="center">
-                    <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>{tr("No missions planned yet.")}</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>{tr("No mission plans yet.")}</Typography>
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </TableContainer>
-      </AccordionDetails>
-    </Accordion>
+    </DashboardSection>
 
       <Dialog open={addOpen} onClose={() => setAddOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{tr("Add a mission")}</DialogTitle>
+        <DialogTitle>{tr("Plan another mission")}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
@@ -205,7 +194,7 @@ export function MissionHistoryCard({
             sx={{ mt: 1 }}
             slotProps={{ inputLabel: { shrink: true } }}
             helperText={
-              existingDates.has(addDate) ? tr("A mission already exists on this date — it will open for editing instead.") : ' '
+              existingDates.has(addDate) ? tr("A mission plan already exists on this date — it will open for editing.") : ' '
             }
           />
         </DialogContent>
@@ -225,9 +214,9 @@ export function MissionHistoryCard({
       </Dialog>
 
       <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>{tr("Delete mission?")}</DialogTitle>
+        <DialogTitle>{tr("Delete mission plan?")}</DialogTitle>
         <DialogContent>
-          <Typography variant="body2">{tr("Delete the mission planned for ")}{deleteTarget ? missionDateLabel(deleteTarget.field_date) : ''}
+          <Typography variant="body2">{tr("Delete the mission plan for ")}{deleteTarget ? missionDateLabel(deleteTarget.field_date) : ''}
             {deleteTarget?.name ? ` ("${deleteTarget.name}")` : ''}{tr("? Towers already assigned to this team stay assigned — only the named plan for that night is removed. This can't be undone.")}</Typography>
         </DialogContent>
         <DialogActions>

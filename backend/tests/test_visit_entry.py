@@ -120,7 +120,8 @@ def test_drafts_private_cross_visit_images_rejected_and_old_draft_revision_rejec
     visit, user = make_visit(db)
     other = User(username='other-inspector', hashed_password='unused', role='admin')
     db.add(other); db.commit()
-    state = save(db, visit, user, {'headerDraft': {'inspector_name': 'Private'}})
+    state = save(db, visit, user, {'headerDraft': {'inspector_name': 'Private'}, 'additions': [
+        {'id': -1, 'ohl': 'OHL1', 'phase': 'R', 'string': 'S1', 'direction': 'Saada', 'mount_type': 'Tension', 'string_count': 'Single'}]})
     assert get_entry(visit.id, db, other)['payload'] == {}
     with pytest.raises(HTTPException) as error:
         save_entry(visit.id, DraftWrite(revision=0, payload={'different': True}), db, user)
@@ -165,3 +166,50 @@ def test_voice_draft_stays_with_new_position_until_confirmation(db, files):
     voices = [p for p in result.positions if p.voice_note_path]
     assert len(voices) == 1 and voices[0].direction == 'Saada'
     assert voices[0].voice_note_duration_seconds == 3.0
+
+
+def test_identical_photo_with_new_token_is_reused_only_for_the_same_position_and_category(db, files):
+    visit, user = make_visit(db); first, second = visit.positions[:2]
+    state = save(db, visit, user, {'drafts': {
+        str(first.id): patch(first, direction='Ashoor'), str(second.id): patch(second, direction='Ashoor')}})
+    a = upload(db, visit, user, first.id, state['revision'], expected=first.updated_at)
+    b = upload(db, visit, user, first.id, state['revision'], expected=first.updated_at)
+    assert a['images'] == b['images'] and len(b['images']) == 1
+    c = upload(db, visit, user, second.id, state['revision'], expected=second.updated_at)
+    assert len(c['images']) == 2
+    d = upload(db, visit, user, first.id, state['revision'], kind='TH Full', expected=first.updated_at)
+    assert len(d['images']) == 3
+    assert db.query(VisitDraftImage).count() == 3
+
+
+def test_review_snapshot_rejects_evidence_added_after_review_atomically(db, files):
+    visit, user = make_visit(db); position = visit.positions[0]
+    state = save(db, visit, user, {'drafts': {str(position.id): patch(position, direction='Ashoor', inspector_notes='Draft note')}})
+    first = upload(db, visit, user, position.id, state['revision'], expected=position.updated_at)
+    reviewed = [image['id'] for image in first['images']]
+    latest = upload(db, visit, user, position.id, state['revision'], kind='TH Full', expected=position.updated_at)
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(commit_entry(visit.id, DraftCommit(revision=state['revision'], token=uuid4(), reviewed_image_ids=reviewed), db, user))
+    assert error.value.status_code == 409
+    db.refresh(position); assert position.inspector_notes is None
+    assert len(get_entry(visit.id, db, user)['images']) == 2
+    result = asyncio.run(commit_entry(visit.id, DraftCommit(revision=state['revision'], token=uuid4(), reviewed_image_ids=[image['id'] for image in latest['images']]), db, user))
+    assert next(p for p in result.positions if p.id == position.id).inspector_notes == 'Draft note'
+
+
+@pytest.mark.parametrize('payload', [{'drafts': []}, {'additions': {}}, {'drafts': {'1': []}}, {'additions': [{'id': 1}]}, {'excludedImages': ['1']}])
+def test_malformed_draft_collections_are_rejected_before_save(db, payload):
+    visit, user = make_visit(db)
+    with pytest.raises(HTTPException) as error:
+        save(db, visit, user, payload)
+    assert error.value.status_code == 422
+    assert get_entry(visit.id, db, user)['payload'] == {}
+
+
+def test_unlinked_negative_evidence_key_is_rejected_immediately(db, files):
+    visit, user = make_visit(db)
+    state = get_entry(visit.id, db, user)
+    with pytest.raises(HTTPException) as error:
+        upload(db, visit, user, -999, state['revision'])
+    assert error.value.status_code == 422
+    assert not db.query(VisitDraftImage).count()

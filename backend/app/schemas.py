@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime as dt
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -326,6 +327,7 @@ class ArchiveReportReference(BaseModel):
 
 
 class ArchiveImageOut(ImageOut):
+    view_side: str | None = None
     """ImageOut plus the Team/Tower/Position context needed to group the Image Archive page by
     team, then tower, then insulator inspection — nothing
     else needs this extra context, so it's kept off the shared ImageOut every other screen uses."""
@@ -348,6 +350,7 @@ class ArchiveImageOut(ImageOut):
 
 # ---------- Position ----------
 class PositionUpdate(BaseModel):
+    view_side: Literal['Front', 'Back', 'Unspecified'] = 'Unspecified'
     model_config = ConfigDict(allow_inf_nan=False)
     expected_updated_at: dt.datetime | None = None
     ohl: Literal["OHL1", "OHL2"] | None = None
@@ -385,7 +388,7 @@ class PositionUpdate(BaseModel):
     @field_validator("direction")
     @classmethod
     def check_direction(cls, v):
-        if v is not None and v not in DIRECTION_CHOICES + LEGACY_DIRECTION_CHOICES:
+        if v is not None and v not in DIRECTION_CHOICES + LEGACY_DIRECTION_CHOICES + ['NA']:
             raise ValueError(f"direction must be one of {DIRECTION_CHOICES}")
         return v
 
@@ -471,6 +474,7 @@ class PositionUpdate(BaseModel):
 
 
 class PositionCreate(BaseModel):
+    view_side: Literal['Front', 'Back', 'Unspecified'] = 'Unspecified'
     """Adds a missing string slot or another Tension direction.
     Rejected if this exact (ohl, phase, string, direction) already exists on the visit.
     """
@@ -484,6 +488,8 @@ class PositionCreate(BaseModel):
 
     @model_validator(mode="after")
     def valid_string_configuration(self):
+        if self.direction == 'NA' and self.mount_type != 'Suspension':
+            raise ValueError('Direction is not applicable only for Suspension')
         if self.string_count == "Single" and self.string != "S1":
             raise ValueError("A one-string position must use S1")
         return self
@@ -512,7 +518,7 @@ class PositionCreate(BaseModel):
     @field_validator("direction")
     @classmethod
     def check_direction(cls, v):
-        if v not in DIRECTION_CHOICES + LEGACY_DIRECTION_CHOICES:
+        if v not in DIRECTION_CHOICES + LEGACY_DIRECTION_CHOICES + ['NA']:
             raise ValueError(f"direction must be one of {DIRECTION_CHOICES}")
         return v
 
@@ -525,6 +531,7 @@ class PositionCreate(BaseModel):
 
 
 class PositionOut(BaseModel):
+    view_side: Literal['Front', 'Back', 'Unspecified'] = 'Unspecified'
     in_scope: bool = True
     prepared_only: bool = False
     updated_at: dt.datetime
@@ -576,11 +583,11 @@ class PositionBatchItem(BaseModel):
 
 
 class PositionBatchUpdate(BaseModel):
-    items: list[PositionBatchItem] = Field(min_length=1, max_length=100)
+    items: list[PositionBatchItem] = Field(min_length=1, max_length=240)
 
 
 class PreparePositions(BaseModel):
-    slots: list[PositionCreate] = Field(min_length=1, max_length=60)
+    slots: list[PositionCreate] = Field(min_length=1, max_length=240)
     expected_versions: dict[int, dt.datetime]
     save_template: bool = False
 
@@ -618,7 +625,14 @@ class VisitBase(BaseModel):
 
 
 class VisitCreate(VisitBase):
-    pass
+    request_token: UUID | None = None
+    resume_existing: bool = False
+
+    @model_validator(mode="after")
+    def resume_needs_date(self):
+        if self.resume_existing and self.inspection_date is None:
+            raise ValueError("Choose an inspection date before starting or resuming a visit")
+        return self
 
 
 class VisitUpdate(BaseModel):
@@ -660,6 +674,7 @@ class VisitRollup(BaseModel):
 
 
 class VisitOut(VisitBase):
+    has_working_draft: bool = False
     model_config = ConfigDict(from_attributes=True)
     id: int
     status: str
@@ -1191,6 +1206,7 @@ class VisitPhotoPromote(BaseModel):
 
 
 class ArchiveVisitPhotoOut(VisitPhotoOut):
+    view_side: str | None = None
     """VisitPhotoOut plus the same Team/Tower context ArchiveImageOut adds to ImageOut — lets the
     Image Archive page fold these free-form photos into the same team/tower tree as the formal
     checklist images (see routers/archive.browse_archive)."""
@@ -1517,6 +1533,9 @@ class LineInspectionReportOut(BaseModel):
     has_file: bool = False
     image_count: int = 0
     comment_count: int = 0
+    has_inspection_snapshot: bool = False
+    last_comment_role: str | None = None
+    last_comment_at: dt.datetime | None = None
 
 
 class LineInspectionReportUpdate(BaseModel):
@@ -1558,6 +1577,8 @@ class ReportImageOut(BaseModel):
     area: str | None = None
     capture_date: dt.date | None = None
     capture_time: dt.time | None = None
+    version_status: str = "unverified"
+    sequence: int = 1
 
 
 class ReportCommentCreate(BaseModel):
@@ -1599,6 +1620,9 @@ class OetcReportPreview(BaseModel):
     position_count: int
     hotspot_count: int
     message: str | None = None
+    draft_visit_count: int = 0
+    uninspected_position_count: int = 0
+    without_selected_evidence_count: int = 0
 
 
 class TeamArchiveImageOut(BaseModel):
@@ -1606,12 +1630,14 @@ class TeamArchiveImageOut(BaseModel):
     id: int
     team_id: int
     team_name: str | None = None
+    upload_date: dt.date
     capture_date: dt.date
     latitude: float | None = None
     longitude: float | None = None
     caption: str | None = None
     content_type: str | None = None
     original_filename: str | None = None
+    relative_path: str | None = None
     file_size: int | None = None
     has_thumbnail: bool = False
     uploaded_by: int | None = None

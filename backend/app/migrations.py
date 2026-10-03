@@ -1,22 +1,79 @@
-"""Lightweight additive-only migration, run once at startup after `Base.metadata.create_all()`.
+"""Startup migrations run after `Base.metadata.create_all()`.
 
 There's no Alembic in this project (see README's "deviations" note) — `create_all()` creates
 brand-new tables but never alters existing ones, so a new nullable column added to a model (like
 Tower.tower_type) would otherwise silently vanish from real requests against an already-existing
 SQLite file. This scans for exactly that case and adds the missing column via `ALTER TABLE ...
 ADD COLUMN`, which SQLite supports for nullable/defaulted columns. It never drops or modifies an
-existing column — if the schema ever needs a real migration (renames, constraints, data backfills),
-move to Alembic instead of extending this.
+existing column. The explicit SQLite structural repairs below preserve original row IDs and
+relationships transactionally. Detached-draft recovery is a separate, manual offline operation.
 """
 from __future__ import annotations
 
 import logging
+import re
 
 from sqlalchemy import Engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.schema import CreateColumn, CreateTable
 
 logger = logging.getLogger(__name__)
+
+
+def repair_obsolete_position_foreign_keys(engine: Engine) -> None:
+    """Repair the historical parent-rename bug without changing any evidence values.
+
+    Preserve the original column definitions and indexes, not just today's model columns.
+    Detached inspection drafts are deliberately untouched: their ownership cannot be inferred.
+    Both child tables are repaired atomically; unresolved position IDs abort the repair.
+    """
+    if engine.dialect.name != 'sqlite':
+        return
+    with engine.connect() as conn:
+        enabled = conn.exec_driver_sql('PRAGMA foreign_keys').scalar()
+        conn.commit()
+        conn.exec_driver_sql('PRAGMA foreign_keys=OFF')
+        conn.commit()
+        try:
+            conn.exec_driver_sql('BEGIN IMMEDIATE')
+            before = set(conn.exec_driver_sql('PRAGMA foreign_key_check').fetchall())
+            for name in ('images', 'visit_photos'):
+                obsolete = [fk for fk in conn.exec_driver_sql(f'PRAGMA foreign_key_list("{name}")').mappings()
+                            if fk['table'] == 'positions_old']
+                if not obsolete:
+                    continue
+                if any(fk['from'] != 'position_id' or fk['to'] != 'id' for fk in obsolete):
+                    raise RuntimeError(f'Unexpected obsolete relationship in {name}; manual repair required')
+                if conn.exec_driver_sql(f'SELECT 1 FROM "{name}" c LEFT JOIN positions p ON p.id=c.position_id WHERE c.position_id IS NOT NULL AND p.id IS NULL LIMIT 1').first():
+                    raise RuntimeError(f'{name} has unresolved position IDs; repair would misidentify evidence')
+                if conn.exec_driver_sql('SELECT 1 FROM sqlite_master WHERE type="trigger" AND tbl_name=?', (name,)).first():
+                    raise RuntimeError(f'{name} has custom triggers; manual repair required')
+                ddl = conn.exec_driver_sql('SELECT sql FROM sqlite_master WHERE type="table" AND name=?', (name,)).scalar_one()
+                indexes = conn.exec_driver_sql('SELECT sql FROM sqlite_master WHERE type="index" AND tbl_name=? AND sql IS NOT NULL', (name,)).scalars().all()
+                temporary = name + '_fk_repair'
+                ddl, replaced = re.subn(r'^CREATE TABLE\s+(?:"' + name + r'"|`' + name + r'`|\[' + name + r'\]|' + name + r')(?=\s|\()', 'CREATE TABLE "' + temporary + '"', ddl, count=1, flags=re.I)
+                ddl, references = re.subn(r'(REFERENCES\s+)(?:"positions_old"|`positions_old`|\[positions_old\]|positions_old)(?=\s|\()', r'\1"positions"', ddl, flags=re.I)
+                if replaced != 1 or references != len(obsolete):
+                    raise RuntimeError(f'Cannot safely rewrite {name} schema')
+                conn.exec_driver_sql(ddl)
+                columns = ','.join('"' + column['name'].replace('"', '""') + '"' for column in conn.exec_driver_sql(f'PRAGMA table_info("{name}")').mappings())
+                conn.exec_driver_sql(f'INSERT INTO "{temporary}" ({columns}) SELECT {columns} FROM "{name}"')
+                if conn.exec_driver_sql(f'SELECT COUNT(*) FROM "{temporary}"').scalar() != conn.exec_driver_sql(f'SELECT COUNT(*) FROM "{name}"').scalar() or conn.exec_driver_sql(f'SELECT {columns} FROM "{name}" EXCEPT SELECT {columns} FROM "{temporary}"').first():
+                    raise RuntimeError(f'{name} repair did not preserve every row')
+                conn.exec_driver_sql(f'DROP TABLE "{name}"')
+                conn.exec_driver_sql(f'ALTER TABLE "{temporary}" RENAME TO "{name}"')
+                for sql in indexes:
+                    conn.exec_driver_sql(sql)
+            after = set(conn.exec_driver_sql('PRAGMA foreign_key_check').fetchall())
+            if after - before:
+                raise RuntimeError('Foreign-key repair introduced new broken relationships')
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.exec_driver_sql(f'PRAGMA foreign_keys={int(bool(enabled))}')
+            conn.commit()
 
 
 def allow_unassigned_channel_authors(engine: Engine) -> None:
@@ -79,38 +136,52 @@ def rebuild_images_table_for_multi_image_support(engine: Engine) -> None:
 
 
 def rebuild_positions_table_for_multi_direction_support(engine: Engine) -> None:
-    """One-off structural migration for the `positions` table.
+    """Extend position identity with viewing side, retaining every row ID and child link.
 
-    A position used to be capped at exactly one row per (visit, ohl, phase, string) — enforced by a
-    UNIQUE(visit_id, ohl, phase, string) constraint — because Direction was purely a label on that
-    one row. A Tension-type tower can now carry the same OHL/phase/string out toward more than one
-    line Direction, each needing its own row, so the constraint gains `direction` as a column.
-    SQLite can't ALTER a UNIQUE constraint away, so this rebuilds the table the same way
-    rebuild_images_table_for_multi_image_support does above: rename the old table aside, create the
-    new one from the current model, copy every column the old table had, then drop the old one.
-
-    Safe to call on every startup — it's a no-op once the constraint already includes `direction`.
+    Historical records use Unspecified; readings/evidence are never duplicated or assigned
+    to a side automatically. SQLite uses create-copy-drop-rename (never rename the old
+    parent table, which would rewrite child foreign keys).
     """
-    from app.models import Position  # local import: models.py doesn't need to know about migrations.py
-
+    from app.models import Position
     inspector = inspect(engine)
     if "positions" not in inspector.get_table_names():
-        return  # brand-new DB — create_all() already builds the current (correct) schema
-    already_migrated = any(
-        "direction" in (uc.get("column_names") or []) for uc in inspector.get_unique_constraints("positions")
-    )
-    if already_migrated:
         return
-    existing_columns = {c["name"] for c in inspector.get_columns("positions")}
-
-    logger.info("Auto-migration: rebuilding positions table to allow more than one direction per slot")
-    with engine.begin() as conn:
-        conn.execute(text('ALTER TABLE "positions" RENAME TO "positions_old"'))
-        conn.execute(CreateTable(Position.__table__))
-        shared_cols = [f'"{c.name}"' for c in Position.__table__.columns if c.name in existing_columns]
-        cols_sql = ", ".join(shared_cols)
-        conn.execute(text(f'INSERT INTO "positions" ({cols_sql}) SELECT {cols_sql} FROM "positions_old"'))
-        conn.execute(text('DROP TABLE "positions_old"'))
+    constraints = inspector.get_unique_constraints("positions")
+    if any("view_side" in (c.get("column_names") or []) for c in constraints):
+        return
+    existing = {c["name"] for c in inspector.get_columns("positions")}
+    if engine.dialect.name != 'sqlite':
+        raise RuntimeError('Viewing-side migration currently supports SQLite only; migrate the position unique constraint before startup.')
+    with engine.connect() as conn:
+        foreign_keys = conn.exec_driver_sql('PRAGMA foreign_keys').scalar()
+        conn.commit()
+        conn.exec_driver_sql('PRAGMA foreign_keys=OFF')
+        conn.commit()
+        try:
+            conn.exec_driver_sql('BEGIN IMMEDIATE')
+            before_violations = set(conn.exec_driver_sql('PRAGMA foreign_key_check').fetchall())
+            ddl = str(CreateTable(Position.__table__).compile(engine)).replace('CREATE TABLE positions', 'CREATE TABLE positions_view_migration', 1)
+            conn.exec_driver_sql(ddl)
+            names = ', '.join('"' + c.name + '"' for c in Position.__table__.columns if c.name in existing)
+            conn.exec_driver_sql(f'INSERT INTO positions_view_migration ({names}) SELECT {names} FROM positions')
+            before = conn.exec_driver_sql('SELECT COUNT(*) FROM positions').scalar()
+            after = conn.exec_driver_sql('SELECT COUNT(*) FROM positions_view_migration').scalar()
+            if before != after:
+                raise RuntimeError('Position migration row count mismatch')
+            conn.exec_driver_sql('DROP TABLE positions')
+            conn.exec_driver_sql('ALTER TABLE positions_view_migration RENAME TO positions')
+            for index in Position.__table__.indexes:
+                index.create(conn)
+            violations = set(conn.exec_driver_sql('PRAGMA foreign_key_check').fetchall())
+            if violations - before_violations:
+                raise RuntimeError('Position migration would break existing references')
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.exec_driver_sql(f'PRAGMA foreign_keys={int(bool(foreign_keys))}')
+            conn.commit()
 
 
 def backfill_areas_from_towers(engine: Engine) -> None:
@@ -258,6 +329,7 @@ def add_missing_columns(engine: Engine, base: type[DeclarativeBase]) -> None:
                     logger.info("Auto-migration: added column %s.%s", table.name, column.name)
                 except Exception:
                     logger.exception("Auto-migration failed for %s.%s", table.name, column.name)
+                    raise  # Never serve requests against a partially upgraded schema.
 
 
 def backfill_report_image_selection(engine: Engine) -> None:

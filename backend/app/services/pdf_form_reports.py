@@ -1,9 +1,8 @@
 """PDF report generation from a user-uploaded **fillable PDF form** template — pypdf fills named
 AcroForm fields with real data, analogous to docx_reports.py's Word mail-merge but for PDF. Word can
 repeat a table row per item in a list; a PDF form field can't — there's no dynamic loop construct in
-the AcroForm spec — so this leans on something already true of this app: every visit always has
-exactly the same 12 positions (2 OHL circuits x 3 phases x 2 strings, fixed — see models.py), so the
-template just gets one flat, fixed field per (position slot 1-12, data field) instead of a loop.
+the AcroForm spec. Preserve the historical 12-slot field contract and append a paginated
+continuation for additional directions, so all in-scope positions are represented.
 
 Field-name contract a template author can use (see build_starter_pdf_form for a ready-made example
 with every one of these already placed and labeled):
@@ -18,6 +17,8 @@ with every one of these already placed and labeled):
 A field the template doesn't happen to include is simply never filled — no error either way.
 """
 from __future__ import annotations
+
+from app.services.position_labels import inspection_direction_label as direction_label, view_label, position_label
 
 import datetime as dt
 import io
@@ -61,10 +62,7 @@ def build_field_values(visit: Visit) -> dict[str, str]:
         "generated_date": dt.date.today().isoformat(),
     }
 
-    # A Tension tower can have more than one Direction on the same (ohl, phase, string) — this
-    # fixed-field PDF form has no loop construct to show a second one (see module docstring), so
-    # keep the first (lowest id, i.e. the original baseline slot) and leave any further direction
-    # for that slot off this particular export; the dynamic Word/other reports show every row.
+    # Preserve the template's 12-field contract; additional directions go in an appendix.
     by_slot: dict[tuple[str, str, str], object] = {}
     for p in sorted(visit.positions, key=lambda p: p.id):
         if getattr(p, 'in_scope', True) is False:
@@ -82,7 +80,7 @@ def build_field_values(visit: Visit) -> dict[str, str]:
         values[f"{prefix}ohl"] = _blank(p.ohl)
         values[f"{prefix}phase"] = _blank(p.phase)
         values[f"{prefix}string"] = _blank(p.string)
-        values[f"{prefix}direction"] = _blank(p.direction)
+        values[f"{prefix}direction"] = direction_label(p)
         values[f"{prefix}proximity"] = _blank(p.tower_proximity)
         values[f"{prefix}screening"] = _blank(p.screening_result)
         values[f"{prefix}severity"] = _blank(p.severity)
@@ -104,6 +102,10 @@ def render_visit_report_pdf_form(visit: Visit, template_path) -> bytes:
     for page in writer.pages:
         writer.update_page_form_field_values(page, values, auto_regenerate=False)
 
+    extra = overflow_positions(visit)
+    if extra:
+        writer.append(PdfReader(io.BytesIO(render_overflow_appendix(extra))))
+
     # Without this, some PDF viewers (notably not Acrobat, which always regenerates appearances
     # itself) keep showing the field boxes as blank even though the underlying value is set —
     # NeedAppearances tells the viewer "please redraw these fields from their values yourself".
@@ -119,6 +121,47 @@ def render_visit_report_pdf_form(visit: Visit, template_path) -> bytes:
     buf = io.BytesIO()
     writer.write(buf)
     return buf.getvalue()
+
+
+def overflow_positions(visit: Visit):
+    seen = set()
+    extra = []
+    for pos in sorted(visit.positions, key=lambda p: p.id):
+        if getattr(pos, 'in_scope', True) is False:
+            continue
+        key = (pos.ohl, pos.phase, pos.string)
+        if key in seen:
+            extra.append(pos)
+        seen.add(key)
+    return extra
+
+
+def render_overflow_appendix(positions) -> bytes:
+    """Overflow is explicit and paginated, never silently omitted from fixed templates."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, LongTable, TableStyle
+    from xml.sax.saxutils import escape
+    from app.services.position_labels import position_label
+    styles = getSampleStyleSheet()
+    body = styles['BodyText']; body.fontSize = 8; body.leading = 11
+    out = io.BytesIO()
+    doc = SimpleDocTemplate(out, pagesize=landscape(A4), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+    rows = [['Position / direction / string', 'Code', 'Screening', 'Tmax', 'Tref', 'Delta T', 'Severity']]
+    for pos in positions:
+        rows.append([Paragraph(escape(position_label(pos)), body), Paragraph(escape(pos.position_code or '-'), body),
+                     Paragraph(escape(pos.screening_result or '-'), body),
+                     *[str(round(value, 2)) if value is not None else '-' for value in (pos.tmax_c, pos.tref_c, pos.delta_t)],
+                     Paragraph(escape(pos.severity or '-'), body)])
+    table = LongTable(rows, colWidths=[175, 185, 105, 45, 45, 55, 105], repeatRows=1)
+    table.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e8f1f3')),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('GRID', (0, 0), (-1, -1), .4, colors.lightgrey),
+        ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7)]))
+    doc.build([Paragraph('Additional inspection positions', styles['Heading1']),
+        Paragraph('These positions continue the fixed template. Temperatures are in degrees Celsius.', body), Spacer(1, 12), table])
+    return out.getvalue()
 
 
 def build_starter_pdf_form() -> bytes:

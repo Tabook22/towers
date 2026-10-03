@@ -12,7 +12,7 @@ export function ThermalProcessButton({imageId,disabled}:{imageId:number;disabled
   async function open(){
     const tab=window.open('about:blank','_blank');
     if(!tab){setError(tr("Allow pop-ups for this site, then try again."));return}
-    tab.opener=null;tab.document.title='Opening thermal editor…';tab.document.body.textContent='Opening thermal editor…';
+    tab.opener=null;tab.document.title=tr('Opening thermal editor…');tab.document.body.textContent=tr('Opening thermal editor…');
     setBusy(true);setError('');
     try{const {data}=await apiClient.post<{url:string}>(`/api/thermal-bridge/images/${imageId}/launch`);
       if(!data.url.startsWith('/thermal/#inspection='))throw new Error(tr("Unexpected editor address"));

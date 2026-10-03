@@ -1,5 +1,6 @@
 import type { Position, PositionSlot, VisitDetail } from '../api/types';
 import { mergePositionDraft, type PositionDrafts } from './visitWorkflow';
+import { evidenceStatusForPosition } from './positionChanges';
 
 export interface VisitEntry {
   drafts: PositionDrafts;
@@ -13,14 +14,33 @@ export interface VisitEntry {
 }
 export const emptyEntry = (): VisitEntry => ({ drafts: {}, additions: [], headerDraft: null, headerBefore: null, layoutIds: null, layoutVersions: {}, saveTemplate: false, excludedImages: [] });
 export const entryHasChanges = (entry: VisitEntry) => !!(Object.keys(entry.drafts).length || entry.additions.length || entry.headerDraft || entry.layoutIds || entry.excludedImages.length);
-export const positionIdentity = (p: Pick<Position, 'ohl' | 'phase' | 'string' | 'direction'>) => [p.ohl, p.phase, p.string, p.direction].join('|');
+export const positionIdentity = (p: Pick<Position, 'ohl' | 'phase' | 'string' | 'direction' | 'view_side'>) => [p.ohl, p.phase, p.string, p.direction, p.view_side || 'Unspecified'].join('|');
 export const hasRecordedWork = (p: Position) => !!(p.inspector_notes || p.voice_note_path || p.images.some(i => i.file_path) || p.screening_result !== 'Not inspected' || p.hotspot || p.tmax_c != null || p.tref_c != null || p.severity || p.confidence || p.pollution_condition || p.thermal_indication || p.visual_indications);
+/** Reuse historical Suspension records without changing their identifiers or evidence. */
+export function resolveSuspensionSlots(positions: Position[], slots: PositionSlot[]): PositionSlot[] {
+  return slots.map(slot => {
+    if (slot.mount_type !== 'Suspension' || slot.direction !== 'NA') return slot;
+    if (positions.some(p => p.ohl === slot.ohl && p.phase === slot.phase && p.string === slot.string && (p.view_side || 'Unspecified') === (slot.view_side || 'Unspecified') && p.direction && p.mount_type && p.mount_type !== 'Suspension')) {
+      throw new Error('An existing position has a different tower type or string count. Check its configuration before using this layout.');
+    }
+    const existing = positions.filter(p => p.ohl === slot.ohl && p.phase === slot.phase && p.string === slot.string && (p.view_side || 'Unspecified') === (slot.view_side || 'Unspecified')
+      && !!p.direction && (!p.mount_type || p.mount_type === 'Suspension'));
+    if (existing.length > 1) throw new Error('Multiple historical Suspension positions match this string. Review them individually; no readings or images have been merged.');
+    return existing[0] ? { ...slot, direction: existing[0].direction! } : slot;
+  });
+}
 export function entryPositions(visit: VisitDetail, entry: VisitEntry) {
-  return [...visit.positions, ...entry.additions].map(p => ({ ...p, ...entry.drafts[p.id]?.changes,
-    in_scope: entry.layoutIds ? entry.layoutIds.includes(p.id) : entry.drafts[p.id] ? true : p.in_scope }));
+  return [...visit.positions, ...entry.additions].map(p => {
+    const next = { ...p, ...entry.drafts[p.id]?.changes,
+      in_scope: entry.layoutIds ? entry.layoutIds.includes(p.id) : entry.drafts[p.id] ? true : p.in_scope };
+    if (next.installed !== p.installed || next.screening_result !== p.screening_result) {
+      next.images = p.images.map(image => ({ ...image, evidence_status: evidenceStatusForPosition(next, image.image_type, image, true) }));
+    }
+    return next;
+  });
 }
 export function newDraftPosition(visit: VisitDetail, slot: PositionSlot, id: number): Position {
-  return { ...visit.positions[0], ...slot, id, visit_id: visit.id, updated_at: '', in_scope: true, prepared_only: true,
+  return { ...visit.positions[0], ...slot, view_side: slot.view_side || 'Unspecified', id, visit_id: visit.id, updated_at: '', in_scope: true, prepared_only: true,
     installed: true, screening_result: 'Not inspected', hotspot: null, tmax_c: null, tref_c: null,
     severity: null, confidence: null, inspector_notes: null, manufacturer: null, year_installed: null,
     insulator_type: null, gs_side: null, pollution_condition: null, thermal_indication: null, visual_indications: null,
@@ -40,8 +60,13 @@ export function addEntryPosition(visit: VisitDetail, entry: VisitEntry, slot: Po
     layoutIds: entry.layoutIds ? [...new Set([...entry.layoutIds, id])] : null };
 }
 export function prepareEntryLayout(visit: VisitDetail, entry: VisitEntry, slots: PositionSlot[], saveTemplate: boolean): VisitEntry {
+  slots = resolveSuspensionSlots(entryPositions(visit, entry), slots);
   let next = { ...entry };
   const ids: number[] = [];
+  // Previously recorded views stay in scope when adding another view's template.
+  const requestedViews = new Set(slots.map(s => s.view_side || 'Unspecified'));
+  const preserved = entryPositions(visit, next).filter(p => p.in_scope !== false && p.direction && !requestedViews.has(p.view_side || 'Unspecified'));
+  ids.push(...preserved.map(p => p.id));
   for (const slot of slots) {
     let position = entryPositions(visit, next).find(p => positionIdentity(p) === positionIdentity(slot));
     if (!position) {

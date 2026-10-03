@@ -112,6 +112,7 @@ def browse_archive(
             phase=pos.phase,
             string=pos.string,
             direction=pos.direction,
+            view_side=pos.view_side,
             visit_id=visit.id,
             inspection_date=visit.inspection_date,
             archive_date=img.capture_date or visit.inspection_date or (img.uploaded_at.date() if img.uploaded_at else None),
@@ -163,6 +164,7 @@ def browse_archive(
                 phase=p.position.phase if p.position else None,
                 string=p.position.string if p.position else None,
                 direction=p.position.direction if p.position else None,
+                view_side=p.position.view_side if p.position else None,
                 inspection_date=visit.inspection_date,
                 archive_date=p.captured_at.date() if p.captured_at else visit.inspection_date or p.uploaded_at.date(),
             )

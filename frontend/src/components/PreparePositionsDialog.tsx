@@ -19,8 +19,9 @@ export function PreparePositionsDialog({ visit, lists, canSaveTemplate, disabled
   const [saveTemplate, setSaveTemplate] = useState(false);
   const [error, setError] = useState('');
   // Keep legacy template values visible without offering them for new layouts.
-  const directionOptions = [...new Set([...lists.direction, ...directions])];
+  const directionOptions = [...new Set([...lists.direction, ...directions.filter(value => value !== 'NA')])];
   const loadLayout = (layout: PositionSlot[]) => {
+    layout = layout.flatMap(slot => slot.view_side && slot.view_side !== 'Unspecified' ? [slot] : ['Front', 'Back'].map(view_side => ({ ...slot, view_side }))).map(slot => slot.mount_type === 'Suspension' ? { ...slot, direction: 'NA' } : slot);
     setSlots(layout);
     if (layout[0]) { setMount(layout[0].mount_type); setCount(layout[0].string_count); }
     setCircuits([...new Set(layout.map(s => s.ohl))]);
@@ -32,9 +33,9 @@ export function PreparePositionsDialog({ visit, lists, canSaveTemplate, disabled
     setError(''); setSaveTemplate(false); setOpen(true);
   };
   const changeLayout = (next: { mount?: string; count?: string; circuits?: string[]; directions?: string[] }) => {
-    const m = next.mount ?? mount, c = next.count ?? count, o = next.circuits ?? circuits, d = next.directions ?? directions;
+    const m = next.mount ?? mount, c = next.count ?? count, o = next.circuits ?? circuits, d = (next.directions ?? directions).filter(value => value !== 'NA');
     setMount(m); setCount(c); setCircuits(o); setDirections(d);
-    setSlots(layoutSlots(m, o, lists.phase, c, d));
+    setSlots(['Front', 'Back'].flatMap(view_side => layoutSlots(m, o, lists.phase, c, d).map(slot => ({ ...slot, view_side }))));
   };
   const apply = () => {
     try { onPrepare(slots, saveTemplate); setOpen(false); }
@@ -53,7 +54,7 @@ export function PreparePositionsDialog({ visit, lists, canSaveTemplate, disabled
               <TextField select label={tr("Tower type")} value={mount} onChange={e => changeLayout({ mount: e.target.value })} sx={{ minWidth: 160 }}>{lists.mount_type.map(v => <MenuItem key={v} value={v}>{tr(v)}</MenuItem>)}</TextField>
               <TextField select label={tr("Strings per phase")} value={count} onChange={e => changeLayout({ count: e.target.value })} sx={{ minWidth: 160 }}><MenuItem value="Single">{tr("1 — S1")}</MenuItem><MenuItem value="Double">{tr("2 — S1 Outer / S2 Inner")}</MenuItem></TextField>
               <TextField select label={tr("Circuits")} value={circuits} slotProps={{ select: { multiple: true } }} onChange={e => changeLayout({ circuits: typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value })} sx={{ minWidth: 160 }}>{lists.ohl.map(v => <MenuItem key={v} value={v}>{tr(v)}</MenuItem>)}</TextField>
-              <TextField select label={tr("Direction(s)")} value={directions} slotProps={{ select: { multiple: true } }} onChange={e => changeLayout({ directions: typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value })} sx={{ minWidth: 190 }}>{directionOptions.map(v => <MenuItem key={v} value={v}>{tr(v)}</MenuItem>)}</TextField>
+              {mount !== 'Suspension' && <TextField select label={tr("Direction(s)")} value={directions} slotProps={{ select: { multiple: true } }} onChange={e => changeLayout({ directions: typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value })} sx={{ minWidth: 190 }}>{directionOptions.map(v => <MenuItem key={v} value={v}>{tr(v)}</MenuItem>)}</TextField>}
             </Stack>
             <Typography variant="body2">{tr("Review the list below. Remove unused positions for a custom layout. Include all positions that already have recorded work.")}</Typography>
           </>

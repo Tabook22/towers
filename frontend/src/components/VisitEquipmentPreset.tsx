@@ -29,7 +29,7 @@ export function VisitEquipmentPreset({ visit, userId, inspectorName, onApply }: 
     } catch { setError(tr("The saved preset could not be read. Save a new preset from this visit.")); }
   };
   return <Stack spacing={1} sx={{ my: 2 }}>
-    <Stack direction="row" spacing={1}><Button onClick={() => void open()}>{tr("Use inspector / equipment preset")}</Button><Button onClick={remember}>{tr("Remember saved equipment")}</Button></Stack>
+    <Stack direction="row" spacing={1}><Button onClick={() => void open()}>{tr("Use inspector / equipment preset")}</Button><Button onClick={remember}>{tr("Remember current equipment")}</Button></Stack>
     {message && <Alert severity="success" onClose={() => setMessage('')}>{tr(message)}</Alert>}{error && <Alert severity="error">{tr(error)}</Alert>}
 
   </Stack>;

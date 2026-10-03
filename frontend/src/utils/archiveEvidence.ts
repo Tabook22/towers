@@ -56,7 +56,7 @@ export function groupArchiveEvidence(images: ImageRow[], photos: ArchiveVisitPho
   const positionFor = (tower: EvidenceTower, row: ImageRow | ArchiveVisitPhoto) => {
     let position = tower.positions.find((p) => p.id === row.position_id);
     if (!position) {
-      position = { id: row.position_id!, label: `${row.ohl || ''} ${row.phase || ''} ${row.string || ''}${row.direction ? ` — ${row.direction}` : ''}`.trim() || row.position_code || `Insulator ${row.position_id}`, visitId: row.visit_id, date: row.inspection_date || row.archive_date || null, images: [], photos: [] };
+      position = { id: row.position_id!, label: `${row.view_side === 'Front' ? 'Front view' : row.view_side === 'Back' ? 'Back view' : 'View not recorded'} · ${row.ohl || ''} ${row.phase || ''} ${row.string || ''}${row.direction ? ` — ${row.direction}` : ''}`.trim() || row.position_code || `Insulator ${row.position_id}`, visitId: row.visit_id, date: row.inspection_date || row.archive_date || null, images: [], photos: [] };
       tower.positions.push(position);
     }
     return position;

@@ -1,9 +1,6 @@
 import { tr, useLanguage, locale } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Card,
@@ -17,7 +14,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
 import SendIcon from '@mui/icons-material/SendRounded';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCameraRounded';
@@ -35,6 +31,7 @@ import { requestBrowserLocation } from '../hooks/useFieldTracking';
 import { VoiceNoteControls, VoiceNotePlayer } from './VoiceNoteControls';
 import { matchingMessages, type OpsFilter } from '../utils/opsEvents';
 import { StepBadge } from './StepBadge';
+import { DashboardSection } from './DashboardSection';
 
 const KIND_CHIPS: { kind: ChannelKind; label: string; color: 'default' | 'warning' | 'error' | 'info' }[] = [
   { kind: 'access', label: 'Access', color: 'warning' },
@@ -251,6 +248,7 @@ export function NightChannel({
   kindFilter,
   onTower,
   step,
+  defaultExpanded = true,
 }: {
   teamId: number;
   fieldDate?: string;
@@ -259,6 +257,7 @@ export function NightChannel({
   kindFilter?: OpsFilter;
   onTower?: (towerId: number, visitId: number | null) => void;
   step?: number;
+  defaultExpanded?: boolean;
 }) {
   useLanguage();
   const { user } = useAuth();
@@ -300,21 +299,10 @@ export function NightChannel({
   };
 
   return (
-    <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, width: '100%', pr: 1 }}>
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-            {step != null && <StepBadge n={step} />}
-            <ForumRoundedIcon color="primary" />
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Tonight")}</Typography>
-              <Typography variant="body2" color="text.secondary">{tr("Shared with dispatch. Tagged to the nearest tower when GPS is on.")}</Typography>
-            </Box>
-          </Stack>
-          <Chip size="small" label={tr("{0} messages", [data?.length || 0])} variant="outlined" />
-        </Stack>
-      </AccordionSummary>
-      <AccordionDetails>
+    <DashboardSection defaultExpanded={defaultExpanded} icon={<ForumRoundedIcon />} tone="violet" title={tr("Tonight")}
+      description={tr("Share crew updates with dispatch. Messages link to the nearest tower when GPS is on.")}
+      badge={step != null ? <StepBadge n={step} /> : undefined}>
+      <Chip size="small" label={tr("{0} messages", [data?.length || 0])} variant="outlined" sx={{ mb: 1.5 }} />
         {isLoading && <LinearProgress sx={{ mb: 1 }} />}
         <Box
           ref={listRef}
@@ -498,8 +486,7 @@ export function NightChannel({
             }}
           />
         </Stack>
-      </AccordionDetails>
-    </Accordion>
+    </DashboardSection>
   );
 }
 

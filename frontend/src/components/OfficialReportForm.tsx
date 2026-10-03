@@ -1,5 +1,5 @@
 import { tr, useLanguage } from '../i18n';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Accordion,
   AccordionDetails,
@@ -14,7 +14,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import CellTowerRoundedIcon from '@mui/icons-material/CellTowerRounded';
+import TransmissionTowerIcon from './TransmissionTowerIcon';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
@@ -33,6 +33,11 @@ import {
   useTeams,
   useTowers,
 } from '../api/hooks';
+import HelpOutlineRounded from '@mui/icons-material/HelpOutlineRounded';
+import FactCheckRounded from '@mui/icons-material/FactCheckRounded';
+import EditNoteRounded from '@mui/icons-material/EditNoteRounded';
+import CalendarMonthRounded from '@mui/icons-material/CalendarMonthRounded';
+import { DashboardSection } from './DashboardSection';
 import { ReportHistoryTable } from './ReportHistoryTable';
 import { reportError } from '../utils/reportLibrary';
 
@@ -73,6 +78,7 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
   const [approvedBy, setApprovedBy] = useState('');
   const [approvalDate, setApprovalDate] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const generationLock = useRef(false);
 
   const towerOptions = useMemo(
     () =>
@@ -110,6 +116,8 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
   };
 
   const handleGenerate = () => {
+    if (generationLock.current || generating || !requiredFilled || preview.isFetching || preview.isError || !preview.data?.ok) return;
+    generationLock.current = true;
     setError(null);
     const shared = {
       report_number: reportNumber.trim(),
@@ -127,14 +135,15 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
     const onError = async (err: unknown) => {
       setError(await reportError(err, tr("Could not generate the report.")));
     };
+    const onSettled = () => { generationLock.current = false; };
     if (mode === 'tower') {
-      generateTeam.mutate({ ...shared, tower_id: towerId }, { onError, onSuccess: onCreated });
+      generateTeam.mutate({ ...shared, tower_id: towerId }, { onError, onSuccess: onCreated, onSettled });
     } else if (mode === 'team') {
-      generateTeam.mutate({ ...shared, team_id: Number(teamId) }, { onError, onSuccess: onCreated });
+      generateTeam.mutate({ ...shared, team_id: Number(teamId) }, { onError, onSuccess: onCreated, onSettled });
     } else if (mode === 'line') {
-      generateArea.mutate({ ...shared, area }, { onError, onSuccess: onCreated });
+      generateArea.mutate({ ...shared, area }, { onError, onSuccess: onCreated, onSettled });
     } else {
-      generateConsolidated.mutate(shared, { onError, onSuccess: onCreated });
+      generateConsolidated.mutate(shared, { onError, onSuccess: onCreated, onSettled });
     }
   };
 
@@ -158,16 +167,16 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
 
       <Accordion variant="outlined" sx={{ mb: 2 }} disableGutters>
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-          <Typography variant="subtitle2">{tr("Help with report coverage")}</Typography>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><HelpOutlineRounded color="primary" fontSize="small" /><Typography variant="subtitle2">{tr("Help with report coverage")}</Typography></Stack>
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={1}>
             <Typography variant="body2">
               <strong>1.</strong>{tr(" The tower has inspection visits linked to a team in the selected date range.")}</Typography>
             <Typography variant="body2">
-              <strong>2.</strong>{tr(" The visit was started from the team leader's or a crew member's own login (they tap the tower, then ")}<strong>{tr("Start visit")}</strong>{tr(") — not created directly by an admin. This is what links a visit to a team; it's the most common reason a report comes back empty.")}</Typography>
+              <strong>2.</strong>{tr(" The visit must be linked to the team that performed the inspection. Admin-created visits can also be included when correctly team-linked.")}</Typography>
             <Typography variant="body2">
-              <strong>3.</strong>{tr(" At least one position on that visit has a Direction set or a photo uploaded — an untouched position is correctly left out, not an error.")}</Typography>
+              <strong>3.</strong>{tr(" Record a screening result, reading, inspector note or evidence. Prepared layouts alone are excluded; older direction-only records are retained.")}</Typography>
             <Typography variant="body2">
               <strong>4.</strong>{tr(" The date range below actually covers when the work was recorded.")}</Typography>
             <Typography variant="body2" color="text.secondary">{tr("Full walkthrough: Help page → For Admins → 7. Reports → \"How to build the final report\".")}</Typography>
@@ -175,18 +184,21 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
         </AccordionDetails>
       </Accordion>
 
-      <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_, v) => handleModeChange(v)} sx={{ mb: 2 }}>
-        <ToggleButton value="tower">{tr("By tower")}</ToggleButton>
-        <ToggleButton value="team">{tr("By team")}</ToggleButton>
-        <ToggleButton value="line">{tr("By line")}</ToggleButton>
-        <ToggleButton value="overall">{tr("Overall (final report)")}</ToggleButton>
-      </ToggleButtonGroup>
-
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {tr(error)}
         </Alert>
       )}
+
+      <Stack component="fieldset" disabled={generating} spacing={2.5} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
+      <DashboardSection icon={<CalendarMonthRounded />} title={tr('1 · Scope & dates')} description={tr('Choose which inspections to include and check the coverage before writing your assessment.')} tone="teal">
+      <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_, v) => handleModeChange(v)} sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 1, '& .MuiToggleButton-root': { minHeight: 48, borderRadius: '12px !important', border: '1px solid', borderColor: 'divider', gap: 1 } }}>
+        <ToggleButton value="tower"><TransmissionTowerIcon fontSize="small" />{tr("By tower")}</ToggleButton>
+        <ToggleButton value="team"><GroupsRoundedIcon fontSize="small" />{tr("By team")}</ToggleButton>
+        <ToggleButton value="line"><TransmissionTowerIcon fontSize="small" />{tr("By line")}</ToggleButton>
+        <ToggleButton value="overall"><DescriptionRoundedIcon fontSize="small" />{tr("Overall (final report)")}</ToggleButton>
+      </ToggleButtonGroup>
+
 
       <Stack spacing={2}>
         {mode === 'tower' && (
@@ -305,7 +317,7 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
                 <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>{tr("This will include:")}</Typography>
                 <Stack direction="row" spacing={2.5} sx={{ flexWrap: 'wrap', rowGap: 0.5 }}>
                   <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-                    <CellTowerRoundedIcon fontSize="small" />
+                    <TransmissionTowerIcon fontSize="small" />
                     <Typography variant="body2">
                       {preview.data.tower_count}{tr(" tower")}{preview.data.tower_count === 1 ? '' : tr("s")}
                     </Typography>
@@ -334,6 +346,10 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
           </Box>
         )}
 
+      </Stack>
+      </DashboardSection>
+      <DashboardSection icon={<EditNoteRounded />} title={tr('2 · Findings & recommendations')} description={tr('Summarize the condition, probable causes and corrective actions for the customer.')} tone="amber">
+      <Stack spacing={2}>
         <TextField
           select
           size="small"
@@ -376,6 +392,10 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
           onChange={(e) => setAdditionalComments(e.target.value)}
         />
 
+      </Stack>
+      </DashboardSection>
+      <DashboardSection icon={<FactCheckRounded />} title={tr('3 · Approval & generation')} description={tr('Add the sign-off names and approval date, then generate and save the report.')} tone="green">
+      <Stack spacing={2}>
         <Typography variant="subtitle2">{tr("Approval — applied to every section in the file")}</Typography>
         <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', rowGap: 2 }}>
           <TextField size="small" label={tr("Prepared by")} value={preparedBy} onChange={(e) => setPreparedBy(e.target.value)} />
@@ -392,10 +412,17 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
         </Stack>
 
         <Box>
-          <Button variant="contained" disabled={!requiredFilled || generating || preview.isFetching || preview.isError || !preview.data?.ok} onClick={handleGenerate}>
+          <Button variant="contained" startIcon={<DescriptionRoundedIcon />} sx={{ minHeight: 48, px: 3, borderRadius: 2 }} disabled={!requiredFilled || generating || preview.isFetching || preview.isError || !preview.data?.ok} onClick={handleGenerate}>
             {tr(buttonLabel)}
           </Button>
         </Box>
+      </Stack>
+
+      </DashboardSection>
+      {preview.data?.ok && ((preview.data.draft_visit_count || 0) > 0 || (preview.data.uninspected_position_count || 0) > 0 || (preview.data.without_selected_evidence_count || 0) > 0) && <Alert severity="warning">
+        {tr('Before issue: {0} draft visits, {1} positions without a screening result, {2} positions without selected evidence.', [preview.data.draft_visit_count || 0, preview.data.uninspected_position_count || 0, preview.data.without_selected_evidence_count || 0])}
+        <Typography variant="caption" sx={{ display: 'block', mt: .5 }}>{tr('Review these gaps before delivery. Some evidence omissions may be intentional; they are not automatically classified as defects.')}</Typography>
+      </Alert>}
       </Stack>
 
       {showHistory && <Accordion variant="outlined" sx={{ mt: 3 }} disableGutters>

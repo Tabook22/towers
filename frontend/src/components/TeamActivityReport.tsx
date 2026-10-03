@@ -43,7 +43,7 @@ function PositionRow({ pos, onImageClick }: { pos: TeamActivityPosition; onImage
   return (
     <TableRow>
       <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>
-        {pos.ohl} {pos.phase} {pos.string} {pos.direction || ''}
+        {tr(pos.view_side === 'Front' ? 'Front view' : pos.view_side === 'Back' ? 'Back view' : 'View not recorded')} · {pos.ohl} {pos.phase} {pos.string} {pos.direction || ''}
         {pos.tower_proximity ? ` (${pos.tower_proximity})` : ''}
       </TableCell>
       <TableCell>{tr(pos.screening_result)}</TableCell>

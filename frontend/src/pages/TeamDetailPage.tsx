@@ -1,13 +1,10 @@
 import { tr, useLanguage, locale } from '../i18n';
 import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -46,7 +43,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVertRounded';
 import PersonAddIcon from '@mui/icons-material/PersonAddRounded';
 import LinkIcon from '@mui/icons-material/LinkRounded';
 import LinkOffIcon from '@mui/icons-material/LinkOffRounded';
-import CellTowerIcon from '@mui/icons-material/CellTowerRounded';
+import TransmissionTowerIcon from '../components/TransmissionTowerIcon';
 import FactCheckIcon from '@mui/icons-material/FactCheckRounded';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartmentRounded';
 import ScheduleIcon from '@mui/icons-material/ScheduleRounded';
@@ -68,7 +65,6 @@ import SubtitlesIcon from '@mui/icons-material/SubtitlesRounded';
 import AttachFileIcon from '@mui/icons-material/AttachFileRounded';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFileRounded';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import AssignmentRoundedIcon from '@mui/icons-material/AssignmentRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
@@ -98,6 +94,7 @@ import {
   useTeamFieldHistory,
   useTeamFieldTrack,
   useOutingPlan,
+  useOutingPlans,
   useTeamJobMap,
   useTeamMissions,
   useClaimTower,
@@ -125,6 +122,17 @@ import { OutingPlanCard } from '../components/OutingPlanCard';
 import { MissionHistoryCard, missionDateLabel } from '../components/MissionHistoryCard';
 import { HandoverPackCard } from '../components/HandoverPackCard';
 import { ClaimTowerDialog } from '../components/ClaimTowerDialog';
+import { TeamTowerWork } from '../components/TeamTowerWork';
+import { TeamInspectionGuide } from '../components/TeamInspectionGuide';
+import { DashboardSection } from '../components/DashboardSection';
+import EngineeringRounded from '@mui/icons-material/EngineeringRounded';
+import { TeamPlanControls, TeamPlanNotice, planBlockMessages } from '../components/TeamPlanControls';
+import { planStepBlock, type PlanBlock, type PlanStep } from '../utils/teamPlanJourney';
+import { TeamWorkflowNav } from '../components/TeamWorkflowNav';
+import { TeamGuide } from '../components/TeamGuide';
+import { teamGuidance, teamGuidanceWarning } from '../utils/teamGuidance';
+import { TeamDailyVisits } from '../components/TeamDailyVisits';
+import { localInspectionDate, hasDeviceVisitDraft } from '../utils/teamTowerWork';
 import { KpiTile } from '../components/KpiTile';
 import { StepBadge } from '../components/StepBadge';
 import { extractTowerNumber, numberedDotIcon, towerNumbersById } from '../components/towerMapPins';
@@ -135,6 +143,17 @@ const MISSION_STATUS_COLORS: Record<string, 'default' | 'info' | 'success'> = {
   in_progress: 'info',
   completed: 'success',
 };
+const MISSION_STATUS_LABELS: Record<string, string> = { planned: 'Planned', in_progress: 'In progress', completed: 'Completed' };
+
+// Defer maps and editors until first opened, then keep them mounted to retain local drafts.
+function TeamTabPanel({ value, activeTab, children }: { value: string; activeTab: string; children: ReactNode }) {
+  const active = value === activeTab;
+  const [opened, setOpened] = useState(active);
+  useEffect(() => { if (active) setOpened(true); }, [active]);
+  return <Box role="tabpanel" id={`team-panel-${value}`} aria-labelledby={`team-tab-${value}`} hidden={!active}>
+    {(active || opened) && children}
+  </Box>;
+}
 
 // A named, collapsible block with an icon and a one-line "what is this for" description — this
 // page has a lot of ground to cover (roster, missions, tracking, maps) so each block reads as a
@@ -143,47 +162,35 @@ const MISSION_STATUS_COLORS: Record<string, 'default' | 'info' | 'success'> = {
 // backend/app/knowledge/team_leader_guide.md §3) — left off for sections that are occasional
 // setup/admin, not part of the nightly loop.
 function TeamSection({
+  tone = 'teal',
   step,
   icon,
   title,
   description,
   defaultExpanded = true,
+  expanded,
+  onExpandedChange,
   action,
   children,
 }: {
+  tone?: 'teal' | 'green' | 'blue' | 'violet' | 'amber';
   step?: number;
   icon: ReactNode;
   title: string;
   description: string;
   defaultExpanded?: boolean;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
   action?: ReactNode;
   children: ReactNode;
 }) {
   useLanguage();
-  return (
-    <Accordion defaultExpanded={defaultExpanded} disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, width: '100%', pr: 1 }}>
-          <Stack direction="row" spacing={1.5}>
-            {step != null && <StepBadge n={step} />}
-            <Box sx={{ color: 'primary.main', display: 'flex', mt: 0.5 }}>{icon}</Box>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                {title}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {description}
-              </Typography>
-            </Box>
-          </Stack>
-          {action && (
-            <Box onClick={(e) => e.stopPropagation()}>{action}</Box>
-          )}
-        </Stack>
-      </AccordionSummary>
-      <AccordionDetails>{children}</AccordionDetails>
-    </Accordion>
-  );
+  return <DashboardSection tone={tone} icon={icon} title={title} description={description}
+    defaultExpanded={defaultExpanded} expanded={expanded} onExpandedChange={onExpandedChange}
+    badge={step != null ? <StepBadge n={step} /> : undefined}>
+    {action && <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1, mb: 2 }}>{action}</Box>}
+    {children}
+  </DashboardSection>;
 }
 
 const STATUS_COLORS: Record<string, 'success' | 'warning' | 'default'> = {
@@ -202,7 +209,7 @@ const JOB_MAP_COLORS: Record<string, string> = {
   pending: '#9e9e9e',
 };
 const JOB_MAP_LABELS: Record<string, string> = {
-  completed: 'Completed',
+  completed: 'Ready for review',
   in_progress: 'In progress',
   pending: 'Not started yet',
 };
@@ -282,7 +289,10 @@ function TrackMapBridge({ mapRef }: { mapRef: MutableRefObject<L.Map | null> }) 
   const map = useMap();
   useEffect(() => {
     mapRef.current = map;
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(map.getContainer());
     return () => {
+      observer.disconnect();
       if (mapRef.current === map) mapRef.current = null;
     };
   }, [map, mapRef]);
@@ -361,12 +371,16 @@ export function TeamDetailPage() {
   const { user: currentUser } = useAuth();
   const { lastLatitude, lastLongitude } = useTracking();
   const { data: team, isLoading, isError, error: teamError } = useTeam(id);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab') || (window.location.hash === '#mission-plan' ? 'planning' : 'work');
+  const activeTab = ['work', 'planning', 'history', 'settings'].includes(requestedTab) ? requestedTab : 'work';
+  const changeTab = (value: string) => setSearchParams(previous => { const next = new URLSearchParams(previous); next.set('tab', value); return next; }, { replace: true });
   const loadedTeamId = team?.id;
   useEffect(() => {
     if (loadedTeamId && window.location.hash === '#mission-plan') {
       document.getElementById('mission-plan')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [loadedTeamId]);
+  }, [loadedTeamId, activeTab]);
   // `isError` alone isn't reliable here — under this app's `networkMode: 'offlineFirst'` query
   // default, a failed fetch can settle as fetchStatus "paused" rather than "error" depending on
   // the browser's online-detection, without `isError` ever flipping true (which would otherwise
@@ -399,8 +413,8 @@ export function TeamDetailPage() {
   const createUserMut = useCreateUser();
   const { data: liveMembers } = useTeamLive(id);
   const { data: teamTrails } = useTeamTrails(id);
-  const { data: missions } = useTeamMissions(id);
-  const { data: jobMap } = useTeamJobMap(id);
+  const { data: missions, isError: missionsError, refetch: refreshMissions } = useTeamMissions(id);
+  const { data: jobMap, isError: jobMapError, refetch: refreshJobMap } = useTeamJobMap(id);
   const jobMapNumbers = useMemo(() => towerNumbersById(jobMap?.towers || []), [jobMap?.towers]);
   const [deviceHere, setDeviceHere] = useState<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
@@ -431,6 +445,8 @@ export function TeamDetailPage() {
   const isTeamLeader = currentUser?.role === 'team_leader';
   const isTeamMember = currentUser?.role === 'team_member';
   const canManage = isAdmin || isTeamLeader;
+  const canStartInspection = canManage && (currentUser?.is_super_admin || ['edit', 'full'].includes(currentUser?.menu_permissions?.teams || ''))
+    && (!isAdmin || currentUser?.is_super_admin || ['add', 'full'].includes(getPermissionLevel(currentUser!.permissions, 'manage_teams')));
   const canRecord = canManage || isTeamMember;
   const canLogNotes = canRecord;
   // A restricted admin's "manage_users" level — routers/auth.py's create_user needs "add" to
@@ -446,7 +462,7 @@ export function TeamDetailPage() {
   const { data: shift } = useShiftInfo();
   // Which field night the Mission plan card below is showing/editing — defaults to tonight, but
   // Mission history's Edit/Add can point it at any other date without a page navigation.
-  const [missionPlanDate, setMissionPlanDate] = useState('');
+  const [missionPlanDate, setMissionPlanDate] = useState(() => /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('planDay') || '') ? searchParams.get('planDay')! : '');
   const effectiveMissionDate = missionPlanDate || shift?.field_date;
   const { data: outingPlan } = useOutingPlan(Number.isFinite(id) ? id : undefined, shift?.field_date);
   const { data: fieldHistory } = useTeamFieldHistory(Number.isFinite(id) ? id : undefined);
@@ -470,8 +486,8 @@ export function TeamDetailPage() {
   const trackStay = recap && trackStayIdx != null ? recap.stays[trackStayIdx] ?? null : null;
   const trackNextStay = recap && trackStayIdx != null ? recap.stays[trackStayIdx + 1] : undefined;
 
-  const today = new Date().toISOString().slice(0, 10);
-  const defaultStart = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
+  const today = localInspectionDate();
+  const defaultStart = localInspectionDate(new Date(Date.now() - 6 * 86400000));
   const [rangeStart, setRangeStart] = useState(defaultStart);
   const [rangeEnd, setRangeEnd] = useState(today);
   const { data: progress, isLoading: progressLoading } = useTeamProgress(id, rangeStart, rangeEnd);
@@ -540,9 +556,28 @@ export function TeamDetailPage() {
   const [newLoginForm, setNewLoginForm] = useState({ username: '', password: '', full_name: '' });
   const [newLoginError, setNewLoginError] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
+  const [inspectionDay, setInspectionDay] = useState(() => /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('planDay') || '') ? searchParams.get('planDay')! : localInspectionDate());
+  const [planNotice, setPlanNotice] = useState<PlanBlock>(null);
+  const [guideNotice, setGuideNotice] = useState<{ message: string; target: string } | null>(null);
+  const seenGuideNotices = useRef(new Set<string>());
+  useEffect(() => { setGuideNotice(null); seenGuideNotices.current.clear(); }, [id]);
+  const { data: workDayPlan, isError: workPlanError } = useOutingPlan(id, inspectionDay);
+  const { data: savedJourneyPlans } = useOutingPlans(id);
+  const [historyDay, setHistoryDay] = useState(() => searchParams.get('planScope') === '1' ? searchParams.get('planDay') || '' : '');
+  useEffect(() => {
+    const day = searchParams.get('planDay');
+    if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)) { setInspectionDay(day); setMissionPlanDate(day); if (searchParams.get('planScope') === '1') setHistoryDay(day); }
+  }, [id, searchParams]);
+  const [visitsExpanded, setVisitsExpanded] = useState(true);
+  const [newVisitOpen, setNewVisitOpen] = useState(false);
+  const newVisitElement = useRef<HTMLDetailsElement>(null);
+  const displayedMissions = missions?.filter(visit => (!historyDay || visit.inspection_date === historyDay) && (searchParams.get('planScope') !== '1' || (!!workDayPlan && visit.team_id === id && visit.inspection_date === inspectionDay && workDayPlan.tower_ids.includes(visit.tower_id))));
+  useEffect(() => {
+    if (activeTab === 'history' && newVisitOpen) newVisitElement.current?.scrollIntoView({ block: 'nearest' });
+  }, [activeTab, newVisitOpen]);
   const [missionForm, setMissionForm] = useState({
     tower_id: '',
-    inspection_date: new Date().toISOString().slice(0, 10),
+    inspection_date: localInspectionDate(),
     start_time: '',
     end_time: '',
     assigned_member_id: '',
@@ -569,6 +604,7 @@ export function TeamDetailPage() {
   // Job map's own enlarge + satellite toggle — same controls as TowersOverviewMap, but sized in vh
   // so "enlarge" actually reads as most of the screen, per user request.
   const [jobMapExpanded, setJobMapExpanded] = useState(false);
+  const [jobMapSectionOpen, setJobMapSectionOpen] = useState(false);
   const [jobMapLayer, setJobMapLayer] = useState<MapLayer>(DEFAULT_MAP_LAYER);
   // "Show path to this tower" — a one-shot geolocation fix (not the continuous background
   // tracking of useFieldTracking), then an actual road-following driving route (via OSRM's free
@@ -662,12 +698,12 @@ export function TeamDetailPage() {
   useEffect(() => {
     const t = window.setTimeout(() => jobMapRef.current?.invalidateSize(), 220);
     return () => window.clearTimeout(t);
-  }, [jobMapExpanded]);
+  }, [jobMapExpanded, jobMapSectionOpen, activeTab]);
 
   useEffect(() => {
     const t = window.setTimeout(() => trackMapRef.current?.invalidateSize(), 220);
     return () => window.clearTimeout(t);
-  }, [trackMapExpanded]);
+  }, [trackMapExpanded, activeTab]);
 
   // team_member accounts get their own "Team members" card below — exclude them here so this
   // (admin-only) section is just about which login(s) count as this team's leader/tracking device.
@@ -729,7 +765,7 @@ export function TeamDetailPage() {
       if (stop.claim_id) {
         updateClaim.mutate({ claimId: stop.claim_id, payload: { visit_id: stop.visit_id, status: 'on_site' } });
       }
-      navigate(`/visits/${stop.visit_id}`);
+      navigate(`/visits/${stop.visit_id}?entry=visual`);
       return;
     }
     createMission.mutate(
@@ -750,7 +786,7 @@ export function TeamDetailPage() {
           } catch {
             /* visit still opens */
           }
-          navigate(`/visits/${visit.id}`);
+          navigate(`/visits/${visit.id}?entry=visual`);
         },
       },
     );
@@ -758,6 +794,7 @@ export function TeamDetailPage() {
 
   const focusJobMapTower = (t: { id: number; latitude: number | null; longitude: number | null }) => {
     if (t.latitude == null || t.longitude == null) return;
+    setJobMapSectionOpen(true);
     setFocusedJobMapTowerId(t.id);
     jobMapRef.current?.flyTo([t.latitude, t.longitude], 17, { duration: 0.9 });
   };
@@ -791,6 +828,7 @@ export function TeamDetailPage() {
 
   const showRouteToTower = (t: { id: number; latitude: number | null; longitude: number | null }) => {
     if (t.latitude == null || t.longitude == null) return;
+    setJobMapSectionOpen(true);
     setRouteError(null);
     if (!navigator.geolocation) {
       setRouteError(tr("This browser cannot get your location, so a path can’t be drawn."));
@@ -842,72 +880,146 @@ export function TeamDetailPage() {
       ? haversineMeters(routeOrigin.lat, routeOrigin.lng, routeTower.latitude, routeTower.longitude) / 1000
       : null;
 
+  const deviceDrafts = new Set<number>();
+  for (const visit of missions || []) {
+    try { if (currentUser && hasDeviceVisitDraft(localStorage.getItem(`iip-visit-entry:${currentUser.username}:${visit.id}`))) deviceDrafts.add(visit.id); } catch { /* storage is optional */ }
+  }
+  const guide = teamGuidance(jobMap, missions, missionsError || jobMapError, deviceDrafts);
+  const guideNext = () => {
+    if (guide.reason === 'assign') changeTab('planning');
+    else if (guide.reason === 'review') { setHistoryDay(''); changeTab('history'); }
+    else if (guide.next?.visit && guide.reason !== 'start') navigate(`/visits/${guide.next.visit.id}?entry=visual`);
+    else {
+      changeTab('work');
+      requestAnimationFrame(() => document.getElementById('team-tower-work')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    }
+  };
+  const proceedGuideTarget = (target: string) => target === 'report' ? openReportDialog() : changeTab(target);
+  const selectPlanDay = (day: string) => {
+    setInspectionDay(day); setMissionPlanDate(day); setHistoryDay(day); setPlanNotice(null);
+    setSearchParams(previous => { const next = new URLSearchParams(previous); next.set('planDay', day); return next; }, { replace: true });
+  };
+  const openPlanStep = (step: PlanStep) => {
+    setPlanNotice(null); setMissionPlanDate(inspectionDay);
+    if (step === 'history') { setHistoryDay(inspectionDay); setVisitsExpanded(true); }
+    setSearchParams(previous => { const next = new URLSearchParams(previous); next.set('tab', step); next.set('planDay', inspectionDay); next.set('planScope', '1'); return next; }, { replace: true });
+  };
+  const planWarning = activeTab === 'work' || activeTab === 'history'
+    ? planStepBlock(activeTab, id, inspectionDay, workDayPlan, missions, workPlanError || (activeTab === 'history' && missionsError)) : null;
+  const guidedNavigate = (target: string) => {
+    if (target === 'planning') { openPlanStep('planning'); return; }
+    if (target === 'work' || target === 'history') {
+      const reason = planStepBlock(target, id, inspectionDay, workDayPlan, missions, workPlanError || (target === 'history' && missionsError));
+      if (reason) setPlanNotice(reason); else openPlanStep(target);
+      return;
+    }
+    const message = teamGuidanceWarning(guide, target);
+    const key = `${id}:${target}:${message}`;
+    if (message && !seenGuideNotices.current.has(key)) {
+      seenGuideNotices.current.add(key); setGuideNotice({ message, target });
+    } else proceedGuideTarget(target);
+  };
+
   return (
     <Stack spacing={3}>
-      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/')} sx={{ alignSelf: 'flex-start' }}>{tr("Back to dashboard")}</Button>
+      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/teams')} sx={{ alignSelf: 'flex-start' }}>{tr("Back to teams")}</Button>
 
-      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap', p: 2.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: '24px' }}>
+        <Box sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', borderRadius: '18px', p: 1.5, display: 'flex' }}><EngineeringRounded sx={{ fontSize: 36 }} /></Box>
         <Typography variant="h4" sx={{ fontWeight: 800 }}>
           {team.name}
         </Typography>
-        <Chip label={team.status} color={STATUS_COLORS[team.status] || 'default'} />
+        <Chip label={tr(team.status === 'active' ? 'Active' : team.status === 'paused' ? 'Paused' : team.status === 'completed' ? 'Completed' : team.status)} color={STATUS_COLORS[team.status] || 'default'} />
         {!team.is_active && <Chip label={tr("Archived")} variant="outlined" />}
         <Box sx={{ flex: 1 }} />
         {canManage && (
-          <Button variant="outlined" startIcon={<DescriptionRoundedIcon />} onClick={openReportDialog}>{tr("Generate official report")}</Button>
+          <Button variant="outlined" startIcon={<DescriptionRoundedIcon />} onClick={() => guidedNavigate('report')}>{tr("Generate official report")}</Button>
         )}
       </Stack>
 
-      {totals && (
-        <TeamSection
-          step={1}
-          icon={<InsightsRoundedIcon />}
-          title={tr("At a glance")}
-          description={tr("Live counts for this team — towers, screened positions, hotspots, roster size, and the daily target.")}
-        >
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 6, sm: 2.4 }}>
-              <KpiTile
-                label={tr("Towers ({0} → {1})", [rangeStart, rangeEnd])}
-                value={
-                  team.daily_target ? (
-                    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'baseline' }}>
-                      <span>{totals.towers}</span>
-                      <Typography variant="caption" color="text.secondary">
-                        / ~{team.daily_target * (progress?.length || 0)}{tr(" planned")}</Typography>
-                    </Stack>
-                  ) : (
-                    totals.towers
-                  )
-                }
-                icon={<CellTowerIcon />}
-              />
-            </Grid>
-            <Grid size={{ xs: 6, sm: 2.4 }}>
-              <KpiTile label={tr("Positions screened")} value={totals.screened} icon={<FactCheckIcon />} color="#3a6f84" />
-            </Grid>
-            <Grid size={{ xs: 6, sm: 2.4 }}>
-              <KpiTile label={tr("Hotspots found")} value={totals.hotspots} icon={<LocalFireDepartmentIcon />} color="#d32f2f" />
-            </Grid>
-            <Grid size={{ xs: 6, sm: 2.4 }}>
-              <KpiTile label={tr("Roster size")} value={team.members.length} icon={<PersonAddIcon />} color="#6d4c41" />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 2.4 }}>
-              <KpiTile
-                label={tr("Daily target (working plan)")}
-                value={team.daily_target ? `${team.daily_target}/day` : 'Not set'}
-                icon={<FlagRoundedIcon />}
-                color="#8a6d00"
-              />
-            </Grid>
-          </Grid>
-        </TeamSection>
+      <Typography color="text.secondary">{tr("Your crew’s workspace: plan the route, inspect each tower, then review the recorded work.")}</Typography>
+      <TeamPlanControls day={inspectionDay} plans={savedJourneyPlans} onDay={selectPlanDay} />
+      <TeamWorkflowNav value={activeTab} onChange={guidedNavigate} />
+      <Typography variant="body2" color="text.secondary">{tr(activeTab === 'planning' ? 'First choose towers and save the mission plan. Then open Inspect towers.' : activeTab === 'work' ? 'Follow the saved tower plan, enter readings and add evidence. Confirm each visit before review.' : activeTab === 'history' ? 'Review confirmed readings for the selected plan day. Check missing evidence before preparing reports.' : 'Manage the crew and accounts here; return to the three steps for daily work.')}</Typography>
+      {planWarning && <Alert severity={planWarning === 'unavailable' ? 'info' : 'warning'} action={planWarning !== 'unavailable' ? <Button onClick={() => openPlanStep(planWarning === 'plan' ? 'planning' : 'work')}>{tr(planWarning === 'plan' ? 'Go to planning' : 'Inspect planned towers')}</Button> : undefined}>{tr(planBlockMessages[planWarning])}</Alert>}
+      <TeamPlanNotice reason={planNotice} day={inspectionDay} canPlan={canManage} onClose={() => setPlanNotice(null)} onNext={openPlanStep} />
+      <TeamGuide key={id} teamId={id} name={team.name} guide={guide} canPlan={canManage} onNext={guideNext}
+        onRefresh={() => { void refreshMissions(); void refreshJobMap(); }}
+        notice={guideNotice?.message || null} onDismissNotice={() => setGuideNotice(null)}
+        onContinue={() => { if (guideNotice) { proceedGuideTarget(guideNotice.target); setGuideNotice(null); } }} />
+      <TeamInspectionGuide teams={[team]} currentTeamId={id} />
+      <TeamTabPanel value="work" activeTab={activeTab}>
+        <Stack spacing={2}>
+          <TeamDailyVisits visits={missionsError ? undefined : missions} date={inspectionDay} onDate={selectPlanDay} canAdd={canStartInspection} onView={() => { setVisitsExpanded(true); setHistoryDay(inspectionDay); changeTab('history'); }} onAdd={() => {
+            setMissionForm(form => ({ ...form, inspection_date: inspectionDay })); setVisitsExpanded(true); setHistoryDay(inspectionDay); setNewVisitOpen(true); changeTab('history');
+          }} />
+          <Box id="team-tower-work" sx={{ scrollMarginTop: 80 }}><TeamTowerWork key={id} teamId={id} inspectionDate={inspectionDay} plannedIds={workDayPlan?.tower_ids} planDate={workDayPlan?.field_date}
+            onRepeat={towerId => { setMissionForm(form => ({ ...form, tower_id: String(towerId), inspection_date: inspectionDay })); setVisitsExpanded(true); setHistoryDay(inspectionDay); setNewVisitOpen(true); changeTab('history'); }} jobMap={jobMap} visits={missions} loadError={missionsError || jobMapError} onRefresh={async () => { const results = await Promise.all([refreshMissions(), refreshJobMap()]); return results.every(result => !result.isError); }} canStart={canStartInspection} onHistory={() => { setHistoryDay(''); guidedNavigate('history'); }} onPlanning={() => changeTab('planning')} /></Box>
+        </Stack>
+      </TeamTabPanel>
+      <TeamTabPanel value="planning" activeTab={activeTab}>
+        <Stack spacing={2}>
+        <Alert severity="info">{tr('Before the mission: choose towers and their order below, then save the plan once. Maps, crew coordination and handover are grouped here. Open Inspect towers to begin data entry.')}</Alert>
+      <Box id="mission-plan" sx={{ scrollMarginTop: 90 }} />
+      {missionPlanDate && missionPlanDate !== shift?.field_date && (
+        <Alert
+          severity="info"
+          action={
+            <Button size="small" onClick={() => setMissionPlanDate('')}>{tr("Back to tonight")}</Button>
+          }
+        >{tr("Viewing the mission planned for ")}{missionDateLabel(missionPlanDate)}.
+        </Alert>
       )}
 
+      <OutingPlanCard
+        teamId={id}
+        fieldDate={effectiveMissionDate}
+        assignedTowers={jobMap?.towers || []}
+        catalogTowers={(towers || []).filter((t) => t.is_active)}
+        canEdit={canManage}
+      />
+
+      <NextTowersCard
+        plan={nextPlan}
+        loading={nextPlanLoading}
+        canStart={canRecord && !createMission.isPending}
+        canAssign={canAssignClaims}
+        currentUserId={currentUser?.id}
+        busy={claimTower.isPending || updateClaim.isPending || createMission.isPending}
+        onShow={(stop) => {
+          focusJobMapTower(stop);
+          showRouteToTower(stop);
+        }}
+        onStart={startStop}
+        onClaim={(stop, userId) => claimTower.mutate({ tower_id: stop.id, assigned_user_id: userId })}
+        onStatus={(stop, status: NightClaimStatus, skipReason) => {
+          if (!stop.claim_id) return;
+          updateClaim.mutate({ claimId: stop.claim_id, payload: { status, skip_reason: skipReason } });
+        }}
+      />
+
+      <NightChannel
+        defaultExpanded={false}
+        teamId={id}
+        fieldDate={shift?.field_date}
+        towers={(jobMap?.towers || []).map((t) => ({ id: t.id, tower_id: t.tower_id }))}
+        onTower={(towerPk, visitId) => {
+          if (visitId) {
+            navigate(`/visits/${visitId}`);
+            return;
+          }
+          const t = jobMap?.towers.find((x) => x.id === towerPk);
+          if (t) {
+            focusJobMapTower(t);
+            showRouteToTower(t);
+          }
+        }}
+      />
+
       <TeamSection
-        step={2}
         icon={<MyLocationIcon />}
-        title={tr("Site map")}
+        defaultExpanded={false}
+        tone="blue" title={tr("Site map")}
         description={
           canManage ? tr("Green pin: click to assign to this team. Red pin: click to unassign (so another team can take an unfinished tower). Admin can also click a red pin from another team to give it to this team.") : tr("Every registered tower (number + Tower ID), live GPS, and the crew's recorded track.")
         }
@@ -999,526 +1111,22 @@ export function TeamDetailPage() {
             }
           />
       </TeamSection>
-      <ClaimTowerDialog
-        open={claimOpen}
-        onClose={() => setClaimOpen(false)}
-        freeTowers={freeTowers}
-        claiming={claimForTeam.isPending}
-        error={claimError}
-        onClaim={(towerId) => {
-          setClaimError(null);
-          claimForTeam.mutate(towerId, {
-            onError: (err: unknown) => {
-              const message =
-                (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-                'Could not add that tower';
-              setClaimError(String(message));
-            },
-          });
-        }}
-      />
-
-      <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
-        {/* Mission info — inline-editable, same pattern as the Visit header */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <TeamSection
-            step={3}
-            icon={<AssignmentRoundedIcon />}
-            title={tr("Mission")}
-            description={tr("This team's standing mission brief — leader contact, scope, and schedule. Click any field and it saves when you click away.")}
-          >
-              <Stack spacing={2}>
-                <Grid container spacing={2}>
-                  <Grid size={6}>
-                    <TextField
-                      label={tr("Team leader")}
-                      fullWidth
-                      size="small"
-                      defaultValue={team.leader_name || ''}
-                      onBlur={(e) => commitField('leader_name', e.target.value || null)}
-                    />
-                  </Grid>
-                  <Grid size={6}>
-                    <TextField
-                      label={tr("Leader phone")}
-                      fullWidth
-                      size="small"
-                      defaultValue={team.leader_phone || ''}
-                      onBlur={(e) => commitField('leader_phone', e.target.value || null)}
-                    />
-                  </Grid>
-                </Grid>
-                <TextField
-                  label={tr("Mission")}
-                  fullWidth
-                  multiline
-                  minRows={2}
-                  size="small"
-                  defaultValue={team.mission || ''}
-                  onBlur={(e) => commitField('mission', e.target.value || null)}
-                />
-                <Grid container spacing={2}>
-                  <Grid size={6}>
-                    <TextField
-                      label={tr("From")}
-                      fullWidth
-                      size="small"
-                      defaultValue={team.mission_from || ''}
-                      onBlur={(e) => commitField('mission_from', e.target.value || null)}
-                    />
-                  </Grid>
-                  <Grid size={6}>
-                    <TextField
-                      label={tr("To")}
-                      fullWidth
-                      size="small"
-                      defaultValue={team.mission_to || ''}
-                      onBlur={(e) => commitField('mission_to', e.target.value || null)}
-                    />
-                  </Grid>
-                </Grid>
-                <Grid container spacing={2}>
-                  <Grid size={4}>
-                    <TextField
-                      label={tr("Start date")}
-                      type="date"
-                      fullWidth
-                      size="small"
-                      defaultValue={team.start_date || ''}
-                      onBlur={(e) => commitField('start_date', e.target.value || null)}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    />
-                  </Grid>
-                  <Grid size={4}>
-                    <TextField
-                      label={tr("End date")}
-                      type="date"
-                      fullWidth
-                      size="small"
-                      defaultValue={team.end_date || ''}
-                      onBlur={(e) => commitField('end_date', e.target.value || null)}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    />
-                  </Grid>
-                  <Grid size={4}>
-                    <TextField
-                      label={tr("Status")}
-                      select
-                      fullWidth
-                      size="small"
-                      defaultValue={team.status}
-                      onChange={(e) => commitField('status', e.target.value)}
-                    >
-                      <MenuItem value="active">{tr("Active")}</MenuItem>
-                      <MenuItem value="paused">{tr("Paused")}</MenuItem>
-                      <MenuItem value="completed">{tr("Completed")}</MenuItem>
-                    </TextField>
-                  </Grid>
-                </Grid>
-                <TextField
-                  label={tr("General notes")}
-                  fullWidth
-                  multiline
-                  minRows={2}
-                  size="small"
-                  defaultValue={team.notes || ''}
-                  onBlur={(e) => commitField('notes', e.target.value || null)}
-                  placeholder={tr("Standing notes about this team (not day-specific — see the daily log below for that)")}
-                />
-              </Stack>
-          </TeamSection>
-        </Grid>
-
-        {/* Linked logins (admin only — the endpoint that lists all users is admin-gated) */}
-        {isAdmin && (
-          <Grid size={{ xs: 12, md: 6 }}>
-            <TeamSection
-              icon={<LinkIcon />}
-              title={tr("Linked logins")}
-              description={tr("The account(s) whose device pings and visits count toward this team's tracking & progress — usually just the leader's phone.")}
-            >
-                <Stack spacing={1} sx={{ mb: 2 }}>
-                  {linkedUsers.map((u) => (
-                    <Stack key={u.id} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                      <Chip label={u.full_name || u.username} size="small" />
-                      <Typography variant="caption" color="text.secondary">
-                        {u.username}
-                      </Typography>
-                      {canManageLogins && (
-                        <Tooltip title={tr("Unlink from this team")}>
-                          <IconButton size="small" onClick={() => updateUserMut.mutate({ id: u.id, payload: { team_id: null } })}>
-                            <LinkOffIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </Stack>
-                  ))}
-                  {linkedUsers.length === 0 && (
-                    <Typography variant="body2" color="text.secondary">{tr("No login linked yet.")}</Typography>
-                  )}
-                </Stack>
-                {/* Linking an existing account, and creating a new one below, both go through
-                    update_user/create_user — a restricted admin needs "manage_users" at "full" /
-                    "add" respectively on the backend, so don't offer either control otherwise. */}
-                {canManageLogins && (
-                  <Stack direction="row" spacing={1}>
-                    <TextField
-                      select
-                      size="small"
-                      label={tr("Link an existing account")}
-                      sx={{ minWidth: 220 }}
-                      value={linkUserId}
-                      onChange={(e) => setLinkUserId(e.target.value)}
-                    >
-                      <MenuItem value="" disabled>
-                        {enabledUsers ? tr("Choose a login") : tr("Loading…")}
-                      </MenuItem>
-                      {unlinkedUsers.map((u) => (
-                        <MenuItem key={u.id} value={u.id}>
-                          {u.full_name || u.username} ({u.username})
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                    <Button
-                      variant="outlined"
-                      startIcon={<LinkIcon />}
-                      disabled={!linkUserId}
-                      onClick={() => {
-                        updateUserMut.mutate(
-                          { id: Number(linkUserId), payload: { team_id: id } },
-                          { onSuccess: () => setLinkUserId('') },
-                        );
-                      }}
-                    >{tr("Link")}</Button>
-                  </Stack>
-                )}
-
-                {canAddLogins && (
-                  <>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{tr("Create a new team-leader login")}</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>{tr("Gives this team leader their own username and password — signed in, they'll see and manage only this team's roster and missions, nothing from other teams.")}</Typography>
-                    {newLoginError && (
-                      <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setNewLoginError(null)}>
-                        {tr(newLoginError)}
-                      </Alert>
-                    )}
-                    <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                      <TextField
-                        size="small"
-                        label={tr("Username")}
-                        value={newLoginForm.username}
-                        onChange={(e) => setNewLoginForm((f) => ({ ...f, username: e.target.value }))}
-                      />
-                      <TextField
-                        size="small"
-                        label={tr("Password")}
-                        type="password"
-                        value={newLoginForm.password}
-                        onChange={(e) => setNewLoginForm((f) => ({ ...f, password: e.target.value }))}
-                      />
-                      <TextField
-                        size="small"
-                        label={tr("Full name")}
-                        value={newLoginForm.full_name}
-                        onChange={(e) => setNewLoginForm((f) => ({ ...f, full_name: e.target.value }))}
-                      />
-                      <Button
-                        variant="outlined"
-                        startIcon={<PersonAddIcon />}
-                        disabled={!newLoginForm.username.trim() || newLoginForm.password.length < 6 || createUserMut.isPending}
-                        onClick={() => {
-                          setNewLoginError(null);
-                          createUserMut.mutate(
-                            {
-                              username: newLoginForm.username.trim(),
-                              password: newLoginForm.password,
-                              full_name: newLoginForm.full_name.trim() || undefined,
-                              role: 'team_leader',
-                              team_id: id,
-                            },
-                            {
-                              onSuccess: () => setNewLoginForm({ username: '', password: '', full_name: '' }),
-                              onError: (err: unknown) => {
-                                const message =
-                                  (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-                                  'Could not create the login';
-                                setNewLoginError(message);
-                              },
-                            },
-                          );
-                        }}
-                      >{tr("Create login")}</Button>
-                    </Stack>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>{tr("Password needs at least 6 characters.")}</Typography>
-                  </>
-                )}
-            </TeamSection>
-          </Grid>
-        )}
-
-        {/* Team members — each gets their own username/password, created here by the leader (or
-            admin); their whole app is scoped to just the missions assigned to them below. */}
-        {(isAdmin || isTeamLeader) && (
-          <Grid size={{ xs: 12, md: isAdmin ? 6 : 12 }}>
-            <TeamSection
-              step={4}
-              icon={<GroupsRoundedIcon />}
-              title={tr("Team members")}
-              description={tr("Each member has their own login — they'll only ever see the missions you assign to them, never each other's or your details.")}
-            >
-                <Stack spacing={1} sx={{ mb: 2 }}>
-                  {teamMemberLogins.map((u) => (
-                    <Stack key={u.id} direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                      <Chip label={u.full_name || u.username} size="small" />
-                      {u.job_type && <Chip label={tr(u.job_type)} size="small" variant="outlined" color="primary" />}
-                      <Typography variant="caption" color="text.secondary">
-                        {u.username}
-                        {u.mobile ? ` · ${u.mobile}` : ''}
-                      </Typography>
-                      {!u.is_active && <Chip label={tr("Deactivated")} size="small" color="default" />}
-                      {canManageLogins && (
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            setMemberMenuAnchor(e.currentTarget);
-                            setMemberMenuTarget(u);
-                          }}
-                        >
-                          <MoreVertIcon fontSize="small" />
-                        </IconButton>
-                      )}
-                    </Stack>
-                  ))}
-                  {teamMemberLogins.length === 0 && team.members.length === 0 && (
-                    <Typography variant="body2" color="text.secondary">{tr("No team members added yet.")}</Typography>
-                  )}
-                </Stack>
-
-                {team.members.length > 0 && (
-                  <>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("From the old contact-only roster — not yet given a login:")}</Typography>
-                    <Stack spacing={0.75} sx={{ mb: 2 }}>
-                      {team.members.map((m) => (
-                        <Stack key={m.id} direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                          <Chip label={m.name} size="small" variant="outlined" />
-                          {m.role_title && (
-                            <Typography variant="caption" color="text.secondary">
-                              {m.role_title}
-                            </Typography>
-                          )}
-                          {canAddLogins && (
-                            <Button
-                              size="small"
-                              onClick={() => {
-                                setConvertingMemberId(m.id);
-                                setMemberLoginForm((f) => ({
-                                  ...f,
-                                  full_name: m.name,
-                                  mobile: m.phone || '',
-                                  job_type: m.role_title || '',
-                                }));
-                              }}
-                            >{tr("Give login →")}</Button>
-                          )}
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => {
-                              if (window.confirm(tr("Remove {0}? They were never given a login.", [m.name]))) removeMember.mutate(m.id);
-                            }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Stack>
-                      ))}
-                    </Stack>
-                  </>
-                )}
-
-                {canAddLogins && (
-                  <>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{tr("Add a team member")}</Typography>
-                {convertingMemberId != null && (
-                  <Alert severity="info" sx={{ mb: 1.5 }} onClose={() => setConvertingMemberId(null)}>{tr("Giving ")}{memberLoginForm.full_name}{tr(" a login — just add a username & password below.")}</Alert>
-                )}
-                {memberLoginError && (
-                  <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setMemberLoginError(null)}>
-                    {tr(memberLoginError)}
-                  </Alert>
-                )}
-                <Stack spacing={1.5}>
-                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                    <TextField
-                      size="small"
-                      label={tr("Full name")}
-                      value={memberLoginForm.full_name}
-                      onChange={(e) => setMemberLoginForm((f) => ({ ...f, full_name: e.target.value }))}
-                    />
-                    <TextField
-                      size="small"
-                      label={tr("Mobile")}
-                      value={memberLoginForm.mobile}
-                      onChange={(e) => setMemberLoginForm((f) => ({ ...f, mobile: e.target.value }))}
-                    />
-                    <TextField
-                      select
-                      size="small"
-                      label={tr("Job type")}
-                      sx={{ minWidth: 180 }}
-                      value={memberLoginForm.job_type}
-                      onChange={(e) => setMemberLoginForm((f) => ({ ...f, job_type: e.target.value }))}
-                    >
-                      {JOB_TYPE_OPTIONS.map((j) => (
-                        <MenuItem key={j} value={j}>
-                          {tr(j)}
-                        </MenuItem>
-                      ))}
-                      {memberLoginForm.job_type && !JOB_TYPE_OPTIONS.includes(memberLoginForm.job_type) && (
-                        <MenuItem value={memberLoginForm.job_type}>{tr(memberLoginForm.job_type)}{tr(" (custom)")}</MenuItem>
-                      )}
-                    </TextField>
-                  </Stack>
-                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                    <TextField
-                      size="small"
-                      label={tr("Username")}
-                      value={memberLoginForm.username}
-                      onChange={(e) => setMemberLoginForm((f) => ({ ...f, username: e.target.value }))}
-                    />
-                    <TextField
-                      size="small"
-                      label={tr("Password")}
-                      type="password"
-                      value={memberLoginForm.password}
-                      onChange={(e) => setMemberLoginForm((f) => ({ ...f, password: e.target.value }))}
-                    />
-                    <Button
-                      variant="outlined"
-                      startIcon={<PersonAddIcon />}
-                      disabled={!memberLoginForm.username.trim() || memberLoginForm.password.length < 6 || createMemberLogin.isPending}
-                      onClick={() => {
-                        setMemberLoginError(null);
-                        createMemberLogin.mutate(
-                          {
-                            username: memberLoginForm.username.trim(),
-                            password: memberLoginForm.password,
-                            full_name: memberLoginForm.full_name.trim() || undefined,
-                            mobile: memberLoginForm.mobile.trim() || undefined,
-                            job_type: memberLoginForm.job_type.trim() || undefined,
-                            notes: memberLoginForm.notes.trim() || undefined,
-                            role: 'team_member',
-                            team_id: id,
-                          },
-                          {
-                            onSuccess: () => {
-                              setMemberLoginForm({ full_name: '', mobile: '', job_type: '', username: '', password: '', notes: '' });
-                              if (convertingMemberId != null) {
-                                removeMember.mutate(convertingMemberId);
-                                setConvertingMemberId(null);
-                              }
-                            },
-                            onError: (err: unknown) => {
-                              const message =
-                                (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-                                'Could not create this team member';
-                              setMemberLoginError(message);
-                            },
-                          },
-                        );
-                      }}
-                    >{tr("Add member")}</Button>
-                  </Stack>
-                </Stack>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{tr("Password needs at least 6 characters — the member can change it themselves anytime once signed in.")}</Typography>
-                  </>
-                )}
-            </TeamSection>
-          </Grid>
-        )}
-      </Grid>
-
-      <Box id="mission-plan" sx={{ scrollMarginTop: 90 }} />
-      <MissionHistoryCard
-        step={5}
-        teamId={id}
-        canEdit={canManage}
-        selectedDate={effectiveMissionDate}
-        onSelectDate={(d) => setMissionPlanDate(d)}
-      />
-
-      {missionPlanDate && missionPlanDate !== shift?.field_date && (
-        <Alert
-          severity="info"
-          action={
-            <Button size="small" onClick={() => setMissionPlanDate('')}>{tr("Back to tonight")}</Button>
-          }
-        >{tr("Viewing the mission planned for ")}{missionDateLabel(missionPlanDate)}.
-        </Alert>
-      )}
-
-      <OutingPlanCard
-        step={6}
-        teamId={id}
-        fieldDate={effectiveMissionDate}
-        assignedTowers={jobMap?.towers || []}
-        catalogTowers={(towers || []).filter((t) => t.is_active)}
-        canEdit={canManage}
-      />
-
-      <NextTowersCard
-        step={7}
-        plan={nextPlan}
-        loading={nextPlanLoading}
-        canStart={canRecord && !createMission.isPending}
-        canAssign={canAssignClaims}
-        currentUserId={currentUser?.id}
-        busy={claimTower.isPending || updateClaim.isPending || createMission.isPending}
-        onShow={(stop) => {
-          focusJobMapTower(stop);
-          showRouteToTower(stop);
-        }}
-        onStart={startStop}
-        onClaim={(stop, userId) => claimTower.mutate({ tower_id: stop.id, assigned_user_id: userId })}
-        onStatus={(stop, status: NightClaimStatus, skipReason) => {
-          if (!stop.claim_id) return;
-          updateClaim.mutate({ claimId: stop.claim_id, payload: { status, skip_reason: skipReason } });
-        }}
-      />
-
-      <NightChannel
-        step={8}
-        teamId={id}
-        fieldDate={shift?.field_date}
-        towers={(jobMap?.towers || []).map((t) => ({ id: t.id, tower_id: t.tower_id }))}
-        onTower={(towerPk, visitId) => {
-          if (visitId) {
-            navigate(`/visits/${visitId}`);
-            return;
-          }
-          const t = jobMap?.towers.find((x) => x.id === towerPk);
-          if (t) {
-            focusJobMapTower(t);
-            showRouteToTower(t);
-          }
-        }}
-      />
-
       {/* Job map — the team's FULL assigned scope (every tower an admin has assigned to it via
           Towers page → select → "Assign to team"), not just the missions it already has. Lets a
           leader (or field crew planning the next drone flight) see the whole job at a glance, and
           measure progress against the whole thing, not just against what's been started. */}
       <TeamSection
-        step={9}
         icon={<MapIcon />}
-        title={tr("Job map")}
+        defaultExpanded={false}
+        tone="blue" title={tr("Job map")}
+        expanded={jobMapSectionOpen}
+        onExpandedChange={setJobMapSectionOpen}
         description={tr("Every tower assigned to this team{0} — not just the ones already visited — so the field crew can see the whole job and where to fly next.", [jobMap?.sector ? ` (${jobMap.sector})` : ''])}
         action={
           jobMap && jobMap.total > 0 && (
             <Stack direction="row" spacing={1}>
               <Chip size="small" label={tr("{0} total", [jobMap.total])} />
-              <Chip size="small" color="success" label={tr("{0} completed", [jobMap.completed])} />
+              <Chip size="small" color="success" label={tr("{0} ready for review", [jobMap.completed])} />
               <Chip size="small" color="info" label={tr("{0} in progress", [jobMap.in_progress])} />
               <Chip size="small" variant="outlined" label={tr("{0} not started", [jobMap.pending])} />
             </Stack>
@@ -1789,223 +1397,12 @@ export function TeamDetailPage() {
           )}
       </TeamSection>
 
-      {/* Missions — a mission IS a visit (Visit.team_id/mission_seq set), not a separate record.
-          "Mission 1, 2, 3..." are this team's Visits in order; opening one goes straight to the
-          full inspection workflow — positions, images, screening, photos, reports — since that's
-          what actually running the mission means. */}
-      <TeamSection
-        step={10}
-        icon={<FactCheckIcon />}
-        title={tr("Missions")}
-        description={tr("Each mission is a tower visit assigned to this team, with a planned start/end time. Click one to open it and run the inspection — positions, images, screening, photos, all in the same place.")}
-      >
-          <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>#</TableCell>
-                  <TableCell>{tr("Tower")}</TableCell>
-                  <TableCell>{tr("Date")}</TableCell>
-                  <TableCell>{tr("Time")}</TableCell>
-                  <TableCell>{tr("Assigned to")}</TableCell>
-                  <TableCell>{tr("Status")}</TableCell>
-                  <TableCell align="center">{tr("Completion")}</TableCell>
-                  <TableCell align="center">{tr("Hotspots")}</TableCell>
-                  <TableCell align="center">{tr("Photos")}</TableCell>
-                  <TableCell align="right" />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {missions?.map((m) => (
-                  <TableRow key={m.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/visits/${m.id}`)}>
-                    <TableCell sx={{ fontWeight: 700 }}>{m.mission_seq}</TableCell>
-                    <TableCell>
-                      <Chip size="small" icon={<PlaceIcon />} label={m.tower?.tower_id} variant="outlined" />
-                      {m.tower?.latitude != null && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                          {m.tower.latitude.toFixed(5)}, {m.tower.longitude?.toFixed(5)}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>{m.inspection_date}</TableCell>
-                    <TableCell>
-                      {m.start_time?.slice(0, 5) || '-'}
-                      {m.end_time ? ` – ${m.end_time.slice(0, 5)}` : ''}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      {canManage ? (
-                      <TextField
-                        select
-                        size="small"
-                        variant="standard"
-                        sx={{ minWidth: 140 }}
-                        value={m.assigned_member_id ?? ''}
-                        onChange={(e) =>
-                          updateVisit.mutate({ id: m.id, payload: { assigned_member_id: e.target.value ? Number(e.target.value) : null } })
-                        }
-                        slotProps={{ select: { displayEmpty: true } }}
-                      >
-                        <MenuItem value="">
-                          <em>{tr("Unassigned")}</em>
-                        </MenuItem>
-                        {teamMemberLogins.map((u) => (
-                          <MenuItem key={u.id} value={u.id}>
-                            {u.full_name || u.username}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                      ) : (
-                        <Typography variant="body2">{m.assigned_member_name || '—'}</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      {canManage ? (
-                      <TextField
-                        select
-                        size="small"
-                        variant="standard"
-                        value={m.mission_status}
-                        onChange={(e) => updateVisit.mutate({ id: m.id, payload: { mission_status: e.target.value } })}
-                        slotProps={{
-                          select: {
-                            renderValue: (v) => (
-                              <Chip size="small" label={String(v).replace('_', ' ')} color={MISSION_STATUS_COLORS[String(v)] || 'default'} />
-                            ),
-                          },
-                        }}
-                      >
-                        <MenuItem value="planned">{tr("Planned")}</MenuItem>
-                        <MenuItem value="in_progress">{tr("In progress")}</MenuItem>
-                        <MenuItem value="completed">{tr("Completed")}</MenuItem>
-                      </TextField>
-                      ) : (
-                        <Chip size="small" label={String(m.mission_status).replace('_', ' ')} color={MISSION_STATUS_COLORS[m.mission_status] || 'default'} />
-                      )}
-                    </TableCell>
-                    <TableCell align="center">{m.rollup?.completion_pct ?? 0}%</TableCell>
-                    <TableCell align="center">
-                      {m.rollup && m.rollup.hotspots > 0 ? <Chip size="small" color="error" label={m.rollup.hotspots} /> : 0}
-                    </TableCell>
-                    <TableCell align="center">
-                      <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'center' }}>
-                        <PhotoCameraIcon fontSize="inherit" color="disabled" />
-                        <span>{m.photo_count}</span>
-                      </Stack>
-                    </TableCell>
-                    <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                      {canManage && (
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => {
-                          if (window.confirm(tr("Delete Mission {0} ({1})? This removes the whole visit — positions, images, everything.", [m.mission_seq, m.tower?.tower_id])))
-                            deleteVisit.mutate(m.id);
-                        }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {(!missions || missions.length === 0) && (
-                  <TableRow>
-                    <TableCell colSpan={10} align="center">{tr("No missions assigned yet — add the team's first stop below.")}</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          {canManage && (
-          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            <TextField
-              select
-              size="small"
-              label={tr("Tower")}
-              sx={{ minWidth: 160 }}
-              value={missionForm.tower_id}
-              onChange={(e) => setMissionForm((f) => ({ ...f, tower_id: e.target.value }))}
-            >
-              <MenuItem value="" disabled>
-                {!towers ? tr("Loading towers…") : teamTowers.length === 0 ? tr("No towers assigned to this team yet") : tr("Select a tower")}
-              </MenuItem>
-              {teamTowers.map((t) => (
-                <MenuItem key={t.id} value={t.id}>
-                  {t.tower_id}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label={tr("Date")}
-              type="date"
-              size="small"
-              value={missionForm.inspection_date}
-              onChange={(e) => setMissionForm((f) => ({ ...f, inspection_date: e.target.value }))}
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
-            <TextField
-              label={tr("Start time")}
-              type="time"
-              size="small"
-              value={missionForm.start_time}
-              onChange={(e) => setMissionForm((f) => ({ ...f, start_time: e.target.value }))}
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
-            <TextField
-              label={tr("End time")}
-              type="time"
-              size="small"
-              value={missionForm.end_time}
-              onChange={(e) => setMissionForm((f) => ({ ...f, end_time: e.target.value }))}
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
-            <TextField
-              select
-              size="small"
-              label={tr("Assign to")}
-              sx={{ minWidth: 160 }}
-              value={missionForm.assigned_member_id}
-              onChange={(e) => setMissionForm((f) => ({ ...f, assigned_member_id: e.target.value }))}
-            >
-              <MenuItem value="">
-                <em>{tr("Unassigned")}</em>
-              </MenuItem>
-              {teamMemberLogins.map((u) => (
-                <MenuItem key={u.id} value={u.id}>
-                  {u.full_name || u.username}
-                </MenuItem>
-              ))}
-            </TextField>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              disabled={!missionForm.tower_id || !missionForm.inspection_date || createMission.isPending}
-              onClick={() => {
-                createMission.mutate(
-                  {
-                    tower_id: Number(missionForm.tower_id),
-                    inspection_date: missionForm.inspection_date,
-                    start_time: missionForm.start_time || null,
-                    end_time: missionForm.end_time || null,
-                    assigned_member_id: missionForm.assigned_member_id ? Number(missionForm.assigned_member_id) : null,
-                  },
-                  {
-                    onSuccess: (visit) => navigate(`/visits/${visit.id}`),
-                  },
-                );
-              }}
-            >{tr("Add mission & open it")}</Button>
-          </Stack>
-          )}
-      </TeamSection>
-
       {/* This team's own GPS track, stays, and km — never another crew's. History lets them
           reopen any previous field night so they can continue from where they stopped. */}
       <TeamSection
-        step={11}
         icon={<RouteIcon />}
-        title={tr("Your track & towers")}
+        defaultExpanded={false}
+        tone="green" title={tr("Your track & towers")}
         description={tr("Every login on this team sees the same GPS history. Open a previous night to follow the path that was already recorded.")}
         action={
           <TextField
@@ -2044,7 +1441,7 @@ export function TeamDetailPage() {
                   <KpiTile label={tr("Time on the clock")} value={`${recap.minutes_tracked} min`} icon={<TimerIcon />} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <KpiTile label={tr("Towers this outing")} value={recap.towers_visited} icon={<CellTowerIcon />} color="#2e7d32" />
+                  <KpiTile label={tr("Towers this outing")} value={recap.towers_visited} icon={<TransmissionTowerIcon />} color="#2e7d32" />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
                   <KpiTile
@@ -2208,49 +1605,317 @@ export function TeamDetailPage() {
             <Alert severity="info">{tr("No GPS track for this period yet. Open the app in the field with location on — the path, kilometres, and tower stays will appear here.")}</Alert>
           )}
 
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>{tr("All inspections recorded for this team")}</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{tr("Every tower this crew has opened a visit for — so next outing you can finish what you started.")}{jobMap && jobMap.total > 0 ? tr(" Job map: {0} of {1} assigned towers completed.", [jobMap.completed, jobMap.total]) : ''}
-          </Typography>
-          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 280 }}>
-            <Table size="small" stickyHeader>
+      </TeamSection>
+      <HandoverPackCard
+        defaultExpanded={false}
+        teamId={id}
+        fieldDate={shift?.field_date}
+        canManage={canManage}
+        onShowTower={(towerPk, visitId) => {
+          if (visitId) {
+            navigate(`/visits/${visitId}`);
+            return;
+          }
+          const t = jobMap?.towers.find((x) => x.id === towerPk);
+          if (t) {
+            focusJobMapTower(t);
+            showRouteToTower(t);
+          }
+        }}
+      />
+
+
+
+        </Stack>
+      </TeamTabPanel>
+      <TeamTabPanel value="history" activeTab={activeTab}>
+        <Alert severity="info" sx={{ mb: 2 }}>{tr('After inspection: open a saved visit to check its findings and evidence. Generate the report from confirmed data, then use the history and daily log for follow-up.')}</Alert>
+        <Stack spacing={2}>
+          <Alert severity="info">{tr('Finished in Performance means a visit or mission stop was marked finished. Ready for review describes inspection screening; neither label is report approval.')}</Alert>
+          {currentUser?.menu_permissions?.reports && <Button sx={{ alignSelf: 'flex-start' }} variant="outlined" onClick={() => navigate('/reports')}>{tr('Open saved reports')}</Button>}
+      {/* Missions — a mission IS a visit (Visit.team_id/mission_seq set), not a separate record.
+          "Mission 1, 2, 3..." are this team's Visits in order; opening one goes straight to the
+          full inspection workflow — positions, images, screening, photos, reports — since that's
+          what actually running the mission means. */}
+      <TeamSection
+        icon={<FactCheckIcon />}
+        tone="violet" title={tr("Inspection visits")}
+        expanded={visitsExpanded}
+        onExpandedChange={setVisitsExpanded}
+        description={tr("All inspection visits, including earlier visits to the same tower. Open a row to see its positions and evidence. Scheduling status is separate from inspection readiness.")}
+      >
+          {searchParams.get('planScope') === '1' && <Alert severity="info" sx={{ mb: 2 }}>{tr('Showing visits for this team, plan day and planned towers. Use All visits to open older or unplanned work.')}</Alert>}
+          <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 1, mb: 2 }}>
+            <TextField size="small" type="date" label={tr('Inspection day')} value={historyDay} onChange={event => { if (searchParams.get('planScope') === '1') selectPlanDay(event.target.value); else setHistoryDay(event.target.value); }} slotProps={{ inputLabel: { shrink: true } }} />
+            <Button onClick={() => { setHistoryDay(''); setSearchParams(previous => { const next = new URLSearchParams(previous); next.delete('planScope'); return next; }, { replace: true }); }} disabled={!historyDay && searchParams.get('planScope') !== '1'}>{tr('All visits')}</Button>
+          </Stack>
+          <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+            <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>#</TableCell>
                   <TableCell>{tr("Tower")}</TableCell>
                   <TableCell>{tr("Date")}</TableCell>
-                  <TableCell>{tr("Status")}</TableCell>
-                  <TableCell align="center">{tr("Done")}</TableCell>
+                  <TableCell>{tr("Time")}</TableCell>
+                  <TableCell>{tr("Assigned to")}</TableCell>
+                  <TableCell>{tr("Scheduling status")}</TableCell>
+                  <TableCell>{tr("Inspection progress")}</TableCell>
+                  <TableCell align="center">{tr("Screening completion")}</TableCell>
                   <TableCell align="center">{tr("Hotspots")}</TableCell>
+                  <TableCell align="center">{tr("Photos")}</TableCell>
+                  <TableCell align="right" />
                 </TableRow>
               </TableHead>
               <TableBody>
-                {(missions || []).map((m) => (
+                {displayedMissions?.map((m) => (
                   <TableRow key={m.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/visits/${m.id}`)}>
-                    <TableCell>{m.mission_seq}</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>{m.tower?.tower_id}</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>{m.mission_seq}</TableCell>
+                    <TableCell>
+                      <Chip size="small" icon={<PlaceIcon />} label={m.tower?.tower_id} variant="outlined" />
+                      {m.tower?.latitude != null && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                          {m.tower.latitude.toFixed(5)}, {m.tower.longitude?.toFixed(5)}
+                        </Typography>
+                      )}
+                    </TableCell>
                     <TableCell>{m.inspection_date}</TableCell>
                     <TableCell>
-                      <Chip size="small" label={String(m.mission_status).replace('_', ' ')} color={MISSION_STATUS_COLORS[m.mission_status] || 'default'} />
+                      {m.start_time?.slice(0, 5) || '-'}
+                      {m.end_time ? ` – ${m.end_time.slice(0, 5)}` : ''}
                     </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {canManage ? (
+                      <TextField
+                        select
+                        size="small"
+                        variant="standard"
+                        sx={{ minWidth: 140 }}
+                        value={m.assigned_member_id ?? ''}
+                        onChange={(e) =>
+                          updateVisit.mutate({ id: m.id, payload: { assigned_member_id: e.target.value ? Number(e.target.value) : null } })
+                        }
+                        slotProps={{ select: { displayEmpty: true } }}
+                      >
+                        <MenuItem value="">
+                          <em>{tr("Unassigned")}</em>
+                        </MenuItem>
+                        {teamMemberLogins.map((u) => (
+                          <MenuItem key={u.id} value={u.id}>
+                            {u.full_name || u.username}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                      ) : (
+                        <Typography variant="body2">{m.assigned_member_name || '—'}</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {canManage ? (
+                      <TextField
+                        select
+                        size="small"
+                        variant="standard"
+                        value={m.mission_status}
+                        onChange={(e) => updateVisit.mutate({ id: m.id, payload: { mission_status: e.target.value } })}
+                        slotProps={{
+                          select: {
+                            renderValue: (v) => (
+                              <Chip size="small" label={tr(MISSION_STATUS_LABELS[String(v)] || String(v))} color={MISSION_STATUS_COLORS[String(v)] || 'default'} />
+                            ),
+                          },
+                        }}
+                      >
+                        <MenuItem value="planned">{tr("Planned")}</MenuItem>
+                        <MenuItem value="in_progress">{tr("In progress")}</MenuItem>
+                        <MenuItem value="completed">{tr("Completed")}</MenuItem>
+                      </TextField>
+                      ) : (
+                        <Chip size="small" label={tr(MISSION_STATUS_LABELS[m.mission_status] || m.mission_status)} color={MISSION_STATUS_COLORS[m.mission_status] || 'default'} />
+                      )}
+                    </TableCell>
+                    <TableCell>{tr(m.rollup?.visit_status || "Unknown")}</TableCell>
                     <TableCell align="center">{m.rollup?.completion_pct ?? 0}%</TableCell>
-                    <TableCell align="center">{m.rollup?.hotspots ?? 0}</TableCell>
+                    <TableCell align="center">
+                      {m.rollup && m.rollup.hotspots > 0 ? <Chip size="small" color="error" label={m.rollup.hotspots} /> : 0}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'center' }}>
+                        <PhotoCameraIcon fontSize="inherit" color="disabled" />
+                        <span>{m.photo_count}</span>
+                      </Stack>
+                    </TableCell>
+                    <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                      {canManage && (
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => {
+                          if (window.confirm(tr("Delete inspection visit {0} ({1})? This removes its positions, images and inspection data.", [m.mission_seq, m.tower?.tower_id])))
+                            deleteVisit.mutate(m.id);
+                        }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
-                {(!missions || missions.length === 0) && (
+                {(!displayedMissions || displayedMissions.length === 0) && (
                   <TableRow>
-                    <TableCell colSpan={6} align="center">{tr("No inspection visits recorded yet.")}</TableCell>
+                    <TableCell colSpan={11} align="center">{tr(historyDay ? 'No inspection visits for this day.' : "No inspection visits yet. Start from Tower work, or create a separate visit below.")}</TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
           </TableContainer>
+
+          {canStartInspection && (
+          <Box component="details" ref={newVisitElement} open={newVisitOpen} onToggle={event => setNewVisitOpen(event.currentTarget.open)}><Box component="summary" sx={{ cursor: 'pointer', mb: 2 }}>{tr("Create a separate inspection visit")}</Box>
+          <Alert severity="info" sx={{ mb: 2 }}>{tr("For a new inspection date or a deliberate repeat inspection. To finish existing work, use Continue inspection in Tower work.")}</Alert>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <TextField
+              select
+              size="small"
+              label={tr("Tower")}
+              sx={{ minWidth: 160 }}
+              value={missionForm.tower_id}
+              onChange={(e) => setMissionForm((f) => ({ ...f, tower_id: e.target.value }))}
+            >
+              <MenuItem value="" disabled>
+                {!towers ? tr("Loading towers…") : teamTowers.length === 0 ? tr("No towers assigned to this team yet") : tr("Select a tower")}
+              </MenuItem>
+              {teamTowers.map((t) => (
+                <MenuItem key={t.id} value={t.id}>
+                  {t.tower_id}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label={tr("Date")}
+              type="date"
+              size="small"
+              value={missionForm.inspection_date}
+              onChange={(e) => setMissionForm((f) => ({ ...f, inspection_date: e.target.value }))}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField
+              label={tr("Start time")}
+              type="time"
+              size="small"
+              value={missionForm.start_time}
+              onChange={(e) => setMissionForm((f) => ({ ...f, start_time: e.target.value }))}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField
+              label={tr("End time")}
+              type="time"
+              size="small"
+              value={missionForm.end_time}
+              onChange={(e) => setMissionForm((f) => ({ ...f, end_time: e.target.value }))}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField
+              select
+              size="small"
+              label={tr("Assign to")}
+              sx={{ minWidth: 160 }}
+              value={missionForm.assigned_member_id}
+              onChange={(e) => setMissionForm((f) => ({ ...f, assigned_member_id: e.target.value }))}
+            >
+              <MenuItem value="">
+                <em>{tr("Unassigned")}</em>
+              </MenuItem>
+              {teamMemberLogins.map((u) => (
+                <MenuItem key={u.id} value={u.id}>
+                  {u.full_name || u.username}
+                </MenuItem>
+              ))}
+            </TextField>
+            {missionForm.tower_id && missions?.some(v => v.tower_id === Number(missionForm.tower_id)) && <Alert severity="info">
+              {tr('This tower already has visit history. Continue an existing inspection unless this is a separate field visit.')}
+              <Button onClick={() => { setNewVisitOpen(false); changeTab('work'); }}>{tr('Continue existing work')}</Button>
+            </Alert>}
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              disabled={!missionForm.tower_id || !missionForm.inspection_date || createMission.isPending}
+              onClick={() => {
+                createMission.mutate(
+                  {
+                    tower_id: Number(missionForm.tower_id),
+                    inspection_date: missionForm.inspection_date,
+                    start_time: missionForm.start_time || null,
+                    end_time: missionForm.end_time || null,
+                    assigned_member_id: missionForm.assigned_member_id ? Number(missionForm.assigned_member_id) : null,
+                  },
+                  {
+                    onSuccess: (visit) => navigate(`/visits/${visit.id}?entry=visual`),
+                  },
+                );
+              }}
+            >{tr("Create separate visit")}</Button>
+          </Stack></Box>
+          )}
       </TeamSection>
+
+      <MissionHistoryCard
+        teamId={id}
+        canEdit={canManage}
+        selectedDate={effectiveMissionDate}
+        onSelectDate={(d) => { selectPlanDay(d); changeTab('planning'); }}
+      />
+
+      {totals && (
+        <TeamSection
+          icon={<InsightsRoundedIcon />}
+          defaultExpanded={false}
+        title={tr("At a glance")}
+          description={tr("Live counts for this team — towers, screened positions, hotspots, roster size, and the daily target.")}
+        >
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 6, sm: 2.4 }}>
+              <KpiTile
+                label={tr("Towers ({0} → {1})", [rangeStart, rangeEnd])}
+                value={
+                  team.daily_target ? (
+                    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'baseline' }}>
+                      <span>{totals.towers}</span>
+                      <Typography variant="caption" color="text.secondary">
+                        / ~{team.daily_target * (progress?.length || 0)}{tr(" planned")}</Typography>
+                    </Stack>
+                  ) : (
+                    totals.towers
+                  )
+                }
+                icon={<TransmissionTowerIcon />}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 2.4 }}>
+              <KpiTile label={tr("Positions screened")} value={totals.screened} icon={<FactCheckIcon />} color="#3a6f84" />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 2.4 }}>
+              <KpiTile label={tr("Hotspots found")} value={totals.hotspots} icon={<LocalFireDepartmentIcon />} color="#d32f2f" />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 2.4 }}>
+              <KpiTile label={tr("Roster size")} value={team.members.length} icon={<PersonAddIcon />} color="#6d4c41" />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 2.4 }}>
+              <KpiTile
+                label={tr("Daily target (working plan)")}
+                value={team.daily_target ? `${team.daily_target}/day` : 'Not set'}
+                icon={<FlagRoundedIcon />}
+                color="#8a6d00"
+              />
+            </Grid>
+          </Grid>
+        </TeamSection>
+      )}
 
       {/* Day-by-day progress + notes log */}
       <TeamSection
-        step={12}
         icon={<EventNoteRoundedIcon />}
-        title={tr("Daily progress log")}
+        defaultExpanded={false}
+        tone="green" title={tr("Daily progress log")}
         description={tr("GPS path is recorded automatically when the crew signs in. Notes, voice, and files can still be added below.")}
         action={
           <Stack direction="row" spacing={1.5}>
@@ -2724,24 +2389,451 @@ export function TeamDetailPage() {
           </Stack>
       </TeamSection>
 
-      <HandoverPackCard
-        step={13}
-        teamId={id}
-        fieldDate={shift?.field_date}
-        canManage={canManage}
-        onShowTower={(towerPk, visitId) => {
-          if (visitId) {
-            navigate(`/visits/${visitId}`);
-            return;
-          }
-          const t = jobMap?.towers.find((x) => x.id === towerPk);
-          if (t) {
-            focusJobMapTower(t);
-            showRouteToTower(t);
-          }
+
+        </Stack>
+      </TeamTabPanel>
+      <TeamTabPanel value="settings" activeTab={activeTab}>
+        <Stack spacing={2}>
+      <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
+        {/* Mission info — inline-editable, same pattern as the Visit header */}
+        <Grid size={{ xs: 12, md: 6 }}>
+          <TeamSection
+            icon={<AssignmentRoundedIcon />}
+            tone="amber" title={tr("Team brief")}
+            description={tr("Standing team details and contact information. Changes save when you leave a field.")}
+          >
+              <Stack spacing={2}>
+                <Grid container spacing={2}>
+                  <Grid size={6}>
+                    <TextField
+                      label={tr("Team leader")}
+                      fullWidth
+                      size="small"
+                      defaultValue={team.leader_name || ''}
+                      onBlur={(e) => commitField('leader_name', e.target.value || null)}
+                    />
+                  </Grid>
+                  <Grid size={6}>
+                    <TextField
+                      label={tr("Leader phone")}
+                      fullWidth
+                      size="small"
+                      defaultValue={team.leader_phone || ''}
+                      onBlur={(e) => commitField('leader_phone', e.target.value || null)}
+                    />
+                  </Grid>
+                </Grid>
+                <TextField
+                  label={tr("Team brief")}
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  size="small"
+                  defaultValue={team.mission || ''}
+                  onBlur={(e) => commitField('mission', e.target.value || null)}
+                />
+                <Grid container spacing={2}>
+                  <Grid size={6}>
+                    <TextField
+                      label={tr("From")}
+                      fullWidth
+                      size="small"
+                      defaultValue={team.mission_from || ''}
+                      onBlur={(e) => commitField('mission_from', e.target.value || null)}
+                    />
+                  </Grid>
+                  <Grid size={6}>
+                    <TextField
+                      label={tr("To")}
+                      fullWidth
+                      size="small"
+                      defaultValue={team.mission_to || ''}
+                      onBlur={(e) => commitField('mission_to', e.target.value || null)}
+                    />
+                  </Grid>
+                </Grid>
+                <Grid container spacing={2}>
+                  <Grid size={4}>
+                    <TextField
+                      label={tr("Start date")}
+                      type="date"
+                      fullWidth
+                      size="small"
+                      defaultValue={team.start_date || ''}
+                      onBlur={(e) => commitField('start_date', e.target.value || null)}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  </Grid>
+                  <Grid size={4}>
+                    <TextField
+                      label={tr("End date")}
+                      type="date"
+                      fullWidth
+                      size="small"
+                      defaultValue={team.end_date || ''}
+                      onBlur={(e) => commitField('end_date', e.target.value || null)}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  </Grid>
+                  <Grid size={4}>
+                    <TextField
+                      label={tr("Status")}
+                      select
+                      fullWidth
+                      size="small"
+                      defaultValue={team.status}
+                      onChange={(e) => commitField('status', e.target.value)}
+                    >
+                      <MenuItem value="active">{tr("Active")}</MenuItem>
+                      <MenuItem value="paused">{tr("Paused")}</MenuItem>
+                      <MenuItem value="completed">{tr("Completed")}</MenuItem>
+                    </TextField>
+                  </Grid>
+                </Grid>
+                <TextField
+                  label={tr("General notes")}
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  size="small"
+                  defaultValue={team.notes || ''}
+                  onBlur={(e) => commitField('notes', e.target.value || null)}
+                  placeholder={tr("Standing notes about this team (not day-specific — see the daily log below for that)")}
+                />
+              </Stack>
+          </TeamSection>
+        </Grid>
+
+        {/* Linked logins (admin only — the endpoint that lists all users is admin-gated) */}
+        {isAdmin && (
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TeamSection
+              icon={<LinkIcon />}
+              title={tr("Linked logins")}
+              description={tr("The account(s) whose device pings and visits count toward this team's tracking & progress — usually just the leader's phone.")}
+            >
+                <Stack spacing={1} sx={{ mb: 2 }}>
+                  {linkedUsers.map((u) => (
+                    <Stack key={u.id} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                      <Chip label={u.full_name || u.username} size="small" />
+                      <Typography variant="caption" color="text.secondary">
+                        {u.username}
+                      </Typography>
+                      {canManageLogins && (
+                        <Tooltip title={tr("Unlink from this team")}>
+                          <IconButton size="small" onClick={() => updateUserMut.mutate({ id: u.id, payload: { team_id: null } })}>
+                            <LinkOffIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Stack>
+                  ))}
+                  {linkedUsers.length === 0 && (
+                    <Typography variant="body2" color="text.secondary">{tr("No login linked yet.")}</Typography>
+                  )}
+                </Stack>
+                {/* Linking an existing account, and creating a new one below, both go through
+                    update_user/create_user — a restricted admin needs "manage_users" at "full" /
+                    "add" respectively on the backend, so don't offer either control otherwise. */}
+                {canManageLogins && (
+                  <Stack direction="row" spacing={1}>
+                    <TextField
+                      select
+                      size="small"
+                      label={tr("Link an existing account")}
+                      sx={{ minWidth: 220 }}
+                      value={linkUserId}
+                      onChange={(e) => setLinkUserId(e.target.value)}
+                    >
+                      <MenuItem value="" disabled>
+                        {enabledUsers ? tr("Choose a login") : tr("Loading…")}
+                      </MenuItem>
+                      {unlinkedUsers.map((u) => (
+                        <MenuItem key={u.id} value={u.id}>
+                          {u.full_name || u.username} ({u.username})
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <Button
+                      variant="outlined"
+                      startIcon={<LinkIcon />}
+                      disabled={!linkUserId}
+                      onClick={() => {
+                        updateUserMut.mutate(
+                          { id: Number(linkUserId), payload: { team_id: id } },
+                          { onSuccess: () => setLinkUserId('') },
+                        );
+                      }}
+                    >{tr("Link")}</Button>
+                  </Stack>
+                )}
+
+                {canAddLogins && (
+                  <>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{tr("Create a new team-leader login")}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>{tr("Gives this team leader their own username and password — signed in, they'll see and manage only this team's roster and missions, nothing from other teams.")}</Typography>
+                    {newLoginError && (
+                      <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setNewLoginError(null)}>
+                        {tr(newLoginError)}
+                      </Alert>
+                    )}
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                      <TextField
+                        size="small"
+                        label={tr("Username")}
+                        value={newLoginForm.username}
+                        onChange={(e) => setNewLoginForm((f) => ({ ...f, username: e.target.value }))}
+                      />
+                      <TextField
+                        size="small"
+                        label={tr("Password")}
+                        type="password"
+                        value={newLoginForm.password}
+                        onChange={(e) => setNewLoginForm((f) => ({ ...f, password: e.target.value }))}
+                      />
+                      <TextField
+                        size="small"
+                        label={tr("Full name")}
+                        value={newLoginForm.full_name}
+                        onChange={(e) => setNewLoginForm((f) => ({ ...f, full_name: e.target.value }))}
+                      />
+                      <Button
+                        variant="outlined"
+                        startIcon={<PersonAddIcon />}
+                        disabled={!newLoginForm.username.trim() || newLoginForm.password.length < 6 || createUserMut.isPending}
+                        onClick={() => {
+                          setNewLoginError(null);
+                          createUserMut.mutate(
+                            {
+                              username: newLoginForm.username.trim(),
+                              password: newLoginForm.password,
+                              full_name: newLoginForm.full_name.trim() || undefined,
+                              role: 'team_leader',
+                              team_id: id,
+                            },
+                            {
+                              onSuccess: () => setNewLoginForm({ username: '', password: '', full_name: '' }),
+                              onError: (err: unknown) => {
+                                const message =
+                                  (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+                                  'Could not create the login';
+                                setNewLoginError(message);
+                              },
+                            },
+                          );
+                        }}
+                      >{tr("Create login")}</Button>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>{tr("Password needs at least 6 characters.")}</Typography>
+                  </>
+                )}
+            </TeamSection>
+          </Grid>
+        )}
+
+        {/* Team members — each gets their own username/password, created here by the leader (or
+            admin); their whole app is scoped to just the missions assigned to them below. */}
+        {(isAdmin || isTeamLeader) && (
+          <Grid size={{ xs: 12, md: isAdmin ? 6 : 12 }}>
+            <TeamSection
+              icon={<GroupsRoundedIcon />}
+              title={tr("Team members")}
+              description={tr("Manage the team roster and member logins here.")}
+            >
+                <Stack spacing={1} sx={{ mb: 2 }}>
+                  {teamMemberLogins.map((u) => (
+                    <Stack key={u.id} direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Chip label={u.full_name || u.username} size="small" />
+                      {u.job_type && <Chip label={tr(u.job_type)} size="small" variant="outlined" color="primary" />}
+                      <Typography variant="caption" color="text.secondary">
+                        {u.username}
+                        {u.mobile ? ` · ${u.mobile}` : ''}
+                      </Typography>
+                      {!u.is_active && <Chip label={tr("Deactivated")} size="small" color="default" />}
+                      {canManageLogins && (
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            setMemberMenuAnchor(e.currentTarget);
+                            setMemberMenuTarget(u);
+                          }}
+                        >
+                          <MoreVertIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </Stack>
+                  ))}
+                  {teamMemberLogins.length === 0 && team.members.length === 0 && (
+                    <Typography variant="body2" color="text.secondary">{tr("No team members added yet.")}</Typography>
+                  )}
+                </Stack>
+
+                {team.members.length > 0 && (
+                  <>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("From the old contact-only roster — not yet given a login:")}</Typography>
+                    <Stack spacing={0.75} sx={{ mb: 2 }}>
+                      {team.members.map((m) => (
+                        <Stack key={m.id} direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                          <Chip label={m.name} size="small" variant="outlined" />
+                          {m.role_title && (
+                            <Typography variant="caption" color="text.secondary">
+                              {m.role_title}
+                            </Typography>
+                          )}
+                          {canAddLogins && (
+                            <Button
+                              size="small"
+                              onClick={() => {
+                                setConvertingMemberId(m.id);
+                                setMemberLoginForm((f) => ({
+                                  ...f,
+                                  full_name: m.name,
+                                  mobile: m.phone || '',
+                                  job_type: m.role_title || '',
+                                }));
+                              }}
+                            >{tr("Give login →")}</Button>
+                          )}
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => {
+                              if (window.confirm(tr("Remove {0}? They were never given a login.", [m.name]))) removeMember.mutate(m.id);
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </>
+                )}
+
+                {canAddLogins && (
+                  <>
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{tr("Add a team member")}</Typography>
+                {convertingMemberId != null && (
+                  <Alert severity="info" sx={{ mb: 1.5 }} onClose={() => setConvertingMemberId(null)}>{tr("Giving ")}{memberLoginForm.full_name}{tr(" a login — just add a username & password below.")}</Alert>
+                )}
+                {memberLoginError && (
+                  <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setMemberLoginError(null)}>
+                    {tr(memberLoginError)}
+                  </Alert>
+                )}
+                <Stack spacing={1.5}>
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                    <TextField
+                      size="small"
+                      label={tr("Full name")}
+                      value={memberLoginForm.full_name}
+                      onChange={(e) => setMemberLoginForm((f) => ({ ...f, full_name: e.target.value }))}
+                    />
+                    <TextField
+                      size="small"
+                      label={tr("Mobile")}
+                      value={memberLoginForm.mobile}
+                      onChange={(e) => setMemberLoginForm((f) => ({ ...f, mobile: e.target.value }))}
+                    />
+                    <TextField
+                      select
+                      size="small"
+                      label={tr("Job type")}
+                      sx={{ minWidth: 180 }}
+                      value={memberLoginForm.job_type}
+                      onChange={(e) => setMemberLoginForm((f) => ({ ...f, job_type: e.target.value }))}
+                    >
+                      {JOB_TYPE_OPTIONS.map((j) => (
+                        <MenuItem key={j} value={j}>
+                          {tr(j)}
+                        </MenuItem>
+                      ))}
+                      {memberLoginForm.job_type && !JOB_TYPE_OPTIONS.includes(memberLoginForm.job_type) && (
+                        <MenuItem value={memberLoginForm.job_type}>{tr(memberLoginForm.job_type)}{tr(" (custom)")}</MenuItem>
+                      )}
+                    </TextField>
+                  </Stack>
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                    <TextField
+                      size="small"
+                      label={tr("Username")}
+                      value={memberLoginForm.username}
+                      onChange={(e) => setMemberLoginForm((f) => ({ ...f, username: e.target.value }))}
+                    />
+                    <TextField
+                      size="small"
+                      label={tr("Password")}
+                      type="password"
+                      value={memberLoginForm.password}
+                      onChange={(e) => setMemberLoginForm((f) => ({ ...f, password: e.target.value }))}
+                    />
+                    <Button
+                      variant="outlined"
+                      startIcon={<PersonAddIcon />}
+                      disabled={!memberLoginForm.username.trim() || memberLoginForm.password.length < 6 || createMemberLogin.isPending}
+                      onClick={() => {
+                        setMemberLoginError(null);
+                        createMemberLogin.mutate(
+                          {
+                            username: memberLoginForm.username.trim(),
+                            password: memberLoginForm.password,
+                            full_name: memberLoginForm.full_name.trim() || undefined,
+                            mobile: memberLoginForm.mobile.trim() || undefined,
+                            job_type: memberLoginForm.job_type.trim() || undefined,
+                            notes: memberLoginForm.notes.trim() || undefined,
+                            role: 'team_member',
+                            team_id: id,
+                          },
+                          {
+                            onSuccess: () => {
+                              setMemberLoginForm({ full_name: '', mobile: '', job_type: '', username: '', password: '', notes: '' });
+                              if (convertingMemberId != null) {
+                                removeMember.mutate(convertingMemberId);
+                                setConvertingMemberId(null);
+                              }
+                            },
+                            onError: (err: unknown) => {
+                              const message =
+                                (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+                                'Could not create this team member';
+                              setMemberLoginError(message);
+                            },
+                          },
+                        );
+                      }}
+                    >{tr("Add member")}</Button>
+                  </Stack>
+                </Stack>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{tr("Password needs at least 6 characters — the member can change it themselves anytime once signed in.")}</Typography>
+                  </>
+                )}
+            </TeamSection>
+          </Grid>
+        )}
+      </Grid>
+
+
+        </Stack>
+      </TeamTabPanel>
+      <ClaimTowerDialog
+        open={claimOpen}
+        onClose={() => setClaimOpen(false)}
+        freeTowers={freeTowers}
+        claiming={claimForTeam.isPending}
+        error={claimError}
+        onClaim={(towerId) => {
+          setClaimError(null);
+          claimForTeam.mutate(towerId, {
+            onError: (err: unknown) => {
+              const message =
+                (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+                'Could not add that tower';
+              setClaimError(String(message));
+            },
+          });
         }}
       />
-
 
       <input
         type="file"

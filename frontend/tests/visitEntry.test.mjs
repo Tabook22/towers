@@ -7,10 +7,25 @@ const compile = source => 'data:text/javascript;base64,' + Buffer.from(ts.transp
 }).outputText).toString('base64');
 const changes = compile(await readFile(new URL('../src/utils/positionChanges.ts', import.meta.url), 'utf8'));
 const workflow = compile((await readFile(new URL('../src/utils/visitWorkflow.ts', import.meta.url), 'utf8')).replace("'./positionChanges'", JSON.stringify(changes)));
-const { emptyEntry, entryPositions, addEntryPosition, prepareEntryLayout, entryHasChanges, compareLatestEntry } = await import(compile((await readFile(new URL('../src/utils/visitEntry.ts', import.meta.url), 'utf8')).replace("'./visitWorkflow'", JSON.stringify(workflow))));
+const { emptyEntry, entryPositions, addEntryPosition, prepareEntryLayout, entryHasChanges, compareLatestEntry } = await import(compile((await readFile(new URL('../src/utils/visitEntry.ts', import.meta.url), 'utf8')).replace("'./visitWorkflow'", JSON.stringify(workflow)).replace("'./positionChanges'", JSON.stringify(changes))));
 const { layoutSlots, mergePositionDraft } = await import(workflow);
 const slots = layoutSlots('Suspension', ['OHL1', 'OHL2'], ['R', 'Y', 'B'], 'Double', ['Ashoor']);
 const visit = { id: 62, positions: slots.map((s, index) => ({ ...s, id: index + 1, visit_id: 62, updated_at: '2026-09-29T10:00:00', direction: null, mount_type: null, string_count: null, installed: true, screening_result: 'Not inspected', images: [], in_scope: true })) };
+
+test('changing draft result refreshes empty evidence defaults but never changes files or recapture flags', () => {
+  const position={...visit.positions[0],screening_result:'Normal',images:[
+    {id:1,image_type:'TH Close',sequence:1,evidence_status:'NOT REQUIRED',file_path:null},
+    {id:2,image_type:'RGB Close',sequence:1,evidence_status:'RECAPTURE REQUIRED',file_path:'old.jpg'},
+    {id:3,image_type:'TH Full',sequence:1,evidence_status:'COMPLETE',file_path:'original.jpg'},
+  ]};
+  const saved={...visit,positions:[position]};const original=structuredClone(saved);
+  const entry={...emptyEntry(),drafts:mergePositionDraft({},position,{screening_result:'Hotspot detected',hotspot:'Yes'})};
+  const current=entryPositions(saved,entry)[0];
+  assert.equal(current.images[0].evidence_status,'PENDING CAPTURE');
+  assert.equal(current.images[1].evidence_status,'RECAPTURE REQUIRED');
+  assert.deepEqual(current.images[2],position.images[2]);
+  assert.deepEqual(saved,original);
+});
 
 test('layout is a draft: baseline identities and saved visit stay untouched', () => {
   const original = JSON.stringify(visit);

@@ -37,6 +37,7 @@ class DraftWrite(BaseModel):
 class DraftCommit(BaseModel):
     revision: int = Field(ge=0)
     token: UUID
+    reviewed_image_ids: list[int] | None = None
 
 
 class DraftRevision(BaseModel):
@@ -61,7 +62,7 @@ def working_copy(db, visit_id, user):
 def output(db, draft):
     images = db.query(VisitDraftImage).filter_by(draft_id=draft.id, consumed=False).order_by(VisitDraftImage.id).all()
     return {'revision': draft.revision, 'payload': draft.payload, 'images': [
-        {'id': i.id, 'position_key': i.position_key, 'image_type': i.image_type, 'filename': i.filename}
+        {'id': i.id, 'position_key': i.position_key, 'image_type': i.image_type, 'filename': i.filename, 'checksum': i.checksum}
         for i in images]}
 
 
@@ -74,6 +75,32 @@ def claim(db, draft, revision):
     db.refresh(draft)
 
 
+def validate_envelope(payload):
+    """Reject malformed collections before they can poison an autosaved working copy."""
+    for key in ('drafts', 'layoutVersions'):
+        if key in payload and not isinstance(payload[key], dict):
+            raise HTTPException(422, f'{key} must be an object')
+    for key in ('headerDraft', 'headerBefore'):
+        if payload.get(key) is not None and not isinstance(payload[key], dict):
+            raise HTTPException(422, f'{key} must be an object')
+    for key in ('additions', 'excludedImages', 'layoutIds'):
+        if payload.get(key) is not None and not isinstance(payload[key], list):
+            raise HTTPException(422, f'{key} must be a list')
+    for key in ('excludedImages', 'layoutIds'):
+        if any(type(value) is not int for value in payload.get(key) or []):
+            raise HTTPException(422, f'{key} must contain position or evidence IDs')
+    for key, value in payload.get('drafts', {}).items():
+        if not str(key).lstrip('-').isdigit() or not isinstance(value, dict) or not isinstance(value.get('before'), dict) or not isinstance(value.get('changes'), dict):
+            raise HTTPException(422, 'Each position draft needs an ID, saved values and proposed changes')
+    ids = []
+    for addition in payload.get('additions', []):
+        if not isinstance(addition, dict) or type(addition.get('id')) is not int or addition['id'] >= 0:
+            raise HTTPException(422, 'Each new position needs a unique negative draft ID')
+        ids.append(addition['id'])
+    if len(ids) != len(set(ids)):
+        raise HTTPException(422, 'New position draft IDs must be unique')
+
+
 @router.get('')
 def get_entry(visit_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _, draft = working_copy(db, visit_id, user)
@@ -82,6 +109,7 @@ def get_entry(visit_id: int, db: Session = Depends(get_db), user: User = Depends
 
 @router.put('')
 def save_entry(visit_id: int, body: DraftWrite, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    validate_envelope(body.payload)
     if len(json.dumps(body.payload)) > 5_000_000:
         raise HTTPException(413, 'Draft is too large')
     _, draft = working_copy(db, visit_id, user)
@@ -123,6 +151,9 @@ async def upload_draft_image(visit_id: int, position_key: int = Form(...), image
     db.refresh(draft)
     if draft.revision != revision:
         raise HTTPException(409, 'The working draft changed while this upload was starting. Retry from the current draft.')
+    validate_envelope(draft.payload)
+    if position_key < 0 and not any(p['id'] == position_key for p in draft.payload.get('additions', [])):
+        raise HTTPException(422, 'Choose a position in the current working draft before attaching evidence')
     if not raw:
         raise HTTPException(422, 'The file is empty')
     if not voice:
@@ -131,6 +162,12 @@ async def upload_draft_image(visit_id: int, position_key: int = Form(...), image
                 picture.verify()
         except Exception:
             raise HTTPException(422, 'This file could not be read as an image')
+        duplicate = db.query(VisitDraftImage).filter_by(draft_id=draft.id, position_key=position_key,
+            image_type=image_type, checksum=checksum, consumed=False).filter(~VisitDraftImage.id.in_(draft.payload.get('excludedImages', []))).first()
+        confirmed = position_key > 0 and db.query(Image.id).filter_by(position_id=position_key, image_type=image_type, checksum=checksum).filter(Image.file_path.isnot(None)).first()
+        if duplicate or confirmed:
+            db.commit()
+            return output(db, draft)
     relative = f'draft-evidence/{visit_id}/{user.id}/{token}{file_extension(file.filename, content_type)}'
     save_upload(raw, relative)
     db.add(VisitDraftImage(draft_id=draft.id, token=str(token), position_key=position_key,
@@ -172,14 +209,17 @@ async def commit_entry(visit_id: int, body: DraftCommit, db: Session = Depends(g
     try:
         claim(db, draft, body.revision)
         data = draft.payload
+        validate_envelope(data)
         by_id = {p.id: p for p in visit.positions}
         staged = db.query(VisitDraftImage).filter_by(draft_id=draft.id, consumed=False).order_by(VisitDraftImage.id).all()
+        if body.reviewed_image_ids is not None and set(body.reviewed_image_ids) != {image.id for image in staged}:
+            raise HTTPException(409, 'Draft evidence changed after review. Reopen the review to confirm the current files.')
         excluded_images = set(data.get('excludedImages', []))
         retained = [i for i in staged if i.id not in excluded_images]
         changes = data.get('drafts', {})
         additions = data.get('additions', [])
-        if len(changes) + len(additions) > 100:
-            raise HTTPException(422, 'At most 100 positions can be confirmed together')
+        if len(changes) + len(additions) > 240:
+            raise HTTPException(422, 'At most 240 position changes can be confirmed together')
         versions = {int(k): timestamp(v['before']['updated_at']) for k, v in changes.items() if int(k) > 0}
         layout = data.get('layoutIds')
         if layout is not None:
@@ -228,7 +268,7 @@ async def commit_entry(visit_id: int, body: DraftCommit, db: Session = Depends(g
                 raise HTTPException(422, 'New position identifiers must be unique draft identifiers')
             values = {**item, **changes.get(str(key), {}).get('changes', {})}
             config = PositionCreate.model_validate(values)
-            if db.query(Position.id).filter_by(visit_id=visit_id, ohl=config.ohl, phase=config.phase, string=config.string, direction=config.direction).first():
+            if db.query(Position.id).filter_by(visit_id=visit_id, ohl=config.ohl, phase=config.phase, string=config.string, direction=config.direction, view_side=config.view_side).first():
                 raise HTTPException(409, 'This position already exists. Reload and compare before confirming.')
             position = Position(visit=visit, **config.model_dump(), prepared_only=True, in_scope=True)
             db.add(position); db.flush()

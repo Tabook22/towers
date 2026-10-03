@@ -10,7 +10,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import CellTowerIcon from '@mui/icons-material/CellTowerRounded';
+import TransmissionTowerIcon from '../components/TransmissionTowerIcon';
 import PlaceIcon from '@mui/icons-material/PlaceRounded';
 import ScheduleIcon from '@mui/icons-material/ScheduleRounded';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartmentRounded';
@@ -94,7 +94,7 @@ export function MyMissionsPage() {
               <CardContent>
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                    <CellTowerIcon color="action" fontSize="small" />
+                    <TransmissionTowerIcon color="action" fontSize="small" />
                     <Typography sx={{ fontWeight: 700 }}>{m.tower?.tower_id || tr("Tower #{0}", [m.tower_id])}</Typography>
                   </Stack>
                   {m.mission_seq != null && <Chip size="small" label={tr("Mission {0}", [m.mission_seq])} variant="outlined" />}

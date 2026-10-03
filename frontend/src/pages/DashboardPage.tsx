@@ -1,10 +1,10 @@
 import { tr, useLanguage } from '../i18n';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
+  Chip,
+  Avatar,
+  CardActionArea,
   Dialog,
   DialogActions,
   DialogContent,
@@ -13,19 +13,17 @@ import {
   MenuItem,
   Paper,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
   Button,
   LinearProgress,
 } from '@mui/material';
-import CellTowerIcon from '@mui/icons-material/CellTowerRounded';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import TransmissionTowerIcon from '../components/TransmissionTowerIcon';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import LocationOffRoundedIcon from '@mui/icons-material/LocationOffRounded';
+import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
+import { DashboardSection } from '../components/DashboardSection';
 import FactCheckIcon from '@mui/icons-material/FactCheckRounded';
 import GpsFixedRoundedIcon from '@mui/icons-material/GpsFixedRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
@@ -33,8 +31,7 @@ import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartmentRoun
 import MyLocationRoundedIcon from '@mui/icons-material/MyLocationRounded';
 import PendingActionsIcon from '@mui/icons-material/PendingActionsRounded';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfRounded';
-import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
-import { type ReactNode, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAreas, useClaimTowerForTeam, useDashboardSummary, useLiveTeams, useOutingPlan, useReleaseTower, useShiftInfo, useTeamJobMap, useTeamLive, useTeams, useTeamTrails, useTowers, useVisit } from '../api/hooks';
 import { useAuth } from '../auth/AuthContext';
@@ -45,46 +42,9 @@ import { TeamSiteMap } from '../components/TeamSiteMap';
 import { OutingPlanCard } from '../components/OutingPlanCard';
 import { MissionHistoryCard, missionDateLabel } from '../components/MissionHistoryCard';
 import { useTracking } from '../hooks/useFieldTracking';
-import { VisitStatusChip } from '../components/Badges';
+import { TowerAttentionBoard } from '../components/TowerAttentionBoard';
+import { positionLabel } from '../utils/positionChanges';
 import { mediaUrl } from '../api/client';
-
-// A named, collapsible block with an icon and a one-line "what is this for" description, so a
-// dashboard with several different kinds of information (live tracking, planning, priorities)
-// reads as clearly labeled sections instead of a stack of look-alike cards — and each one can be
-// collapsed once a leader knows they don't need to check it right now.
-function DashboardSection({
-  icon,
-  title,
-  description,
-  defaultExpanded = true,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-  defaultExpanded?: boolean;
-  children: ReactNode;
-}) {
-  useLanguage();
-  return (
-    <Accordion defaultExpanded={defaultExpanded} disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-          <Box sx={{ color: 'primary.main', display: 'flex' }}>{icon}</Box>
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              {title}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {description}
-            </Typography>
-          </Box>
-        </Stack>
-      </AccordionSummary>
-      <AccordionDetails>{children}</AccordionDetails>
-    </Accordion>
-  );
-}
 
 export function DashboardPage() {
   useLanguage();
@@ -96,7 +56,7 @@ export function DashboardPage() {
   const { data, isLoading } = useDashboardSummary(area || undefined);
   const canMonitorField = user?.role === 'admin' || user?.role === 'reviewer';
   const isTeamLeader = user?.role === 'team_leader' || user?.role === 'team_member';
-  const { data: liveMembers } = useLiveTeams(undefined, canMonitorField);
+  const { data: liveMembers, isLoading: liveLoading, isError: liveError } = useLiveTeams(undefined, canMonitorField);
   const { data: myTeams } = useTeams();
   const teamId = user?.team_id ?? (isTeamLeader ? myTeams?.[0]?.id : undefined);
   const { data: teamJobMap } = useTeamJobMap(teamId);
@@ -120,19 +80,12 @@ export function DashboardPage() {
   const freeTowers = (catalogTowers || []).filter((t) => t.is_active && t.assigned_team_id == null);
 
   const reportUrl = mediaUrl(`/api/reports/overall.pdf${area ? `?area=${encodeURIComponent(area)}` : ''}`);
-  // "Needing attention" means an actually open mission — a tower with no visit yet, or whose
-  // visit is already Completed, isn't something to act on right now, so it drops off this list
-  // automatically rather than sitting there forever once assigned (see mission_status on Visit).
-  const needsAttentionRows = (data?.rows || []).filter(
-    (row) => row.latest_visit?.mission_status === 'planned' || row.latest_visit?.mission_status === 'in_progress',
-  );
-
   // Clicking "Inspection incomplete" opens this instead of navigating away, so a leader can see
   // exactly which positions still need screening without leaving the dashboard.
   const [incompleteDetail, setIncompleteDetail] = useState<{ visitId: number; towerId: string } | null>(null);
   const { data: incompleteVisit, isLoading: incompleteLoading } = useVisit(incompleteDetail?.visitId);
   const missingPositions = (incompleteVisit?.positions || []).filter(
-    (p) => p.installed && (!p.screening_result || p.screening_result === 'Not inspected'),
+    (p) => p.in_scope !== false && p.installed && (!p.screening_result || p.screening_result === 'Not inspected'),
   );
 
   return (
@@ -213,25 +166,26 @@ export function DashboardPage() {
           <DashboardSection
             icon={<InsightsRoundedIcon />}
             title={tr("At a glance")}
-            description={tr("Live counts across every tower in this view — towers, visits recorded, open hotspots, and images still pending upload.")}
+            eyebrow={tr("INSPECTION SNAPSHOT")}
+            description={tr("Your tower coverage, recorded visits and outstanding evidence in one place.")}
           >
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <KpiTile label={tr("Towers")} value={data.tower_count} icon={<CellTowerIcon />} color="#0d475c" onClick={() => setTowerHistoryOpen(true)} hint={tr("View towers & visit history →")} />
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <KpiTile illustrated label={tr("Towers")} value={data.tower_count} icon={<TransmissionTowerIcon />} color="#0d475c" onClick={() => setTowerHistoryOpen(true)} hint={tr("View towers & visit history →")} />
               </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <KpiTile label={tr("Visits recorded")} value={data.visit_count} icon={<FactCheckIcon />} color="#3a6f84" />
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <KpiTile illustrated label={tr("Visits recorded")} value={data.visit_count} icon={<FactCheckIcon />} color="#3a6f84" />
               </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <KpiTile
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <KpiTile illustrated
                   label={tr("Open hotspots")}
                   value={data.total_hotspots}
                   icon={<LocalFireDepartmentIcon />}
                   color="#d32f2f"
                 />
               </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <KpiTile
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <KpiTile illustrated
                   label={tr("Images pending")}
                   value={data.total_images_pending}
                   icon={<PendingActionsIcon />}
@@ -245,50 +199,54 @@ export function DashboardPage() {
             <DashboardSection
               icon={<GpsFixedRoundedIcon />}
               title={tr("Field teams — live")}
-              description={tr("{0} live · {1} on map · {2} field logins", [liveActive.length, liveOnMap.length, (liveMembers || []).length])}
+              tone="green"
+              eyebrow={tr("FIELD PRESENCE")}
+              description={tr("See which crew members are reporting and open their latest map locations.")}
             >
-              <Stack direction="row" sx={{ justifyContent: 'flex-end', mb: 1.5 }}>
-                <Button variant="contained" onClick={() => navigate('/field-tracker')}>{tr("Open Field Tracker")}</Button>
+              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
+                <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}>
+                  <Chip icon={<GpsFixedRoundedIcon />} label={tr("Live: {0}", [liveActive.length])} color="success" variant="outlined" />
+                  <Chip icon={<MyLocationRoundedIcon />} label={tr("On map: {0}", [liveOnMap.length])} variant="outlined" />
+                  <Chip icon={<GroupsRoundedIcon />} label={tr("Field logins: {0}", [(liveMembers || []).length])} variant="outlined" />
+                </Stack>
+                <Button variant="contained" disableElevation startIcon={<MyLocationRoundedIcon />} onClick={() => navigate('/field-tracker')}>{tr("Open Field Tracker")}</Button>
               </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{tr("Positions update every minute from crew phones while their app is open. Open Field Tracker for the live map and the path since the mission started.")}</Typography>
-              {(liveMembers || []).length > 0 && (
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>{tr("Crew")}</TableCell>
-                        <TableCell>{tr("Team")}</TableCell>
-                        <TableCell>{tr("Status")}</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {(liveMembers || []).slice(0, 8).map((m) => (
-                        <TableRow
-                          key={m.user_id}
-                          hover
-                          sx={{ cursor: 'pointer' }}
-                          onClick={() => navigate('/field-tracker')}
-                        >
-                          <TableCell sx={{ fontWeight: 700 }}>{m.full_name || m.username}</TableCell>
-                          <TableCell>{m.team_name || '—'}</TableCell>
-                          <TableCell>
-                            {m.latitude == null ? tr("Not reporting") : m.is_stale ? tr("Last seen (stale)") : tr("Live on site")}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
+              {liveLoading && <LinearProgress />}
+              {liveError && <Alert severity="warning">{tr("Live team information is unavailable. Open Field Tracker to try again.")}</Alert>}
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 1.5 }}>
+                {(liveMembers || []).slice(0, 8).map(m => {
+                  const hasLocation = m.latitude != null && m.longitude != null;
+                  const live = hasLocation && !m.is_stale;
+                  return <Paper key={m.user_id} variant="outlined" sx={{ borderRadius: '18px', overflow: 'hidden' }}>
+                    <CardActionArea onClick={() => navigate('/field-tracker')} aria-label={tr("Open tracker for {0}", [m.full_name || m.username])} sx={{ p: 2 }}>
+                      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                        <Avatar sx={{ bgcolor: 'action.hover', color: 'primary.main' }}><GroupsRoundedIcon /></Avatar>
+                        <Box sx={{ flex: 1, minWidth: 0 }}><Typography sx={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{m.full_name || m.username}</Typography><Typography variant="body2" color="text.secondary">{m.team_name || tr("Unassigned")}</Typography></Box>
+                        <ArrowForwardRoundedIcon sx={{ color: 'text.secondary', transform: theme => theme.direction === 'rtl' ? 'rotate(180deg)' : 'none' }} />
+                      </Stack>
+                      <Chip size="small" variant="outlined" color={live ? 'success' : 'default'} icon={live ? <GpsFixedRoundedIcon /> : hasLocation ? <ScheduleRoundedIcon /> : <LocationOffRoundedIcon />} label={tr(!hasLocation ? 'Not reporting' : m.is_stale ? 'Last seen (stale)' : 'Live on site')} sx={{ mt: 1.5 }} />
+                    </CardActionArea>
+                  </Paper>;
+                })}
+              </Box>
+              {!liveLoading && !liveError && !liveMembers?.length && <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center', py: 3 }}><GroupsRoundedIcon sx={{ fontSize: 42, color: 'text.secondary' }} /><Typography sx={{ fontWeight: 700 }}>{tr("No field logins to show yet.")}</Typography></Stack>}
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>{tr("Locations refresh every minute while crew members share their location. Open the tracker for all members and route history.")}</Typography>
             </DashboardSection>
           )}
 
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 5 }}>
+            <Grid size={{ xs: 12 }}>
+              <TowerAttentionBoard rows={data.rows} teams={myTeams || []}
+                canOpenTeams={!!user?.menu_permissions?.teams}
+                onMissingChecks={(visitId, towerId) => setIncompleteDetail({ visitId, towerId })} />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
               <DashboardSection
                 icon={<MyLocationRoundedIcon />}
                 title={tr("Site map")}
-                description={tr("Live crew GPS, planned towers, and — for leaders and admins — claim or release a tower right from the map.")}
+                tone="blue"
+                eyebrow={tr("TOWERS & ROUTES")}
+                description={tr("Locate towers, check team coverage and explore recorded field routes.")}
               >
                   {teamTrails?.some((t) => t.is_previous) && (
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{tr("Showing this team&apos;s last recorded outing")}{teamTrails.find((t) => t.field_date)?.field_date
@@ -373,64 +331,7 @@ export function DashboardPage() {
                   )}
               </DashboardSection>
             </Grid>
-            <Grid size={{ xs: 12, md: 7 }}>
-              <DashboardSection
-                icon={<WarningAmberRoundedIcon />}
-                title={tr("Towers needing attention")}
-                description={tr("Assigned towers that are still planned or in progress, sorted by hotspot count first.")}
-              >
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>{tr("Tower")}</TableCell>
-                          <TableCell>{tr("Area")}</TableCell>
-                          <TableCell align="center">{tr("Hotspots")}</TableCell>
-                          <TableCell align="center">{tr("Pending")}</TableCell>
-                          <TableCell align="center">{tr("Completion")}</TableCell>
-                          <TableCell>{tr("Status")}</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {needsAttentionRows
-                          .sort((a, b) => (b.rollup?.hotspots ?? 0) - (a.rollup?.hotspots ?? 0))
-                          .map((row) => (
-                            <TableRow
-                              key={row.tower.id}
-                              hover
-                              onClick={() => navigate(`/towers/${row.tower.id}`)}
-                              sx={{ cursor: 'pointer' }}
-                            >
-                              <TableCell sx={{ fontWeight: 700 }}>{row.tower.tower_id}</TableCell>
-                              <TableCell>{row.tower.area || '-'}</TableCell>
-                              <TableCell align="center">{row.rollup?.hotspots ?? '-'}</TableCell>
-                              <TableCell align="center">{row.rollup?.images_pending ?? '-'}</TableCell>
-                              <TableCell align="center">
-                                {row.rollup ? `${row.rollup.completion_pct}%` : '-'}
-                              </TableCell>
-                              <TableCell
-                                onClick={(e) => {
-                                  if (row.rollup?.visit_status !== 'Inspection incomplete' || !row.latest_visit) return;
-                                  e.stopPropagation();
-                                  setIncompleteDetail({ visitId: row.latest_visit.id, towerId: row.tower.tower_id });
-                                }}
-                              >
-                                <VisitStatusChip status={row.rollup?.visit_status} />
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        {needsAttentionRows.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={6} align="center">
-                              {data.rows.length === 0 ? tr("No towers yet — add one from the Towers page.") : tr("Nothing needs attention right now — every assigned tower is either finished or hasn't been started yet.")}
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-              </DashboardSection>
-            </Grid>
+
           </Grid>
         </>
       )}
@@ -456,8 +357,7 @@ export function DashboardPage() {
                     sx={{ alignItems: 'center', p: 1, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
                   >
                     <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                      {p.ohl} · {p.phase} · {p.string}
-                      {p.tower_proximity ? ` (${p.tower_proximity})` : ''}
+                      {positionLabel(p).split(' · ').map(part => tr(part)).join(' · ')}
                     </Typography>
                   </Stack>
                 ))}

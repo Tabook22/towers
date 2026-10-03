@@ -106,6 +106,8 @@ def test_rebuild_positions_migration_loosens_the_unique_constraint_and_keeps_dat
     # Build the OLD-shaped table by hand (constraint without `direction`), mirroring the schema
     # this app shipped with before Tension towers needed more than one direction per slot.
     with engine.begin() as conn:
+        conn.execute(text('CREATE TABLE visits (id INTEGER PRIMARY KEY)'))
+        conn.execute(text('INSERT INTO visits VALUES (1)'))
         conn.execute(
             text(
                 """
