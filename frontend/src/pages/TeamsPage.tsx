@@ -68,6 +68,9 @@ import { getPermissionLevel, type AdminUser, type Team } from '../api/types';
 import { TowerAssignmentPicker } from '../components/TowerAssignmentPicker';
 import { MenuPermissionsEditor } from '../components/MenuPermissionsEditor';
 import { TeamActivitySummary } from '../components/TeamActivitySummary';
+import {useOffline} from '../offline/OfflineProvider';
+import {queryNotice} from '../utils/queryNotice';
+import RefreshRounded from '@mui/icons-material/RefreshRounded';
 
 // Mirrors backend deps.default_menu_permissions_for_role("team_leader") — the starting grant a
 // new team-leader login gets before an admin customizes it in the editor below.
@@ -119,13 +122,10 @@ const STATUS_COLORS: Record<string, 'success' | 'warning' | 'default'> = {
 
 export function TeamsPage() {
   useLanguage();
-  const { data: teams, isLoading, isError } = useTeams();
-  // `isError` alone isn't a reliable signal here — under this app's `networkMode: 'offlineFirst'`
-  // query default, a failed fetch can settle as fetchStatus "paused" rather than "error" depending
-  // on the browser's online-detection, without ever flipping `isError` true. `!teams` once loading
-  // is done is a safe stand-in either way: a genuine "zero teams" success resolves to `[]` (truthy),
-  // so `!teams` only ever happens on an actual failure to fetch.
-  const blocked = isError || (!isLoading && !teams);
+  const { data: teams, isLoading, isError, error: teamsError, fetchStatus, isFetching, refetch } = useTeams();
+  const {online}=useOffline();
+  const notice=queryNotice({error:teamsError,hasData:!!teams,online,paused:fetchStatus==='paused',isError});
+  const blocked=!teams||!!notice?.hideData;
   const createTeam = useCreateTeam();
   const updateTeam = useUpdateTeam();
   const deleteTeam = useDeleteTeam();
@@ -161,7 +161,8 @@ export function TeamsPage() {
   const teamById = new Map((teams || []).map((t) => [t.id, t.name]));
 
   const [teamSearch, setTeamSearch] = useState('');
-  const visibleTeams = (teams || []).filter(team => `${team.name} ${team.leader_name || ''} ${team.mission || ''}`.toLocaleLowerCase().includes(teamSearch.trim().toLocaleLowerCase()));
+  const [teamStatus,setTeamStatus]=useState('all');
+  const visibleTeams = (teams || []).filter(team => (teamStatus==='all'||team.status===teamStatus)&&`${team.name} ${team.leader_name || ''} ${team.mission || ''}`.toLocaleLowerCase().includes(teamSearch.trim().toLocaleLowerCase()));
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Team | null>(null);
   const [form, setForm] = useState<TeamFormState>(emptyForm);
@@ -390,10 +391,8 @@ export function TeamsPage() {
         )}
       </Stack>
 
-      {blocked && (
-        <Alert severity="warning">{tr("You don't have permission to view teams on this account — ask a full admin to grant it.")}</Alert>
-      )}
-
+      {notice&&<Alert severity={notice.kind==='permission'?'error':'warning'} action={notice.kind!=='permission'&&<Button color="inherit" disabled={!online||isFetching} onClick={()=>void refetch()} startIcon={<RefreshRounded/>}>{tr('Try again')}</Button>}>{tr(notice.message)}</Alert>}
+      {isLoading&&!notice&&<Box role="status"><LinearProgress/><Typography variant="body2" color="text.secondary" sx={{mt:1}}>{tr('Loading your teams…')}</Typography></Box>}
 
       {!blocked && <TeamJourney teams={teams || []} canPlan={canManageTeams || user?.role === 'team_leader'} />}
       {!blocked && <TeamInspectionGuide teams={teams || []} />}
@@ -403,9 +402,10 @@ export function TeamsPage() {
         description={tr("Open a crew to plan its route, continue tower visits and review completed work.")}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2, alignItems: { sm: 'center' } }}>
           <TextField size="small" label={tr("Find a team or leader")} value={teamSearch} onChange={event => setTeamSearch(event.target.value)} sx={{ flex: 1 }} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRounded /></InputAdornment> } }} />
-          <Chip icon={<GroupsIcon />} label={tr("Teams: {0}", [teams?.length ?? '—'])} variant="outlined" />
+          <Chip icon={<GroupsIcon />} label={tr("Teams: {0}", [visibleTeams.length])} variant="outlined" />
         </Stack>
-        {isLoading && <LinearProgress />}
+        <Stack direction="row" role="group" aria-label={tr('Filter teams by status')} sx={{gap:1,flexWrap:'wrap',mb:2}}>{['all','active','paused','completed'].map(status=><Chip key={status} label={tr(status==='all'?'All teams':status==='active'?'Active':status==='paused'?'Paused':'Completed')} variant={teamStatus===status?'filled':'outlined'} color={teamStatus===status?'primary':'default'} onClick={()=>setTeamStatus(status)} aria-pressed={teamStatus===status}/>)}</Stack>
+
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 330px), 1fr))', gap: 2 }}>
           {visibleTeams.map(t => <Paper component="article" key={t.id} variant="outlined" sx={{ p: 2.5, borderRadius: '22px', borderTop: '3px solid', borderTopColor: t.status === 'active' ? 'success.main' : 'divider', display: 'flex', flexDirection: 'column', gap: 1.8 }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
@@ -421,7 +421,7 @@ export function TeamsPage() {
             <Button variant="contained" disableElevation onClick={() => navigate(`/teams/${t.id}`)} aria-label={tr("Open team: {0}", [t.name])} endIcon={<ArrowForwardRounded sx={{ transform: theme => theme.direction === 'rtl' ? 'rotate(180deg)' : 'none' }} />} sx={{ mt: 'auto', alignSelf: 'flex-start' }}>{tr("Open team")}</Button>
           </Paper>)}
         </Box>
-        {!isLoading && !visibleTeams.length && <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center', py: 4 }}><GroupsIcon sx={{ fontSize: 48, color: 'text.secondary' }} /><Typography color="text.secondary">{tr(teams?.length ? "No teams match your search." : "No teams yet. Add one to start tracking a crew's mission and daily progress.")}</Typography></Stack>}
+        {!isLoading && !visibleTeams.length && <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center', py: 4 }}><GroupsIcon sx={{ fontSize: 48, color: 'text.secondary' }} /><Typography color="text.secondary">{tr(teams?.length ? "No teams match your search." : "No teams yet. Add one to start tracking a crew's mission and daily progress.")}</Typography>{(teamSearch||teamStatus!=='all')&&<Button onClick={()=>{setTeamSearch('');setTeamStatus('all')}}>{tr('Clear filters')}</Button>}</Stack>}
       </DashboardSection>
       )}
 

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import arabic from './ar.json';
+import reviewArabic from './review-ar.json';
 export type Language = 'en' | 'ar';
 const storageKey = 'iip_language';
 function initialLanguage(): Language {
@@ -19,7 +20,7 @@ export function useLanguage() { return useSyncExternalStore(listener => { listen
 export function translate(text: string | null | undefined, lang: Language, values: readonly unknown[] = []): string {
   if (text == null) return '';
   const normalized = text.trim();
-  const translated = (arabic as Record<string, string>)[normalized];
+  const translated = (arabic as Record<string, string>)[normalized] ?? (reviewArabic as Record<string,string>)[normalized];
   const source = lang === 'ar' && translated !== undefined ? text.slice(0, text.indexOf(normalized)) + translated + text.slice(text.indexOf(normalized) + normalized.length) : text;
   // Decode authored JSX entities before inserting values; never transform user values.
   return source.replace(/&apos;|&#39;|&quot;|&amp;|&lt;|&gt;/g, entity => ({ '&apos;': "'", '&#39;': "'", '&quot;': '"', '&amp;': '&', '&lt;': '<', '&gt;': '>' })[entity]!)

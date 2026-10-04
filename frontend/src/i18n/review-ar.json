@@ -1,0 +1,12 @@
+{
+  "You are offline. Showing the last available teams; reconnect to refresh.": "أنت غير متصل. تُعرض آخر بيانات الفرق المتاحة؛ أعد الاتصال لتحديثها.",
+  "Teams are not available offline yet. Reconnect and try again.": "بيانات الفرق غير متاحة دون اتصال بعد. أعد الاتصال وحاول مجددًا.",
+  "Teams could not be refreshed. Your last available data is still shown.": "تعذر تحديث الفرق. لا تزال آخر البيانات المتاحة معروضة.",
+  "Could not load teams. Check your connection and try again.": "تعذر تحميل الفرق. تحقق من الاتصال وحاول مجددًا.",
+  "Loading your teams…": "جارٍ تحميل فرقك…",
+  "Try again": "حاول مجددًا",
+  "Filter teams by status": "تصفية الفرق حسب الحالة",
+  "All teams": "جميع الفرق",
+  "Clear filters": "مسح عوامل التصفية",
+  "Reconnect to process this image in Thermal.": "أعد الاتصال لمعالجة هذه الصورة في التطبيق الحراري."
+}
