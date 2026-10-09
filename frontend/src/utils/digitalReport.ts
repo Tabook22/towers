@@ -22,7 +22,12 @@ export function filterFindings(rows: DigitalFinding[], search: string, filters: 
   const terms = search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   return rows.filter(row => {
     const text = Object.values(row.fields).map(v => String(v ?? '')).join(' ').toLocaleLowerCase();
-    return terms.every(term => text.includes(term)) && Object.entries(filters).every(([key, value]) => !value || String(row.fields[key] ?? '') === value);
+    return terms.every(term => text.includes(term)) && Object.entries(filters).every(([key, value]) => {
+      if (!value) return true;
+      // The issued measurement table combines High and Critical into one category.
+      if (key === 'severity' && value === 'High / Critical') return severityRank(row.fields.severity) === 0;
+      return String(row.fields[key] ?? '') === value;
+    });
   }).sort((a, b) => {
     const left = a.fields[sort], right = b.fields[sort];
     const difference = sort === 'severity' ? severityRank(left) - severityRank(right) : typeof left === 'number' && typeof right === 'number' ? left - right : String(left ?? '').localeCompare(String(right ?? ''), undefined, { numeric: true });

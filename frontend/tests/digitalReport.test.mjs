@@ -40,3 +40,12 @@ test('severity grouping follows urgency regardless of row sort order', () => {
   assert.equal(groups[3][1].length, 2);
   assert.equal(groups.flatMap(([, rows]) => rows).length, severityRows.length);
 });
+
+test('combined high/critical shortcut includes both classes without merging insulators at one tower', () => {
+  const severityRows = ['High', 'Critical', 'High / Critical', 'Medium', 'Low', 'Normal', ''].map((severity, index) => ({ key: `1:${index}`, fields: { tower: 'T-10', severity }, evidence: [] }));
+  const matching = filterFindings(severityRows, '', { severity: 'High / Critical' }, 'severity', false);
+  assert.deepEqual(matching.map(row => row.key), ['1:0', '1:1', '1:2']);
+  for (const severity of ['Medium', 'Low', 'Normal']) {
+    assert.equal(filterFindings(severityRows, '', { severity }, 'severity', false).length, 1);
+  }
+});

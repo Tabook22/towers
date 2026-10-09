@@ -43,6 +43,7 @@ export function DigitalReportPage() {
   const [group, setGroup] = useState('tower');
   const [view, setView] = useState('report');
   const [page, setPage] = useState(0);
+  const [measurementPage, setMeasurementPage] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<string[]>([]);
   const [wordOpen, setWordOpen] = useState(false);
@@ -64,6 +65,14 @@ export function DigitalReportPage() {
   const groups = groupFindings(visible, group);
   const selectedMatching = matching.filter(row => selected.includes(row.key));
   const exportRows = selectedMatching.length ? selectedMatching : matching;
+  const openFinding = (key: string) => {
+    const index = matching.findIndex(row => row.key === key);
+    if (index < 0) return;
+    setMeasurementPage(currentPage);
+    setView('report');
+    setPage(Math.floor(index / pageSize));
+    setJumpKey(key);
+  };
   const base = `/api/reports/oetc-line-report/${id}`;
   const back = user?.role === 'client' ? '/client-reports' : '/reports';
   const change = () => { setPage(0); setSelected([]); };
@@ -154,8 +163,10 @@ export function DigitalReportPage() {
       {exporting && <LinearProgress />}
       {!matching.length && <Alert severity="info">{tr('No findings match your search. Try another keyword or clear the filters.')}</Alert>}
       {view === 'overview' && <Alert severity="info">{tr('The overview shows the complete issued report summary. Choose Report view to browse filtered findings.')}</Alert>}
-      {view === 'measurements' && <Stack spacing={1}><Typography variant="h6">{tr('Thermal Inspection Measurements')}</Typography><Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>{['High / Critical', 'Medium', 'Low', 'Normal'].map((severity, rank) => <Chip key={severity} color={rank === 0 ? 'error' : rank === 1 ? 'warning' : rank === 3 ? 'success' : 'default'} label={`${severity}: ${new Set(rows.filter(row => severityRank(row.fields.severity) === rank).map(row => row.fields.tower)).size} ${tr('towers')}`} onClick={() => { setFilters(old => ({ ...old, severity })); change(); }} />)}</Stack></Stack>}
-      {view === 'measurements' ? (matching.length > 0 && <WordReportReplica reportId={id} section="measurements" groups={groups.map(([name, findings]) => ({ name: group ? `${label(group)}: ${name || '—'}` : '', keys: findings.map(row => row.key) }))} selected={selected} onSelect={toggle} />) : view === 'overview' ? <WordReportReplica reportId={id} section="overview" groups={[]} selected={selected} onSelect={toggle} /> : view === 'report' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '240px minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
+      {view === 'measurements' && <Stack spacing={1}><Typography variant="h6">{tr('Thermal Inspection Measurements')}</Typography><Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>{['High / Critical', 'Medium', 'Low', 'Normal'].map((severity, rank) => <Chip key={severity} color={rank === 0 ? 'error' : rank === 1 ? 'warning' : rank === 3 ? 'success' : 'default'} variant={filters.severity === severity ? 'filled' : 'outlined'} label={`${tr(severity)}: ${new Set(rows.filter(row => severityRank(row.fields.severity) === rank).map(row => row.fields.tower)).size} ${tr('towers')}`} onClick={() => { setFilters(old => ({ ...old, severity: old.severity === severity ? '' : severity })); change(); }} />)}</Stack></Stack>}
+      {view === 'report' && measurementPage !== null && <Button startIcon={<ArrowBackRounded />} sx={{ alignSelf: 'flex-start' }} onClick={() => { setView('measurements'); setPage(measurementPage); setMeasurementPage(null); setJumpKey(''); }}>{tr('Back to thermal measurements')}</Button>}
+      {view === 'measurements' && <Typography variant="body2" color="text.secondary">{tr('Click a tower or measurement row to view that insulator finding. Click a photograph to enlarge it.')}</Typography>}
+      {view === 'measurements' ? (matching.length > 0 && <WordReportReplica reportId={id} section="measurements" onOpenFinding={openFinding} groups={groups.map(([name, findings]) => ({ name: group ? `${label(group)}: ${name || '—'}` : '', keys: findings.map(row => row.key) }))} selected={selected} onSelect={toggle} />) : view === 'overview' ? <WordReportReplica reportId={id} section="overview" groups={[]} selected={selected} onSelect={toggle} /> : view === 'report' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '240px minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
         <Paper component="nav" aria-label={tr('Finding navigation')} variant="outlined" sx={{ p: 1.5, borderRadius: 3, position: { lg: 'sticky' }, top: 80, maxHeight: { xs: 240, lg: '70vh' }, overflowY: 'auto' }}>
           <Typography variant="subtitle2" sx={{ p: 1 }}>{tr('Jump to finding')}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1, pb: 1.5 }}>{tr('Browse inspection evidence')}</Typography>
           {matching.map((row, index) => <Button key={row.key} fullWidth size="small" aria-current={jumpKey === row.key ? 'location' : undefined} sx={{ justifyContent: 'flex-start', textAlign: 'start', my: .5, py: 1, bgcolor: jumpKey === row.key ? 'action.selected' : undefined, border: 1, borderColor: jumpKey === row.key ? 'primary.main' : 'transparent' }} onClick={() => { setPage(Math.floor(index / pageSize)); setJumpKey(row.key); }}>

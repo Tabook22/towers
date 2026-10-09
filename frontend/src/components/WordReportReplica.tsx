@@ -14,10 +14,11 @@ interface Props {
   onSelect: (key: string, checked: boolean) => void;
   selected: string[];
   section?: 'findings' | 'overview' | 'measurements';
+  onOpenFinding?: (key: string) => void;
 }
 
 /** Render copied original Word tables with their original styles and embedded photographs. */
-export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelect, section: documentSection = 'findings' }: Props) {
+export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelect, onOpenFinding, section: documentSection = 'findings' }: Props) {
   useLanguage();
   const host = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
@@ -54,11 +55,13 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
   const groupsRef = useRef(groups);
   const selectRef = useRef(onSelect);
   const selectedRef = useRef(selected);
+  const openFindingRef = useRef(onOpenFinding);
   useEffect(() => {
     groupsRef.current = groups;
     selectRef.current = onSelect;
     selectedRef.current = selected;
-  }, [groups, onSelect, selected]);
+    openFindingRef.current = onOpenFinding;
+  }, [groups, onSelect, selected, onOpenFinding]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -101,6 +104,7 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
             for (const key of group.keys) {
               const wrapper = document.createElement('div'); wrapper.dataset.findingKey = key;
               wrapper.className = 'replica-finding';
+              wrapper.tabIndex = -1;
               const tools = document.createElement('label'); tools.className = 'replica-tools';
               const checkbox = document.createElement('input'); checkbox.type = 'checkbox';
               checkbox.checked = selectedRef.current.includes(key);
@@ -143,7 +147,22 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
               const copiedRows = Array.from(table.querySelectorAll(':scope > tr, :scope > tbody > tr'));
               copiedRows.slice(1).forEach(row => row.remove());
               const parent = copiedRows[0].parentElement!;
-              group.keys.forEach(key => parent.append(rowMap.get(key)!));
+              group.keys.forEach(key => {
+                const row = rowMap.get(key)!;
+                if (openFindingRef.current) {
+                  const cell = row.querySelectorAll('td')[1] || row.querySelector('td');
+                  if (cell) {
+                    const button = document.createElement('button');
+                    button.type = 'button'; button.className = 'replica-finding-link';
+                    button.setAttribute('aria-label', `${tr('View finding and photographs')}: ${cell.textContent?.trim()} · ${row.querySelector('td')?.textContent?.trim()}`);
+                    button.append(...Array.from(cell.childNodes));
+                    cell.append(button);
+                    row.classList.add('replica-measurement-link');
+                    row.addEventListener('click', () => openFindingRef.current?.(key));
+                  }
+                }
+                parent.append(row);
+              });
               article.append(table);
             }
           }
@@ -164,8 +183,15 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
     });
   }, [selected]);
   useEffect(() => {
-    if (!loading && jumpKey) Array.from(host.current?.querySelectorAll<HTMLElement>('[data-finding-key]') || []).find(element => element.dataset.findingKey === jumpKey)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [loading, jumpKey]);
+    const findings = Array.from(host.current?.querySelectorAll<HTMLElement>('[data-finding-key]') || []);
+    findings.forEach(element => element.removeAttribute('data-current-finding'));
+    if (!loading && jumpKey) {
+      const finding = findings.find(element => element.dataset.findingKey === jumpKey);
+      finding?.setAttribute('data-current-finding', 'true');
+      finding?.focus({ preventScroll: true });
+      finding?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [loading, jumpKey, signature, documentSection]);
   useEffect(() => {
     const element = host.current;
     if (!element) return;
@@ -314,6 +340,9 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
       '& .replica-finding': { marginBottom: '24pt', scrollMarginTop: '90px' },
       '& .replica-tools': { display: 'flex', gap: '6px', alignItems: 'center', padding: '10px 12px', borderRadius: '6px', background: '#eef4f6', marginBottom: '10px', font: '10pt Arial, sans-serif', color: '#536878' },
       '& .replica-tools input': { accentColor: '#10485b' },
+      '& .replica-finding[data-current-finding]': { outline: '3px solid #27839b', outlineOffset: '8px', borderRadius: '4px' },
+      '& .replica-measurement-link': { cursor: 'pointer', '&:hover': { outline: '2px solid #27839b', outlineOffset: '-2px' } },
+      '& .replica-finding-link': { display: 'block', width: '100%', padding: 0, border: 0, background: 'transparent', color: '#10485b', textAlign: 'inherit', font: 'inherit', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px', '&:focus-visible': { outline: '2px solid #27839b', outlineOffset: '2px' } },
     }} />
   </Box>;
 }
