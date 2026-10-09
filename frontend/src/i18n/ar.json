@@ -1,4 +1,11 @@
 {
+  "Created by: {0}": "أنشأه: {0}",
+  "Created date & time": "تاريخ ووقت الإنشاء",
+  "Created by": "أنشأه",
+  "Not recorded": "غير مسجل",
+  "Total towers: {0}": "إجمالي الأبراج: {0}",
+  "Tower count not recorded": "عدد الأبراج غير مسجل",
+  "Oman time": "توقيت عُمان",
   "View finding and photographs": "عرض نتيجة الفحص والصور",
   "Back to thermal measurements": "العودة إلى القياسات الحرارية",
   "Click a tower or measurement row to view that insulator finding. Click a photograph to enlarge it.": "اضغط على برج أو صف قياس لعرض نتيجة فحص ذلك العازل. اضغط على الصورة لتكبيرها.",
