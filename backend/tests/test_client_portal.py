@@ -47,6 +47,7 @@ def _client(can_edit=False, can_delete=False) -> User:
         hashed_password="x",
         can_edit_reports=can_edit,
         can_delete_report_images=can_delete,
+        allowed_report_ids=[1, 2],
     )
 
 
@@ -121,7 +122,7 @@ def test_client_cannot_generate_a_report():
         assert exc.value.status_code == 403
 
 
-def test_client_sees_every_team_report_in_history_with_no_team_id_filter():
+def test_client_sees_assigned_reports_from_multiple_teams():
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
     with Session(engine) as db:

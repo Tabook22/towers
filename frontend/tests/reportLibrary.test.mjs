@@ -18,6 +18,15 @@ test('natural team, tower and report sorting; newest first', () => {
   assert.deepEqual(select(), [1, 2]);
 });
 test('tower filtering includes towers inside a team report', () => assert.deepEqual(select({ tower: '3' }), [1]));
+
+test('line, creator and tower-count sorting uses saved report scope with unique towers', () => {
+  const reports = rows.map(r => ({ ...r, line_sector: r.id === 1 ? 'Line 2' : 'Line 10', created_by_name: r.id === 1 ? 'Zara' : 'Adam' }));
+  reports[1].scope_towers.push({ id: 2, name: 'T-2' });
+  assert.deepEqual(selectReports(reports, emptyReportFilters, 'line_sector', 'asc').map(r => r.id), [1, 2]);
+  assert.deepEqual(selectReports(reports, emptyReportFilters, 'created_by_name', 'asc').map(r => r.id), [2, 1]);
+  assert.deepEqual(selectReports(reports, emptyReportFilters, 'tower_count', 'desc').map(r => r.id), [1, 2]);
+  reports[1].scope_towers.pop();
+});
 test('search and combined filters are case insensitive and scope aware', () => {
   assert.deepEqual(select({ search: ' t-3 ', team: '1', type: 'team' }), [1]);
   assert.deepEqual(select({ search: 't-3', team: '2' }), []);

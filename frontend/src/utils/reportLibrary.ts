@@ -3,7 +3,7 @@ import type { LineInspectionReportOut } from '../api/types';
 export const reportTypes: Record<string, string> = {
   tower: 'Tower report', team: 'Team report', area: 'Line section', consolidated: 'Project section', line: 'Complete line report', project: 'Complete project report',
 };
-export type ReportSortKey = 'created_at' | 'report_number' | 'team_name' | 'tower_name' | 'start_date';
+export type ReportSortKey = 'created_at' | 'report_number' | 'team_name' | 'tower_name' | 'start_date' | 'line_sector' | 'created_by_name' | 'tower_count';
 export interface ReportFilters { search: string; team: string; tower: string; line: string; type: string; from: string; to: string }
 export const emptyReportFilters: ReportFilters = { search: '', team: '', tower: '', line: '', type: '', from: '', to: '' };
 export function reportFilterAvailability(type: string) {
@@ -40,9 +40,10 @@ export function selectReports(rows: LineInspectionReportOut[], filters: ReportFi
       .some((value) => value?.toLocaleLowerCase().includes(query));
   }).sort((a, b) => {
     const value = (r: LineInspectionReportOut) => key === 'tower_name'
-      ? reportTowers(r).map((t) => t.name).join(', ') : r[key] || '';
+      ? reportTowers(r).map((t) => t.name).join(', ') : key === 'tower_count' ? '' : r[key] || '';
     const comparison = key === 'created_at'
       ? reportTimestamp(a.created_at).getTime() - reportTimestamp(b.created_at).getTime()
+      : key === 'tower_count' ? new Set(reportTowers(a).map(t => t.id)).size - new Set(reportTowers(b).map(t => t.id)).size
       : value(a).localeCompare(value(b), undefined, { numeric: true, sensitivity: 'base' });
     return (direction === 'asc' ? 1 : -1) * (comparison || a.id - b.id);
   });

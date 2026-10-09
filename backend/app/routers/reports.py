@@ -71,8 +71,10 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 def _check_report_access(record: LineInspectionReport, user: User) -> None:
     """Who may view a given report (and by extension its images/comments) — a team_member's whole
     workspace is their own assigned missions, not team-wide reporting, so they're refused outright;
-    a team_leader only their own team's reports; everyone else (admin, reviewer, client — this app
-    serves one customer, not several tenants needing separation from each other) sees any report."""
+    a team_leader only their own team's reports; customers only explicitly shared reports.
+    Staff access is unchanged."""
+    if user.role == UserRole.CLIENT.value and record.id not in (user.allowed_report_ids or []):
+        raise HTTPException(status_code=403, detail="This report has not been shared with your account")
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
     if user.role == UserRole.TEAM_LEADER.value and (user.team_id != record.team_id or record.report_type in ('line', 'project')):
@@ -651,9 +653,8 @@ def oetc_line_report_history(
     user: User = Depends(get_current_user),
 ):
     """Past generated reports — for tracing/reprinting, and the client portal's report library (see
-    LineInspectionReport for what's kept). A client account sees every report regardless of team —
-    this app serves one customer, not several tenants needing separation from each other — same as
-    admin/reviewer; only team_leader is narrowed to their own team, and team_member sees none of
+    LineInspectionReport for what's kept). A customer sees only explicitly shared report IDs.
+    Admin/reviewer retain their existing visibility; team_leader is narrowed to their own team, and team_member sees none of
     this (their workspace is their own assigned missions, not team-wide reporting)."""
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
@@ -667,6 +668,8 @@ def oetc_line_report_history(
         q = q.filter(LineInspectionReport.team_id == user.team_id, (LineInspectionReport.report_type.is_(None) | LineInspectionReport.report_type.notin_(['line', 'project']))) if user.team_id else q.filter(False)
     elif team_id:
         q = q.filter(LineInspectionReport.team_id == team_id)
+    if user.role == UserRole.CLIENT.value:
+        q = q.filter(LineInspectionReport.id.in_(user.allowed_report_ids or []))
     if report_type:
         q = q.filter(LineInspectionReport.report_type == report_type)
     if start_date:
@@ -847,8 +850,7 @@ def oetc_line_report_images(
 ):
     """Every image snapshotted into this report at generation time (see used_image_ids) — the
     client portal's per-report image archive. Same access boundary as the report itself: a
-    team_leader only their own team's reports, team_member refused, everyone else (admin, reviewer,
-    client) sees any report."""
+    team_leader only their own team's reports, team_member refused, customers only shared reports."""
     record = db.get(LineInspectionReport, report_id)
     if not record:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -953,6 +955,7 @@ def update_oetc_line_report(
     elif user.role == UserRole.CLIENT.value:
         if not user.can_edit_reports:
             raise HTTPException(status_code=403, detail="Not enough permissions")
+        _check_report_access(record, user)
     else:
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
@@ -1005,6 +1008,9 @@ def delete_oetc_line_report(
         except OSError as exc:
             raise HTTPException(status_code=500, detail="Could not remove the archived file. The report has been retained; check storage permissions and retry.") from exc
     db.delete(record)
+    for customer in db.query(User).filter(User.role == UserRole.CLIENT.value).all():
+        if report_id in (customer.allowed_report_ids or []):
+            customer.allowed_report_ids = [pk for pk in customer.allowed_report_ids if pk != report_id]
     db.commit()
     return None
 
@@ -1022,6 +1028,7 @@ def download_saved_oetc_report(
     record = db.get(LineInspectionReport, report_id)
     if not record:
         raise HTTPException(status_code=404, detail="Report not found")
+    _check_report_access(record, user)
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
     if user.role == UserRole.TEAM_LEADER.value and (user.team_id != record.team_id or record.report_type in ('line', 'project')):
@@ -1054,6 +1061,7 @@ def redownload_oetc_line_report(
     record = db.get(LineInspectionReport, report_id)
     if not record:
         raise HTTPException(status_code=404, detail="Report not found")
+    _check_report_access(record, user)
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
     if user.role == UserRole.TEAM_LEADER.value and (user.team_id != record.team_id or record.report_type in ('line', 'project')):

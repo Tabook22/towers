@@ -17,7 +17,7 @@ from app.deps import (
     has_permission_level,
     require_menu_item,
 )
-from app.models import LocationPing, Team, User, UserRole, Visit
+from app.models import LineInspectionReport, LocationPing, Team, User, UserRole, Visit
 from app.schemas import ChangePasswordRequest, Token, UserCreate, UserOut, UserUpdate
 from app.security import create_access_token, hash_password, verify_password
 
@@ -160,6 +160,14 @@ def _resolve_menu_permissions(role: str, provided: dict[str, str] | None, actor:
     return _encode_menu_permissions(perms)
 
 
+def _validate_shared_reports(ids: list[int], db: Session) -> list[int]:
+    ids = sorted(set(ids))
+    existing = {pk for (pk,) in db.query(LineInspectionReport.id).filter(LineInspectionReport.id.in_(ids)).all()}
+    if existing != set(ids):
+        raise HTTPException(status_code=422, detail="Some selected reports no longer exist. Refresh and try again.")
+    return ids
+
+
 @router.post("/users", response_model=UserOut, status_code=201)
 def create_user(
     payload: UserCreate,
@@ -192,6 +200,7 @@ def create_user(
         can_edit_reports=payload.can_edit_reports if payload.role == UserRole.CLIENT.value else False,
         can_delete_report_images=payload.can_delete_report_images if payload.role == UserRole.CLIENT.value else False,
         menu_permissions_csv=menu_permissions_csv,
+        allowed_report_ids=_validate_shared_reports(payload.allowed_report_ids, db) if payload.role == UserRole.CLIENT.value else [],
     )
     db.add(user)
     db.commit()
@@ -260,6 +269,11 @@ def update_user(
             ),
         )
     data = payload.model_dump(exclude_unset=True)
+    report_ids = data.pop("allowed_report_ids", None)
+    if report_ids is not None:
+        if actor.role != UserRole.ADMIN.value or not actor.is_super_admin or user.role != UserRole.CLIENT.value:
+            raise HTTPException(status_code=403, detail="Only a full admin can select customer reports")
+        user.allowed_report_ids = _validate_shared_reports(report_ids, db)
     new_password = data.pop("password", None)
     is_super_admin = data.pop("is_super_admin", None)
     permissions = data.pop("permissions", None)

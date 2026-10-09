@@ -1355,6 +1355,7 @@ export function useUpdateUser() {
           | 'permissions'
           | 'can_edit_reports'
           | 'can_delete_report_images'
+          | 'allowed_report_ids'
           | 'menu_permissions'
         >
       > & { password?: string };
@@ -1386,6 +1387,7 @@ export function useCreateUser() {
       permissions?: string[];
       can_edit_reports?: boolean;
       can_delete_report_images?: boolean;
+      allowed_report_ids?: number[];
       menu_permissions?: Record<string, string>;
     }) => (await apiClient.post<AdminUser>('/api/auth/users', payload)).data,
     onSuccess: () => {

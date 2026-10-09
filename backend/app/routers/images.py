@@ -46,6 +46,9 @@ def _load_image(db: Session, image_id: int, user: User) -> Image:
     )
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
+    if user.role == UserRole.CLIENT.value:
+        if not db.query(ReportImage.id).filter(ReportImage.image_id == image_id, ReportImage.report_id.in_(user.allowed_report_ids or [])).first():
+            raise HTTPException(status_code=403, detail="This image has not been shared with your account")
     check_visit_team_access(img.position.visit, user)
     return img
 
@@ -510,7 +513,7 @@ def get_image_file(image_id: int, db: Session = Depends(get_db), user: User = De
     return FileResponse(
         path,
         media_type=img.content_type or "application/octet-stream",
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        headers={"Cache-Control": "private, no-store" if user.role == UserRole.CLIENT.value else "public, max-age=31536000, immutable"},
     )
 
 
@@ -522,7 +525,7 @@ def get_image_thumbnail(image_id: int, db: Session = Depends(get_db), user: User
     path = settings.thumbnails_dir / img.thumbnail_path
     if not path.exists():
         raise HTTPException(status_code=404, detail="Thumbnail missing")
-    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, no-store" if user.role == UserRole.CLIENT.value else "public, max-age=31536000, immutable"})
 
 
 @router.post("/{image_id}/annotation", response_model=ImageOut)
@@ -586,7 +589,7 @@ def get_annotation_file(image_id: int, db: Session = Depends(get_db), user: User
     path = settings.images_dir / img.annotated_path
     if not path.exists():
         raise HTTPException(status_code=404, detail="Annotated file missing from archive")
-    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, no-store" if user.role == UserRole.CLIENT.value else "public, max-age=31536000, immutable"})
 
 
 @router.get("/{image_id}/annotation/thumbnail")
@@ -597,7 +600,7 @@ def get_annotation_thumbnail(image_id: int, db: Session = Depends(get_db), user:
     path = settings.thumbnails_dir / img.annotated_thumbnail_path
     if not path.exists():
         raise HTTPException(status_code=404, detail="Annotated thumbnail missing from archive")
-    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, no-store" if user.role == UserRole.CLIENT.value else "public, max-age=31536000, immutable"})
 
 
 @router.post("/{image_id}/smart-enhance", response_model=SmartEnhanceOut)

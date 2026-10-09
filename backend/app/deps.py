@@ -104,6 +104,9 @@ def get_current_user(
     if request is not None and user.role == UserRole.CLIENT.value:
         from app.client_guard import CLIENT_ALLOWED_PATH_PREFIXES
         path = request.url.path
+        if path.startswith('/api/images/') and request.method not in ('GET', 'HEAD', 'OPTIONS'):
+            if request.method != 'DELETE' or not user.can_delete_report_images:
+                raise HTTPException(status_code=403, detail='Customer accounts cannot modify inspection images')
         if not any(path == prefix.rstrip('/') or path.startswith(prefix.rstrip('/') + '/') for prefix in CLIENT_ALLOWED_PATH_PREFIXES):
             raise HTTPException(status_code=403, detail='Customer accounts can access only reports')
     return user

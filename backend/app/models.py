@@ -93,8 +93,7 @@ class UserRole(str, enum.Enum):
     # The customer's own login (OETC) — created by an admin, scoped to exactly one page: the
     # generated-reports portal (routers/reports.py's oetc_line_report_history/images/update
     # endpoints, see also frontend Layout.tsx's isClient nav branch and App.tsx's route guard).
-    # Sees every report/image regardless of team (this app serves one customer, not several tenants
-    # needing separation from each other) but can never generate, edit field data, or manage
+    # Sees only explicitly shared reports and linked images, and can never generate, edit field data, or manage
     # anything — only what User.can_edit_reports/can_delete_report_images explicitly grant on top of
     # plain view/download.
     CLIENT = "client"
@@ -159,6 +158,8 @@ class User(Base):
     # NOTE: a frontend visibility control only, for now — it doesn't (yet) gate the underlying API
     # routes, which keep using their own existing role/permission checks regardless of this.
     menu_permissions_csv: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # NULL on legacy accounts means no sharing, never blanket report access.
+    allowed_report_ids: Mapped[list[int] | None] = mapped_column(JSON, nullable=True, default=list)
 
     # Teams also has a `created_by -> users.id` FK, so the join column has to be spelled out
     # explicitly here — otherwise SQLAlchemy can't tell which of the two FKs this relationship means.

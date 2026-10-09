@@ -1,5 +1,7 @@
 import { tr, useLanguage } from '../i18n';
 import { BackupRestoreSection } from '../components/BackupRestoreSection';
+import { CustomerReportPicker } from '../components/CustomerReportPicker';
+import { useSearchParams } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -1311,6 +1313,8 @@ function ClientAccountsSection() {
   const clients = (users || []).filter((u) => u.role === 'client');
 
   const [customAccess, setCustomAccess] = useState(false);
+  const [sharedReports, setSharedReports] = useState<number[]>([]);
+  const [editSharedReports, setEditSharedReports] = useState<number[]>([]);
   const [editCustomAccess, setEditCustomAccess] = useState(false);
   const accessSummary = <Alert severity="info" sx={{ borderRadius: 2 }}>{tr('Reports only: browse digital findings, filter severity, enlarge photographs, download issued reports and add comments. No report creation, editing, deletion or access to other menus.')}</Alert>;
   const [createOpen, setCreateOpen] = useState(false);
@@ -1326,6 +1330,7 @@ function ClientAccountsSection() {
   const openCreate = () => {
     setForm(emptyClientForm);
     setCustomAccess(false);
+    setSharedReports([]);
     setError(null);
     setCreateOpen(true);
   };
@@ -1342,6 +1347,7 @@ function ClientAccountsSection() {
         password: form.password,
         full_name: form.full_name.trim() || undefined,
         role: 'client',
+        allowed_report_ids: sharedReports,
         menu_permissions: { reports: 'view' },
         can_edit_reports: form.can_edit_reports,
         can_delete_report_images: form.can_delete_report_images,
@@ -1358,6 +1364,7 @@ function ClientAccountsSection() {
 
   const openEdit = (client: AdminUser) => {
     setEditing(client);
+    setEditSharedReports(client.allowed_report_ids || []);
     setEditCustomAccess(client.can_edit_reports || client.can_delete_report_images);
     setEditCanEdit(client.can_edit_reports);
     setEditCanDelete(client.can_delete_report_images);
@@ -1377,6 +1384,7 @@ function ClientAccountsSection() {
         id: editing.id,
         payload: {
           menu_permissions: { reports: 'view' },
+          allowed_report_ids: editSharedReports,
           can_edit_reports: editCanEdit,
           can_delete_report_images: editCanDelete,
           ...(editPassword ? { password: editPassword } : {}),
@@ -1416,7 +1424,7 @@ function ClientAccountsSection() {
           <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Client accounts")}</Typography>
           <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>{tr("New customer")}</Button>
         </Stack>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("A login for the customer — sees only the Reports portal (every generated report and its linked photos), read-only unless you grant one of the toggles below.")}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr('Choose exactly which reports each customer can see. Report access includes its digital findings, photographs, downloads and comments.')}</Typography>
         {deleteError && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDeleteError(null)}>
             {tr(deleteError)}
@@ -1441,6 +1449,7 @@ function ClientAccountsSection() {
                   <TableCell>{client.full_name || '—'}</TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                      <Chip size="small" color="primary" variant="outlined" label={tr('{0} shared reports', [client.allowed_report_ids?.length || 0])} />
                       {client.can_edit_reports && <Chip size="small" variant="outlined" label={tr("Can edit reports")} />}
                       {client.can_delete_report_images && <Chip size="small" variant="outlined" label={tr("Can delete images")} />}
                       {!client.can_edit_reports && !client.can_delete_report_images && (
@@ -1452,6 +1461,7 @@ function ClientAccountsSection() {
                     <Chip size="small" color={client.is_active ? 'success' : 'default'} label={client.is_active ? tr("Active") : tr("Deactivated")} />
                   </TableCell>
                   <TableCell align="right">
+                    <Button size="small" variant="outlined" onClick={() => openEdit(client)}>{tr('Share reports')}</Button>
                     <Tooltip title={tr("Edit access")}>
                       <IconButton size="small" onClick={() => openEdit(client)}>
                         <EditIcon fontSize="small" />
@@ -1486,6 +1496,7 @@ function ClientAccountsSection() {
           <Stack spacing={2} sx={{ mt: 1 }}>
             {error && <Alert severity="error">{tr(error)}</Alert>}
             {accessSummary}
+            <CustomerReportPicker selected={sharedReports} onChange={setSharedReports} />
             <TextField
               label={tr("Username")}
               fullWidth
@@ -1545,6 +1556,7 @@ function ClientAccountsSection() {
           <Stack spacing={2} sx={{ mt: 1 }}>
             {editError && <Alert severity="error">{tr(editError)}</Alert>}
             {accessSummary}
+            <CustomerReportPicker selected={editSharedReports} onChange={setEditSharedReports} />
             <TextField
               label={tr("Reset password (optional)")}
               type="password"
@@ -1592,7 +1604,8 @@ export function SettingsPage() {
       { id: 'clients', label: 'Customer access', description: 'Reports-only accounts and permissions', icon: <PeopleRoundedIcon />, content: <ClientAccountsSection /> },
     ] : []),
   ];
-  const [selected, setSelected] = useState('');
+  const [sectionParams, setSectionParams] = useSearchParams();
+  const selected = sectionParams.get('section') || '';
   const current = sections.find(section => section.id === selected) || sections[0];
   return (
     <Box sx={{ maxWidth: 1500, mx: 'auto', minWidth: 0 }}>
@@ -1604,7 +1617,7 @@ export function SettingsPage() {
       {current ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: '250px minmax(0, 1fr)' }, gap: 3, alignItems: 'start' }}>
         <Box component="nav" aria-label={tr('Settings categories')} sx={{ position: { lg: 'sticky' }, top: 24, bgcolor: 'background.paper', p: 1, borderRadius: 3, border: 1, borderColor: 'divider', display: 'flex', flexDirection: { xs: 'row', lg: 'column' }, overflowX: 'auto', gap: .5 }}>
           {sections.map(section => <Button key={section.id} aria-current={current.id === section.id ? 'page' : undefined}
-            aria-controls={`settings-${section.id}`} onClick={() => setSelected(section.id)} startIcon={section.icon}
+            aria-controls={`settings-${section.id}`} onClick={() => setSectionParams({ section: section.id })} startIcon={section.icon}
             sx={{ justifyContent: 'flex-start', flexShrink: 0, textAlign: 'start', px: 2, py: 1.5, borderRadius: 2, color: current.id === section.id ? 'primary.main' : 'text.secondary', bgcolor: current.id === section.id ? 'action.selected' : 'transparent', '&:hover': { bgcolor: 'action.hover' } }}>
             <Box><Typography component="span" variant="body2" sx={{ fontWeight: 750, display: 'block', whiteSpace: 'nowrap' }}>{tr(section.label)}</Typography>
               <Typography component="span" variant="caption" sx={{ display: { xs: 'none', lg: 'block' }, mt: .25 }}>{tr(section.description)}</Typography></Box>

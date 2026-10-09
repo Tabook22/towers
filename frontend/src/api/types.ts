@@ -551,6 +551,7 @@ export interface LiveTeamMember {
 }
 
 export interface AdminUser {
+  allowed_report_ids: number[] | null;
   id: number;
   username: string;
   email: string | null;

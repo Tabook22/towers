@@ -47,6 +47,7 @@ class Token(BaseModel):
 
 
 class UserCreate(BaseModel):
+    allowed_report_ids: list[int] = Field(default_factory=list)
     username: str = Field(min_length=3, max_length=80)
     email: str | None = None
     full_name: str | None = None
@@ -75,6 +76,7 @@ class UserCreate(BaseModel):
 
 
 class UserOut(BaseModel):
+    allowed_report_ids: list[int] | None = None
     model_config = ConfigDict(from_attributes=True)
     id: int
     username: str
@@ -98,6 +100,7 @@ class UserOut(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    allowed_report_ids: list[int] | None = None
     # Rotating a username is a real credential-hygiene need (e.g. the old one was exposed
     # alongside the password) — checked for uniqueness in the router same as UserCreate's.
     username: str | None = Field(default=None, min_length=3, max_length=80)
