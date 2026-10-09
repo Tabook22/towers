@@ -111,7 +111,7 @@ def test_ambiguous_finding_labels_do_not_borrow_photographs(issued):
 
 def test_client_can_export_but_older_report_never_uses_live_data(issued):
     db, _, record, _, _ = issued
-    client = User(username='customer', role='client', hashed_password='x')
+    client = User(username='customer', role='client', hashed_password='x', allowed_report_ids=[record.id])
     keys = [snapshot_rows(record.inspection_snapshot)[0]['key']]
     response = reports.digital_report_export(record.id, reports.DigitalReportExport(kind='xlsx', finding_keys=keys), db, client)
     assert response.body.startswith(b'PK')

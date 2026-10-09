@@ -1,3 +1,4 @@
+import { useAuth } from '../auth/AuthContext';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Dialog, DialogContent, DialogTitle, LinearProgress, MenuItem, TextField, Stack, Typography } from '@mui/material';
 import { apiClient } from '../api/client';
@@ -15,11 +16,14 @@ interface Props {
   selected: string[];
   section?: 'findings' | 'overview' | 'measurements';
   onOpenFinding?: (key: string) => void;
+  onOpenTower?: (key: string) => void;
 }
 
 /** Render copied original Word tables with their original styles and embedded photographs. */
-export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelect, onOpenFinding, section: documentSection = 'findings' }: Props) {
+export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelect, onOpenFinding, onOpenTower, section: documentSection = 'findings' }: Props) {
   useLanguage();
+  const { user } = useAuth();
+  const canAnnotate = user?.role !== 'client';
   const host = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -56,12 +60,14 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
   const selectRef = useRef(onSelect);
   const selectedRef = useRef(selected);
   const openFindingRef = useRef(onOpenFinding);
+  const openTowerRef = useRef(onOpenTower);
   useEffect(() => {
     groupsRef.current = groups;
     selectRef.current = onSelect;
     selectedRef.current = selected;
     openFindingRef.current = onOpenFinding;
-  }, [groups, onSelect, selected, onOpenFinding]);
+    openTowerRef.current = onOpenTower;
+  }, [groups, onSelect, selected, onOpenFinding, onOpenTower]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -112,6 +118,14 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
               checkbox.setAttribute('aria-label', `${tr('Select finding')} ${key}`);
               checkbox.addEventListener('change', () => selectRef.current(key, checkbox.checked));
               tools.append(checkbox, document.createTextNode(tr('Select finding')));
+              if (openTowerRef.current) {
+                const towerButton = document.createElement('button');
+                towerButton.type = 'button'; towerButton.className = 'replica-tower-button';
+                towerButton.textContent = tr('Visual tower form');
+                towerButton.setAttribute('aria-label', tr('View tower for finding {0}', [key]));
+                towerButton.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); openTowerRef.current?.(key); });
+                tools.append(towerButton);
+              }
               const findingTable = tableMap.get(key)!;
               const photos = Array.from(findingTable.querySelectorAll<HTMLImageElement>('img'));
               const images = photos.map(photo => ({ src: photo.src, caption: photo.closest('td')?.textContent?.trim() || tr('Report photograph') }));
@@ -269,14 +283,14 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
           <Button onClick={() => setMaximized(old => !old)}>{tr(maximized ? 'Restore window' : 'Maximise window')}</Button>
           <Button sx={{ ml: 'auto' }} onClick={closeGallery}>{tr('Close')}</Button>
         </Stack>
-        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center', mb: 1 }}>
+        {canAnnotate && <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center', mb: 1 }}>
           {(['pan', 'pen', 'highlight', 'circle', 'line'] as const).map(mode => <Button key={mode} aria-pressed={tool === mode} startIcon={mode === 'pan' ? <span aria-hidden="true">&#8596;</span> : undefined} variant={tool === mode ? 'contained' : 'outlined'} onClick={() => { clearDrawing(); setTool(mode); }}>{tr(({ pan: 'Move image', pen: 'Freehand pen', highlight: 'Highlighter', circle: 'Circle', line: 'Line' })[mode])}</Button>)}
           <TextField type="color" label={tr('Drawing colour')} value={penColor} onChange={event => setPenColor(event.target.value)} size="small" sx={{ width: 90 }} />
           <TextField select label={tr('Pen thickness')} value={penSize} onChange={event => setPenSize(Number(event.target.value))} size="small" sx={{ minWidth: 110 }}>{[2, 4, 6, 10, 16, 24].map(size => <MenuItem key={size} value={size}>{size} px</MenuItem>)}</TextField>
           <Button disabled={!gallery || !marks[gallery.index]?.length} onClick={() => { clearDrawing(); if (gallery) setMarks(old => ({ ...old, [gallery.index]: (old[gallery.index] || []).slice(0, -1) })); }}>{tr('Undo drawing')}</Button>
           <Button startIcon={<span aria-hidden="true">&#128465;</span>} disabled={!draft && (!gallery || !marks[gallery.index]?.length)} onClick={() => { clearDrawing(); if (gallery) setMarks(old => ({ ...old, [gallery.index]: [] })); }}>{tr('Clear drawings')}</Button>
-        </Stack>
-        <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>{tr('Drawings are temporary and disappear when this window closes.')}</Typography>
+        </Stack>}
+        {canAnnotate && <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>{tr('Drawings are temporary and disappear when this window closes.')}</Typography>}
         {imageFailed && <Alert severity="error">{tr('Could not load this photograph.')}</Alert>}
         <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>{tr(tool === 'pan' ? 'Move mode: drag the image without drawing. Scroll the mouse wheel to zoom.' : 'Drawing mode: drag to draw. Choose Move image to pan without drawing.')}</Typography>
         <Box ref={imageViewport} onPointerDown={event => {
@@ -295,7 +309,7 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
         }} onPointerCancel={() => { drag.current = null; setDragging(false); }} onLostPointerCapture={() => { drag.current = null; setDragging(false); }} sx={{ cursor: dragging ? 'grabbing' : 'grab', userSelect: 'none', overflow: 'auto', height: 'auto', flex: 1, minHeight: 100, bgcolor: '#101820', textAlign: 'center', borderRadius: 1 }}>
           {currentImage && <Box sx={{ display: 'inline-block', position: 'relative', verticalAlign: 'middle', lineHeight: 0, maxWidth: imageZoom === null ? '100%' : 'none' }}>
             <Box component="img" key={currentImage.src} src={currentImage.src} draggable={false} alt={currentImage.caption} onLoad={event => { setImageWidth(event.currentTarget.naturalWidth); setImageHeight(event.currentTarget.naturalHeight); }} onError={() => setImageFailed(true)} sx={{ display: 'block', objectFit: 'contain', maxWidth: imageZoom === null ? '100%' : 'none', maxHeight: imageZoom === null ? viewportHeight : 'none', width: imageZoom === null || !imageWidth ? 'auto' : imageWidth * imageZoom }} />
-            <svg aria-label={tr('Temporary drawing layer')} viewBox={`0 0 ${imageWidth || 1} ${imageHeight}`} preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', touchAction: 'none', pointerEvents: tool === 'pan' ? 'none' : 'auto', cursor: 'crosshair' }} onPointerDown={event => {
+            {canAnnotate && <svg aria-label={tr('Temporary drawing layer')} viewBox={`0 0 ${imageWidth || 1} ${imageHeight}`} preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', touchAction: 'none', pointerEvents: tool === 'pan' ? 'none' : 'auto', cursor: 'crosshair' }} onPointerDown={event => {
               if (event.button !== 0 || tool === 'pan') return;
               event.stopPropagation(); event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
               const rect = event.currentTarget.getBoundingClientRect();
@@ -318,7 +332,7 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
                 const props = { stroke: mark.color, strokeWidth: mark.width * (mark.tool === 'highlight' ? 3 : 1), strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none', opacity: mark.tool === 'highlight' ? .35 : 1 };
                 return mark.tool === 'circle' ? <ellipse key={index} {...props} cx={(first[0] + last[0]) / 2} cy={(first[1] + last[1]) / 2} rx={Math.abs(last[0] - first[0]) / 2} ry={Math.abs(last[1] - first[1]) / 2} /> : <path key={index} {...props} d={mark.points.length === 1 ? `M ${first[0]} ${first[1]} l .01 0` : mark.points.map((point, i) => `${i ? 'L' : 'M'} ${point[0]} ${point[1]}`).join(' ')} />;
               })}
-            </svg>
+            </svg>}
           </Box>}
         </Box>
       </DialogContent>
@@ -340,6 +354,7 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
       '& .replica-finding': { marginBottom: '24pt', scrollMarginTop: '90px' },
       '& .replica-tools': { display: 'flex', gap: '6px', alignItems: 'center', padding: '10px 12px', borderRadius: '6px', background: '#eef4f6', marginBottom: '10px', font: '10pt Arial, sans-serif', color: '#536878' },
       '& .replica-tools input': { accentColor: '#10485b' },
+      '& .replica-tower-button': { marginInlineStart: 'auto', border: '1px solid #94b6c3', borderRadius: '8px', padding: '7px 12px', color: '#10485b', background: '#fff', cursor: 'pointer', font: 'inherit', fontWeight: 700, '&:hover': { background: '#dcecf1' }, '&:focus-visible': { outline: '2px solid #10485b', outlineOffset: 2 } },
       '& .replica-finding[data-current-finding]': { outline: '3px solid #27839b', outlineOffset: '8px', borderRadius: '4px' },
       '& .replica-measurement-link': { cursor: 'pointer', '&:hover': { outline: '2px solid #27839b', outlineOffset: '-2px' } },
       '& .replica-finding-link': { display: 'block', width: '100%', padding: 0, border: 0, background: 'transparent', color: '#10485b', textAlign: 'inherit', font: 'inherit', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px', '&:focus-visible': { outline: '2px solid #27839b', outlineOffset: '2px' } },

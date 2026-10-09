@@ -45,7 +45,7 @@ def test_only_selected_reports_visible_and_new_reports_private(db):
     assert [r.id for r in history(db, client([2]))] == [2]
 
 
-@pytest.mark.parametrize('endpoint', [reports.report_inspection_data, reports.oetc_line_report_images, reports.oetc_line_report_comments, reports.download_saved_oetc_report, reports.redownload_oetc_line_report, reports.digital_report_layout, reports.report_inspection_data_pdf])
+@pytest.mark.parametrize('endpoint', [reports.report_inspection_data, reports.oetc_line_report_images, reports.oetc_line_report_comments, reports.download_saved_oetc_report, reports.redownload_oetc_line_report, reports.digital_report_layout, reports.digital_report_evidence, reports.report_inspection_data_pdf])
 def test_unshared_report_direct_links_denied(db, endpoint):
     with pytest.raises(HTTPException) as error:
         endpoint(report_id=2, db=db, user=client([1]))
@@ -138,3 +138,9 @@ def test_legacy_database_migration_preserves_accounts_and_defaults_private():
         assert account.username == 'legacy'
         assert account.allowed_report_ids is None
         assert history(db, account) == []
+
+
+def test_original_tower_photograph_rejects_unshared_report(db):
+    with pytest.raises(HTTPException) as error:
+        reports.digital_report_evidence_file(report_id=2, evidence_key='1:1:0', db=db, user=client([1]))
+    assert error.value.status_code == 403

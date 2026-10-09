@@ -22,12 +22,13 @@ export function drawingPositions(count: string) {
 
 /** A fixed-scale worksheet keeps editable fields beside their actual drawing anchors.
  * Inline physical coordinates deliberately bypass RTL style mirroring. */
-export function TowerDrawingSheet({ count, controls, directions, prepare, towerNumber, humidity, renderPosition, overview, setupComplete = false }: {
+export function TowerDrawingSheet({ count, controls, directions, prepare, towerNumber, humidity, renderPosition, overview, setupComplete = false, readOnly = false }: {
   count: string; controls: ReactNode; directions: ReactNode[]; prepare: ReactNode;
   towerNumber: ReactNode; humidity: ReactNode;
   renderPosition: (side: number, phase: string, string: string) => ReactNode;
   overview?: ReactNode;
   setupComplete?: boolean;
+  readOnly?: boolean;
 }) {
   const language = useLanguage();
   const points = drawingPositions(count);
@@ -35,7 +36,7 @@ export function TowerDrawingSheet({ count, controls, directions, prepare, towerN
   const drawingViewport = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(1344);
   // null follows the available width; manual zoom never changes any inspection data.
-  const [manualZoom, setManualZoom] = useState<number | null>(1);
+  const [manualZoom, setManualZoom] = useState<number | null>(readOnly ? null : 1);
   const [setupOpen, setSetupOpen] = useState(!setupComplete);
   useEffect(() => { setSetupOpen(!setupComplete); }, [setupComplete]);
   const zoom = manualZoom ?? Math.max(.1, Math.min(1, (viewportWidth - 2) / 1344));
@@ -57,7 +58,7 @@ export function TowerDrawingSheet({ count, controls, directions, prepare, towerN
       {overview && <Typography component="summary" sx={{ cursor: 'pointer', fontWeight: 700, fontSize: 13, color: 'text.secondary', minHeight: 28, alignContent: 'center' }}>{tr('Drawing setup')}</Typography>}
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 2.5 }}>
         <Box sx={{ display: 'grid', placeItems: 'center', p: 1.25, bgcolor: 'action.hover', borderRadius: '14px', color: 'primary.main' }}><TuneRounded /></Box>
-        <Box>{!overview && <Typography component="h3" sx={{ fontWeight: 800 }}>{tr('Drawing setup')}</Typography>}<Typography variant="body2" color="text.secondary">{tr('Check the tower type, strings and viewing side before entering readings.')}</Typography></Box>
+        <Box>{!overview && <Typography component="h3" sx={{ fontWeight: 800 }}>{tr(readOnly ? 'Issued inspection configuration' : 'Drawing setup')}</Typography>}<Typography variant="body2" color="text.secondary">{tr(readOnly ? 'Recorded at report issue time. Select a position to explore its details and photographs.' : 'Check the tower type, strings and viewing side before entering readings.')}</Typography></Box>
       </Stack>
       {controls}
     </Box>
@@ -66,8 +67,8 @@ export function TowerDrawingSheet({ count, controls, directions, prepare, towerN
       {!setupComplete && prepare}
       {overview}
     </> : <><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ py: 2, alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><SwipeRounded color="primary" /><Typography variant="caption" color="text.secondary">{tr('Choose values directly on the tower drawing. On a small screen, scroll sideways to reach both sides.')}</Typography></Stack>
-      <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}><Chip size="small" label={tr('Yellow fields · your readings')} sx={{ bgcolor: '#fff7d6', color: '#554515', border: '1px solid #d7c88e' }} /><Chip size="small" label={tr('ΔT · calculated')} variant="outlined" /></Stack>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><SwipeRounded color="primary" /><Typography variant="caption" color="text.secondary">{tr(readOnly ? 'Explore the recorded insulators. Zoom in for detail or fit the tower to your screen.' : 'Choose values directly on the tower drawing. On a small screen, scroll sideways to reach both sides.')}</Typography></Stack>
+      <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}><Chip size="small" label={tr(readOnly ? 'Recorded readings · view only' : 'Yellow fields · your readings')} sx={{ bgcolor: '#fff7d6', color: '#554515', border: '1px solid #d7c88e' }} /><Chip size="small" label={tr('ΔT · calculated')} variant="outlined" /></Stack>
     </Stack>
     <Stack role="group" aria-label={tr('Tower drawing zoom')} direction="row" useFlexGap sx={{ position: 'sticky', top: 0, zIndex: 5, flexWrap: 'wrap', alignItems: 'center', gap: 1, p: 1.25, mb: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: '16px', boxShadow: '0 3px 12px rgba(16,63,78,.08)', '& .MuiButton-root': { minHeight: 44 } }}>
       <ZoomInRounded color="primary" />
@@ -78,7 +79,7 @@ export function TowerDrawingSheet({ count, controls, directions, prepare, towerN
       <Button startIcon={<FitScreenRounded />} variant={manualZoom === null ? 'contained' : 'outlined'} onClick={() => setManualZoom(null)}>{tr('Fit to width')}</Button>
       <Button startIcon={<RestartAltRounded />} onClick={() => setManualZoom(1)}>{tr('Reset to 100%')}</Button>
     </Stack>
-    <Box ref={drawingViewport} role="region" aria-label={tr('Editable tower drawing')} tabIndex={0} sx={{ overflow: 'auto', border: '1px solid #d9e3e4', borderRadius: 3, bgcolor: '#f8faf9', color: '#193d48', boxShadow: '0 8px 32px #102e3a0d',
+    <Box ref={drawingViewport} role="region" aria-label={tr(readOnly ? 'Read-only tower drawing' : 'Editable tower drawing')} tabIndex={0} sx={{ overflow: 'auto', border: '1px solid #d9e3e4', borderRadius: 3, bgcolor: '#f8faf9', color: '#193d48', boxShadow: '0 8px 32px #102e3a0d',
       '& .MuiInputBase-root': { bgcolor: '#fff7d6', color: '#293d42', borderRadius: 1.5, fontSize: 14, transition: 'background-color 150ms, box-shadow 150ms', '&:hover': { bgcolor: '#fff2bf' }, '&.Mui-focused': { bgcolor: '#fffbe9', boxShadow: '0 0 0 3px #007c9120' }, '&.Mui-disabled': { bgcolor: '#eef0ed', color: '#6c7576' }, '&:has(input[readonly])': { bgcolor: '#edf3f4' } },
       '& .MuiOutlinedInput-notchedOutline': { borderColor: '#d7c88e' },
       '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#b79b44' },

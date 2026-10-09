@@ -1,3 +1,5 @@
+import { ReportTowerExplorer } from '../components/ReportTowerExplorer';
+import TransmissionTowerIcon from '../components/TransmissionTowerIcon';
 import { ReportDownloadButton } from '../components/ReportDownloadButton';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -36,6 +38,7 @@ export function DigitalReportPage() {
     enabled: Number.isSafeInteger(id) && id > 0,
   });
   const [jumpKey, setJumpKey] = useState('');
+  const [towerStartKey, setTowerStartKey] = useState('');
   const [search, setSearch] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -68,8 +71,9 @@ export function DigitalReportPage() {
   const exportRows = selectedMatching.length ? selectedMatching : matching;
   const openFinding = (key: string) => {
     const index = matching.findIndex(row => row.key === key);
+    if (index < 0 && rows.some(row => row.key === key)) { setSearch(''); setFilters({}); setGroup(''); setSort('finding_number'); setDescending(false); setPage(Math.floor(filterFindings(rows, '', {}, 'finding_number', false).findIndex(row => row.key === key) / pageSize)); setView('report'); setJumpKey(key); return; }
     if (index < 0) return;
-    setMeasurementPage(currentPage);
+    setMeasurementPage(view === 'measurements' ? currentPage : null);
     setView('report');
     setPage(Math.floor(index / pageSize));
     setJumpKey(key);
@@ -102,6 +106,7 @@ export function DigitalReportPage() {
           <Typography sx={{ color: '#d0e5eb', fontSize: '1.05rem' }}>{report.team_name}</Typography>
         </Box>
         <Stack spacing={1.5} sx={{ alignItems: { xs: 'flex-start', md: 'flex-end' }, justifyContent: 'center' }}>
+          <Button startIcon={<TransmissionTowerIcon />} variant="outlined" onClick={() => { setTowerStartKey(jumpKey || matching[0]?.key || ''); setView('tower'); }} disabled={!rows.length} sx={{ color: '#fff', borderColor: '#ffffff66', '&:hover': { borderColor: '#fff', bgcolor: '#ffffff12' } }}>{tr('Visual tower form')}</Button>
           <ReportDownloadButton report={report} variant="contained" sx={{ bgcolor: '#fff', color: '#0d475c', '&:hover': { bgcolor: '#e4f1f4' } }} />
           <Button size="small" startIcon={<DescriptionRounded />} disabled={!report.has_file} onClick={() => setWordOpen(true)} sx={{ color: '#e0f0f4', '&.Mui-disabled': { color: '#adc1c9' } }}>{tr('View issued Word')}</Button>
         </Stack>
@@ -126,9 +131,10 @@ export function DigitalReportPage() {
           <Tab value="overview" icon={<GridViewRounded fontSize="small" />} iconPosition="start" label={tr('Report overview')} />
           <Tab value="report" icon={<DescriptionRounded fontSize="small" />} iconPosition="start" label={tr('Report view')} />
           <Tab value="measurements" icon={<ThermostatRounded fontSize="small" />} iconPosition="start" label={tr('Thermal Inspection Measurements')} />
+          <Tab value="tower" icon={<TransmissionTowerIcon fontSize="small" />} iconPosition="start" label={tr('Visual tower form')} />
           <Tab value="table" icon={<TableChartRounded fontSize="small" />} iconPosition="start" label={tr('Table view')} />
         </Tabs>
-        <Stack spacing={2} sx={{ p: { xs: 2, md: 2.5 } }}>
+        {view !== 'tower' && <Stack spacing={2} sx={{ p: { xs: 2, md: 2.5 } }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
             <TextField size="small" label={tr('Search within this report')} placeholder={tr('Tower, readings, notes or any keyword')} value={search} onChange={e => { setSearch(e.target.value); change(); }} fullWidth slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRounded fontSize="small" /></InputAdornment> } }} />
             <Button variant={filtersOpen || activeFilters ? 'contained' : 'outlined'} startIcon={<TuneRounded />} aria-expanded={filtersOpen} aria-controls="digital-report-filters" onClick={() => setFiltersOpen(old => !old)} sx={{ flexShrink: 0 }}>{tr('Filters')}{activeFilters ? ` (${activeFilters})` : ''}</Button>
@@ -148,9 +154,9 @@ export function DigitalReportPage() {
           </Stack>
           </Collapse>
           {(search || activeFilters > 0) && <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>{search && <Chip size="small" label={search} onDelete={() => { setSearch(''); change(); }} />}{Object.entries(filters).filter(([, option]) => option).map(([field, option]) => <Chip key={field} size="small" label={`${label(field)}: ${option}`} onDelete={() => { setFilters(old => ({ ...old, [field]: '' })); change(); }} />)}<Button size="small" onClick={() => { setSearch(''); setFilters({}); change(); }}>{tr('Clear filters')}</Button></Stack>}
-        </Stack>
+        </Stack>}
       </Paper>
-      <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
+      {view !== 'tower' && <><Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <Typography variant="subtitle2" sx={{ mr: 1 }}>{tr('{0} of {1} findings', [matching.length, rows.length])}</Typography>
         <Chip label={tr('{0} towers', [new Set(matching.map(row => row.fields.tower).filter(Boolean)).size])} />
         <Chip label={tr('{0} selected', [selectedMatching.length])} />
@@ -162,24 +168,24 @@ export function DigitalReportPage() {
       <Typography variant="caption" color="text.secondary">{tr('Exports include selected findings, or all matching findings when none are selected. Filtered extracts are labelled separately from the issued report.')}</Typography>
       {error && <Alert severity="error">{error}</Alert>}
       {exporting && <LinearProgress />}
-      {!matching.length && <Alert severity="info">{tr('No findings match your search. Try another keyword or clear the filters.')}</Alert>}
+      {!matching.length && <Alert severity="info">{tr('No findings match your search. Try another keyword or clear the filters.')}</Alert>}</>}
       {view === 'overview' && <Alert severity="info">{tr('The overview shows the complete issued report summary. Choose Report view to browse filtered findings.')}</Alert>}
       {view === 'measurements' && <Stack spacing={1}><Typography variant="h6">{tr('Thermal Inspection Measurements')}</Typography><Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>{['High / Critical', 'Medium', 'Low', 'Normal'].map((severity, rank) => <Chip key={severity} color={rank === 0 ? 'error' : rank === 1 ? 'warning' : rank === 3 ? 'success' : 'default'} variant={filters.severity === severity ? 'filled' : 'outlined'} label={`${tr(severity)}: ${new Set(rows.filter(row => severityRank(row.fields.severity) === rank).map(row => row.fields.tower)).size} ${tr('towers')}`} onClick={() => { setFilters(old => ({ ...old, severity: old.severity === severity ? '' : severity })); change(); }} />)}</Stack></Stack>}
       {view === 'report' && measurementPage !== null && <Button startIcon={<ArrowBackRounded />} sx={{ alignSelf: 'flex-start' }} onClick={() => { setView('measurements'); setPage(measurementPage); setMeasurementPage(null); setJumpKey(''); }}>{tr('Back to thermal measurements')}</Button>}
       {view === 'measurements' && <Typography variant="body2" color="text.secondary">{tr('Click a tower or measurement row to view that insulator finding. Click a photograph to enlarge it.')}</Typography>}
-      {view === 'measurements' ? (matching.length > 0 && <WordReportReplica reportId={id} section="measurements" onOpenFinding={openFinding} groups={groups.map(([name, findings]) => ({ name: group ? `${label(group)}: ${name || '—'}` : '', keys: findings.map(row => row.key) }))} selected={selected} onSelect={toggle} />) : view === 'overview' ? <WordReportReplica reportId={id} section="overview" groups={[]} selected={selected} onSelect={toggle} /> : view === 'report' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '310px minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
+      {view === 'tower' ? <ReportTowerExplorer reportId={id} rows={rows} startKey={towerStartKey} onOpenFinding={openFinding} /> : view === 'measurements' ? (matching.length > 0 && <WordReportReplica reportId={id} section="measurements" onOpenFinding={openFinding} groups={groups.map(([name, findings]) => ({ name: group ? `${label(group)}: ${name || '—'}` : '', keys: findings.map(row => row.key) }))} selected={selected} onSelect={toggle} />) : view === 'overview' ? <WordReportReplica reportId={id} section="overview" groups={[]} selected={selected} onSelect={toggle} /> : view === 'report' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '310px minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
         <Paper component="nav" aria-label={tr('Finding navigation')} variant="outlined" sx={{ p: 2, borderRadius: 3, position: { lg: 'sticky' }, top: 80, maxHeight: { xs: 320, lg: '70vh' }, overflowY: 'auto', scrollbarWidth: 'thin' }}>
           <Typography variant="subtitle2" sx={{ p: 1 }}>{tr('Jump to finding')} <Chip size="small" label={matching.length} sx={{ ml: 1 }} /></Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1, pb: 1.5 }}>{tr('Browse inspection evidence')}</Typography>
           {matching.map((row, index) => <Button key={row.key} fullWidth size="small" aria-current={(jumpKey === row.key || (!jumpKey && row.key === visible[0]?.key)) ? 'location' : undefined} sx={{ justifyContent: 'flex-start', textAlign: 'start', my: .75, p: 1.5, borderRadius: 2.5, bgcolor: (jumpKey === row.key || (!jumpKey && row.key === visible[0]?.key)) ? 'action.selected' : undefined, border: 1, borderColor: (jumpKey === row.key || (!jumpKey && row.key === visible[0]?.key)) ? 'primary.main' : 'transparent' }} onClick={() => { setPage(Math.floor(index / pageSize)); setJumpKey(row.key); }}>
             <Stack sx={{ width: '100%' }}><Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}><Typography variant="body2" sx={{ fontWeight: 700, overflowWrap: 'anywhere', minWidth: 0 }}>{value(row.fields.tower)}</Typography><Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}>{tr('No. {0}', [row.fields.finding_number || index + 1])}</Typography></Stack><Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center', mt: 1 }}><Chip size="small" variant="outlined" color={severityRank(row.fields.severity) === 0 ? 'error' : severityRank(row.fields.severity) === 1 ? 'warning' : severityRank(row.fields.severity) === 3 ? 'success' : 'default'} label={value(row.fields.severity)} sx={{ height: 23, fontSize: 11 }} /><Typography variant="caption" color="text.secondary">{tr('Phase')}: {value(row.fields.phase)}</Typography><Stack direction="row" spacing={.5} sx={{ alignItems: 'center' }}><PhotoLibraryOutlined sx={{ fontSize: 14, color: 'text.secondary' }} /><Typography variant="caption" color="text.secondary">{row.evidence.length}</Typography></Stack></Stack></Stack>
           </Button>)}
         </Paper>
-        {matching.length > 0 ? (report.has_file ? <WordReportReplica reportId={id} groups={groups.map(([name, findings]) => ({ name: group ? `${label(group)}: ${name || '—'}` : '', keys: findings.map(row => row.key) }))} selected={selected} onSelect={toggle} jumpKey={jumpKey} /> : <Alert severity="warning">{tr('The archived Word document is unavailable. The saved data is available in Table view.')}</Alert>) : null}
+        {matching.length > 0 ? (report.has_file ? <WordReportReplica reportId={id} groups={groups.map(([name, findings]) => ({ name: group ? `${label(group)}: ${name || '—'}` : '', keys: findings.map(row => row.key) }))} selected={selected} onSelect={toggle} onOpenTower={key => { setTowerStartKey(key); setView('tower'); }} jumpKey={jumpKey} /> : <Alert severity="warning">{tr('The archived Word document is unavailable. The saved data is available in Table view.')}</Alert>) : null}
       </Box> : groups.map(([name, findings]) => <Stack key={name} spacing={1}>
         {group && <Typography variant="h6">{label(group)}: {name || '—'}</Typography>}
         <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3 }}><Table size="small" aria-label={tr('Recorded findings')}><TableHead><TableRow><TableCell>{tr('Select')}</TableCell>{columns.map(field => <TableCell key={field}>{label(field)}</TableCell>)}</TableRow></TableHead><TableBody>{findings.map(row => <TableRow key={row.key} hover selected={selected.includes(row.key)}><TableCell><Checkbox checked={selected.includes(row.key)} onChange={(_, checked) => toggle(row.key, checked)} slotProps={{ input: { 'aria-label': `${tr('Select finding')} ${row.key}` } }} /></TableCell>{columns.map(field => <TableCell key={field} sx={{ whiteSpace: field === 'inspector_notes' ? 'pre-wrap' : 'nowrap' }}>{value(row.fields[field])}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer>
       </Stack>)}
-      {view !== 'overview' && <TablePagination component="div" count={matching.length} page={currentPage} rowsPerPage={pageSize} rowsPerPageOptions={[5, 10, 20, 50]} onPageChange={(_, next) => setPage(next)} onRowsPerPageChange={e => { setPageSize(Number(e.target.value)); setPage(0); }} />}
+      {view !== 'overview' && view !== 'tower' && <TablePagination component="div" count={matching.length} page={currentPage} rowsPerPage={pageSize} rowsPerPageOptions={[5, 10, 20, 50]} onPageChange={(_, next) => setPage(next)} onRowsPerPageChange={e => { setPageSize(Number(e.target.value)); setPage(0); }} />}
       {view === 'table' && Object.keys(query.data.assessment).length > 0 && <Paper sx={{ p: 3 }}><Typography variant="h6" gutterBottom>{tr('Assessment at issue time')}</Typography>{Object.entries(query.data.assessment).filter(([, v]) => v !== null && v !== '').map(([field, v]) => <Box key={field} sx={{ mb: 1 }}><Typography variant="caption" color="text.secondary">{label(field)}</Typography><Typography sx={{ whiteSpace: 'pre-wrap' }}>{value(v)}</Typography></Box>)}</Paper>}
     </>}
     <DocxViewerDialog open={wordOpen} onClose={() => setWordOpen(false)} title={report.report_number} fileUrl={mediaUrl(`${base}/file`)} />
