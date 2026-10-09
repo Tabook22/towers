@@ -355,7 +355,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { id: 'knowledge_base', label: tr("Knowledge base"), to: '/knowledge-base', icon: <MenuBookRoundedIcon /> },
     { id: 'settings', label: tr("Settings"), to: '/settings', icon: <SettingsIcon /> },
   ];
-  const items = navItemDefs.filter((def) => !!user?.menu_permissions?.[def.id]);
+  const items = navItemDefs.filter((def) => (!isClient || def.id === 'reports') && !!user?.menu_permissions?.[def.id]);
 
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);

@@ -32,6 +32,30 @@ def _restricted_admin(*perms: str) -> User:
     return User(id=2, username="ltd_admin", role="admin", is_super_admin=False, permissions_csv=",".join(perms) or None)
 
 
+def test_customer_menus_are_reports_only_even_with_custom_privileges():
+    assert auth._resolve_menu_permissions('client', None, _super_admin()) == 'reports:view'
+    assert auth._resolve_menu_permissions('client', {'reports': 'full'}, _super_admin()) == 'reports:view'
+    with pytest.raises(HTTPException) as denied:
+        auth._resolve_menu_permissions('client', {'reports': 'view', 'settings': 'full'}, _super_admin())
+    assert denied.value.status_code == 422
+
+
+def test_customer_with_old_staff_token_still_cannot_reach_staff_routes(db):
+    from app.deps import get_current_user
+    from app.security import create_access_token
+    from starlette.requests import Request
+    customer = User(username='customer', role='client', hashed_password='x', is_active=True, menu_permissions_csv='reports:view')
+    db.add(customer)
+    db.commit()
+    token = create_access_token(subject='customer', role='admin')
+    request = Request({'type': 'http', 'method': 'GET', 'path': '/api/towers', 'headers': [], 'query_string': b''})
+    with pytest.raises(HTTPException) as denied:
+        get_current_user(token=token, token_query=None, db=db, request=request)
+    assert denied.value.status_code == 403
+    request = Request({'type': 'http', 'method': 'GET', 'path': '/api/reports/oetc-line-report/history', 'headers': [], 'query_string': b''})
+    assert get_current_user(token=token, token_query=None, db=db, request=request).id == customer.id
+
+
 def test_menu_permissions_property_round_trips_the_csv():
     user = User(menu_permissions_csv="dashboard:full,reports:view")
     assert user.menu_permissions == {"dashboard": "full", "reports": "view"}

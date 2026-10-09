@@ -149,6 +149,10 @@ def _resolve_menu_permissions(role: str, provided: dict[str, str] | None, actor:
     default_menu_permissions_for_role(role) instead, so "only for users created by admin" holds
     regardless of who technically submits the row. An omitted selection uses role defaults;
     an explicitly empty selection means every menu is hidden."""
+    if role == UserRole.CLIENT.value:
+        if provided is not None and set(provided) - {'reports'}:
+            raise HTTPException(status_code=422, detail='Customer accounts can access only the Reports menu')
+        return _encode_menu_permissions({'reports': 'view'})
     if actor.role == UserRole.ADMIN.value and provided is not None:
         perms = _validate_menu_permissions(provided)
     else:
@@ -278,7 +282,7 @@ def update_user(
         user.is_super_admin = resolved_super
         user.permissions_csv = resolved_csv
     if menu_permissions is not None and actor.role == UserRole.ADMIN.value:
-        user.menu_permissions_csv = _encode_menu_permissions(_validate_menu_permissions(menu_permissions))
+        user.menu_permissions_csv = _resolve_menu_permissions(user.role, menu_permissions, actor)
     if new_password:
         user.hashed_password = hash_password(new_password)
     db.commit()

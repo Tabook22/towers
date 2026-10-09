@@ -1310,6 +1310,9 @@ function ClientAccountsSection() {
   const deleteUser = useDeleteUser();
   const clients = (users || []).filter((u) => u.role === 'client');
 
+  const [customAccess, setCustomAccess] = useState(false);
+  const [editCustomAccess, setEditCustomAccess] = useState(false);
+  const accessSummary = <Alert severity="info" sx={{ borderRadius: 2 }}>{tr('Reports only: browse digital findings, filter severity, enlarge photographs, download issued reports and add comments. No report creation, editing, deletion or access to other menus.')}</Alert>;
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<ClientFormState>(emptyClientForm);
   const [error, setError] = useState<string | null>(null);
@@ -1322,6 +1325,7 @@ function ClientAccountsSection() {
 
   const openCreate = () => {
     setForm(emptyClientForm);
+    setCustomAccess(false);
     setError(null);
     setCreateOpen(true);
   };
@@ -1338,6 +1342,7 @@ function ClientAccountsSection() {
         password: form.password,
         full_name: form.full_name.trim() || undefined,
         role: 'client',
+        menu_permissions: { reports: 'view' },
         can_edit_reports: form.can_edit_reports,
         can_delete_report_images: form.can_delete_report_images,
       },
@@ -1353,6 +1358,7 @@ function ClientAccountsSection() {
 
   const openEdit = (client: AdminUser) => {
     setEditing(client);
+    setEditCustomAccess(client.can_edit_reports || client.can_delete_report_images);
     setEditCanEdit(client.can_edit_reports);
     setEditCanDelete(client.can_delete_report_images);
     setEditPassword('');
@@ -1370,6 +1376,7 @@ function ClientAccountsSection() {
       {
         id: editing.id,
         payload: {
+          menu_permissions: { reports: 'view' },
           can_edit_reports: editCanEdit,
           can_delete_report_images: editCanDelete,
           ...(editPassword ? { password: editPassword } : {}),
@@ -1407,7 +1414,7 @@ function ClientAccountsSection() {
       <CardContent>
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Client accounts")}</Typography>
-          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>{tr("New client")}</Button>
+          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>{tr("New customer")}</Button>
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr("A login for the customer — sees only the Reports portal (every generated report and its linked photos), read-only unless you grant one of the toggles below.")}</Typography>
         {deleteError && (
@@ -1437,7 +1444,7 @@ function ClientAccountsSection() {
                       {client.can_edit_reports && <Chip size="small" variant="outlined" label={tr("Can edit reports")} />}
                       {client.can_delete_report_images && <Chip size="small" variant="outlined" label={tr("Can delete images")} />}
                       {!client.can_edit_reports && !client.can_delete_report_images && (
-                        <Chip size="small" variant="outlined" color="default" label={tr("View / download only")} />
+                        <Chip size="small" variant="outlined" color="default" label={tr("Reports only · View and comment")} />
                       )}
                     </Stack>
                   </TableCell>
@@ -1473,11 +1480,12 @@ function ClientAccountsSection() {
         </TableContainer>
       </CardContent>
 
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{tr("New client account")}</DialogTitle>
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>{tr("New customer — Reports only")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {error && <Alert severity="error">{tr(error)}</Alert>}
+            {accessSummary}
             <TextField
               label={tr("Username")}
               fullWidth
@@ -1499,6 +1507,11 @@ function ClientAccountsSection() {
               value={form.password}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
             />
+            <TextField select label={tr('Access profile')} value={customAccess ? 'custom' : 'reports-only'} onChange={e => { const custom = e.target.value === 'custom'; setCustomAccess(custom); if (!custom) setForm(f => ({ ...f, can_edit_reports: false, can_delete_report_images: false })); }}>
+              <MenuItem value="reports-only">{tr('Customer — Reports only (recommended)')}</MenuItem><MenuItem value="custom">{tr('Custom report privileges')}</MenuItem>
+            </TextField>
+            {customAccess && <Box sx={{ p: 2, border: 1, borderColor: 'warning.main', borderRadius: 2 }}>
+            <Alert severity="warning" sx={{ mb: 1 }}>{tr('Enable these privileges only when the customer is authorized to change report content. Other menus remain blocked.')}</Alert>
             <FormControlLabel
               control={
                 <Switch
@@ -1517,6 +1530,7 @@ function ClientAccountsSection() {
               }
               label={tr("Can delete images from a report's archive")}
             />
+            </Box>}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -1525,11 +1539,12 @@ function ClientAccountsSection() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={!!editing} onClose={() => setEditing(null)} maxWidth="xs" fullWidth>
+      <Dialog open={!!editing} onClose={() => setEditing(null)} maxWidth="sm" fullWidth>
         <DialogTitle>{tr("Edit access — ")}{editing?.username}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {editError && <Alert severity="error">{tr(editError)}</Alert>}
+            {accessSummary}
             <TextField
               label={tr("Reset password (optional)")}
               type="password"
@@ -1538,6 +1553,8 @@ function ClientAccountsSection() {
               value={editPassword}
               onChange={(e) => setEditPassword(e.target.value)}
             />
+            <TextField select label={tr('Access profile')} value={editCustomAccess ? 'custom' : 'reports-only'} onChange={e => { const custom = e.target.value === 'custom'; setEditCustomAccess(custom); if (!custom) { setEditCanEdit(false); setEditCanDelete(false); } }}><MenuItem value="reports-only">{tr('Customer — Reports only (recommended)')}</MenuItem><MenuItem value="custom">{tr('Custom report privileges')}</MenuItem></TextField>
+            {editCustomAccess && <Box sx={{ p: 2, border: 1, borderColor: 'warning.main', borderRadius: 2 }}><Alert severity="warning" sx={{ mb: 1 }}>{tr('Enable these privileges only when the customer is authorized to change report content. Other menus remain blocked.')}</Alert>
             <FormControlLabel
               control={<Switch checked={editCanEdit} onChange={(e) => setEditCanEdit(e.target.checked)} />}
               label={tr("Can edit a report's sign-off / assessment")}
@@ -1546,6 +1563,7 @@ function ClientAccountsSection() {
               control={<Switch checked={editCanDelete} onChange={(e) => setEditCanDelete(e.target.checked)} />}
               label={tr("Can delete images from a report's archive")}
             />
+            </Box>}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -1571,7 +1589,7 @@ export function SettingsPage() {
     ] : []),
     ...(isSuperAdmin ? [
       { id: 'admins', label: 'Admin accounts', description: 'Manage people and permissions', icon: <AdminPanelSettingsIcon />, content: <AdminAccountsSection /> },
-      { id: 'clients', label: 'Client accounts', description: 'Control client report access', icon: <PeopleRoundedIcon />, content: <ClientAccountsSection /> },
+      { id: 'clients', label: 'Customer access', description: 'Reports-only accounts and permissions', icon: <PeopleRoundedIcon />, content: <ClientAccountsSection /> },
     ] : []),
   ];
   const [selected, setSelected] = useState('');

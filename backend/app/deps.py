@@ -1,7 +1,7 @@
 """FastAPI dependencies: DB session + current-user auth."""
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, Query, status
+from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -81,6 +81,7 @@ def get_current_user(
     token: str | None = Depends(oauth2_scheme),
     token_query: str | None = Query(default=None, alias="token"),
     db: Session = Depends(get_db),
+    request: Request = None,
 ) -> User:
     # <img>/<a> tags can't send an Authorization header, so image/thumbnail/report links pass the
     # same JWT as a `?token=` query param instead — this is the "signed/authenticated URL" the image
@@ -100,6 +101,11 @@ def get_current_user(
     user = db.query(User).filter(User.username == payload["sub"]).first()
     if not user or not user.is_active:
         raise credentials_exception
+    if request is not None and user.role == UserRole.CLIENT.value:
+        from app.client_guard import CLIENT_ALLOWED_PATH_PREFIXES
+        path = request.url.path
+        if not any(path == prefix.rstrip('/') or path.startswith(prefix.rstrip('/') + '/') for prefix in CLIENT_ALLOWED_PATH_PREFIXES):
+            raise HTTPException(status_code=403, detail='Customer accounts can access only reports')
     return user
 
 
