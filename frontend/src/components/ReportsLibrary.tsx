@@ -4,12 +4,11 @@ import { Alert, Autocomplete, Box, Button, Checkbox, Chip, Collapse, Dialog, Dia
 import SearchRounded from '@mui/icons-material/SearchRounded';
 import RefreshRounded from '@mui/icons-material/RefreshRounded';
 import TuneRounded from '@mui/icons-material/TuneRounded';
-import DownloadRounded from '@mui/icons-material/DownloadRounded';
+import { ReportDownloadButton } from './ReportDownloadButton';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRounded';
 import FolderOpenRounded from '@mui/icons-material/FolderOpenRounded';
 import { useDeleteOetcReport, useOetcReportHistory } from '../api/hooks';
-import { apiClient } from '../api/client';
 import { getPermissionLevel, type LineInspectionReportOut } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { locale, tr, useLanguage } from '../i18n';
@@ -35,10 +34,7 @@ export function ReportsLibrary({ customer = false, onCreate }: { customer?: bool
   const [selected, setSelected] = useState<number[]>([]);
   const [deletingBusy, setDeletingBusy] = useState(false);
   const [deleteError, setDeleteError] = useState('');
-  const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
-  const [downloadId, setDownloadId] = useState<number | null>(null);
-  const downloadLock = useRef(false);
   const deleteLock = useRef(false);
   const enabled = reportFilterAvailability(filters.type);
   const teams = useMemo(() => Array.from(new Map(rows.map((r) => [r.team_id, { id: r.team_id, name: r.team_name || `Team ${r.team_id}` }])).values()).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })), [rows]);
@@ -56,16 +52,6 @@ export function ReportsLibrary({ customer = false, onCreate }: { customer?: bool
   const setFilter = (key: keyof ReportFilters, value: string) => { setFilters((old) => updateReportFilter(old, key, value)); setPage(0); setSelected([]); };
   const reset = () => { setFilters(emptyReportFilters); setFollowUp(false); setPage(0); setSelected([]); };
   const canDelete = (r: LineInspectionReportOut) => !customer && (user?.role === 'reviewer' || (user?.role === 'admin' && (user.is_super_admin || getPermissionLevel(user.permissions, 'generate_reports') === 'full')) || (user?.role === 'team_leader' && user.team_id === r.team_id));
-  const download = async (r: LineInspectionReportOut) => {
-    if (downloadLock.current) return;
-    downloadLock.current = true; setDownloadId(r.id); setActionError('');
-    try {
-      const response = await apiClient.get(`/api/reports/oetc-line-report/${r.id}/${r.has_file ? 'file' : 'redownload'}`, { responseType: 'blob' });
-      const url = URL.createObjectURL(response.data); const link = document.createElement('a');
-      link.href = url; link.download = `${r.report_number.replace(/[^\w.-]/g, '-')}.docx`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (err) { setActionError(await reportError(err, tr('Could not download this report. Please try again.'))); }
-    finally { setDownloadId(null); downloadLock.current = false; }
-  };
   const pageRows = sorted.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   const selectable = sorted.filter(canDelete);
   const pageSelectable = pageRows.filter(canDelete);
@@ -93,7 +79,7 @@ export function ReportsLibrary({ customer = false, onCreate }: { customer?: bool
   const actions = (r: LineInspectionReportOut) => <Stack direction="row" spacing={.5} sx={{ alignItems: 'center' }}>
     <Button component={Link} to={`/reports/${r.id}/digital`} size="small">{tr('Digital report')}</Button>
     <Button variant="outlined" size="small" onClick={() => setReview({ id: r.id, tab: 'overview' })}>{tr('Review')}</Button>
-    <Tooltip title={tr('Download Word document')}><span><IconButton aria-label={tr('Download {0}', [r.report_number])} disabled={downloadId !== null} onClick={() => void download(r)}><DownloadRounded fontSize="small" /></IconButton></span></Tooltip>
+    <ReportDownloadButton report={r} iconOnly />
     {canDelete(r) && <Tooltip title={tr('Delete report')}><IconButton color="error" aria-label={tr('Delete {0}', [r.report_number])} onClick={() => { setDeleting([r]); setDeleteError(''); }}><DeleteOutlineRounded fontSize="small" /></IconButton></Tooltip>}
   </Stack>;
   const discussion = (r: LineInspectionReportOut) => <Button size="small" startIcon={<ChatBubbleOutlineRounded sx={{ fontSize: '16px !important' }} />} onClick={() => setReview({ id: r.id, tab: 'discussion' })} sx={{ textAlign: 'start', minWidth: 0, color: lastReply(r) ? 'primary.main' : 'text.secondary', fontSize: 12 }}>
@@ -141,7 +127,6 @@ export function ReportsLibrary({ customer = false, onCreate }: { customer?: bool
       </Stack>}
       {isFetching && <LinearProgress />}
       {isError && <Alert severity="error" sx={{ m: 2 }} action={<Button onClick={() => void refetch()}>{tr('Retry')}</Button>}>{tr('Could not load the report library.')}</Alert>}
-      {actionError && <Alert severity="error" sx={{ m: 2 }} onClose={() => setActionError('')}>{actionError}</Alert>}
       {!isLoading && !isError && !sorted.length && <Stack sx={{ p: 5, alignItems: 'center', textAlign: 'center' }} spacing={1.5}><FolderOpenRounded sx={{ fontSize: 42, color: 'text.disabled' }} /><Typography variant="h6">{tr(rows.length ? 'No reports match your filters.' : 'Your report library is ready.')}</Typography><Typography variant="body2" color="text.secondary">{tr(rows.length ? 'Try another search or clear the filters.' : customer ? 'Your administrator has not shared any reports with you yet.' : 'Create a report from recorded inspections to prepare your first customer deliverable.')}</Typography>{rows.length ? <Button onClick={reset}>{tr('Clear filters')}</Button> : onCreate && <Button variant="contained" onClick={onCreate}>{tr('Create report')}</Button>}</Stack>}
       <TableContainer sx={{ display: { xs: 'none', md: 'block' } }}><Table sx={{ '& th': { bgcolor: 'action.hover', color: 'text.secondary', fontWeight: 700 }, '& td': { py: 2 } }}>
         <TableHead><TableRow>{showSelection && <TableCell padding="checkbox"><Checkbox checked={pageSelectable.length > 0 && selectedOnPage === pageSelectable.length} indeterminate={selectedOnPage > 0 && selectedOnPage < pageSelectable.length} disabled={!pageSelectable.length || deletingBusy} slotProps={{ input: { 'aria-label': tr('Select reports on this page') } }} onChange={(_, checked) => setSelected(old => checked ? [...new Set([...old, ...pageSelectable.map(r => r.id)])] : old.filter(id => !pageSelectable.some(r => r.id === id)))} /></TableCell>}{['Report & review', 'Inspection scope', 'Inspection period', 'Created date & time', 'Created by', 'Actions'].map((text) => <TableCell key={text}>{tr(text)}</TableCell>)}</TableRow></TableHead>

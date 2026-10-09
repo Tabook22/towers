@@ -64,6 +64,7 @@ from app.services.team_activity_report import (
     query_team_activity_visits,
 )
 from app.utils import natural_sort_key
+from app.services.report_pdf import download_options, prepare_pdf, pdf_file
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -1013,6 +1014,38 @@ def delete_oetc_line_report(
             customer.allowed_report_ids = [pk for pk in customer.allowed_report_ids if pk != report_id]
     db.commit()
     return None
+
+
+@router.get('/oetc-line-report/{report_id}/download-options')
+def report_download_options(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(404, 'Report not found')
+    _check_report_access(record, user)
+    return download_options(record)
+
+
+@router.post('/oetc-line-report/{report_id}/prepare-pdf')
+def prepare_report_pdf(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(404, 'Report not found')
+    _check_report_access(record, user)
+    prepare_pdf(record)
+    return download_options(record)
+
+
+@router.get('/oetc-line-report/{report_id}/file.pdf')
+def download_report_pdf(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(404, 'Report not found')
+    _check_report_access(record, user)
+    path = pdf_file(record)
+    if not path or not path.is_file():
+        raise HTTPException(409, 'Prepare the PDF before downloading')
+    safe = re.sub(r'[^A-Za-z0-9._-]+', '-', record.report_number)
+    return FileResponse(path, filename=f'{safe}.pdf', media_type='application/pdf', headers={'Cache-Control': 'private, no-store'})
 
 
 @router.get("/oetc-line-report/{report_id}/file")

@@ -1,10 +1,10 @@
+import { ReportDownloadButton } from './ReportDownloadButton';
 import { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, LinearProgress, MenuItem, Paper, Stack, Tab, Tabs, TextField, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded';
-import DownloadRounded from '@mui/icons-material/DownloadRounded';
 import DescriptionRounded from '@mui/icons-material/DescriptionRounded';
 import SearchRounded from '@mui/icons-material/SearchRounded';
 import { apiClient, mediaUrl } from '../api/client';
@@ -191,7 +191,7 @@ export function ReportReviewDialog({ report, onClose, initialTab = 'overview' }:
         <Box role="tabpanel" id="review-panel-discussion" aria-labelledby="review-tab-discussion" hidden={tab !== 'discussion'}><ReportCommentsSection key={report.id} reportId={report.id} active={tab === 'discussion'} /></Box>
       </DialogContent>
       <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 1.5, borderTop: 1, borderColor: 'divider', flexWrap: 'wrap', gap: 1 }}>
-        <Button startIcon={<DescriptionRounded />} onClick={() => setDocument(true)}>{tr('View issued document')}</Button><Button startIcon={<DownloadRounded />} disabled={downloading} onClick={() => void download()}>{tr('Word')}</Button>{snapshot && <Button disabled={downloading} onClick={() => void download(true)}>{tr('Inspection data · PDF')}</Button>}
+        <Button startIcon={<DescriptionRounded />} onClick={() => setDocument(true)}>{tr('View issued document')}</Button><ReportDownloadButton report={report} />{snapshot && <Button disabled={downloading} onClick={() => void download(true)}>{tr('Inspection data · PDF')}</Button>}
         <Box sx={{ flex: 1 }} /><Button variant="contained" onClick={() => { const steps: ReviewTab[] = ['overview', 'inspection', 'evidence', 'discussion']; if (tab === 'discussion') onClose(); else setTab(steps[steps.indexOf(tab) + 1]); }}>{tr(tab === 'discussion' ? 'Done' : 'Next step')}</Button>
       </DialogActions>
     </Dialog>

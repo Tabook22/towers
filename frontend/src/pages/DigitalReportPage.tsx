@@ -1,3 +1,4 @@
+import { ReportDownloadButton } from '../components/ReportDownloadButton';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -101,7 +102,7 @@ export function DigitalReportPage() {
           <Typography sx={{ color: '#d0e5eb', fontSize: '1.05rem' }}>{report.team_name}</Typography>
         </Box>
         <Stack spacing={1.5} sx={{ alignItems: { xs: 'flex-start', md: 'flex-end' }, justifyContent: 'center' }}>
-          <Button variant="contained" startIcon={<DownloadRounded />} disabled={!report.has_file} component="a" href={report.has_file ? mediaUrl(`${base}/file`) : undefined} sx={{ bgcolor: '#fff', color: '#0d475c', '&:hover': { bgcolor: '#e4f1f4' }, '&.Mui-disabled': { bgcolor: 'rgba(255,255,255,.12)', color: '#adc1c9' } }}>{tr('Download issued Word')}</Button>
+          <ReportDownloadButton report={report} variant="contained" sx={{ bgcolor: '#fff', color: '#0d475c', '&:hover': { bgcolor: '#e4f1f4' } }} />
           <Button size="small" startIcon={<DescriptionRounded />} disabled={!report.has_file} onClick={() => setWordOpen(true)} sx={{ color: '#e0f0f4', '&.Mui-disabled': { color: '#adc1c9' } }}>{tr('View issued Word')}</Button>
         </Stack>
       </Stack>

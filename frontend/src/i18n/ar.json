@@ -3873,5 +3873,19 @@
   "Most towers first": "الأكثر أبراجًا أولًا",
   "Only reports shared with your account appear here.": "تظهر هنا التقارير المشتركة مع حسابك فقط.",
   "Your administrator has not shared any reports with you yet.": "لم يشارك المسؤول أي تقارير معك بعد.",
-  "Manage customer report access": "إدارة وصول العملاء إلى التقارير"
+  "Manage customer report access": "إدارة وصول العملاء إلى التقارير",
+  "Size unavailable": "الحجم غير متاح",
+  "Could not prepare the PDF. Please try again.": "تعذر إعداد ملف PDF. حاول مرة أخرى.",
+  "Download PDF or Word": "تنزيل PDF أو Word",
+  "Choose download format": "اختيار صيغة التنزيل",
+  "Could not load file sizes. Please try again.": "تعذر تحميل أحجام الملفات. حاول مرة أخرى.",
+  "Not prepared yet": "لم يُعد بعد",
+  "A PDF copy of the issued report, ready to read and print. Its actual size appears after preparation.": "نسخة PDF من التقرير الصادر، جاهزة للقراءة والطباعة. يظهر حجمها الفعلي بعد الإعداد.",
+  "Download PDF": "تنزيل PDF",
+  "Prepare PDF": "إعداد PDF",
+  "PDF is unavailable for this report. You can download Word.": "صيغة PDF غير متاحة لهذا التقرير. يمكنك تنزيل Word.",
+  "The original Word document with full-resolution report photographs.": "مستند Word الأصلي مع صور التقرير بدقتها الكاملة.",
+  "Download Word": "تنزيل Word",
+  "Preparing PDF… Large reports may take a few minutes. Keep this window open.": "جارٍ إعداد PDF… قد تستغرق التقارير الكبيرة بضع دقائق. أبقِ هذه النافذة مفتوحة.",
+  "Downloading… {0}": "جارٍ التنزيل… {0}"
 }

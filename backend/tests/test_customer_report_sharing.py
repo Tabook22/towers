@@ -52,6 +52,13 @@ def test_unshared_report_direct_links_denied(db, endpoint):
     assert error.value.status_code == 403
 
 
+@pytest.mark.parametrize('endpoint', [reports.report_download_options, reports.prepare_report_pdf, reports.download_report_pdf])
+def test_unshared_report_pdf_conversion_download_and_sizes_denied(db, endpoint):
+    with pytest.raises(HTTPException) as error:
+        endpoint(report_id=2, db=db, user=client([1]))
+    assert error.value.status_code == 403
+
+
 def test_unshared_report_comments_and_edits_denied_even_with_edit_flag(db):
     customer = client([1])
     for endpoint, payload in [(reports.add_oetc_line_report_comment, ReportCommentCreate(body='A note')), (reports.update_oetc_line_report, LineInspectionReportUpdate(additional_comments='Changed'))]:
