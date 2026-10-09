@@ -8,8 +8,18 @@ const source = fs.readFileSync(new URL('../src/api/reportGeneration.ts', import.
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
 const exports = {};
 vm.runInNewContext(code, { exports, setTimeout, require: name => name === 'axios' ? { isAxiosError: error => error.isAxiosError } : {} });
-const { followReportJob } = exports;
+const { followReportJob, estimateRemaining } = exports;
 const job = { id: 'existing-job', status: 'queued', percent: 0, stage: 'Waiting to start' };
+
+test('remaining-time estimates require measurable work and never invent a countdown', () => {
+  assert.equal(estimateRemaining(0, 100, 20), null);
+  assert.equal(estimateRemaining(1, 100, 20), null);
+  assert.equal(estimateRemaining(20, 100, 2), null);
+  assert.equal(estimateRemaining(20, 100, 10), 40);
+  assert.equal(estimateRemaining(50, 100, 10), 10);
+  assert.equal(estimateRemaining(100, 100, 10), null);
+  assert.equal(estimateRemaining(1000, 0, 10), null);
+});
 
 test('report polling displays server progress and stops only at a terminal status', async () => {
   const updates = [], ids = [];

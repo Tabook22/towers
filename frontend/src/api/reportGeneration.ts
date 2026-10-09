@@ -22,6 +22,18 @@ export interface ReportGenerationProgress {
   error?: string;
   received_at?: number;
   download_started?: boolean;
+  downloading?: boolean;
+  download_loaded?: number;
+  download_total?: number;
+  download_started_at?: number;
+  created_at?: number;
+  started_at?: number;
+}
+
+/** An approximate average-work estimate; never fabricate a countdown before measurable progress. */
+export function estimateRemaining(completed: number, total: number, elapsed: number): number | null {
+  if (!Number.isFinite(elapsed) || elapsed < 5 || completed <= 0 || total <= completed || completed / total < .1) return null;
+  return Math.ceil(elapsed * (total - completed) / completed);
 }
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -69,6 +81,8 @@ export function useReportGeneration<T>(kind: 'team' | 'area' | 'consolidated', d
       saved.current = request;
       remember();
       setReconnecting(false);
+      update({ id: request.id || '', status: 'queued', stage: 'Starting report', percent: 0, completed: 0, total: 0,
+        findings_done: 0, findings_total: 0, photos_done: 0, photos_total: 0, sections_done: 0, sections_total: 0, elapsed_seconds: 0 });
       let job: ReportGenerationProgress;
       if (request.id) {
         job = (await apiClient.get<ReportGenerationProgress>(`/api/reports/generation-jobs/${request.id}`, { timeout: 15000 })).data;
@@ -86,12 +100,20 @@ export function useReportGeneration<T>(kind: 'team' | 'area' | 'consolidated', d
         try { sessionStorage.removeItem(key); } catch { /* optional */ }
         throw new Error(job.error || 'Report generation failed');
       }
-      const response = await apiClient.get(`/api/reports/generation-jobs/${job.id}/file`, { responseType: 'blob' });
+      void qc.invalidateQueries({ queryKey: ['oetc-report-history'] });
+      const downloadStartedAt = Date.now();
+      update({ ...job, downloading: true, download_loaded: 0, download_started_at: downloadStartedAt });
+      const response = await apiClient.get(`/api/reports/generation-jobs/${job.id}/file`, {
+        responseType: 'blob',
+        onDownloadProgress: event => update({ ...job, downloading: true, download_loaded: event.loaded,
+          download_total: event.total, download_started_at: downloadStartedAt }),
+      });
       download(response, job.filename || 'inspection-report.docx');
-      update({ ...job, download_started: true });
+      update({ ...job, download_started: true, downloading: false });
       saved.current = null;
       try { sessionStorage.removeItem(key); } catch { /* optional */ }
     },
+    onError: () => { setProgress(previous => previous?.downloading ? { ...previous, downloading: false, status: 'failed', stage: 'Download interrupted', error: 'The report is saved in the library. Retry to download the same file.' } : previous); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['oetc-report-history'] }); },
   });
 

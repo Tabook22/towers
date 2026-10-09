@@ -188,7 +188,6 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
         </AccordionDetails>
       </Accordion>
 
-      <ReportGenerationProgress progress={reportProgress} reconnecting={generateTeam.reconnecting || generateArea.reconnecting || generateConsolidated.reconnecting} />
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {tr(error)}
@@ -420,6 +419,7 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
           <Button variant="contained" startIcon={<DescriptionRoundedIcon />} sx={{ minHeight: 48, px: 3, borderRadius: 2 }} disabled={!requiredFilled || generating || preview.isFetching || preview.isError || !preview.data?.ok} onClick={handleGenerate}>
             {tr(buttonLabel)}
           </Button>
+      <ReportGenerationProgress progress={reportProgress} reconnecting={generateTeam.reconnecting || generateArea.reconnecting || generateConsolidated.reconnecting} />
         </Box>
       </Stack>
 
