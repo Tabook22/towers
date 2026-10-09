@@ -75,7 +75,7 @@ def _check_report_access(record: LineInspectionReport, user: User) -> None:
     serves one customer, not several tenants needing separation from each other) sees any report."""
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
-    if user.role == UserRole.TEAM_LEADER.value and user.team_id != record.team_id:
+    if user.role == UserRole.TEAM_LEADER.value and (user.team_id != record.team_id or record.report_type in ('line', 'project')):
         raise HTTPException(status_code=403, detail="You don't have access to this team")
 
 
@@ -510,16 +510,18 @@ def _creator_snapshot(team, visits, payload, user):
 
 
 def _persist_blocks(
-    db: Session, blocks, user: User, payload, report_type: str, generated_at: dt.datetime | None = None
-) -> None:
+    db: Session, blocks, user: User, payload, report_type: str, generated_at: dt.datetime | None = None, merged_document: bytes | None = None
+) -> LineInspectionReport | None:
     """One LineInspectionReport row per team-section in a grouped report — same traceability the
     single-team endpoint above gives, just one row per section instead of one for the whole file.
     The sign-off/condition fields are shared across every section of one grouped report (there's
     only one set of them on the request), so each row gets the same copy — needed so re-downloading
     any one section later reproduces it exactly, not just with the team/dates/number right. Each
     section's own standalone .docx is also archived (same as the single-team endpoint) and its
-    images snapshotted, so every section is independently traceable/downloadable later. `generated_at`
-    should be the same timestamp used to pick each block's auto report number (see
+    images snapshotted, so every section is independently traceable/downloadable later.
+    When merged_document is supplied, also archive the complete customer document
+    and its combined snapshot in this same transaction. generated_at should be the
+    same timestamp used to pick each block's auto report number (see
     render_area_report/render_consolidated_report) — defaults to now for a caller that doesn't
     already have one."""
     generated_at = generated_at or utcnow()
@@ -551,9 +553,35 @@ def _persist_blocks(
         db.add(record)
         db.flush()
         _persist_report_images(db, record.id, b.visits)
+    combined = None
+    if merged_document is not None and blocks:
+        visits = list({v.id: v for block in blocks for v in block.visits}.values())
+        dates = [v.inspection_date for v in visits if v.inspection_date]
+        scope_name = payload.area if report_type == 'area' else 'Complete project'
+        snapshot = _creator_snapshot(blocks[0].team, visits, payload, user)
+        snapshot['team_name'] = scope_name
+        snapshot['report_scope'] = 'complete'
+        snapshot['teams'] = [{'id': team.id, 'name': team.name} for team in {b.team.id: b.team for b in blocks}.values()]
+        number = generate_report_number(db, f"Line-{scope_name}" if report_type == 'area' else 'Project', generated_at)
+        # team_id anchors the existing schema; complete reports are never exposed to crew accounts.
+        combined = LineInspectionReport(
+            team_id=blocks[0].team.id, start_date=min(dates), end_date=max(dates),
+            report_number=number, report_type='line' if report_type == 'area' else 'project',
+            line_sector=payload.area if report_type == 'area' else None,
+            scope_towers=_report_tower_scope(visits), inspection_snapshot=snapshot,
+            created_by=user.id, created_at=generated_at,
+            file_path=_save_report_file(number, generated_at, merged_document),
+            **{field: getattr(payload, field, None) for field in (
+                'overall_condition', 'probable_cause', 'corrective_action', 'additional_comments',
+                'prepared_by', 'reviewed_by', 'approved_by', 'approval_date')},
+        )
+        db.add(combined)
+        db.flush()
+        _persist_report_images(db, combined.id, visits)
     db.commit()
     for _ in blocks:
         report_progress.advance('sections')
+    return combined
 
 
 @router.post("/oetc-area-report.docx")
@@ -575,13 +603,12 @@ def oetc_area_report(
 
     generated_at = utcnow()
     docx_bytes, blocks = render_area_report(db, payload, generated_at)
-    _persist_blocks(db, blocks, user, payload, report_type="area", generated_at=generated_at)
+    saved = _persist_blocks(db, blocks, user, payload, report_type="area", generated_at=generated_at, merged_document=docx_bytes)
 
-    stamp = generated_at.strftime("%Y%m%d")
     return Response(
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="{payload.area.replace(" ", "-")}-{stamp}.docx"'},
+        headers={"Content-Disposition": f'attachment; filename="{saved.report_number}.docx"'},
     )
 
 
@@ -601,13 +628,12 @@ def oetc_consolidated_report(
 
     generated_at = utcnow()
     docx_bytes, blocks = render_consolidated_report(db, payload, generated_at)
-    _persist_blocks(db, blocks, user, payload, report_type="consolidated", generated_at=generated_at)
+    saved = _persist_blocks(db, blocks, user, payload, report_type="consolidated", generated_at=generated_at, merged_document=docx_bytes)
 
-    stamp = generated_at.strftime("%Y%m%d")
     return Response(
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="consolidated-{stamp}.docx"'},
+        headers={"Content-Disposition": f'attachment; filename="{saved.report_number}.docx"'},
     )
 
 
@@ -638,7 +664,7 @@ def oetc_line_report_history(
         selectinload(LineInspectionReport.comments),
     )
     if user.role == UserRole.TEAM_LEADER.value:
-        q = q.filter(LineInspectionReport.team_id == user.team_id) if user.team_id else q.filter(False)
+        q = q.filter(LineInspectionReport.team_id == user.team_id, (LineInspectionReport.report_type.is_(None) | LineInspectionReport.report_type.notin_(['line', 'project']))) if user.team_id else q.filter(False)
     elif team_id:
         q = q.filter(LineInspectionReport.team_id == team_id)
     if report_type:
@@ -967,7 +993,7 @@ def delete_oetc_line_report(
     elif user.role == UserRole.REVIEWER.value:
         pass
     elif user.role == UserRole.TEAM_LEADER.value:
-        if user.team_id != record.team_id:
+        if (user.team_id != record.team_id or record.report_type in ('line', 'project')):
             raise HTTPException(status_code=403, detail="You don't have access to this team")
     else:
         raise HTTPException(status_code=403, detail="Not enough permissions")
@@ -998,7 +1024,7 @@ def download_saved_oetc_report(
         raise HTTPException(status_code=404, detail="Report not found")
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
-    if user.role == UserRole.TEAM_LEADER.value and user.team_id != record.team_id:
+    if user.role == UserRole.TEAM_LEADER.value and (user.team_id != record.team_id or record.report_type in ('line', 'project')):
         raise HTTPException(status_code=403, detail="You don't have access to this team")
     if not record.file_path:
         raise HTTPException(status_code=404, detail="No saved file for this report — use redownload instead")
@@ -1030,8 +1056,13 @@ def redownload_oetc_line_report(
         raise HTTPException(status_code=404, detail="Report not found")
     if user.role == UserRole.TEAM_MEMBER.value:
         raise HTTPException(status_code=403, detail="Not available for team-member accounts")
-    if user.role == UserRole.TEAM_LEADER.value and user.team_id != record.team_id:
+    if user.role == UserRole.TEAM_LEADER.value and (user.team_id != record.team_id or record.report_type in ('line', 'project')):
         raise HTTPException(status_code=403, detail="You don't have access to this team")
+
+    if record.report_type in ('line', 'project'):
+        if record.file_path and (settings.reports_dir / record.file_path).is_file():
+            return download_saved_oetc_report(report_id, db=db, user=user)
+        raise HTTPException(status_code=404, detail='The complete archived report is unavailable. Generate a new report; a team section will not be substituted.')
 
     team = db.get(Team, record.team_id)
     if not team:

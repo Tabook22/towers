@@ -1,13 +1,13 @@
 import type { LineInspectionReportOut } from '../api/types';
 
 export const reportTypes: Record<string, string> = {
-  tower: 'Tower report', team: 'Team report', area: 'Line section', consolidated: 'Project section',
+  tower: 'Tower report', team: 'Team report', area: 'Line section', consolidated: 'Project section', line: 'Complete line report', project: 'Complete project report',
 };
 export type ReportSortKey = 'created_at' | 'report_number' | 'team_name' | 'tower_name' | 'start_date';
 export interface ReportFilters { search: string; team: string; tower: string; line: string; type: string; from: string; to: string }
 export const emptyReportFilters: ReportFilters = { search: '', team: '', tower: '', line: '', type: '', from: '', to: '' };
 export function reportFilterAvailability(type: string) {
-  return { team: !type || type === 'team', tower: !type || type === 'tower', line: !type || type === 'area' };
+  return { team: !type || type === 'team', tower: !type || type === 'tower', line: !type || type === 'area' || type === 'line' };
 }
 export function updateReportFilter(filters: ReportFilters, key: keyof ReportFilters, value: string): ReportFilters {
   const next = { ...filters, [key]: value };

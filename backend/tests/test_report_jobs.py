@@ -191,4 +191,14 @@ def test_real_report_job_counts_findings_photos_and_sections(isolated, monkeypat
     assert (final['sections_done'], final['sections_total']) == (sections, sections)
     assert final['percent'] == 100 and final['completed'] == final['total'] == sections * 6 + 1
     with factory() as db:
-        assert db.query(LineInspectionReport).count() == sections
+        assert db.query(LineInspectionReport).count() == sections + (1 if kind in ('area', 'consolidated') else 0)
+        if kind in ('area', 'consolidated'):
+            from app.services.digital_report import archived_layout, archived_finding_document
+            complete = db.query(LineInspectionReport).filter_by(report_type='line' if kind == 'area' else 'project').one()
+            archive = settings.reports_dir / complete.file_path
+            assert archive.read_bytes() == (jobs.directory(job['id']) / 'report.docx').read_bytes()
+            findings = archived_layout(archive, complete.inspection_snapshot)
+            assert len(findings) == sections
+            assert all(finding['key'] for finding in findings)
+            assert len({finding['key'] for finding in findings}) == sections
+            assert archived_finding_document(archive, complete.inspection_snapshot, [finding['key'] for finding in findings])

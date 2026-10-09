@@ -175,3 +175,45 @@ def test_admin_library_filters_and_preserves_creator_identity(library):
     assert len(rows) == 2
     assert any(r.created_by_name == 'Original Administrator' for r in rows)
     assert db.query(LineInspectionReport).count() == 5
+
+
+@pytest.mark.parametrize('kind', ['area', 'consolidated'])
+def test_complete_download_is_archived_and_visible_to_customer(library, monkeypatch, kind):
+    from app.services.oetc_grouped_report import GroupedReportBlock
+    from app.schemas import OetcAreaReportRequest, OetcConsolidatedReportRequest
+    db, team, tower, admin = library
+    db.add(Area(name='Customer line'))
+    other_team = Team(name='Other team')
+    other_tower = Tower(tower_id='T-3', area='Customer line')
+    db.add_all([other_team, other_tower])
+    db.flush()
+    other_visit = Visit(team_id=other_team.id, tower_id=other_tower.id, inspection_date=dt.date(2026, 9, 11))
+    db.add(other_visit)
+    db.commit()
+    visits = db.query(Visit).filter(Visit.team_id == team.id).all()
+    blocks = [GroupedReportBlock('Customer line', team, visits, 'SECTION-ONE', b'first section'),
+              GroupedReportBlock('Customer line', other_team, [other_visit], 'SECTION-TWO', b'second section')]
+    complete = b'exact combined customer download'
+    monkeypatch.setattr(reports, f'plan_{kind}_report', lambda *args: [True])
+    monkeypatch.setattr(reports, f'render_{kind}_report', lambda *args: (complete, blocks))
+    payload_class = OetcAreaReportRequest if kind == 'area' else OetcConsolidatedReportRequest
+    payload = payload_class(area='Customer line', start_date=dt.date(2026, 9, 1), end_date=dt.date(2026, 9, 30))
+    response = getattr(reports, f'oetc_{kind}_report')(payload, db=db, user=admin)
+    assert response.body == complete
+    report_type = 'line' if kind == 'area' else 'project'
+    saved = db.query(LineInspectionReport).filter_by(report_type=report_type).one()
+    assert (reports.settings.reports_dir / saved.file_path).read_bytes() == response.body
+    assert saved.report_number in response.headers['content-disposition']
+    assert {t['id'] for t in saved.scope_towers} == {tower.id, other_tower.id}
+    assert len(saved.inspection_snapshot['visits']) == 2
+    assert saved.inspection_snapshot['report_creator']['id'] == admin.id
+    customer = User(username='customer', hashed_password='x', role='client')
+    assert saved.id in [r.id for r in reports.oetc_line_report_history(db=db, user=customer)]
+    assert reports.download_saved_oetc_report(saved.id, db=db, user=customer).path
+    leader = User(username='crew', hashed_password='x', role='team_leader', team_id=team.id)
+    assert saved.id not in [r.id for r in reports.oetc_line_report_history(db=db, user=leader)]
+    with pytest.raises(HTTPException) as denied:
+        reports.download_saved_oetc_report(saved.id, db=db, user=leader)
+    assert denied.value.status_code == 403
+    assert db.query(LineInspectionReport).filter_by(report_number='SECTION-ONE').one()
+    assert db.query(LineInspectionReport).filter_by(report_number='SECTION-TWO').one()
