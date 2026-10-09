@@ -112,3 +112,21 @@ def test_restricted_admin_still_cannot_rename_an_admin_account(db):
     with pytest.raises(HTTPException) as exc:
         auth.update_user(target.id, UserUpdate(username="hijacked"), db=db, actor=actor)
     assert exc.value.status_code == 403
+
+
+def test_admin_profile_details_persist_and_can_be_cleared(db):
+    target = User(username="profile_admin", role="admin", hashed_password="x", full_name="Existing Name")
+    db.add(target)
+    db.commit()
+    details = dict(full_name="Aseel Ali", first_name="Aseel", last_name="Ali", email="aseel@example.com", mobile="12345678", address="Muscat", notes="Office contact")
+    updated = auth.update_user(target.id, UserUpdate(**details), db=db, actor=_super_admin())
+    db.expire_all()
+    saved = db.get(User, updated.id)
+    for field, value in details.items():
+        assert getattr(saved, field) == value
+    auth.update_user(saved.id, UserUpdate(first_name=None, email=None, notes=None), db=db, actor=_super_admin())
+    db.expire_all()
+    assert saved.first_name is None
+    assert saved.email is None
+    assert saved.notes is None
+    assert saved.full_name == "Aseel Ali"

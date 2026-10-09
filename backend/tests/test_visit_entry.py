@@ -213,3 +213,41 @@ def test_unlinked_negative_evidence_key_is_rejected_immediately(db, files):
         upload(db, visit, user, -999, state['revision'])
     assert error.value.status_code == 422
     assert not db.query(VisitDraftImage).count()
+
+
+def test_dji_mpo_jpeg_can_be_confirmed_without_rewriting_original(db, files):
+    visit, user = make_visit(db)
+    position = visit.positions[0]
+    state = save(db, visit, user, {'drafts': {str(position.id): patch(position, direction='Ashoor')}})
+    stream = io.BytesIO()
+    PillowImage.new('RGB', (20, 20), 'blue').save(stream, format='MPO', save_all=True,
+        append_images=[PillowImage.new('RGB', (20, 20), 'red')])
+    original = stream.getvalue()
+    with PillowImage.open(io.BytesIO(original)) as picture:
+        assert picture.format == 'MPO'
+    stream.seek(0)
+    asyncio.run(upload_draft_image(visit_id=visit.id, position_key=position.id, image_type='TH Full',
+        token=uuid4(), expected_updated_at=position.updated_at, revision=state['revision'], duration_seconds=None,
+        file=UploadFile(filename='DJI_thermal.JPG', file=stream, headers=Headers({'content-type': 'image/jpeg'})), db=db, user=user))
+    result = confirm(db, visit, user, state['revision'])
+    image = next(i for p in result.positions for i in p.images if i.file_path)
+    assert (settings.images_dir / image.file_path).read_bytes() == original
+    assert image.thumbnail_path
+
+
+@pytest.mark.parametrize('format', ['GIF', 'BMP'])
+def test_unsupported_image_is_rejected_before_it_enters_draft(db, files, format):
+    visit, user = make_visit(db)
+    position = visit.positions[0]
+    state = get_entry(visit.id, db, user)
+    stream = io.BytesIO()
+    PillowImage.new('RGB', (20, 20)).save(stream, format=format)
+    stream.seek(0)
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(upload_draft_image(visit_id=visit.id, position_key=position.id, image_type='RGB Full',
+            token=uuid4(), expected_updated_at=position.updated_at, revision=state['revision'], duration_seconds=None,
+            file=UploadFile(filename='wrong.jpg', file=stream, headers=Headers({'content-type': 'image/jpeg'})), db=db, user=user))
+    assert exc.value.status_code == 422
+    assert 'wrong.jpg' in exc.value.detail
+    db.rollback()
+    assert not get_entry(visit.id, db, user)['images']

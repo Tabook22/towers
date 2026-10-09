@@ -39,9 +39,10 @@ from app.config import BASE_DIR
 from app.models import IMAGE_TYPE_CHOICES, LineInspectionReport, Position, Team, Tower, Visit
 from app.schemas import LineInspectionReportRequest
 from app.services.docx_reports import _inline_images
-from app.services.report_images import selected_images
+from app.services.report_images import selected_images, index_report_images
 from app.services.team_activity_report import _position_has_activity, _position_sort_key
 from app.services.tower_numbers import extract_tower_number
+from app.services import report_progress
 
 TEMPLATE_PATH = BASE_DIR / "app" / "templates" / "oetc_line_report.docx"
 
@@ -217,6 +218,7 @@ def build_oetc_line_report_context(
             seq += 1
             findings.append(_finding_context(tpl, seq, v, pos))
             measurements.append(_measurement_context(seq, v, pos))
+            report_progress.advance('findings')
 
     voltage_level = next((v.tower.voltage for v in visits if v.tower and v.tower.voltage), "")
     # A single-tower report names that tower directly rather than the team's whole mission range,
@@ -271,9 +273,15 @@ def render_oetc_line_report_docx(
     from jinja2 import Environment
 
     tpl = DocxTemplate(str(TEMPLATE_PATH))
+    report_progress.stage('Preparing findings and photos')
+    index_report_images(tpl.get_docx())
     context = build_oetc_line_report_context(tpl, team, visits, payload, tower=tower)
     jinja_env = Environment(finalize=lambda v: "" if v is None else v)
+    report_progress.stage('Building report section')
     tpl.render(context, jinja_env=jinja_env)
+    report_progress.advance()
     buf = io.BytesIO()
+    report_progress.stage('Writing report section')
     tpl.save(buf)
+    report_progress.advance()
     return buf.getvalue()

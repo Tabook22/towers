@@ -24,6 +24,8 @@ def connection():
     settings.backups_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     c = sqlite3.connect(settings.backups_dir / 'jobs.sqlite3', timeout=30, factory=service.ClosingConnection)
     c.execute('CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
+    c.execute('CREATE TABLE IF NOT EXISTS backup_metadata (key TEXT PRIMARY KEY, data TEXT NOT NULL)')
+    c.execute('CREATE TABLE IF NOT EXISTS backup_audit (id INTEGER PRIMARY KEY, created_at TEXT NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, job_id TEXT, status TEXT NOT NULL)')
     return c
 
 
@@ -42,6 +44,7 @@ def create(kind, owner, **extra):
             'stage': 'Waiting', 'processed_files': 0, 'size': 0, **extra}
     with connection() as c:
         c.execute('INSERT INTO jobs VALUES (?,?)', (ident, json.dumps(data)))
+    audit(owner, 'create_' + kind, ident, data['status'])
     return data
 
 
@@ -71,11 +74,15 @@ def patch(ident, **changes):
             raise ValueError('Job expired.')
         data = json.loads(row[0]); data.update(changes, updated=time.time())
         c.execute('UPDATE jobs SET data=? WHERE id=?', (json.dumps(data), ident))
+        if changes.get('status') == 'complete' and data['kind'] == 'backup':
+            c.execute('INSERT OR REPLACE INTO backup_metadata VALUES (?,?)', ('last_success', json.dumps({k:data[k] for k in ('id','created_at','updated','status','size','filename')})))
+    if changes.get('status') in ('complete','failed','interrupted','validated'):
+        audit(data['owner'], data['kind'], ident, changes['status'])
 
 
 def list_jobs():
     with connection() as c:
-        ids = [r[0] for r in c.execute('SELECT id FROM jobs ORDER BY rowid DESC LIMIT 50')]
+        ids = [r[0] for r in c.execute('SELECT id FROM jobs ORDER BY rowid DESC LIMIT 500')]
     return [get(i) for i in ids]
 
 
@@ -97,7 +104,8 @@ def cleanup():
         in_use = {j.get('source_id') for _, raw in rows if (j := json.loads(raw))['status'] in ('queued','running')}
         for ident, raw in rows:
             job = json.loads(raw)
-            if ident not in in_use and job['updated'] < cutoff and job['status'] not in ('running','queued'):
+            job_cutoff = time.time() - schedule_settings()['retention_days'] * 86400 if job.get('automatic') else cutoff
+            if ident not in in_use and job['updated'] < job_cutoff and job['status'] not in ('running','queued'):
                 path = directory(ident).resolve()
                 if path.parent != settings.backups_dir.resolve():
                     raise ValueError('Unsafe cleanup path.')
@@ -160,8 +168,10 @@ def backup(ident):
         manifest = service.snapshot(path / 'snapshot', progress(ident))
     service.pack(path / 'snapshot', path / 'backup.zip', progress(ident))
     patch(ident, status='complete', stage='Backup ready', size=(path / 'backup.zip').stat().st_size,
-          filename='SkyGreenLine_Inspection_Backup_' + time.strftime('%Y-%m-%d_%H%M', time.gmtime()) + '.zip',
+          filename='inspection-backup-' + time.strftime('%Y-%m-%d-%H%M%S', time.gmtime()) + '.zip',
           summary=manifest)
+    if job.get('automatic'):
+        prune_scheduled(schedule_settings())
 
 
 def validate(ident):
@@ -186,7 +196,7 @@ def recover(ident, source_id, mode, visits):
         recovery_path = directory(recovery['id'])
         patch(ident, recovery_id=recovery['id'])
         try:
-            manifest = service.snapshot(recovery_path / 'snapshot', progress(ident), allow_missing=True)
+            manifest = service.snapshot(recovery_path / 'snapshot', progress(ident))
             service.pack(recovery_path / 'snapshot', recovery_path / 'backup.zip', progress(ident))
             patch(recovery['id'], status='complete', stage='Pre-restore recovery backup', summary=manifest,
                   size=(recovery_path / 'backup.zip').stat().st_size, filename='SkyGreenLine_PreRestore_' + time.strftime('%Y-%m-%d_%H%M', time.gmtime()) + '.zip')
@@ -202,3 +212,74 @@ def recover(ident, source_id, mode, visits):
 
 def submit(ident, function, *args):
     pool.submit(run, ident, lambda: function(ident, *args))
+
+
+DEFAULT_SCHEDULE = {'enabled': False, 'interval_hours': 24, 'retention_days': 7, 'retention_count': 7, 'owner': None, 'next_run': None}
+
+def audit(actor, action, job_id=None, status='complete'):
+    with connection() as c:
+        c.execute('INSERT INTO backup_audit (created_at,actor,action,job_id,status) VALUES (?,?,?,?,?)',
+                  (service.utcnow(), actor, action, job_id, status))
+
+def schedule_settings():
+    with connection() as c:
+        row = c.execute("SELECT data FROM backup_metadata WHERE key='schedule'").fetchone()
+    return {**DEFAULT_SCHEDULE, **(json.loads(row[0]) if row else {})}
+
+def configure_schedule(values, owner):
+    data = {**schedule_settings(), **values, 'owner': owner, 'next_run': time.time() + values['interval_hours'] * 3600}
+    with connection() as c:
+        c.execute('INSERT OR REPLACE INTO backup_metadata VALUES (?,?)', ('schedule', json.dumps(data)))
+    audit(owner, 'configure_schedule')
+    return data
+
+def overview():
+    with connection() as c:
+        row = c.execute("SELECT data FROM backup_metadata WHERE key='last_success'").fetchone()
+        if row is None:
+            for raw in c.execute('SELECT data FROM jobs ORDER BY rowid DESC'):
+                previous = json.loads(raw[0])
+                if previous['kind'] == 'backup' and previous['status'] == 'complete':
+                    value = {k: previous[k] for k in ('id','created_at','updated','status','size','filename')}
+                    c.execute('INSERT OR REPLACE INTO backup_metadata VALUES (?,?)', ('last_success', json.dumps(value)))
+                    row = (json.dumps(value),)
+                    break
+        events = c.execute('SELECT created_at,actor,action,job_id,status FROM backup_audit ORDER BY id DESC LIMIT 30').fetchall()
+    return {'last_success': json.loads(row[0]) if row else None, 'schedule': schedule_settings(),
+            'audit': [dict(zip(('created_at','actor','action','job_id','status'), e)) for e in events]}
+
+def scheduled_tick(now=None):
+    now = time.time() if now is None else now
+    list_jobs()  # Mark stale jobs interrupted after a worker restart.
+    # Every API worker may tick; one transaction elects one runner for each interval.
+    with connection() as c:
+        c.execute('BEGIN IMMEDIATE')
+        row = c.execute("SELECT data FROM backup_metadata WHERE key='schedule'").fetchone()
+        if not row: return
+        data = json.loads(row[0])
+        if not data['enabled'] or data['next_run'] > now: return
+        if any(json.loads(r[0])['status'] in ('running','queued') for r in c.execute('SELECT data FROM jobs')): return
+        data['next_run'] = now + data['interval_hours'] * 3600
+        c.execute('UPDATE backup_metadata SET data=? WHERE key=?', (json.dumps(data), 'schedule'))
+    job = create('backup', data['owner'], automatic=True)
+    submit(job['id'], backup)
+    prune_scheduled(data)
+
+def prune_scheduled(data):
+    completed = sorted((j for j in list_jobs() if j.get('automatic') and j['status']=='complete'), key=lambda j:j['updated'], reverse=True)
+    for index, job in enumerate(completed):
+        if index >= data['retention_count'] or job['updated'] < time.time()-data['retention_days']*86400:
+            with connection() as c:
+                shutil.rmtree(directory(job['id']))
+                c.execute('DELETE FROM jobs WHERE id=?', (job['id'],))
+            audit('scheduler', 'retention_cleanup', job['id'])
+
+def start_scheduler():
+    stop = threading.Event()
+    def loop():
+        while not stop.wait(30):
+            try: scheduled_tick()
+            except Exception: log.exception('Automatic backup scheduler failed')
+    thread = threading.Thread(target=loop, daemon=True, name='backup-scheduler')
+    thread.start()
+    return stop

@@ -27,6 +27,7 @@ from app.services.archive import (
     extract_exif_gps_datetime,
     file_extension,
     save_upload,
+    validate_image_bytes,
 )
 from app.services.report_images import selected_images
 from app.services.smart_enhance import smart_enhance
@@ -210,14 +211,9 @@ async def apply_upload(
     if content_type not in ACCEPTED_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {content_type}")
     try:
-        with PILImage.open(io.BytesIO(raw)) as candidate:
-            if candidate.format not in ('JPEG', 'PNG', 'TIFF', 'WEBP'):
-                raise ValueError('Unsupported image format')
-            candidate.verify()
-        with PILImage.open(io.BytesIO(raw)) as candidate:
-            candidate.load()
+        validate_image_bytes(raw)
     except (UnidentifiedImageError, OSError, ValueError, PILImage.DecompressionBombError):
-        raise HTTPException(422, 'Choose a readable JPEG, PNG, TIFF or WebP image')
+        raise HTTPException(422, f'{filename or "Image"}: choose a readable JPEG, PNG, TIFF or WebP image (DJI MPO JPEGs are supported)')
 
     exif = extract_exif_gps_datetime(raw)
 

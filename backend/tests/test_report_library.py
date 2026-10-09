@@ -148,3 +148,30 @@ def test_grouped_report_saves_its_line_label(library):
     payload = OetcAreaReportRequest(area='Saada-Shahaon', start_date=dt.date(2026, 9, 1), end_date=dt.date(2026, 9, 30))
     reports._persist_blocks(db, [block], admin, payload, report_type='area')
     assert db.query(LineInspectionReport).filter_by(report_number='LINE-TEST').one().line_sector == 'Saada-Shahaon'
+
+
+def test_admin_library_filters_and_preserves_creator_identity(library):
+    db, team, _, admin = library
+    admin.full_name = 'Original Administrator'
+    db.commit()
+    reports.oetc_line_report(LineInspectionReportRequest(team_id=team.id, start_date=dt.date(2026, 9, 1), end_date=dt.date(2026, 9, 30)), db=db, user=admin)
+    leader = User(username='leader', hashed_password='x', role='team_leader', team_id=team.id)
+    db.add(leader)
+    db.commit()
+    reports.oetc_line_report(LineInspectionReportRequest(team_id=team.id, start_date=dt.date(2026, 9, 1), end_date=dt.date(2026, 9, 30)), db=db, user=leader)
+    legacy = LineInspectionReport(team_id=team.id, start_date=dt.date(2026, 9, 1), end_date=dt.date(2026, 9, 30), report_number='LEGACY', created_by=admin.id)
+    unknown = LineInspectionReport(team_id=team.id, start_date=dt.date(2026, 9, 1), end_date=dt.date(2026, 9, 30), report_number='UNKNOWN')
+    db.add_all([legacy, unknown])
+    db.commit()
+    rows = reports.oetc_line_report_history(admin_only=True, db=db, user=admin)
+    assert len(rows) == 3
+    assert all(r.created_by_role == 'admin' and r.created_by_username == 'admin' for r in rows)
+    assert any(r.created_by_name == 'Original Administrator' for r in rows)
+    assert len(reports.oetc_line_report_history(db=db, user=admin)) == 5
+    admin.full_name = 'Renamed Administrator'
+    admin.role = 'reviewer'
+    db.commit()
+    rows = reports.oetc_line_report_history(admin_only=True, db=db, user=admin)
+    assert len(rows) == 2
+    assert any(r.created_by_name == 'Original Administrator' for r in rows)
+    assert db.query(LineInspectionReport).count() == 5

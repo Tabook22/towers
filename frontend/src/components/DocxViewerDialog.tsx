@@ -50,10 +50,13 @@ export function DocxViewerDialog({ open, onClose, title, fileUrl, notice }: Prop
         if (cancelled) return;
         // Render offscreen so a slower previous request cannot overwrite a newly opened report.
         const rendered = document.createElement('div');
-        await renderAsync(blob, rendered, rendered, {
+        const word = await renderAsync(blob, rendered, rendered, {
           inWrapper: true,
           ignoreLastRenderedPageBreak: true,
+          renderAltChunks: false,
         });
+        const defaultStyle = (word.stylesPart?.styles as { isDefault?: boolean; target?: string; cssName?: string }[] | undefined)?.find(style => style.isDefault && style.target === 'p');
+        if (defaultStyle?.cssName) rendered.querySelectorAll('p:not([class])').forEach(paragraph => paragraph.classList.add(defaultStyle.cssName!));
         if (!cancelled && containerRef.current) containerRef.current.replaceChildren(...Array.from(rendered.childNodes));
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : tr("Could not open this report."));

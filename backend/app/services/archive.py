@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import io
 import re
 from pathlib import Path
 
@@ -22,6 +23,20 @@ _SAFE_EXT = re.compile(r"^\.[a-z0-9]{1,8}$")
 
 THUMBNAIL_SIZE = (480, 480)
 ACCEPTED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/tiff", "image/webp", "image/x-tiff"}
+
+
+def validate_image_bytes(raw: bytes) -> None:
+    """Validate the displayed image without rewriting camera originals or thermal metadata.
+
+    DJI JPEGs may contain MPF frames and Pillow identifies them as MPO. Decode
+    their primary JPEG frame just as thumbnails and reports do.
+    """
+    with PILImage.open(io.BytesIO(raw)) as image:
+        if image.format not in ('JPEG', 'MPO', 'PNG', 'TIFF', 'WEBP'):
+            raise ValueError('Unsupported image format')
+        image.verify()
+    with PILImage.open(io.BytesIO(raw)) as image:
+        image.load()
 
 
 def archive_relative_path(tower_id: str, capture_date: dt.date, image_code: str, ext: str) -> str:

@@ -148,3 +148,48 @@ def test_other_team_cannot_change_report_selection():
             update_image(image.id, ImageUpdate(include_in_report=False), db, leader)
         assert error.value.status_code == 403
         assert image.include_in_report is True
+
+
+def test_report_image_copy_is_bounded_oriented_and_preserves_original(tmp_path, monkeypatch):
+    import hashlib
+    from types import SimpleNamespace
+    from app.config import settings
+    from app.services.docx_reports import _inline_image
+    monkeypatch.setattr(settings, "images_dir", tmp_path)
+    path = tmp_path / "large-drone.jpg"
+    exif = PILImage.Exif()
+    exif[274] = 6  # Rotate clockwise to display as a portrait.
+    PILImage.new("RGB", (4000, 2000), "red").save(path, exif=exif, quality=95)
+    before = hashlib.sha256(path.read_bytes()).hexdigest()
+    embedded = _inline_image(object(), SimpleNamespace(file_path=path.name))
+    assert embedded is not None
+    with PILImage.open(embedded.image_descriptor) as picture:
+        assert picture.size == (700, 1400)
+        assert not picture.getexif()
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == before
+
+
+def test_document_image_index_reuses_identical_bytes_without_rehashing_old_parts():
+    from app.services.report_images import index_report_images
+    class CountedPart:
+        def __init__(self, digest):
+            self.digest = digest
+            self.calls = 0
+        @property
+        def sha1(self):
+            self.calls += 1
+            return self.digest
+    doc = Document()
+    parts = [CountedPart(str(n)) for n in range(200)]
+    for part in parts:
+        doc.part.package.image_parts.append(part)
+    index_report_images(doc)
+    indexed = doc.part.package.image_parts
+    for _ in range(100):
+        assert indexed._get_by_sha1("199") is parts[-1]
+        assert indexed._get_by_sha1("missing") is None
+    assert all(part.calls == 1 for part in parts)
+    extra = CountedPart("extra")
+    indexed.append(extra)
+    assert indexed._get_by_sha1("extra") is extra
+    assert extra.calls == 1

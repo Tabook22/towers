@@ -39,7 +39,7 @@ def setup(tmp_path, monkeypatch):
             monkeypatch.setattr(settings, root + '_dir', folder)
         initialize_gate()
         with Session(engine) as db:
-            admin = User(id=1, username='recovery-admin', role='admin', is_super_admin=True, is_active=True, is_approved=True, hashed_password='SECRET-HASH-DO-NOT-EXPORT')
+            admin = User(id=1, username='recovery-admin', role='admin', is_super_admin=True, is_active=True, is_approved=True, hashed_password='$2b$12$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')
             db.add(admin); db.commit()
             if seed:
                 team = Team(id=1, name='Recovery team', leader_user_id=1)
@@ -82,6 +82,31 @@ def package(tmp_path):
     return manifest, archive, validated
 
 
+@pytest.mark.parametrize('mode', ['full', 'selective'])
+def test_deleted_report_image_history_survives_backup_and_restore(setup, mode):
+    instance, _, _, tmp = setup
+    with service.connect(service.live_path()) as conn:
+        row = conn.execute('SELECT id,report_id,position_id FROM report_images LIMIT 1').fetchone()
+        assert row is not None
+        conn.execute('UPDATE report_images SET image_id=999999 WHERE id=?', (row['id'],))
+    manifest, _, validated = package(tmp)
+    instance('deleted-image-destination')
+    service.restore(validated, mode, [1] if mode == 'selective' else [], 'recovery-admin')
+    with service.connect(service.live_path()) as conn:
+        service.check_database(conn)
+        assert conn.execute('SELECT image_id FROM report_images WHERE id=?', (row['id'],)).fetchone()[0] == 999999
+        assert conn.execute('SELECT 1 FROM images WHERE id=999999').fetchone() is None
+
+
+@pytest.mark.parametrize('field', ['report_id', 'position_id'])
+def test_missing_report_history_parent_still_rejects_backup(setup, field):
+    _, _, _, tmp = setup
+    with service.connect(service.live_path()) as conn:
+        conn.execute(f'UPDATE report_images SET "{field}"=999999')
+    with pytest.raises(ValueError, match=f'Broken relationship: report_images.{field}'):
+        service.snapshot(tmp / 'invalid-parent')
+
+
 @pytest.mark.parametrize('before_creation_requests', [False, True])
 @pytest.mark.parametrize('before_report_fields', [False, True])
 def test_backup_before_viewing_sides_imports_without_assigning_old_readings(setup, before_creation_requests, before_report_fields):
@@ -94,6 +119,9 @@ def test_backup_before_viewing_sides_imports_without_assigning_old_readings(setu
         if before_creation_requests:
             conn.execute('DROP TABLE visit_creation_requests')
             manifest['counts'].pop('visit_creation_requests')
+        if before_creation_requests and before_report_fields:
+            conn.execute('ALTER TABLE users DROP COLUMN first_name')
+            conn.execute('ALTER TABLE users DROP COLUMN last_name')
         if before_report_fields:
             conn.execute('ALTER TABLE line_inspection_reports DROP COLUMN inspection_snapshot')
             conn.execute('ALTER TABLE team_archive_images DROP COLUMN relative_path')
@@ -106,7 +134,8 @@ def test_backup_before_viewing_sides_imports_without_assigning_old_readings(setu
         conn.execute('DROP TABLE positions')
         conn.execute('ALTER TABLE old_view_positions RENAME TO positions')
     manifest['schema_version'] = service.schema_signature(before_view_side=True, before_creation_requests=before_creation_requests,
-        before_report_snapshot=before_report_fields, before_archive_relative_path=before_report_fields)
+        before_report_snapshot=before_report_fields, before_archive_relative_path=before_report_fields,
+        before_profile_names=before_creation_requests and before_report_fields)
     if before_creation_requests and before_report_fields:
         # Actual deployed release signature, not merely a fixture-derived expectation.
         assert manifest['schema_version'] == '23922df3695b4c5c747d75db57e2fad84416d916f1a91a1c0dbd3aa375f79e72'
@@ -162,7 +191,8 @@ def test_full_roundtrip_counts_images_metadata_reports_and_credentials(setup):
     manifest, archive, validated = package(tmp)
     with zipfile.ZipFile(archive) as z:
         raw = z.read('database.sqlite3')
-        assert b'SECRET-HASH' not in raw and b'SECRET-CONFIRM' not in raw and b'SECRET-CREATION' not in raw
+        assert (b'$2b$12$' + b'A'*53) in raw
+        assert b'SECRET-CONFIRM' not in raw and b'SECRET-CREATION' not in raw
         assert any('Ashoor-Saada/Ashoor-Saada-66__tower-1/visit-1/images/' in p for p in z.namelist())
         assert 'RECOVERY-TEST' not in z.read('inspection-index.csv').decode('utf-8-sig')
     dest_engine, dest_dir = instance('destination')
@@ -171,7 +201,7 @@ def test_full_roundtrip_counts_images_metadata_reports_and_credentials(setup):
     with service.connect(service.live_path()) as conn:
         assert service.counts(conn) == manifest['counts']
         service.check_database(conn)
-        assert conn.execute('SELECT hashed_password FROM users WHERE id=1').fetchone()[0] == 'SECRET-HASH-DO-NOT-EXPORT'
+        assert conn.execute('SELECT hashed_password FROM users WHERE id=1').fetchone()[0] == '$2b$12$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
         for _, _, _, root, rel in service.file_references(conn):
             assert service.resolve_file(service.roots()[root], rel).is_file()
     with Session(dest_engine) as db:
@@ -394,3 +424,98 @@ def test_legacy_channel_thumbnail_and_cross_visit_report_selection(setup):
     with service.connect(service.live_path()) as conn:
         thumb = conn.execute('SELECT photo_thumb_path FROM team_channel_messages').fetchone()[0]
         assert (settings.channel_dir / 'thumbs' / thumb).is_file()
+
+
+def test_schedule_claim_is_shared_and_backup_status_survives_cleanup(setup, monkeypatch):
+    calls = []
+    monkeypatch.setattr(jobs, 'submit', lambda *args: calls.append(args))
+    data = jobs.configure_schedule(dict(enabled=True, interval_hours=24, retention_days=14, retention_count=3), 'recovery-admin')
+    due = data['next_run'] + 1
+    jobs.scheduled_tick(due)
+    jobs.scheduled_tick(due)
+    assert len(calls) == 1
+    automatic = jobs.get(calls[0][0])
+    assert automatic['automatic'] is True
+    jobs.patch(automatic['id'], status='complete', size=123, filename='inspection-backup-test.zip')
+    info = jobs.overview()
+    assert info['last_success']['id'] == automatic['id']
+    assert any(e['action'] == 'configure_schedule' for e in info['audit'])
+    assert any(e['action'] == 'backup' and e['status'] == 'complete' for e in info['audit'])
+
+
+def test_new_controls_deny_non_full_administrators(setup):
+    app = FastAPI(); app.include_router(routes.router)
+    account = User(username='someone', role='team_member', is_super_admin=True)
+    app.dependency_overrides[get_current_user] = lambda: account
+    with TestClient(app) as client:
+        for role, full in [('team_member', True), ('admin', False), ('client', True)]:
+            account.role, account.is_super_admin = role, full
+            assert client.post('/api/backups').status_code == 403
+            assert client.get('/api/backups/overview').status_code == 403
+            assert client.put('/api/backups/schedule', json={}).status_code == 403
+            assert client.get('/api/backups/00000000-0000-0000-0000-000000000000/download').status_code == 403
+            assert client.post('/api/backups/00000000-0000-0000-0000-000000000000/restore', json={'mode':'full','confirmation':'RESTORE'}).status_code == 403
+
+
+def test_restore_requires_preview_and_rejects_merge_mode(setup, monkeypatch):
+    _, _, _, tmp = setup
+    _, archive, _ = package(tmp)
+    source = jobs.create('upload', 'recovery-admin')
+    shutil.copyfile(archive, jobs.directory(source['id']) / 'upload.zip')
+    jobs.validate(source['id'])
+    monkeypatch.setattr(jobs, 'submit', lambda *args: None)
+    app = FastAPI(); app.include_router(routes.router)
+    app.dependency_overrides[get_current_user] = lambda: User(username='recovery-admin', role='admin', is_super_admin=True)
+    path = '/api/backups/' + source['id']
+    with TestClient(app) as client:
+        assert client.post(path+'/restore', json={'mode':'full','confirmation':'RESTORE'}).status_code == 409
+        assert client.post(path+'/preview', json={'mode':'full'}).status_code == 200
+        assert client.post(path+'/restore', json={'mode':'full','confirmation':'RESTORE'}).status_code == 202
+        assert client.post(path+'/restore', json={'mode':'selective','confirmation':'RESTORE'}).status_code == 422
+
+
+def test_format_one_remains_compatible_with_disabled_profiles(setup):
+    _, _, _, tmp = setup
+    folder = tmp / 'legacy-format-one'
+    manifest = service.snapshot(folder)
+    database = folder / 'database.sqlite3'
+    with service.connect(database) as conn:
+        conn.execute("UPDATE users SET hashed_password='!backup-password-excluded', is_active=0")
+    manifest['format_version'] = 1
+    for item in manifest['members']:
+        if item['path'] == 'database.sqlite3':
+            item.update(size=database.stat().st_size, sha256=service.digest(database))
+    (folder / 'manifest.json').write_text(json.dumps(manifest), encoding='utf8')
+    archive = tmp/'legacy-format-one.zip'
+    service.pack(folder, archive)
+    assert service.validate_archive(archive, tmp/'legacy-import')['format_version'] == 1
+
+
+def test_format_two_restores_other_account_hash_and_status(setup):
+    instance, engine, _, tmp = setup
+    account_hash = '$2b$12$' + 'B'*53
+    with Session(engine) as db:
+        db.add(User(id=2, username='field-member', role='team_member', is_active=True,
+                    is_approved=True, hashed_password=account_hash))
+        db.commit()
+    _, _, validated = package(tmp)
+    instance('auth-destination')
+    service.restore(validated, 'full', [], 'recovery-admin')
+    with service.connect(service.live_path()) as conn:
+        row = conn.execute('SELECT id,hashed_password,is_active FROM users WHERE username=?', ('field-member',)).fetchone()
+        assert tuple(row) == (2, account_hash, 1)
+
+
+def test_automatic_retention_preserves_manual_and_recent_copies(setup):
+    manual = jobs.create('backup', 'recovery-admin')
+    jobs.patch(manual['id'], status='complete', size=1, filename='manual.zip')
+    automatic = []
+    for _ in range(3):
+        job = jobs.create('backup', 'recovery-admin', automatic=True)
+        jobs.patch(job['id'], status='complete', size=1, filename='automatic.zip')
+        automatic.append(job['id'])
+    jobs.prune_scheduled(dict(retention_days=7, retention_count=1))
+    assert jobs.get(manual['id'])['status'] == 'complete'
+    assert jobs.get(automatic[-1])['status'] == 'complete'
+    for old in automatic[:-1]:
+        with pytest.raises(ValueError): jobs.get(old)

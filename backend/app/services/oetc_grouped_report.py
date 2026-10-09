@@ -22,6 +22,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.models import Area, Position, Team, Tower, Visit, utcnow
 from app.schemas import LineInspectionReportRequest, OetcAreaReportRequest, OetcConsolidatedReportRequest
 from app.services.oetc_report import generate_report_number, render_oetc_line_report_docx
+from app.services.report_images import index_report_images
+from app.services import report_progress
 
 
 class GroupedReportBlock:
@@ -104,20 +106,25 @@ def _render_merged(
     composer: Composer | None = None
     blocks: list[GroupedReportBlock] = []
     used: set[str] = set()
+    report_progress.plan([visits for _, _, visits in plan])
     for area, team, visits in plan:
         sub_number = generate_report_number(db, team.name, generated_at, exclude=used)
         used.add(sub_number)
         payload = _team_payload(base, team.id, sub_number)
         docx_bytes = render_oetc_line_report_docx(team, visits, payload)
+        report_progress.stage('Combining report sections')
         sub_doc = DocxDocument(io.BytesIO(docx_bytes))
         if master is None:
             master = sub_doc
+            index_report_images(master)
             composer = Composer(master)
         else:
             _add_page_break(master)
             composer.append(sub_doc)
+        report_progress.advance()
         blocks.append(GroupedReportBlock(area, team, visits, sub_number, docx_bytes))
     buf = io.BytesIO()
+    report_progress.stage('Writing combined document')
     composer.save(buf)
     return buf.getvalue(), blocks
 

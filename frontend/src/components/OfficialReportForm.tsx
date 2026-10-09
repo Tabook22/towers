@@ -40,6 +40,7 @@ import CalendarMonthRounded from '@mui/icons-material/CalendarMonthRounded';
 import { DashboardSection } from './DashboardSection';
 import { ReportHistoryTable } from './ReportHistoryTable';
 import { reportError } from '../utils/reportLibrary';
+import { ReportGenerationProgress } from './ReportGenerationProgress';
 
 type Mode = 'tower' | 'team' | 'line' | 'overall';
 
@@ -91,6 +92,9 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
   const selectedTowerOption = towerOptions.find((t) => t.id === towerId) || null;
 
   const generating = generateTeam.isPending || generateArea.isPending || generateConsolidated.isPending;
+  const reportProgress = [generateTeam.progress, generateArea.progress, generateConsolidated.progress]
+    .filter((item) => item !== null)
+    .sort((a, b) => (b.received_at || 0) - (a.received_at || 0))[0] || null;
   const scopeChosen =
     mode === 'overall' || (mode === 'team' && !!teamId) || (mode === 'tower' && !!towerId) || (mode === 'line' && !!area);
   const validDates = Boolean(startDate && endDate && startDate <= endDate);
@@ -133,7 +137,7 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
       approval_date: approvalDate || null,
     };
     const onError = async (err: unknown) => {
-      setError(await reportError(err, tr("Could not generate the report.")));
+      setError(await reportError(err, tr("Could not generate the report."), tr("Report generation took longer than the server allowed. It may still finish in the report library. Check the library before trying again.")));
     };
     const onSettled = () => { generationLock.current = false; };
     if (mode === 'tower') {
@@ -184,6 +188,7 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
         </AccordionDetails>
       </Accordion>
 
+      <ReportGenerationProgress progress={reportProgress} reconnecting={generateTeam.reconnecting || generateArea.reconnecting || generateConsolidated.reconnecting} />
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {tr(error)}

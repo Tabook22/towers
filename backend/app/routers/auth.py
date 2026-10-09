@@ -174,6 +174,8 @@ def create_user(
         username=payload.username,
         email=payload.email,
         full_name=payload.full_name,
+        first_name=payload.first_name,
+        last_name=payload.last_name,
         mobile=payload.mobile,
         address=payload.address,
         notes=payload.notes,

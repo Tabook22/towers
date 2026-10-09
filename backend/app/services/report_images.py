@@ -25,3 +25,32 @@ class InlineImageGroup:
     def __str__(self):
         # InlineImage renders during Jinja evaluation, when its template part is available.
         return '</w:t><w:br/><w:t xml:space="preserve">'.join(str(image) for image in self.images)
+
+
+def index_report_images(document):
+    """Index this document's immutable image parts, without patching library globals.
+
+    python-docx and docxcompose otherwise repeatedly hash every previous image
+    for every insertion. Large inspection reports become quadratic in image bytes.
+    Keep the normal image-part allocation and deduplication behavior.
+    """
+    from docx.package import ImageParts
+
+    class IndexedImageParts(ImageParts):
+        def __init__(self, existing):
+            super().__init__()
+            self.by_sha1 = {}
+            for part in existing:
+                self.append(part)
+
+        def append(self, part):
+            super().append(part)
+            self.by_sha1.setdefault(part.sha1, part)
+
+        def _get_by_sha1(self, sha1):
+            return self.by_sha1.get(sha1)
+
+    package = document.part.package
+    # python-docx exposes this collection through a read-only lazyproperty.
+    # Replace only its cached value on this package, never the shared descriptor.
+    package.__dict__["image_parts"] = IndexedImageParts(package.image_parts)

@@ -48,11 +48,25 @@ export function selectReports(rows: LineInspectionReportOut[], filters: ReportFi
   });
 }
 
-export async function reportError(error: unknown, fallback: string): Promise<string> {
+export async function reportError(error: unknown, fallback: string, timeoutMessage = fallback): Promise<string> {
+  if ((error as { response?: { status?: number } })?.response?.status === 504) return timeoutMessage;
   let data = (error as { response?: { data?: unknown } })?.response?.data;
   if (data instanceof Blob) {
     try { data = JSON.parse(await data.text()); } catch { return fallback; }
   }
   const detail = (data as { detail?: unknown })?.detail;
   return typeof detail === 'string' ? detail : fallback;
+}
+
+
+/** Snapshot the confirmed IDs and report partial failures without retrying successful deletes. */
+export async function deleteSelectedReports(ids: readonly number[], deleteOne: (id: number) => Promise<unknown>) {
+  const confirmed = [...new Set(ids)];
+  const deleted: number[] = [];
+  const failed: { id: number; error: unknown }[] = [];
+  for (const id of confirmed) {
+    try { await deleteOne(id); deleted.push(id); }
+    catch (error) { failed.push({ id, error }); }
+  }
+  return { deleted, failed };
 }

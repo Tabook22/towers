@@ -20,15 +20,15 @@ from app.database import Base, engine
 from app import models  # registers metadata
 from app.routers import live_help  # its four transient models also belong to the deployed schema
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 APP_VERSION = '1.0.0'
 EXCLUDED_TABLES = {'push_subscriptions', 'thermal_edit_grants', 'live_help_presence', 'live_help_rooms', 'live_help_seats', 'live_help_signals', 'visit_creation_requests'}
 EXCLUSIONS = [
-    'Password hashes, login tokens, thermal editor grants and push subscriptions/keys.',
+    'Login tokens, thermal editor grants and push subscriptions/keys. Password hashes are retained for recovery.',
     'Environment files, server/SSH credentials, API keys, application code and server configuration.',
     'Browser-only/offline drafts not yet uploaded to the server; backups and temporary job files.',
     'Transient live-call presence, invitations, seats and WebRTC signalling (including session credentials).',
-    'User profiles and permissions are included, but imported accounts are disabled until reset by an administrator.',
+    'User profiles, permissions, account status and password hashes are included; plaintext passwords are never stored.',
 ]
 # Logical storage roots, independent of either instance's absolute paths.
 def roots():
@@ -56,18 +56,18 @@ FILE_FIELDS = {
 }
 
 
-def legacy_columns(*, before_view_side=False, before_report_snapshot=False, before_archive_relative_path=False):
+def legacy_columns(*, before_view_side=False, before_report_snapshot=False, before_archive_relative_path=False, before_profile_names=False):
     return {name: {column} for name, column, missing in (
         ('positions', 'view_side', before_view_side),
         ('line_inspection_reports', 'inspection_snapshot', before_report_snapshot),
         ('team_archive_images', 'relative_path', before_archive_relative_path),
-    ) if missing}
+    ) if missing} | ({'users': {'first_name', 'last_name'}} if before_profile_names else {})
 
 
 def schema_signature(*, before_view_side=False, before_creation_requests=False,
-                     before_report_snapshot=False, before_archive_relative_path=False):
+                     before_report_snapshot=False, before_archive_relative_path=False, before_profile_names=False):
     missing = legacy_columns(before_view_side=before_view_side, before_report_snapshot=before_report_snapshot,
-                             before_archive_relative_path=before_archive_relative_path)
+                             before_archive_relative_path=before_archive_relative_path, before_profile_names=before_profile_names)
     schema = {name: [(c.name, str(c.type), c.nullable, c.primary_key,
                         sorted(f.target_fullname for f in c.foreign_keys)) for c in table.columns
                         if c.name not in missing.get(name, set())]
@@ -93,7 +93,7 @@ def connect(path):
 
 def live_path():
     if engine.dialect.name != 'sqlite' or not engine.url.database or engine.url.database == ':memory:':
-        raise ValueError('Backup format 1 requires a file-backed SQLite database.')
+        raise ValueError('Portable backups require a file-backed SQLite database.')
     return Path(engine.url.database).resolve()
 
 
@@ -136,9 +136,9 @@ def resolve_file(base, rel):
 
 
 def check_database(conn, *, before_view_side=False, before_creation_requests=False,
-                   before_report_snapshot=False, before_archive_relative_path=False):
+                   before_report_snapshot=False, before_archive_relative_path=False, before_profile_names=False):
     missing = legacy_columns(before_view_side=before_view_side, before_report_snapshot=before_report_snapshot,
-                             before_archive_relative_path=before_archive_relative_path)
+                             before_archive_relative_path=before_archive_relative_path, before_profile_names=before_profile_names)
     if conn.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
         raise ValueError('Database integrity check failed.')
     if conn.execute("SELECT 1 FROM sqlite_master WHERE type IN ('trigger','view') OR sql LIKE '%VIRTUAL TABLE%'").fetchone():
@@ -157,6 +157,11 @@ def check_database(conn, *, before_view_side=False, before_creation_requests=Fal
         if name in EXCLUDED_TABLES:
             continue
         for col in table.columns:
+            # Report membership is historical: deleting/moving an extra image deliberately
+            # retains its ReportImage row (the report API skips the absent live image).
+            # Preserve that history in recovery copies; its report and position must exist.
+            if name == 'report_images' and col.name == 'image_id':
+                continue
             for fk in col.foreign_keys:
                 parent = fk.column.table.name
                 sql = f'SELECT c."{col.name}" FROM "{name}" c LEFT JOIN "{parent}" p ON c."{col.name}"=p."{fk.column.name}" WHERE c."{col.name}" IS NOT NULL AND p."{fk.column.name}" IS NULL LIMIT 1'
@@ -196,9 +201,9 @@ def slug(text):
 
 
 def instructions():
-    return '''Sky Green Line portable inspection backup — format 1
+    return '''Sky Green Line portable inspection backup — format 2
 
-database.sqlite3 is the authoritative, sanitized SQLite dataset. manifest.json maps its
+database.sqlite3 is the authoritative SQLite dataset with password hashes. manifest.json maps its
 attachment paths to files/ entries and records SHA-256 checksums. inspection-index.csv is
 a readable index only. Do not edit the package. Checksums detect corruption, not authorship;
 import only backups you trust. The ZIP contains confidential inspection data and is NOT encrypted.
@@ -209,16 +214,11 @@ Backup & Restore, upload the ZIP in chunks, validate it, review the preview, sel
 mode and confirm. The application creates a recovery ZIP before making changes.
 
 Full recovery replaces all business records. Source profile IDs and relationships are preserved;
-passwords are not imported. All source users are disabled. The destination operator's login is
-retained (matched by username, otherwise added as a separate administrator). Reset passwords and
-enable any other accounts deliberately. Server secrets and authentication tokens are never imported.
+Password hashes and account status are retained in format 2; older format 1 accounts require password resets.
+The destination operator's login is retained (matched by username, otherwise added as a separate administrator).
+Server secrets and authentication tokens are never imported.
 
-Selective recovery imports only whole missing visits, their positions, evidence, visit photos,
-server drafts, linked messages and eligible saved reports, plus required parent records.
-Existing visits/child IDs or duplicate visit identities cause rejection of the entire selection.
-Existing parent IDs may be reused only when their stable identity matches; their data is never
-overwritten. Cross-visit reports are omitted unless every referenced position is selected.
-This mode does NOT repair individual missing images/records inside an existing visit.
+The Settings recovery workflow replaces the full dataset. Record merging is not offered.
 
 Requests briefly receive HTTP 503 during the consistent snapshot and final restore. Retry after
 maintenance. External scripts must not modify database/uploads during backups or restoration.
@@ -244,7 +244,6 @@ def snapshot(destination, progress=lambda *a: None, allow_missing=False):
         check_database(conn)
         for table in EXCLUDED_TABLES:
             conn.execute(f'DELETE FROM "{table}"')
-        conn.execute("UPDATE users SET hashed_password='!backup-password-excluded', is_active=0")
         conn.execute('UPDATE visit_entry_drafts SET last_commit_token=NULL')
         storage = roots()
         if any(settings.backups_dir.resolve().is_relative_to(base) or live_path().is_relative_to(base) for base in storage.values()):
@@ -369,8 +368,10 @@ def validate_archive(archive, destination, progress=lambda *a: None):
                     for relative in (False, True):
                         options = dict(before_view_side=side, before_creation_requests=creation,
                                        before_report_snapshot=snapshot, before_archive_relative_path=relative)
-                        supported[schema_signature(**options)] = options
-        if manifest.get('format_version') != FORMAT_VERSION or manifest.get('schema_version') not in supported or manifest.get('app_version') != APP_VERSION:
+                        for profile in (False, True):
+                            variant = {**options, 'before_profile_names': profile}
+                            supported[schema_signature(**variant)] = variant
+        if manifest.get('format_version') not in (1, FORMAT_VERSION) or manifest.get('schema_version') not in supported or manifest.get('app_version') != APP_VERSION:
             raise ValueError('Incompatible backup format, application or schema version.')
         options = supported[manifest['schema_version']]
         before_creation_requests = options['before_creation_requests']
@@ -411,8 +412,12 @@ def validate_archive(archive, destination, progress=lambda *a: None):
             excluded = EXCLUDED_TABLES - ({'visit_creation_requests'} if before_creation_requests else set())
             if any(conn.execute(f'SELECT 1 FROM "{t}" LIMIT 1').fetchone() for t in excluded):
                 raise ValueError('Archive contains excluded authentication records.')
-            if conn.execute("SELECT 1 FROM users WHERE hashed_password != '!backup-password-excluded' OR is_active != 0 LIMIT 1").fetchone():
+            if manifest['format_version'] == 1 and conn.execute("SELECT 1 FROM users WHERE hashed_password != '!backup-password-excluded' OR is_active != 0 LIMIT 1").fetchone():
                 raise ValueError('Archive contains credentials or enabled source accounts.')
+            if manifest['format_version'] == 2:
+                for row in conn.execute('SELECT hashed_password FROM users'):
+                    if row[0] != '!backup-password-excluded' and not re.fullmatch(r'\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}', row[0]):
+                        raise ValueError('Backup contains unsupported password authentication data.')
             if conn.execute('SELECT 1 FROM visit_entry_drafts WHERE last_commit_token IS NOT NULL LIMIT 1').fetchone():
                 raise ValueError('Archive contains excluded confirmation tokens.')
             for table, pk, field, root, rel in [*file_references(conn), *inline_references(conn)]:
@@ -422,6 +427,9 @@ def validate_archive(archive, destination, progress=lambda *a: None):
             # Only the verified extracted copy is upgraded. The uploaded archive remains intact.
             # Restore inserts into trusted current tables, so its old unique constraint is harmless.
             with connect(destination / 'database.sqlite3') as conn:
+                if options['before_profile_names']:
+                    conn.execute('ALTER TABLE users ADD COLUMN first_name VARCHAR(100)')
+                    conn.execute('ALTER TABLE users ADD COLUMN last_name VARCHAR(100)')
                 if options['before_view_side']:
                     conn.execute("ALTER TABLE positions ADD COLUMN view_side VARCHAR(16) NOT NULL DEFAULT 'Unspecified'")
                 if options['before_report_snapshot']:
@@ -500,6 +508,10 @@ def restore_plan(source, target, mode, visit_ids):
                     for col in table.columns:
                         for fk in col.foreign_keys:
                             parent, value = fk.column.table.name, row[col.name]
+                            if name == 'report_images' and col.name == 'image_id' and not source.execute(
+                                'SELECT 1 FROM images WHERE id=?', (value,)
+                            ).fetchone():
+                                continue  # Historical membership does not require a deleted live image.
                             if value is not None and value not in selected[parent]:
                                 selected[parent].add(value); changed = True
     else:

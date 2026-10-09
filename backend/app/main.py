@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from sqlalchemy.exc import OperationalError
+from app.services import backup_jobs
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.client_guard import client_role_route_guard
 from app.config import settings
-from app.database import Base, engine
+from app.database import Base, engine, database_error_response
 from app.backup_gate import BackupMaintenanceMiddleware, initialize_gate, maintenance
 from app.migrations import (
     allow_unassigned_channel_authors,
@@ -41,6 +44,7 @@ from app.routers import (
     push,
     report_templates,
     reports,
+    report_jobs,
     team_archive,
     team_activity,
     teams,
@@ -63,7 +67,17 @@ with maintenance(exclusive=True, timeout=60):
     backfill_report_type(engine)
     backfill_menu_permissions(engine)
 
-app = FastAPI(title=settings.app_name, version="1.0.0")
+@asynccontextmanager
+async def lifespan(app):
+    stop = backup_jobs.start_scheduler()
+    try:
+        yield
+    finally:
+        stop.set()
+
+
+app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)
+app.add_exception_handler(OperationalError, database_error_response)
 app.add_middleware(BackupMaintenanceMiddleware)
 
 app.add_middleware(
@@ -94,6 +108,7 @@ app.include_router(images.router)
 app.include_router(archive.router)
 app.include_router(dashboard.router)
 app.include_router(reports.router)
+app.include_router(report_jobs.router)
 app.include_router(report_templates.router)
 app.include_router(lists.router)
 app.include_router(tracking.router)

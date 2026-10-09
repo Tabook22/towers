@@ -1,7 +1,6 @@
 """Autosaved working copies and a single atomic confirmation for visit entry."""
 import datetime as dt
 import hashlib
-import io
 import json
 from uuid import UUID
 
@@ -11,7 +10,6 @@ from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from PIL import Image as PillowImage
 
 from app.config import settings
 from app.database import get_db
@@ -22,7 +20,7 @@ from app.routers.positions import apply_position_update, claim_position_version
 from app.routers.images import apply_upload, ACCEPTED_CONTENT_TYPES
 from app.routers.teams import ACCEPTED_AUDIO_TYPES
 from app.schemas import PositionCreate, PositionUpdate, VisitUpdate, VisitDetail
-from app.services.archive import file_extension, save_upload
+from app.services.archive import file_extension, save_upload, validate_image_bytes
 from app.services.codes import refresh_position_codes, position_image_code
 from app.services.position_workflow import has_observations
 
@@ -158,10 +156,9 @@ async def upload_draft_image(visit_id: int, position_key: int = Form(...), image
         raise HTTPException(422, 'The file is empty')
     if not voice:
         try:
-            with PillowImage.open(io.BytesIO(raw)) as picture:
-                picture.verify()
+            validate_image_bytes(raw)
         except Exception:
-            raise HTTPException(422, 'This file could not be read as an image')
+            raise HTTPException(422, f'{file.filename or "Image"}: this file could not be read as a supported image')
         duplicate = db.query(VisitDraftImage).filter_by(draft_id=draft.id, position_key=position_key,
             image_type=image_type, checksum=checksum, consumed=False).filter(~VisitDraftImage.id.in_(draft.payload.get('excludedImages', []))).first()
         confirmed = position_key > 0 and db.query(Image.id).filter_by(position_id=position_key, image_type=image_type, checksum=checksum).filter(Image.file_path.isnot(None)).first()

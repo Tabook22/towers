@@ -1,4 +1,5 @@
 import { tr, useLanguage, locale } from '../i18n';
+import { ReportGenerationProgress } from '../components/ReportGenerationProgress';
 import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
@@ -2884,6 +2885,7 @@ export function TeamDetailPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Typography variant="body2" color="text.secondary">{tr("Renders straight into the customer's own \"Transmission Line Insulator Thermal Inspection Report\" template — every position with real data in this date range becomes a finding.")}</Typography>
+            <ReportGenerationProgress progress={generateOetcReport.progress} reconnecting={generateOetcReport.reconnecting} />
             {reportError && <Alert severity="error">{tr(reportError)}</Alert>}
             <TextField
               select

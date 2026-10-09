@@ -6,7 +6,7 @@ import ts from 'typescript';
 // Use the project's existing compiler; no additional test runner dependency is needed.
 const source = await readFile(new URL('../src/utils/reportLibrary.ts', import.meta.url), 'utf8');
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } });
-const { selectReports, emptyReportFilters, reportTimestamp, reportError, updateReportFilter } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+const { deleteSelectedReports, selectReports, emptyReportFilters, reportTimestamp, reportError, updateReportFilter } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 const rows = [
   { id: 2, report_number: 'R-10', team_id: 2, team_name: 'Team 10', tower_id: 10, tower_name: 'T-10', start_date: '2026-09-10', end_date: '2026-09-20', created_at: '2026-09-22T23:30:00', report_type: 'tower' },
   { id: 1, report_number: 'R-2', team_id: 1, team_name: 'Team 2', scope_towers: [{ id: 2, name: 'T-2' }, { id: 3, name: 'T-3' }], start_date: '2026-09-01', end_date: '2026-09-30', created_at: '2026-09-23T00:00:00', report_type: 'team' },
@@ -57,4 +57,28 @@ test('line sections match their saved line and ignore disabled team or tower fil
   assert.deepEqual(selectReports(sections, { ...emptyReportFilters, type: 'area', team: '999', tower: '999', line: 'Ashoor – Saada' }, 'created_at', 'asc').map(r => r.id), [10]);
   assert.deepEqual(select({ type: 'team', line: 'Ittin-Thumrait', tower: '999' }), [1]);
   assert.deepEqual(select({ type: 'tower', team: '999', line: 'Ittin-Thumrait' }), [2]);
+});
+
+
+test('proxy timeout explains pending generation even when the response is HTML', async () => {
+  const message = 'Check the report library before trying again.';
+  assert.equal(await reportError({ response: { status: 504, data: new Blob(['<html>Gateway Timeout</html>']) } }, 'Fallback', message), message);
+});
+
+
+test('confirmed report deletion snapshots exact selection and retains failures without deleting other reports', async () => {
+  const selection = [7, 9, 7, 12];
+  const called = [];
+  const denied = new Error('Permission changed');
+  const result = await deleteSelectedReports(selection, async id => {
+    called.push(id);
+    if (id === 7) selection.push(99); // A later library update cannot expand the confirmed selection.
+    if (id === 9) throw denied;
+  });
+  assert.deepEqual(called, [7, 9, 12]);
+  assert.deepEqual(result.deleted, [7, 12]);
+  assert.deepEqual(result.failed, [{ id: 9, error: denied }]);
+  const retries = [];
+  await deleteSelectedReports(result.failed.map(item => item.id), async id => retries.push(id));
+  assert.deepEqual(retries, [9]); // Successful report deletes are never repeated.
 });

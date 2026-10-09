@@ -6,6 +6,8 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel, Field
+from typing import Literal
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.config import settings
@@ -458,7 +460,11 @@ def oetc_line_report(
         scope = f"tower {tower.tower_id}" if tower else "this team"
         raise HTTPException(status_code=400, detail=f"No visits found for {scope} in that date range")
 
+    from app.services import report_progress
+    report_progress.plan([visits])
     docx_bytes = render_oetc_line_report_docx(team, visits, payload, tower=tower)
+    report_progress.advance()  # Single-section document needs no merge.
+    report_progress.stage('Saving report to library')
 
     record = LineInspectionReport(
         team_id=team.id,
@@ -480,7 +486,7 @@ def oetc_line_report(
         file_path=_save_report_file(payload.report_number, generated_at, docx_bytes),
         report_type="tower" if tower else "team",
         scope_towers=_report_tower_scope(visits),
-        inspection_snapshot=capture_inspection_snapshot(team, visits, payload),
+        inspection_snapshot=_creator_snapshot(team, visits, payload, user),
     )
     db.add(record)
     db.flush()
@@ -488,11 +494,19 @@ def oetc_line_report(
     db.commit()
 
     safe_number = payload.report_number.replace("/", "-")
+    report_progress.advance('sections')
     return Response(
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{safe_number}.docx"'},
     )
+
+
+def _creator_snapshot(team, visits, payload, user):
+    snapshot = capture_inspection_snapshot(team, visits, payload)
+    snapshot["report_creator"] = {"id": user.id, "name": user.full_name or user.username,
+                                  "username": user.username, "role": user.role}
+    return snapshot
 
 
 def _persist_blocks(
@@ -509,6 +523,8 @@ def _persist_blocks(
     render_area_report/render_consolidated_report) — defaults to now for a caller that doesn't
     already have one."""
     generated_at = generated_at or utcnow()
+    from app.services import report_progress
+    report_progress.stage('Saving report to library')
     for b in blocks:
         dates = [v.inspection_date for v in b.visits if v.inspection_date]
         record = LineInspectionReport(
@@ -529,13 +545,15 @@ def _persist_blocks(
             report_type=report_type,
             line_sector=b.area,
             scope_towers=_report_tower_scope(b.visits),
-            inspection_snapshot=capture_inspection_snapshot(b.team, b.visits, payload),
+            inspection_snapshot=_creator_snapshot(b.team, b.visits, payload, user),
             file_path=_save_report_file(b.report_number, generated_at, b.docx_bytes),
         )
         db.add(record)
         db.flush()
         _persist_report_images(db, record.id, b.visits)
     db.commit()
+    for _ in blocks:
+        report_progress.advance('sections')
 
 
 @router.post("/oetc-area-report.docx")
@@ -595,6 +613,7 @@ def oetc_consolidated_report(
 
 @router.get("/oetc-line-report/history", response_model=list[LineInspectionReportOut])
 def oetc_line_report_history(
+    admin_only: bool = False,
     team_id: int | None = None,
     tower_id: int | None = None,
     report_type: str | None = None,
@@ -634,9 +653,21 @@ def oetc_line_report_history(
         raise HTTPException(status_code=422, detail="End date must be on or after start date")
     rows = q.order_by(LineInspectionReport.created_at.desc(), LineInspectionReport.id.desc()).all()
     lines = [name for (name,) in db.query(Area.name).all()]
+    creator_ids = {r.created_by for r in rows if r.created_by is not None}
+    creators = {u.id: u for u in db.query(User).filter(User.id.in_(creator_ids)).all()} if creator_ids else {}
     out = []
     for r in rows:
+        creator = (r.inspection_snapshot or {}).get("report_creator")
+        if creator is None:
+            account = creators.get(r.created_by)
+            creator = {"id": account.id, "name": account.full_name or account.username,
+                       "username": account.username, "role": account.role} if account else {}
+        if admin_only and creator.get("role") != UserRole.ADMIN.value:
+            continue
         item = LineInspectionReportOut.model_validate(r)
+        item.created_by_name = creator.get("name")
+        item.created_by_username = creator.get("username")
+        item.created_by_role = creator.get("role")
         item.team_name = r.inspection_snapshot['team_name'] if r.inspection_snapshot else (r.team.name if r.team else None)
         item.tower_name = next((t['name'] for t in (r.scope_towers or []) if t['id'] == r.tower_id), r.tower.tower_id if r.tower else None)
         # Older reports have no scope snapshot. Only infer membership from recorded evidence,
@@ -671,6 +702,102 @@ def report_inspection_data(report_id: int, db: Session = Depends(get_db), user: 
         raise HTTPException(status_code=404, detail="Report not found")
     _check_report_access(record, user)
     return {"snapshot": record.inspection_snapshot}
+
+
+class DigitalReportExport(BaseModel):
+    kind: Literal['xlsx', 'docx']
+    finding_keys: list[str] = Field(min_length=1, max_length=100000)
+
+
+class DigitalDocumentRequest(BaseModel):
+    finding_keys: list[str] = Field(default_factory=list, max_length=100)
+    section: Literal['findings', 'overview', 'measurements'] = 'findings'
+
+
+def _digital_archive(record):
+    if not record.file_path:
+        return None
+    path = (settings.reports_dir / record.file_path).resolve()
+    return path if path.is_relative_to(settings.reports_dir.resolve()) and path.is_file() else None
+
+
+@router.get('/oetc-line-report/{report_id}/digital-layout')
+def digital_report_layout(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services.digital_report import archived_layout
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail='Report not found')
+    _check_report_access(record, user)
+    return {'findings': archived_layout(_digital_archive(record), record.inspection_snapshot or {})}
+
+
+@router.post('/oetc-line-report/{report_id}/digital-document')
+def digital_report_document(report_id: int, payload: DigitalDocumentRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services.digital_report import archived_finding_document
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail='Report not found')
+    _check_report_access(record, user)
+    try:
+        data = archived_finding_document(_digital_archive(record), record.inspection_snapshot or {}, payload.finding_keys, overview=payload.section == 'overview', measurements=payload.section == 'measurements')
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(data, media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document', headers={'Cache-Control': 'private, no-store'})
+
+
+@router.get('/oetc-line-report/{report_id}/digital-evidence')
+def digital_report_evidence(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services.digital_report import archived_evidence_index
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail='Report not found')
+    _check_report_access(record, user)
+    return {'available': list(archived_evidence_index(_digital_archive(record), record.inspection_snapshot or {}))}
+
+
+@router.get('/oetc-line-report/{report_id}/digital-evidence/{evidence_key}')
+def digital_report_evidence_file(report_id: int, evidence_key: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from zipfile import ZipFile
+    from app.services.digital_report import archived_evidence_index
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail='Report not found')
+    _check_report_access(record, user)
+    path = _digital_archive(record)
+    member = archived_evidence_index(path, record.inspection_snapshot or {}).get(evidence_key)
+    if not member:
+        raise HTTPException(status_code=404, detail='Original photograph could not be associated safely. View the issued Word document.')
+    with ZipFile(path) as archive:
+        data = archive.read(member)
+    from PIL import Image as PillowImage
+    from io import BytesIO
+    # Decode and re-encode raster evidence; never serve arbitrary archive parts as HTML/SVG.
+    with PillowImage.open(BytesIO(data)) as image:
+        image.thumbnail((1400, 1400))
+        output = BytesIO()
+        image.convert('RGB').save(output, format='JPEG', quality=88)
+    return Response(output.getvalue(), media_type='image/jpeg', headers={'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'})
+
+
+@router.post('/oetc-line-report/{report_id}/digital-export')
+def digital_report_export(report_id: int, payload: DigitalReportExport, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services.digital_report import export_snapshot, archived_finding_document
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail='Report not found')
+    _check_report_access(record, user)
+    if not record.inspection_snapshot:
+        raise HTTPException(status_code=404, detail='This older report has no frozen inspection data. Use the archived document.')
+    try:
+        if payload.kind == 'docx':
+            data = archived_finding_document(_digital_archive(record), record.inspection_snapshot, payload.finding_keys, f'Filtered extract from {record.report_number}. This is not a newly approved report. Original issued findings and photographs are retained below.')
+        else:
+            data = export_snapshot(record.inspection_snapshot, record.report_number, record.created_at, payload.finding_keys, payload.kind, _digital_archive(record))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    safe_number = re.sub(r'[^A-Za-z0-9._-]+', '-', record.report_number)
+    mime = 'application/vnd.openxmlformats-officedocument.' + ('spreadsheetml.sheet' if payload.kind == 'xlsx' else 'wordprocessingml.document')
+    return Response(data, media_type=mime, headers={'Content-Disposition': f'attachment; filename="{safe_number}-filtered-extract.{payload.kind}"', 'Cache-Control': 'private, no-store'})
 
 
 @router.get("/oetc-line-report/{report_id}/inspection-data.pdf")

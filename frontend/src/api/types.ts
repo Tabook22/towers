@@ -317,6 +317,10 @@ export interface LineInspectionReportOut {
   reviewed_by: string | null;
   approved_by: string | null;
   approval_date: string | null;
+  created_by?: number | null;
+  created_by_name?: string | null;
+  created_by_username?: string | null;
+  created_by_role?: string | null;
   created_at: string;
   line_sector: string | null;
   report_type: string | null;
@@ -551,6 +555,8 @@ export interface AdminUser {
   username: string;
   email: string | null;
   full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   mobile: string | null;
   address: string | null;
   notes: string | null;

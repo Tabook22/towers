@@ -73,7 +73,7 @@ def _inline_image(tpl, img):
     if not path.exists():
         return None
     from docxtpl import InlineImage
-    from PIL import Image as PILImage
+    from PIL import Image as PILImage, ImageOps
 
     try:
         # Re-encoded through PIL rather than handed to python-docx as the raw file: some real-world
@@ -84,10 +84,16 @@ def _inline_image(tpl, img):
         # Re-saving through PIL first — far more tolerant of real-world file quirks, and this
         # naturally drops the EXIF entirely — produces a clean, standard JPEG that doesn't hit that
         # code path at all, so the failure genuinely can't happen at render time either.
-        with PILImage.open(path) as im:
+        with PILImage.open(path) as original:
+            # 1400 pixels at the template's 70 mm width provides over 500 dpi.
+            # Only the embedded copy is resized; source evidence remains untouched.
+            # JPEG draft decoding reduces memory for large drone photographs.
+            original.draft("RGB", (1400, 1400))
+            im = ImageOps.exif_transpose(original)
+            im.thumbnail((1400, 1400), PILImage.Resampling.LANCZOS)
             im = im.convert("RGB")
             buf = io.BytesIO()
-            im.save(buf, format="JPEG", quality=90)
+            im.save(buf, format="JPEG", quality=88)
             buf.seek(0)
         return InlineImage(tpl, buf, width=Mm(70))
     except Exception:
@@ -95,7 +101,13 @@ def _inline_image(tpl, img):
 
 
 def _inline_images(tpl, images):
-    rendered = [image for item in images if (image := _inline_image(tpl, item)) is not None]
+    from app.services import report_progress
+    rendered = []
+    for item in images:
+        image = _inline_image(tpl, item)
+        if image is not None:
+            rendered.append(image)
+        report_progress.advance('photos')
     return InlineImageGroup(rendered) if rendered else None
 
 

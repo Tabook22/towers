@@ -272,3 +272,73 @@ reverse-proxies `/api` to the backend.
   has been collected.
 - CSV/XLSX export of the overall summary report is not yet implemented — only the PDF export (`/api/reports/overall.pdf`,
   `/api/reports/visits/{id}.pdf`) exists today.
+
+
+## Report creation progress
+
+Official tower, team, line and overall reports are created through private background jobs.
+The progress display shows elapsed time, current stage, percentage, completed work out of total
+work, and findings/photos/saved-section counts. Progress advances when work finishes and reaches
+100% only after the report is saved and its download file is ready. Document assembly may hold
+the same percentage while the elapsed clock continues; percentage describes completed work,
+not an estimate of remaining time. The report template and saved section history are unchanged.
+
+Refreshing the same browser tab resumes its report job without starting another report. Temporary
+connection or maintenance errors retry progress polling. A stopped worker is reported as interrupted;
+check the report library before starting again. Job receipts and combined download files are private,
+stored below the backup-job directory and expire under the configured backup retention period.
+
+## Backup and recovery
+
+Full administrators can use Settings → Backup & Recovery → Download Full Backup.
+The button prepares a private ZIP job, displays progress and starts the download when ready.
+The ready job remains downloadable if the browser interrupts the transfer. Its timestamp is
+retained separately from expiring job files. Archives use inspection-backup-YYYY-MM-DD-HHMMSS.zip (UTC).
+
+Report image membership retains historical IDs when extra evidence is deleted or moved. Recovery
+copies preserve those history rows even when the original live image no longer exists. Report and
+position parents, current evidence relationships and required attachment files remain validated;
+restoring a copy does not recreate deleted photos.
+
+Format 2 includes SQLite records, original uploaded evidence and attachments, saved reports,
+templates and database application settings, a manifest with record counts and SHA-256 checksums,
+an inspection index, and RESTORE.txt. Stored password hashes and account status are preserved;
+plaintext passwords, login/session tokens, push keys, environment secrets, logs and deployment
+configuration are excluded. ZIPs are confidential and unencrypted. Older format 1 copies restore
+disabled user profiles; those accounts require password resets. The restoring full administrator
+retains access. Configure destination secrets independently; use a compatible release/schema.
+
+Restore Backup uploads bounded chunks, validates the archive into private staging, shows a record
+preview and requires typing RESTORE. This Settings flow replaces the dataset; merging is disabled.
+It creates a complete safety backup before changes and stops if any required file is missing.
+Files are installed without overwriting current files, database changes use one transaction, and
+failed transactions remove newly installed files. Restored paths are mapped consistently in all
+referencing records. Existing unreferenced files are retained for recovery, not deleted.
+
+SQLite's backup API captures the database. A cross-worker maintenance barrier pauses ordinary
+requests while copying the database and attachments and while restoring; the pause lasts for the
+capture, potentially several minutes for large datasets. Packaging runs after the pause. External
+scripts that write directly to the database/uploads must be stopped separately. Do not refresh a
+field page with unsent device files during maintenance; retry requests when maintenance ends.
+
+Automatic backups are disabled initially. Settings exposes interval hours, retention days and
+maximum automatic copies. API workers coordinate one due run through the private jobs database;
+a backend restart resumes the persistent schedule. Missed intervals produce one catch-up backup.
+Only automatic copies are subject to its count limit; ordinary jobs expire under
+BACKUP_RETENTION_DAYS (default 7). BACKUP_MAX_ARCHIVE_GB bounds extraction/package size. The recent
+job list shows failed or interrupted runs; backup_audit in the private jobs database records
+creation, terminal status, preview, download requests and schedule changes without file contents
+or credentials. A download request is not proof that a browser finished saving the ZIP.
+
+Download periodic independent copies to a separate secured computer or offline drive. Server-local
+copies cannot recover from server loss. No external service is required. Preserve compatible app
+code and deployment secrets separately. Never restore production data for testing: the acceptance
+suite uses temporary SQLite databases and storage directories exclusively.
+
+### Digital issued reports
+
+Open a report number or choose **Digital report** in the report library/customer portal. The dedicated `/reports/:reportId/digital` page searches the immutable inspection snapshot, filters tower/area/line/phase/string/view/severity/result, groups findings, and sorts readings in report or table views. Selected findings (or all matching findings) export to Excel or a clearly labelled Word extract; exports never overwrite the issued Word document. Original evidence is read from the archived DOCX and matched by printed finding number plus a unique frozen tower/position label. Ambiguous labels, custom templates, missing snapshots, or unmatchable photographs retain an explicit archived-Word fallback. Later inspection/image/assessment edits never substitute live data into this view.
+
+The report view now renders original archived Word tables with their original styles, merged cells, checkbox states and embedded image bytes. It loads small finding batches, follows issued finding-number order by default, and provides fit-width/zoom and jump-to-finding navigation. Filtered Word exports preserve the same original tables. Unused photographs are removed from batch documents to avoid downloading the entire report.
+
+Choose **Report overview** for the original line/equipment tables, severity guide, measurement summary, assessment and approvals. The full original document preview also applies its own default paragraph font to avoid the browser renderer substituting its theme font.

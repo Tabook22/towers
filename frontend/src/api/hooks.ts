@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { createVisitWithToken } from './visitCreation';
+import { useReportGeneration } from './reportGeneration';
 import { collectArchivePages } from '../utils/archiveEvidence';
 import { asOutboxFile, sendOrQueue } from '../offline/enqueue';
 import { applyPositionPatch, applyQueuedExtraImage, applyQueuedImage, applyVisitPatch, patchVisitCache } from '../offline/optimistic';
@@ -1030,48 +1031,22 @@ function downloadBlobResponse(res: { data: unknown; headers: Record<string, unkn
 // The official OETC-format report — a team's line campaign, rendered into the customer's exact
 // template. Also persists a LineInspectionReport row server-side (see useOetcReportHistory below).
 export function useGenerateOetcReport() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: LineInspectionReportRequest) => {
-      const res = await apiClient.post('/api/reports/oetc-line-report.docx', payload, { responseType: 'blob' });
-      downloadBlobResponse(res, `${payload.report_number}.docx`);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['oetc-report-history'] });
-    },
-  });
+  return useReportGeneration<LineInspectionReportRequest>('team', downloadBlobResponse);
 }
 
 // Same official template, but one file covering every team working a given area — see
 // backend services/oetc_grouped_report.py. Admin/reviewer only, same as the consolidated version.
 export function useGenerateOetcAreaReport() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: OetcAreaReportRequest) => {
-      const res = await apiClient.post('/api/reports/oetc-area-report.docx', payload, { responseType: 'blob' });
-      downloadBlobResponse(res, `${payload.report_number}-${payload.area}.docx`);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['oetc-report-history'] });
-    },
-  });
+  return useReportGeneration<OetcAreaReportRequest>('area', downloadBlobResponse);
 }
 
 // The fully "collected" report — every area, every team, every mission, in one file.
 export function useGenerateOetcConsolidatedReport() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: OetcConsolidatedReportRequest) => {
-      const res = await apiClient.post('/api/reports/oetc-consolidated-report.docx', payload, { responseType: 'blob' });
-      downloadBlobResponse(res, `${payload.report_number}-consolidated.docx`);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['oetc-report-history'] });
-    },
-  });
+  return useReportGeneration<OetcConsolidatedReportRequest>('consolidated', downloadBlobResponse);
 }
 
 export interface OetcReportHistoryFilters {
+  admin_only?: boolean;
   team_id?: number;
   tower_id?: number;
   report_type?: string;
@@ -1369,6 +1344,8 @@ export function useUpdateUser() {
           | 'is_active'
           | 'is_approved'
           | 'full_name'
+          | 'first_name'
+          | 'last_name'
           | 'email'
           | 'mobile'
           | 'address'
@@ -1396,6 +1373,9 @@ export function useCreateUser() {
       username: string;
       password: string;
       full_name?: string;
+      first_name?: string;
+      last_name?: string;
+      email?: string;
       mobile?: string;
       address?: string;
       notes?: string;

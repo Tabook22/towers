@@ -107,6 +107,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     email: Mapped[str | None] = mapped_column(String(200), nullable=True)
     full_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     hashed_password: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(20), default=UserRole.INSPECTOR.value)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

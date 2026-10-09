@@ -45,6 +45,23 @@ def list_jobs(user: User = Depends(full_admin)):
     return [public(j) for j in jobs.list_jobs()]
 
 
+class ScheduleSettings(BaseModel):
+    enabled: bool = False
+    interval_hours: int = Field(default=24, ge=1, le=720)
+    retention_days: int = Field(default=7, ge=1, le=365)
+    retention_count: int = Field(default=7, ge=1, le=100)
+
+
+@router.get('/overview')
+def overview(user: User = Depends(full_admin)):
+    return jobs.overview()
+
+
+@router.put('/schedule')
+def configure_schedule(body: ScheduleSettings, user: User = Depends(full_admin)):
+    return jobs.configure_schedule(body.model_dump(), user.username)
+
+
 @router.post('', status_code=202)
 def create_backup(user: User = Depends(full_admin)):
     data = jobs.create('backup', user.username)
@@ -105,7 +122,7 @@ def validate_backup(ident: str, user: User = Depends(full_admin)):
 
 
 class RestoreRequest(BaseModel):
-    mode: Literal['full','selective']
+    mode: Literal['full']
     visit_ids: list[int] = Field(default_factory=list, max_length=10000)
     confirmation: str = ''
 
@@ -117,6 +134,8 @@ def preview_restore(ident: str, body: RestoreRequest, user: User = Depends(full_
     try:
         with service.connect(jobs.directory(ident) / 'validated' / 'database.sqlite3') as src, service.connect(service.live_path()) as dst:
             _, plan = service.restore_plan(src, dst, body.mode, body.visit_ids)
+        jobs.patch(ident, previewed_by=user.username)
+        jobs.audit(user.username, 'preview_restore', ident)
         return plan
     except (ValueError, sqlite3.IntegrityError) as exc:
         raise HTTPException(409, str(exc))
@@ -124,7 +143,7 @@ def preview_restore(ident: str, body: RestoreRequest, user: User = Depends(full_
 
 @router.post('/{ident}/restore', status_code=202)
 def restore_backup(ident: str, body: RestoreRequest, user: User = Depends(full_admin)):
-    if job(ident)['status'] != 'validated' or body.confirmation != 'RESTORE':
+    if job(ident)['status'] != 'validated' or body.confirmation != 'RESTORE' or job(ident).get('previewed_by') != user.username:
         raise HTTPException(409, 'Validate, preview and type RESTORE to confirm.')
     preview_restore(ident, body, user)
     data = jobs.create('restore', user.username, source_id=ident, mode=body.mode, visit_ids=body.visit_ids)
@@ -146,6 +165,7 @@ def download(ident: str, user: User = Depends(full_admin)):
     data = job(ident)
     if data['status'] != 'complete' or data['kind'] not in ('backup','recovery'):
         raise HTTPException(409, 'Backup is not ready.')
+    jobs.audit(user.username, 'download', ident)
     return FileResponse(jobs.directory(ident) / 'backup.zip', media_type='application/zip',
                         filename=data['filename'], headers={'Cache-Control': 'no-store', 'X-Content-Type-Options':'nosniff'})
 

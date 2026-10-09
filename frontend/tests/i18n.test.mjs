@@ -8,6 +8,7 @@ import ts from 'typescript';
 import * as React from 'react';
 
 const root = new URL('../src/', import.meta.url);
+const reviewArabic = JSON.parse(fs.readFileSync(new URL('i18n/review-ar.json', root), 'utf8'));
 const arabic = JSON.parse(fs.readFileSync(new URL('i18n/ar.json', root), 'utf8'));
 function load(file, imports = {}, globals = {}) {
   const source = fs.readFileSync(new URL(file, root), 'utf8');
@@ -22,7 +23,7 @@ function load(file, imports = {}, globals = {}) {
 const storage = new Map();
 const document = { documentElement: {} };
 const storageListeners = {};
-const i18n = load('i18n/index.ts', { react: React, './ar.json': arabic }, {
+const i18n = load('i18n/index.ts', { react: React, './ar.json': arabic, './review-ar.json': reviewArabic }, {
   document, navigator: { language: 'en-US' },
   localStorage: { getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v) },
   window: { addEventListener: (event, handler) => { storageListeners[event] = handler; } },
@@ -70,7 +71,7 @@ test('all authored static interface translation keys have Arabic entries', () =>
   const missing = new Set();
   function literals(node) {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
-      if (/[a-zA-Z]/.test(node.text) && !(node.text.trim() in arabic)) missing.add(node.text.trim());
+      if (/[a-zA-Z]/.test(node.text) && !(node.text.trim() in arabic) && !(node.text.trim() in reviewArabic)) missing.add(node.text.trim());
     } else if (ts.isConditionalExpression(node)) { literals(node.whenTrue); literals(node.whenFalse); }
   }
   function walk(dir) {

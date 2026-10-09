@@ -24,6 +24,7 @@ import { HelpPage } from './pages/HelpPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { ClientReportsPage } from './pages/ClientReportsPage';
+import { DigitalReportPage } from './pages/DigitalReportPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -188,6 +189,7 @@ function AppRoutesInner({ isAuthenticated }: { isAuthenticated: boolean }) {
         }
       />
       <Route path="*" element={<CatchAllRedirect />} />
+      <Route path="/reports/:reportId/digital" element={<ProtectedLayout clientAllowed><DigitalReportPage /></ProtectedLayout>} />
     </Routes>
   );
 }

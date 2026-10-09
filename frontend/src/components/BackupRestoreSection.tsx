@@ -1,6 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, LinearProgress, MenuItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Accordion, AccordionSummary, AccordionDetails, Alert, Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, LinearProgress, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMoreRounded';
+import DownloadIcon from '@mui/icons-material/DownloadRounded';
+import RestoreIcon from '@mui/icons-material/RestoreRounded';
 import { apiClient, mediaUrl } from '../api/client';
 import { locale, tr, useLanguage } from '../i18n';
 
@@ -9,7 +12,7 @@ type Summary = { created_at: string; counts: Record<string, number>; visits: Vis
 type Job = { id: string; kind: string; status: string; stage: string; created_at: string; size: number; processed_files: number; error?: string; summary?: Summary; recovery_id?: string };
 type Plan = { records_to_import: Record<string, number>; reused_parent_records: Record<string, number>; omitted_cross_visit_reports: number[]; replaces_existing_data: boolean };
 const busy = (j: Job) => ['queued', 'running'].includes(j.status);
-const sizeLabel = (bytes: number) => `${(bytes / 1024 ** 2).toLocaleString(locale(), { maximumFractionDigits: 1 })} MB`;
+const sizeLabel = (bytes: number) => `${(bytes / 1024 ** (bytes >= 1024 ** 3 ? 3 : 2)).toLocaleString(locale(), { maximumFractionDigits: 1 })} ${bytes >= 1024 ** 3 ? 'GB' : 'MB'}`;
 const errorText = (error: any) => typeof error?.response?.data?.detail === 'string' ? error.response.data.detail : 'The operation failed. Check your connection and try again.';
 const countLabels = { towers: 'Towers', visits: 'Visits', positions: 'Positions', images: 'Image records', line_inspection_reports: 'Saved reports' };
 const kindLabels: Record<string, string> = { backup: 'Backup', upload: 'Uploaded backup', restore: 'Restore', recovery: 'Recovery backup' };
@@ -27,17 +30,31 @@ export function BackupRestoreSection() {
   const [action, setAction] = useState(false);
   const [upload, setUpload] = useState<number | null>(null);
   const [selected, setSelected] = useState('');
-  const [mode, setMode] = useState<'selective' | 'full'>('selective');
+  const [mode] = useState<'selective' | 'full'>('full');
   const [ids, setIds] = useState<number[]>([]);
   const [search, setSearch] = useState('');
   const [plan, setPlan] = useState<Plan | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [word, setWord] = useState('');
   const [ack, setAck] = useState(false);
+  const [downloadId, setDownloadId] = useState('');
+  const [schedule, setSchedule] = useState({ enabled: false, interval_hours: 24, retention_days: 7, retention_count: 7 });
+  const overview = useQuery({ queryKey: ['backup-overview'], queryFn: async () => (await apiClient.get('/api/backups/overview')).data, refetchInterval: 5000 });
+  useEffect(() => { if (overview.data?.schedule) setSchedule(overview.data.schedule); }, [overview.data?.schedule]);
   const [removing, setRemoving] = useState<Job | null>(null);
   const query = useQuery({ queryKey: ['backup-jobs'], queryFn: async () => (await apiClient.get<Job[]>('/api/backups')).data, refetchInterval: 3000, refetchIntervalInBackground: false });
   const jobs = query.data || [];
   const active = jobs.some(busy);
+  const latestCopy = jobs.find(j => j.status === 'complete' && ['backup', 'recovery'].includes(j.kind));
+  useEffect(() => {
+    const job = jobs.find(j => j.id === downloadId);
+    if (job?.status === 'complete') {
+      const link = document.createElement('a');
+      link.href = mediaUrl(`/api/backups/${job.id}/download`);
+      link.download = ''; document.body.appendChild(link); link.click(); link.remove(); setDownloadId('');
+      void client.invalidateQueries({ queryKey: ['backup-overview'] });
+    } else if (job && ['failed', 'interrupted'].includes(job.status)) setDownloadId('');
+  }, [jobs, downloadId, client]);
   const source = jobs.find(j => j.id === selected && j.status === 'validated');
   const refresh = () => client.invalidateQueries({ queryKey: ['backup-jobs'] });
   async function perform(fn: () => Promise<void>) {
@@ -79,25 +96,48 @@ export function BackupRestoreSection() {
   }
   return <Card variant="outlined" id="backup-restore"><CardContent>
     <Stack spacing={2}>
-      <Box><Typography variant="h6" sx={{ fontWeight: 800 }}>{tr('Backup & Restore')}</Typography>
-        <Typography color="text.secondary">{tr('Portable inspection backups for this computer or your VPS. Full administrators only.')}</Typography></Box>
-      <Alert severity="info">{tr('Includes inspection records, original evidence, attachments, saved reports and uploaded templates. Passwords, login tokens and server secrets are excluded. Keep downloaded ZIP files private; they are not encrypted.')}</Alert>
-      <Typography variant="body2">{tr('The application pauses during the consistent snapshot and final restore. Large backups may take several minutes. Server copies expire after the configured retention period (default: 7 days); download them promptly.')}</Typography>
+      <Box><Typography variant="h6" sx={{ fontWeight: 800 }}>{tr('Backup & Recovery')}</Typography>
+        <Typography color="text.secondary">{tr('Keep a recovery copy of your records and evidence, ready when you need it.')}</Typography></Box>
       {(error || query.isError) && <Alert severity="error" onClose={() => setError('')}>{tr(error || errorText(query.error))}</Alert>}
       <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 1 }}>
-        <Button variant="contained" disabled={action || active} onClick={() => void perform(async () => { await apiClient.post('/api/backups'); })}>{tr('Create complete backup')}</Button>
-        <Button variant="outlined" disabled={action || active} onClick={() => input.current?.click()}>{tr('Upload and validate ZIP')}</Button>
+        <Button startIcon={<DownloadIcon />} variant="contained" disabled={action || active} onClick={() => void perform(async () => { const { data } = await apiClient.post('/api/backups'); setDownloadId(data.id); })}>{tr('Download Full Backup')}</Button>
+        <Button startIcon={<RestoreIcon />} variant="outlined" disabled={action || active} onClick={() => input.current?.click()}>{tr('Restore Backup')}</Button>
         <input ref={input} hidden type="file" accept=".zip,application/zip" onChange={e => void uploadFile(e.target.files?.[0])} />
       </Stack>
       {upload !== null && <Box><Typography variant="body2">{tr('Uploading backup: {0}%', [Math.floor(upload)])}</Typography><LinearProgress variant="determinate" value={upload} /><Typography variant="caption">{tr('Keep this page open until the upload finishes. Validation and backup jobs continue on the server.')}</Typography></Box>}
-      <Typography sx={{ fontWeight: 700 }}>{tr('Recent backup and restore jobs')}</Typography>
+      {latestCopy && <Box sx={{ p: 2.5, bgcolor: 'action.hover', borderRadius: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box><Typography sx={{ fontWeight: 750 }}>{tr('Latest available copy')}</Typography><Typography variant="body2" color="text.secondary">{new Date(latestCopy.created_at).toLocaleString(locale())} · {sizeLabel(latestCopy.size)}</Typography></Box>
+        <Button variant="outlined" startIcon={<DownloadIcon />} component="a" href={mediaUrl(`/api/backups/${latestCopy.id}/download`)}>{tr('Download ZIP')}</Button>
+      </Box>}
+      {overview.data?.last_success && <Alert severity="success" sx={{ borderRadius: 2 }}>{tr('Most recent successful backup: {0}', [new Date(overview.data.last_success.updated * 1000).toLocaleString(locale())])}</Alert>}
+      <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: '12px !important', '&:before': { display: 'none' } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}><Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 750 }}>{tr('Automatic backups')}</Typography><Typography variant="body2" color="text.secondary">{tr('Set a schedule and choose how long copies are kept.')}</Typography></Box><Chip size="small" sx={{ mx: 1, alignSelf: 'center' }} label={tr(overview.data?.schedule?.enabled ? 'Enabled' : 'Disabled')} color={overview.data?.schedule?.enabled ? 'success' : 'default'} /></AccordionSummary>
+        <AccordionDetails><Stack spacing={2}>
+        <FormControlLabel control={<Checkbox checked={schedule.enabled} onChange={(_, enabled) => setSchedule(s => ({ ...s, enabled }))} />} label={tr('Enable automatic backups')} />
+        <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 2 }}>
+          <TextField size="small" sx={{ flex: '1 1 180px' }} label={tr('Interval (hours)')} type="number" value={schedule.interval_hours} onChange={e => setSchedule(s => ({ ...s, interval_hours: Number(e.target.value) }))} />
+          <TextField size="small" sx={{ flex: '1 1 180px' }} label={tr('Retention (days)')} type="number" value={schedule.retention_days} onChange={e => setSchedule(s => ({ ...s, retention_days: Number(e.target.value) }))} />
+          <TextField size="small" sx={{ flex: '1 1 180px' }} label={tr('Maximum automatic copies')} type="number" value={schedule.retention_count} onChange={e => setSchedule(s => ({ ...s, retention_count: Number(e.target.value) }))} />
+        </Stack>
+        <Typography variant="body2">{tr('Automatic backups run while the backend is running. Download an independent copy to another computer or secured drive; copies on this server do not protect against server loss.')}</Typography>
+        <Button disabled={action || active} onClick={() => void perform(async () => { await apiClient.put('/api/backups/schedule', schedule); await client.invalidateQueries({ queryKey: ['backup-overview'] }); })}>{tr('Save backup schedule')}</Button>
+      </Stack></AccordionDetails></Accordion>
+      <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: '12px !important', '&:before': { display: 'none' } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography sx={{ fontWeight: 700 }}>{tr('What your backup includes')}</Typography></AccordionSummary>
+        <AccordionDetails><Stack spacing={2}>      <Alert severity="info">{tr('Includes inspection records, original evidence, attachments, saved reports and uploaded templates. Password hashes and account status are included for recovery; plaintext passwords, login tokens and server secrets are excluded. Keep downloaded ZIP files private; they are not encrypted.')}</Alert>
+      <Typography variant="body2">{tr('The application pauses during the consistent snapshot and final restore. Large backups may take several minutes. Server copies expire after the configured retention period (default: 7 days); download them promptly.')}</Typography>
+        </Stack></AccordionDetails>
+      </Accordion>
+      <Box sx={{ pt: 1 }}><Typography variant="h6" sx={{ fontWeight: 750 }}>{tr('Recent backup and restore jobs')}</Typography><Typography variant="body2" color="text.secondary">{tr('Follow progress, download completed copies, or review a recovery upload.')}</Typography></Box>
       {query.isLoading && <LinearProgress />}
       {!query.isLoading && !jobs.length && <Typography color="text.secondary">{tr('No backups yet. Create your first recovery copy here.')}</Typography>}
-      {jobs.map(j => <Box key={j.id} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 2 }}>
+      {jobs.map(j => <Accordion key={j.id} defaultExpanded={busy(j) || ['failed', 'interrupted', 'validated'].includes(j.status)} disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: '12px !important', '&:before': { display: 'none' } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ '& .MuiAccordionSummary-content': { minWidth: 0 } }}>
         <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 1, alignItems: 'center', justifyContent: 'space-between' }}>
           <Box><Typography sx={{ fontWeight: 700 }}>{tr(kindLabels[j.kind] || j.kind)} · {new Date(j.created_at).toLocaleString(locale())}</Typography><Typography variant="caption">{sizeLabel(j.size)} · {tr(j.stage)}{busy(j) && j.processed_files > 0 ? ` · ${tr('Files processed: {0}', [j.processed_files])}` : ''}</Typography></Box>
           <Chip size="small" label={tr(statusLabels[j.status] || j.status)} color={j.status === 'failed' || j.status === 'interrupted' ? 'error' : j.status === 'complete' || j.status === 'validated' ? 'success' : 'default'} />
         </Stack>
+        </AccordionSummary><AccordionDetails>
         {busy(j) && <LinearProgress sx={{ my: 1 }} />}
         {j.error && <Alert severity="error" sx={{ mt: 1 }}>{tr(j.error)}</Alert>}
         {j.summary && <Box sx={{ mt: 1 }}><Counts counts={j.summary.counts} /><Typography variant="caption">{tr('Uploaded files: {0}', [j.summary.file_count])}</Typography></Box>}
@@ -109,17 +149,14 @@ export function BackupRestoreSection() {
           {j.kind === 'restore' && j.status === 'complete' && <Button onClick={() => window.location.reload()}>{tr('Reload restored application')}</Button>}
           {!busy(j) && <Button color="inherit" disabled={action || active} onClick={() => setRemoving(j)}>{tr('Remove server copy')}</Button>}
         </Stack>
-      </Box>)}
+      </AccordionDetails></Accordion>)}
       {source?.summary && <Box sx={{ border: 2, borderColor: 'primary.main', borderRadius: 2, p: 2 }}>
         <Stack spacing={2}>
           <Typography variant="h6">{tr('Review recovery contents')}</Typography>
           <Typography>{tr('Backup created: {0}', [new Date(source.summary.created_at).toLocaleString(locale())])}</Typography>
           <Counts counts={source.summary.counts} />
-          <TextField select label={tr('Recovery mode')} value={mode} disabled={action || active} onChange={e => { setMode(e.target.value as typeof mode); setPlan(null); }}>
-            <MenuItem value="selective">{tr('Recover selected missing visits')}</MenuItem><MenuItem value="full">{tr('Full recovery — replace all business data')}</MenuItem>
-          </TextField>
           <Alert severity={mode === 'full' ? 'warning' : 'info'}>{mode === 'full'
-            ? tr('Full recovery replaces all business records. Your administrator login is retained; other imported accounts are disabled and require password resets. A recovery ZIP is created automatically before changes.')
+            ? tr('Full recovery replaces all business records. Your administrator login is retained. Format 2 restores account status and password hashes; older backups require account password resets. A recovery ZIP is created automatically before changes.')
             : tr('Only whole missing visits are imported. Existing visits and conflicting identifiers are rejected, never overwritten. This does not repair individual missing images inside an existing visit. Shared parent records are reused only when their identifiers and identities match.')}</Alert>
           <TextField label={tr('Find a tower or line')} value={search} onChange={e => setSearch(e.target.value)} size="small" />
           <TableContainer sx={{ maxHeight: 330 }}><Table size="small" stickyHeader><TableHead><TableRow>

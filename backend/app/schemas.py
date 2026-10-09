@@ -50,6 +50,8 @@ class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=80)
     email: str | None = None
     full_name: str | None = None
+    first_name: str | None = Field(default=None, max_length=100)
+    last_name: str | None = Field(default=None, max_length=100)
     mobile: str | None = Field(default=None, max_length=60)
     address: str | None = Field(default=None, max_length=300)
     notes: str | None = None
@@ -78,6 +80,8 @@ class UserOut(BaseModel):
     username: str
     email: str | None
     full_name: str | None
+    first_name: str | None = Field(default=None, max_length=100)
+    last_name: str | None = Field(default=None, max_length=100)
     mobile: str | None = None
     address: str | None = None
     notes: str | None = None
@@ -99,6 +103,8 @@ class UserUpdate(BaseModel):
     username: str | None = Field(default=None, min_length=3, max_length=80)
     email: str | None = None
     full_name: str | None = None
+    first_name: str | None = Field(default=None, max_length=100)
+    last_name: str | None = Field(default=None, max_length=100)
     mobile: str | None = None
     address: str | None = None
     notes: str | None = None
@@ -1545,6 +1551,10 @@ class LineInspectionReportOut(BaseModel):
     reviewed_by: str | None
     approved_by: str | None
     approval_date: dt.date | None
+    created_by: int | None = None
+    created_by_name: str | None = None
+    created_by_username: str | None = None
+    created_by_role: str | None = None
     created_at: dt.datetime
     line_sector: str | None = None
     report_type: str | None = None

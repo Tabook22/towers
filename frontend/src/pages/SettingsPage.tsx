@@ -36,6 +36,11 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
+import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
+import BackupRoundedIcon from '@mui/icons-material/BackupRounded';
+import BusinessRoundedIcon from '@mui/icons-material/BusinessRounded';
+import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
 import CloudUploadIcon from '@mui/icons-material/CloudUploadRounded';
 import AddIcon from '@mui/icons-material/AddRounded';
 import EditIcon from '@mui/icons-material/EditRounded';
@@ -731,6 +736,12 @@ interface AdminFormState {
   username: string;
   password: string;
   full_name: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  mobile: string;
+  address: string;
+  notes: string;
   fullAdmin: boolean;
   permissions: string[];
   menu_permissions: Record<string, string>;
@@ -746,6 +757,12 @@ const emptyAdminForm: AdminFormState = {
   username: '',
   password: '',
   full_name: '',
+  first_name: '',
+  last_name: '',
+  email: '',
+  mobile: '',
+  address: '',
+  notes: '',
   fullAdmin: true,
   permissions: [],
   menu_permissions: DEFAULT_ADMIN_MENU_PERMISSIONS,
@@ -957,6 +974,7 @@ function AdminAccountsSection() {
   const [editMenuPermissions, setEditMenuPermissions] = useState<Record<string, string>>(DEFAULT_ADMIN_MENU_PERMISSIONS);
   const [editUsername, setEditUsername] = useState('');
   const [editPassword, setEditPassword] = useState('');
+  const [editDetails, setEditDetails] = useState({ full_name: '', first_name: '', last_name: '', email: '', mobile: '', address: '', notes: '' });
   const [editError, setEditError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -977,6 +995,12 @@ function AdminAccountsSection() {
         username: form.username.trim(),
         password: form.password,
         full_name: form.full_name.trim() || undefined,
+        first_name: form.first_name.trim() || undefined,
+        last_name: form.last_name.trim() || undefined,
+        email: form.email.trim() || undefined,
+        mobile: form.mobile.trim() || undefined,
+        address: form.address.trim() || undefined,
+        notes: form.notes.trim() || undefined,
         role: 'admin',
         is_super_admin: form.fullAdmin,
         permissions: form.fullAdmin ? [] : form.permissions,
@@ -1000,6 +1024,7 @@ function AdminAccountsSection() {
       admin.menu_permissions ?? DEFAULT_ADMIN_MENU_PERMISSIONS,
     );
     setEditUsername(admin.username);
+    setEditDetails({ full_name: admin.full_name || '', first_name: admin.first_name || '', last_name: admin.last_name || '', email: admin.email || '', mobile: admin.mobile || '', address: admin.address || '', notes: admin.notes || '' });
     setEditPassword('');
     setEditError(null);
   };
@@ -1020,6 +1045,13 @@ function AdminAccountsSection() {
         id: editing.id,
         payload: {
           username: editUsername.trim(),
+          full_name: editDetails.full_name.trim() || null,
+          first_name: editDetails.first_name.trim() || null,
+          last_name: editDetails.last_name.trim() || null,
+          email: editDetails.email.trim() || null,
+          mobile: editDetails.mobile.trim() || null,
+          address: editDetails.address.trim() || null,
+          notes: editDetails.notes.trim() || null,
           is_super_admin: editFullAdmin,
           permissions: editFullAdmin ? [] : editPerms,
           menu_permissions: editFullAdmin ? DEFAULT_ADMIN_MENU_PERMISSIONS : editMenuPermissions,
@@ -1116,7 +1148,7 @@ function AdminAccountsSection() {
                     <Chip size="small" color={admin.is_active ? 'success' : 'default'} label={admin.is_active ? tr("Active") : tr("Deactivated")} />
                   </TableCell>
                   <TableCell align="right">
-                    <Tooltip title={tr("Edit access")}>
+                    <Tooltip title={tr("Edit account")}>
                       <IconButton size="small" onClick={() => openEdit(admin)}>
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -1158,12 +1190,13 @@ function AdminAccountsSection() {
               value={form.username}
               onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
             />
-            <TextField
-              label={tr("Full name")}
-              fullWidth
-              value={form.full_name}
-              onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
-            />
+            <TextField label={tr("Full name")} fullWidth value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} />
+            <TextField label={tr("First name")} fullWidth value={form.first_name} onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))} />
+            <TextField label={tr("Last name")} fullWidth value={form.last_name} onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))} />
+            <TextField label={tr("Email")} fullWidth value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+            <TextField label={tr("Mobile")} fullWidth value={form.mobile} onChange={(e) => setForm((f) => ({ ...f, mobile: e.target.value }))} />
+            <TextField label={tr("Address")} fullWidth multiline minRows={2} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
+            <TextField label={tr("Notes")} fullWidth multiline minRows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
             <TextField
               label={tr("Password")}
               type="password"
@@ -1203,7 +1236,7 @@ function AdminAccountsSection() {
       </Dialog>
 
       <Dialog open={!!editing} onClose={() => setEditing(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>{tr("Edit access — ")}{editing?.username}</DialogTitle>
+        <DialogTitle>{tr("Edit account — ")}{editing?.username}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {editError && <Alert severity="error">{tr(editError)}</Alert>}
@@ -1213,6 +1246,13 @@ function AdminAccountsSection() {
               value={editUsername}
               onChange={(e) => setEditUsername(e.target.value)}
             />
+            <TextField label={tr("Full name")} fullWidth value={editDetails.full_name} onChange={(e) => setEditDetails((f) => ({ ...f, full_name: e.target.value }))} />
+            <TextField label={tr("First name")} fullWidth value={editDetails.first_name} onChange={(e) => setEditDetails((f) => ({ ...f, first_name: e.target.value }))} />
+            <TextField label={tr("Last name")} fullWidth value={editDetails.last_name} onChange={(e) => setEditDetails((f) => ({ ...f, last_name: e.target.value }))} />
+            <TextField label={tr("Email")} fullWidth value={editDetails.email} onChange={(e) => setEditDetails((f) => ({ ...f, email: e.target.value }))} />
+            <TextField label={tr("Mobile")} fullWidth value={editDetails.mobile} onChange={(e) => setEditDetails((f) => ({ ...f, mobile: e.target.value }))} />
+            <TextField label={tr("Address")} fullWidth multiline minRows={2} value={editDetails.address} onChange={(e) => setEditDetails((f) => ({ ...f, address: e.target.value }))} />
+            <TextField label={tr("Notes")} fullWidth multiline minRows={2} value={editDetails.notes} onChange={(e) => setEditDetails((f) => ({ ...f, notes: e.target.value }))} />
             <TextField
               label={tr("Reset password (optional)")}
               type="password"
@@ -1522,21 +1562,40 @@ export function SettingsPage() {
   const { user } = useAuth();
   const canManageSettings = user?.role === 'admin' && (user.is_super_admin || user.permissions.includes('manage_settings'));
   const isSuperAdmin = user?.role === 'admin' && user.is_super_admin;
-
+  const sections = [
+    ...(isSuperAdmin ? [{ id: 'backups', label: 'Backup & Recovery', description: 'Protect your inspection records', icon: <BackupRoundedIcon />, content: <BackupRestoreSection /> }] : []),
+    ...(user?.role === 'admin' ? [{ id: 'requests', label: 'Account requests', description: 'Review new account registrations', icon: <HourglassEmptyIcon />, content: <PendingAccountsSection /> }] : []),
+    ...(canManageSettings ? [
+      { id: 'appearance', label: 'Appearance', description: 'Make the workspace your own', icon: <PaletteRoundedIcon />, content: <BrandingSection /> },
+      { id: 'organization', label: 'Organization', description: 'Manage your organization identity', icon: <BusinessRoundedIcon />, content: <OrganizationBrandingSection /> },
+    ] : []),
+    ...(isSuperAdmin ? [
+      { id: 'admins', label: 'Admin accounts', description: 'Manage people and permissions', icon: <AdminPanelSettingsIcon />, content: <AdminAccountsSection /> },
+      { id: 'clients', label: 'Client accounts', description: 'Control client report access', icon: <PeopleRoundedIcon />, content: <ClientAccountsSection /> },
+    ] : []),
+  ];
+  const [selected, setSelected] = useState('');
+  const current = sections.find(section => section.id === selected) || sections[0];
   return (
-    <Box>
-      <Typography variant="h5" sx={{ fontWeight: 800, mb: 2 }}>{tr("Settings")}</Typography>
-      <Stack spacing={3}>
-        {isSuperAdmin && <BackupRestoreSection />}
-        {user?.role === 'admin' && <PendingAccountsSection />}
-        {canManageSettings && <BrandingSection />}
-        {canManageSettings && <OrganizationBrandingSection />}
-        {isSuperAdmin && <AdminAccountsSection />}
-        {isSuperAdmin && <ClientAccountsSection />}
-        {!canManageSettings && !isSuperAdmin && (
-          <Alert severity="info">{tr("You don't have any settings permissions on this account yet — ask a full admin.")}</Alert>
-        )}
+    <Box sx={{ maxWidth: 1500, mx: 'auto', minWidth: 0 }}>
+      <Stack direction="row" spacing={2} sx={{ mb: 3, alignItems: 'center' }}>
+        <Avatar sx={{ width: 52, height: 52, bgcolor: 'primary.main', borderRadius: 3 }}><SettingsRoundedIcon /></Avatar>
+        <Box><Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-.03em' }}>{tr('Settings')}</Typography>
+          <Typography color="text.secondary">{tr('Your workspace, thoughtfully configured.')}</Typography></Box>
       </Stack>
+      {current ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: '250px minmax(0, 1fr)' }, gap: 3, alignItems: 'start' }}>
+        <Box component="nav" aria-label={tr('Settings categories')} sx={{ position: { lg: 'sticky' }, top: 24, bgcolor: 'background.paper', p: 1, borderRadius: 3, border: 1, borderColor: 'divider', display: 'flex', flexDirection: { xs: 'row', lg: 'column' }, overflowX: 'auto', gap: .5 }}>
+          {sections.map(section => <Button key={section.id} aria-current={current.id === section.id ? 'page' : undefined}
+            aria-controls={`settings-${section.id}`} onClick={() => setSelected(section.id)} startIcon={section.icon}
+            sx={{ justifyContent: 'flex-start', flexShrink: 0, textAlign: 'start', px: 2, py: 1.5, borderRadius: 2, color: current.id === section.id ? 'primary.main' : 'text.secondary', bgcolor: current.id === section.id ? 'action.selected' : 'transparent', '&:hover': { bgcolor: 'action.hover' } }}>
+            <Box><Typography component="span" variant="body2" sx={{ fontWeight: 750, display: 'block', whiteSpace: 'nowrap' }}>{tr(section.label)}</Typography>
+              <Typography component="span" variant="caption" sx={{ display: { xs: 'none', lg: 'block' }, mt: .25 }}>{tr(section.description)}</Typography></Box>
+          </Button>)}
+        </Box>
+        <Box sx={{ minWidth: 0, '& .MuiCard-root': { borderRadius: 3, boxShadow: 'none', border: 1, borderColor: 'divider' }, '& .MuiCardContent-root': { p: { xs: 2, sm: 3 } }, '& .MuiTableContainer-root': { overflowX: 'auto' }, '& .MuiTableCell-head': { bgcolor: 'action.hover', fontWeight: 700 }, '& .MuiButton-root': { textTransform: 'none' } }}>
+          {sections.map(section => <Box key={section.id} id={`settings-${section.id}`} hidden={current.id !== section.id}>{section.content}</Box>)}
+        </Box>
+      </Box> : <Alert severity="info">{tr("You don't have any settings permissions on this account yet — ask a full admin.")}</Alert>}
     </Box>
   );
 }
