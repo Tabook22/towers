@@ -3887,5 +3887,15 @@
   "The original Word document with full-resolution report photographs.": "مستند Word الأصلي مع صور التقرير بدقتها الكاملة.",
   "Download Word": "تنزيل Word",
   "Preparing PDF… Large reports may take a few minutes. Keep this window open.": "جارٍ إعداد PDF… قد تستغرق التقارير الكبيرة بضع دقائق. أبقِ هذه النافذة مفتوحة.",
-  "Downloading… {0}": "جارٍ التنزيل… {0}"
+  "Downloading… {0}": "جارٍ التنزيل… {0}",
+  "Convert to PDF": "تحويل إلى PDF",
+  "Convert Word report to PDF": "تحويل تقرير Word إلى PDF",
+  "The PDF is not ready yet. Please try again.": "ملف PDF ليس جاهزاً بعد. حاول مرة أخرى.",
+  "Converts the saved Word report, including its tables and photographs. Both formats remain available.": "يحوّل تقرير Word المحفوظ بما يتضمنه من جداول وصور. تبقى الصيغتان متاحتين.",
+  "Loading PDF conversion options": "جارٍ تحميل خيارات التحويل إلى PDF",
+  "PDF ready. Download your converted report below.": "ملف PDF جاهز. نزّل التقرير المحوّل أدناه.",
+  "Converting the saved Word document to PDF… Large reports may take a few minutes. Keep this window open.": "جارٍ تحويل مستند Word المحفوظ إلى PDF… قد تستغرق التقارير الكبيرة بضع دقائق. أبقِ هذه النافذة مفتوحة.",
+  "Word report saved. Create your PDF copy.": "تم حفظ تقرير Word. أنشئ نسخة PDF.",
+  "Locating the saved Word report…": "جارٍ البحث عن تقرير Word المحفوظ…",
+  "The Word file is saved. Refresh to locate its PDF conversion action, or open it from the report library.": "تم حفظ ملف Word. حدّث الصفحة للعثور على إجراء التحويل إلى PDF، أو افتحه من مكتبة التقارير."
 }

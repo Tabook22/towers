@@ -1,3 +1,4 @@
+import { GeneratedReportPdfAction } from './GeneratedReportPdfAction';
 import { tr, useLanguage } from '../i18n';
 import { useMemo, useRef, useState } from 'react';
 import {
@@ -419,6 +420,7 @@ export function OfficialReportForm({ showHistory = true, onCreated }: { showHist
           <Button variant="contained" startIcon={<DescriptionRoundedIcon />} sx={{ minHeight: 48, px: 3, borderRadius: 2 }} disabled={!requiredFilled || generating || preview.isFetching || preview.isError || !preview.data?.ok} onClick={handleGenerate}>
             {tr(buttonLabel)}
           </Button>
+      {reportProgress?.status === 'complete' && !reportProgress.downloading && reportProgress.filename && <GeneratedReportPdfAction key={reportProgress.id} filename={reportProgress.filename} />}
       <ReportGenerationProgress progress={reportProgress} reconnecting={generateTeam.reconnecting || generateArea.reconnecting || generateConsolidated.reconnecting} />
         </Box>
       </Stack>

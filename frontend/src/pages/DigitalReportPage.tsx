@@ -107,6 +107,7 @@ export function DigitalReportPage() {
         </Box>
         <Stack spacing={1.5} sx={{ alignItems: { xs: 'flex-start', md: 'flex-end' }, justifyContent: 'center' }}>
           <Button startIcon={<TransmissionTowerIcon />} variant="outlined" onClick={() => { setTowerStartKey(jumpKey || matching[0]?.key || ''); setView('tower'); }} disabled={!rows.length} sx={{ color: '#fff', borderColor: '#ffffff66', '&:hover': { borderColor: '#fff', bgcolor: '#ffffff12' } }}>{tr('Visual tower form')}</Button>
+          <ReportDownloadButton report={report} pdfOnly sx={{ color: '#fff', borderColor: '#ffffff66', '&:hover': { borderColor: '#fff', bgcolor: '#ffffff12' } }} />
           <ReportDownloadButton report={report} variant="contained" sx={{ bgcolor: '#fff', color: '#0d475c', '&:hover': { bgcolor: '#e4f1f4' } }} />
           <Button size="small" startIcon={<DescriptionRounded />} disabled={!report.has_file} onClick={() => setWordOpen(true)} sx={{ color: '#e0f0f4', '&.Mui-disabled': { color: '#adc1c9' } }}>{tr('View issued Word')}</Button>
         </Stack>
