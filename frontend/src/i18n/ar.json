@@ -4009,5 +4009,16 @@
   "Thermal and visual photographs both contribute. A photograph referenced by multiple findings contributes once for each reference. This is not a count of unique files or a guarantee that every original photograph is still available.": "تشمل الصور الحرارية والبصرية. عند الإشارة إلى صورة في نتائج متعددة، تُحسب مرة لكل مرجع. هذا ليس عدد الملفات الفريدة ولا ضماناً لتوفر كل صورة أصلية حالياً.",
   "Source: the saved inspection snapshot and issued report readings used by this digital report. These totals cover the complete report and do not change with browsing filters.": "المصدر: نسخة الفحص المحفوظة وقراءات التقرير الصادر المستخدمة في هذا التقرير الرقمي. تشمل الإجماليات التقرير الكامل ولا تتغير بعوامل تصفية التصفح.",
   "Repeated visits to the same named tower count once. Towers with no saved position entries do not contribute. This can differ from the overall tower count shown in the report library.": "تُحسب الزيارات المتكررة للبرج ذي الاسم نفسه مرة واحدة. لا تُحسب الأبراج التي ليس لها سجلات مواضع محفوظة. قد يختلف هذا عن إجمالي عدد الأبراج المعروض في مكتبة التقارير.",
-  "Source keys use visit ID : position ID to distinguish repeated observations.": "تستخدم مفاتيح المصدر معرف الزيارة : معرف الموضع لتمييز الملاحظات المتكررة."
+  "Source keys use visit ID : position ID to distinguish repeated observations.": "تستخدم مفاتيح المصدر معرف الزيارة : معرف الموضع لتمييز الملاحظات المتكررة.",
+  "Your guide to reports, inspections and the app": "دليلك للتقارير والفحوصات والتطبيق",
+  "How can I help you today?": "كيف يمكنني مساعدتك اليوم؟",
+  "Explore reports, understand findings, or get guidance on your next step.": "استكشف التقارير، وافهم نتائج الفحص، أو احصل على إرشادات لخطوتك التالية.",
+  "Try a question": "جرّب سؤالاً",
+  "What do the report summary numbers mean?": "ما معنى الأرقام في ملخص التقرير؟",
+  "How do I explore a hotspot in my report?": "كيف أستكشف نقطة ساخنة في تقريري؟",
+  "How do I download my Word and PDF reports?": "كيف أحمل تقاريري بصيغتي Word وPDF؟",
+  "Search sources": "مصادر البحث",
+  "Your question": "سؤالك",
+  "Enter to send · Shift + Enter for a new line": "Enter للإرسال · Shift + Enter لسطر جديد",
+  "Drag to move": "اسحب لتحريك النافذة"
 }

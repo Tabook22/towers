@@ -21,7 +21,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
+import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import PublicRoundedIcon from '@mui/icons-material/PublicRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
@@ -31,11 +31,6 @@ import { useHelpChat, useTeams, useUploadKnowledgeDocument, type HelpChatSearchM
 import { useAuth } from '../auth/AuthContext';
 import type { HelpChatTurn } from '../api/types';
 import { MarkdownLite } from './MarkdownLite';
-
-const GREETING = [
-  "Hi, I'm the Insulator Inspector Pro help assistant. Ask me anything about your daily routine — ",
-  'planning a mission, working the Next-towers queue, doing an inspection, or anything else on ',
-  'the guide below.'];
 
 const SUGGESTIONS = [
   'How do I start inspecting a tower?',
@@ -209,21 +204,20 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: 1,
-          mb: 1.5,
-          pr: 0.5,
+          gap: 2, flex: 1,
+          mb: 2,
+          pr: 0.5, scrollbarWidth: 'thin', scrollbarColor: '#9bbbc5 transparent',
         }}
       >
         {turns.length === 0 && (
-          <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              {GREETING.map(part => tr(part)).join('')}
-            </Typography>
-            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-              {SUGGESTIONS.map((s) => (
-                <Button key={s} size="small" variant="outlined" onClick={() => send(tr(s))}>
-                  {tr(s)}
-                </Button>
+          <Box sx={{ py: 2, px: 1 }}>
+            <Avatar variant="rounded" sx={{ width: 48, height: 48, borderRadius: 3, background: 'linear-gradient(135deg, #12516a, #258a91)', mb: 2 }}><ForumRoundedIcon /></Avatar>
+            <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>{tr('How can I help you today?')}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>{tr('Explore reports, understand findings, or get guidance on your next step.')}</Typography>
+            <Typography variant="overline" color="text.secondary">{tr('Try a question')}</Typography>
+            <Stack spacing={1} sx={{ mt: 1 }}>
+              {(user?.role === 'client' ? ['What do the report summary numbers mean?', 'How do I explore a hotspot in my report?', 'How do I download my Word and PDF reports?'] : SUGGESTIONS).map((s, index) => (
+                <Button key={s} size="small" variant="outlined" disabled={chat.isPending} onClick={() => send(tr(s))} sx={{ textAlign: 'start', justifyContent: 'flex-start', px: 1.5, py: 1.25, borderRadius: 2.5, borderColor: 'divider', bgcolor: 'background.paper', color: 'text.primary', borderInlineStart: '3px solid', borderInlineStartColor: ['#258a91','#6487bf','#d7a441'][index], '&:hover': { bgcolor: 'action.hover', borderColor: 'primary.main' } }}>{tr(s)}</Button>
               ))}
             </Stack>
           </Box>
@@ -233,29 +227,32 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
             key={i}
             sx={{
               alignSelf: t.role === 'user' ? 'flex-end' : 'flex-start',
-              maxWidth: '85%',
+              maxWidth: t.role === 'user' ? '85%' : '94%', overflowWrap: 'anywhere',
               bgcolor: t.error
                 ? 'rgba(211,47,47,0.08)'
                 : t.role === 'user'
                   ? 'primary.main'
-                  : 'rgba(0,0,0,0.04)',
+                  : 'background.paper',
               color: t.role === 'user' && !t.error ? '#fff' : 'text.primary',
-              borderRadius: 2,
-              px: 1.5,
-              py: 1,
+              borderRadius: t.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px',
+              border: '1px solid', borderColor: t.error ? 'error.light' : t.role === 'user' ? 'transparent' : 'divider', boxShadow: '0 3px 12px rgba(16,62,82,.04)',
+              px: 2,
+              py: 1.5,
             }}
           >
+            <Typography variant="caption" sx={{ display: 'block', mb: .75, fontWeight: 750, color: t.role === 'user' ? '#d6eef2' : 'primary.main' }}>{tr(t.role === 'user' ? 'You' : 'Help assistant')}</Typography>
             {t.role === 'user' ? (
-              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+              <Typography dir="auto" variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
                 {t.content}
               </Typography>
             ) : (
               <>
-                <MarkdownLite text={t.content} />
+                <Box dir="auto"><MarkdownLite text={t.content} /></Box>
                 {!t.error && (
                   <Tooltip title={tr("Save this answer to the knowledge base")}>
                     <IconButton
                       size="small"
+                      aria-label={tr("Save this answer to the knowledge base")}
                       sx={{ mt: 0.5, ml: -0.5 }}
                       onClick={() =>
                         setSaveTarget({
@@ -280,9 +277,9 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
         )}
       </Box>
 
-      <Box sx={{ mb: 1 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("Search")}</Typography>
-        <ToggleButtonGroup size="small" exclusive value={searchMode} onChange={(_e, v) => v && setSearchMode(v)}>
+      <Box sx={{ mb: 1.5, flexShrink: 0 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>{tr("Search sources")}</Typography>
+        <ToggleButtonGroup aria-label={tr("Search sources")} sx={{ bgcolor: 'background.paper', borderRadius: 2.5, '& .MuiToggleButton-root': { gap: .5, px: 1.5, textTransform: 'none' }, '& .Mui-selected': { color: 'primary.main', bgcolor: 'action.selected' } }} size="small" exclusive value={searchMode} onChange={(_e, v) => v && setSearchMode(v)}>
           <ToggleButton value="local">
             <Tooltip title={tr("This app's own guide, live data, and knowledge base only — no internet.")}>
               <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
@@ -310,15 +307,17 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
         </ToggleButtonGroup>
       </Box>
 
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end', flexShrink: 0 }}>
         <TextField
           fullWidth
-          size="small"
+          size="small" multiline minRows={1} maxRows={4}
+          sx={{ bgcolor: 'background.paper', borderRadius: 3, '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+          slotProps={{ htmlInput: { 'aria-label': tr('Your question') } }}
           placeholder={tr("Ask a question, {0}…", [user?.full_name || user?.username || tr("there")])}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               send(draft);
             }
@@ -327,11 +326,14 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
         />
         <Button
           variant="contained"
-          endIcon={<SendRoundedIcon />}
+          aria-label={tr("Send")}
+          sx={{ minWidth: 48, width: 48, height: 44, borderRadius: 3, p: 0, boxShadow: 'none' }}
           disabled={!draft.trim() || chat.isPending}
           onClick={() => send(draft)}
-        >{tr("Send")}</Button>
+        ><SendRoundedIcon sx={{ transform: theme => theme.direction === 'rtl' ? 'rotate(180deg)' : undefined }} /></Button>
       </Stack>
+
+      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, flexShrink: 0 }}>{tr('Enter to send · Shift + Enter for a new line')}</Typography>
 
       <SaveToKnowledgeBaseDialog
         open={!!saveTarget}
@@ -346,11 +348,11 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
 export function HelpChatWidget() {
   useLanguage();
   return (
-    <Card>
+    <Card variant="outlined" sx={{ borderRadius: 4, backgroundImage: 'none' }}>
       <CardContent>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1.5 }}>
-          <Avatar sx={{ bgcolor: 'primary.main' }}>
-            <SmartToyRoundedIcon />
+          <Avatar variant="rounded" sx={{ borderRadius: 3, background: 'linear-gradient(135deg, #12516a, #258a91)' }}>
+            <ForumRoundedIcon />
           </Avatar>
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>{tr("Ask me anything")}</Typography>

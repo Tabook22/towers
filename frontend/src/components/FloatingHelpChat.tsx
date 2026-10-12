@@ -2,19 +2,19 @@ import { tr, useLanguage } from '../i18n';
 import { useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Box, Fab, IconButton, Paper, Stack, Tooltip, Typography, Zoom } from '@mui/material';
-import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
+import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded';
 import { HelpChatConversation } from './HelpChatWidget';
 
-const DEFAULT_WIDTH = 380;
-const DEFAULT_HEIGHT = 512;
+const DEFAULT_WIDTH = 460;
+const DEFAULT_HEIGHT = 640;
 const MIN_WIDTH = 320;
 const MIN_HEIGHT = 320;
 // Roughly the header + padding + input row + internet checkbox — subtracted from the panel's
 // total height so the message list (the part that actually needs the extra room) grows to fill
 // whatever's left, instead of resizing just adding blank space below a fixed-height list.
-const CHROME_HEIGHT = 210;
+const CHROME_HEIGHT = 260;
 
 type Axis = 'x' | 'y' | 'xy';
 
@@ -82,8 +82,8 @@ export function FloatingHelpChat() {
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
       setPos({
-        top: Math.max(8, Math.min(window.innerHeight - 60, startTop + dy)),
-        left: Math.max(8, Math.min(window.innerWidth - 60, startLeft + dx)),
+        top: Math.max(8, Math.min(window.innerHeight - rect.height - 8, startTop + dy)),
+        left: Math.max(8, Math.min(window.innerWidth - rect.width - 8, startLeft + dx)),
       });
     };
     const onUp = () => {
@@ -106,19 +106,21 @@ export function FloatingHelpChat() {
         <Paper
           ref={paperRef}
           elevation={6}
+          role="region" aria-label={tr("Help assistant")}
           sx={{
             position: 'fixed',
             zIndex: (t) => t.zIndex.speedDial,
             ...(pos
               ? { top: pos.top, left: pos.left, bottom: 'auto', right: 'auto' }
-              : { bottom: 96, right: 24, top: 'auto', left: 'auto' }),
-            width: { xs: 'calc(100vw - 48px)', sm: width },
-            height: { xs: 'auto', sm: height },
-            maxWidth: '92vw',
-            maxHeight: '85vh',
+              : { bottom: { xs: 84, sm: 96 }, right: { xs: 12, sm: 24 }, top: 'auto', left: 'auto' }),
+            width: { xs: 'calc(100vw - 24px)', sm: width },
+            height: { xs: 'min(680px, calc(100dvh - 112px))', sm: height },
+            maxWidth: 'calc(100vw - 24px)',
+            maxHeight: 'calc(100dvh - 112px)',
             display: 'flex',
             flexDirection: 'column',
-            borderRadius: 3,
+            borderRadius: 4,
+            border: '1px solid', borderColor: 'divider', backgroundImage: 'none', boxShadow: '0 24px 70px rgba(8,42,57,.25), 0 4px 18px rgba(8,42,57,.12)',
             overflow: 'hidden',
           }}
         >
@@ -128,27 +130,27 @@ export function FloatingHelpChat() {
             onPointerDown={startMove}
             sx={{
               alignItems: 'center',
-              bgcolor: 'primary.main',
+              background: 'linear-gradient(120deg, #0a3346, #176c79)',
               color: '#fff',
               pl: 1,
               pr: 2,
-              py: 1.5,
+              py: 2,
               flexShrink: 0,
-              cursor: 'move',
+              cursor: 'grab',
               userSelect: 'none',
             }}
           >
-            <DragIndicatorRoundedIcon sx={{ opacity: 0.6 }} />
-            <SmartToyRoundedIcon />
+            <Tooltip title={tr("Drag to move")}><DragIndicatorRoundedIcon sx={{ opacity: 0.6 }} /></Tooltip>
+            <Box sx={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 3, bgcolor: '#ffffff18', border: '1px solid #ffffff30', flexShrink: 0 }}><ForumRoundedIcon /></Box>
             <Box sx={{ flex: 1 }}>
               <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>{tr("Help assistant")}</Typography>
-              <Typography variant="caption" sx={{ opacity: 0.85 }}>{tr("Ask anything about the app — drag here to move")}</Typography>
+              <Typography variant="caption" sx={{ opacity: 0.85 }}>{tr("Your guide to reports, inspections and the app")}</Typography>
             </Box>
-            <IconButton size="small" onClick={() => setOpen(false)} sx={{ color: '#fff' }}>
+            <IconButton size="small" aria-label={tr("Close help assistant")} onClick={() => setOpen(false)} sx={{ color: '#fff' }}>
               <CloseRoundedIcon fontSize="small" />
             </IconButton>
           </Stack>
-          <Box sx={{ p: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ p: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', bgcolor: theme => theme.palette.mode === 'dark' ? 'background.default' : '#f6f9fb' }}>
             <HelpChatConversation listMaxHeight={Math.max(150, height - CHROME_HEIGHT)} listMinHeight={150} />
           </Box>
 
@@ -181,10 +183,10 @@ export function FloatingHelpChat() {
         </Paper>
       </Zoom>
 
-      <Box sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: (t) => t.zIndex.speedDial }}>
+      <Box sx={{ position: 'fixed', bottom: { xs: 16, sm: 24 }, right: { xs: 16, sm: 24 }, zIndex: (t) => t.zIndex.speedDial }}>
         <Tooltip title={open ? tr("Close help assistant") : tr("Need help? Ask the assistant")} placement="left">
-          <Fab color="primary" onClick={() => setOpen((o) => !o)} aria-label={tr("Help assistant")}>
-            {open ? <CloseRoundedIcon /> : <SmartToyRoundedIcon />}
+          <Fab color="primary" onClick={() => setOpen((o) => !o)} aria-label={tr("Help assistant")} aria-expanded={open} sx={{ background: 'linear-gradient(135deg, #12516a, #258a91)', color: '#fff', boxShadow: '0 8px 24px rgba(16,75,96,.3)', border: '1px solid #ffffff55', '&:hover': { background: 'linear-gradient(135deg, #0b3d52, #19767d)' } }}>
+            {open ? <CloseRoundedIcon /> : <ForumRoundedIcon />}
           </Fab>
         </Tooltip>
       </Box>
