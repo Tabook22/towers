@@ -43,7 +43,7 @@ def test_path_escape_and_missing_archive_never_convert(report):
 
 def test_failed_conversion_does_not_cache_a_broken_pdf(report, monkeypatch):
     monkeypatch.setattr(report_pdf.shutil, 'which', lambda _: 'libreoffice')
-    monkeypatch.setattr(report_pdf.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(returncode=1))
+    monkeypatch.setattr(report_pdf.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout=b'', stderr=b'conversion failed'))
     with pytest.raises(HTTPException) as error:
         report_pdf.prepare_pdf(report)
     assert error.value.status_code == 503

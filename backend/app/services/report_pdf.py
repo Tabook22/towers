@@ -1,13 +1,19 @@
 """Cached PDF copies of the actual archived issue; never regenerate field data."""
 from pathlib import Path
 import os
+import logging
 import shutil
 import subprocess
 import tempfile
 import threading
+import zipfile
+from io import BytesIO
+from PIL import Image
 
 from fastapi import HTTPException
 from app.config import settings
+
+log = logging.getLogger(__name__)
 
 _conversion_slots = threading.BoundedSemaphore(2)
 
@@ -54,18 +60,44 @@ def prepare_pdf(record):
         _conversion_slots.release()
 
 
+def _conversion_document(source, folder):
+    """Shrink oversized raster photos in a temporary package; retain all document XML."""
+    if source.stat().st_size < 20 * 1024 * 1024:
+        return source
+    prepared = folder / 'input' / source.name
+    prepared.parent.mkdir()
+    with zipfile.ZipFile(source) as original, zipfile.ZipFile(prepared, 'w', zipfile.ZIP_DEFLATED) as target:
+        for entry in original.infolist():
+            data = original.read(entry)
+            if entry.filename.startswith('word/media/') and entry.filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                try:
+                    with Image.open(BytesIO(data)) as image:
+                        if max(image.size) > 2200:
+                            image.thumbnail((2200, 2200), Image.Resampling.LANCZOS)
+                            output = BytesIO()
+                            image.save(output, format=image.format or ('PNG' if entry.filename.lower().endswith('.png') else 'JPEG'), **({'quality': 88} if image.format == 'JPEG' else {}))
+                            if output.tell() < len(data):
+                                data = output.getvalue()
+                except (OSError, ValueError):
+                    pass  # Preserve unsupported images rather than lose evidence.
+            target.writestr(entry, data)
+    return prepared
+
+
 def _convert(source, target, executable):
     with tempfile.TemporaryDirectory(prefix='report-pdf-', dir=target.parent) as folder:
         folder = Path(folder)
         # A separate profile prevents interference with other report conversions.
         profile = (folder / 'profile').resolve().as_uri()
+        prepared = _conversion_document(source, folder)
         conversion = 'pdf:writer_pdf_Export:{"ReduceImageResolution":{"type":"boolean","value":"true"},"MaxImageResolution":{"type":"long","value":"150"},"Quality":{"type":"long","value":"80"}}'
         try:
-            result = subprocess.run([executable, f'-env:UserInstallation={profile}', '--headless', '--convert-to', conversion, '--outdir', str(folder), str(source)], capture_output=True, timeout=600)
+            result = subprocess.run([executable, f'-env:UserInstallation={profile}', '--headless', '--convert-to', conversion, '--outdir', str(folder), str(prepared)], capture_output=True, timeout=1800)
         except (OSError, subprocess.TimeoutExpired) as error:
             raise HTTPException(503, 'Could not prepare the PDF. Please retry or download Word.') from error
         output = folder / (source.stem + '.pdf')
         if result.returncode or not output.is_file() or output.stat().st_size < 5:
+            log.error('PDF converter failed: exit=%s stderr=%s stdout=%s', result.returncode, result.stderr[-2000:], result.stdout[-2000:])
             raise HTTPException(503, 'Could not prepare the PDF. Please retry or download Word.')
         with output.open('rb') as stream:
             if stream.read(5) != b'%PDF-':

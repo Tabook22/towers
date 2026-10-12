@@ -3897,5 +3897,6 @@
   "Converting the saved Word document to PDF… Large reports may take a few minutes. Keep this window open.": "جارٍ تحويل مستند Word المحفوظ إلى PDF… قد تستغرق التقارير الكبيرة بضع دقائق. أبقِ هذه النافذة مفتوحة.",
   "Word report saved. Create your PDF copy.": "تم حفظ تقرير Word. أنشئ نسخة PDF.",
   "Locating the saved Word report…": "جارٍ البحث عن تقرير Word المحفوظ…",
-  "The Word file is saved. Refresh to locate its PDF conversion action, or open it from the report library.": "تم حفظ ملف Word. حدّث الصفحة للعثور على إجراء التحويل إلى PDF، أو افتحه من مكتبة التقارير."
+  "The Word file is saved. Refresh to locate its PDF conversion action, or open it from the report library.": "تم حفظ ملف Word. حدّث الصفحة للعثور على إجراء التحويل إلى PDF، أو افتحه من مكتبة التقارير.",
+  "Converting in the background… You can close this window and return to download the PDF when it is ready.": "يجري التحويل في الخلفية… يمكنك إغلاق هذه النافذة والعودة لتنزيل ملف PDF عندما يصبح جاهزاً."
 }

@@ -1035,6 +1035,26 @@ def prepare_report_pdf(report_id: int, db: Session = Depends(get_db), user: User
     return download_options(record)
 
 
+@router.post('/oetc-line-report/{report_id}/start-pdf')
+def start_report_pdf(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services.report_pdf_jobs import start
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(404, 'Report not found')
+    _check_report_access(record, user)
+    return start(record)
+
+
+@router.get('/oetc-line-report/{report_id}/pdf-status')
+def report_pdf_status(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services.report_pdf_jobs import status
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(404, 'Report not found')
+    _check_report_access(record, user)
+    return status(record)
+
+
 @router.get('/oetc-line-report/{report_id}/file.pdf')
 def download_report_pdf(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     record = db.get(LineInspectionReport, report_id)
