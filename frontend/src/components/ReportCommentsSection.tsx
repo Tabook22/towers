@@ -21,11 +21,11 @@ const ROLE_LABEL: Record<string, string> = {
  * detail dialog and the internal Reports page, since both sides of the conversation need the same
  * read/post UI (see backend models.ReportComment for the access boundary — anyone who can see the
  * report can read and post to it). */
-export function ReportCommentsSection({ reportId, active = true }: { reportId: number; active?: boolean }) {
+export function ReportCommentsSection({ reportId, active = true, initialComment = '' }: { reportId: number; active?: boolean; initialComment?: string }) {
   useLanguage();
   const { data: comments, isLoading, isError, refetch } = useReportComments(reportId, active);
   const addComment = useAddReportComment(reportId);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(initialComment);
   const [error, setError] = useState<string | null>(null);
   const posting = useRef(false);
 

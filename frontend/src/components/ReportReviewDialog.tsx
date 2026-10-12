@@ -114,7 +114,7 @@ function Evidence({ report, active }: { report: LineInspectionReportOut; active:
 }
 
 export type ReviewTab = 'overview' | 'inspection' | 'evidence' | 'discussion';
-export function ReportReviewDialog({ report, onClose, initialTab = 'overview' }: { report: LineInspectionReportOut; onClose: () => void; initialTab?: ReviewTab }) {
+export function ReportReviewDialog({ report, onClose, initialTab = 'overview', initialComment = '' }: { report: LineInspectionReportOut; onClose: () => void; initialTab?: ReviewTab; initialComment?: string }) {
   useLanguage();
   const theme = useTheme();
   const mobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -188,7 +188,7 @@ export function ReportReviewDialog({ report, onClose, initialTab = 'overview' }:
           </Stack> : !query.isLoading && !query.isError && <Alert severity="info">{tr('A frozen inspection data register is not available for this older report. Use the issued document.')}</Alert>}
         </Box>
         <Box role="tabpanel" id="review-panel-evidence" aria-labelledby="review-tab-evidence" hidden={tab !== 'evidence'}><Evidence report={report} active={tab === 'evidence'} /></Box>
-        <Box role="tabpanel" id="review-panel-discussion" aria-labelledby="review-tab-discussion" hidden={tab !== 'discussion'}><ReportCommentsSection key={report.id} reportId={report.id} active={tab === 'discussion'} /></Box>
+        <Box role="tabpanel" id="review-panel-discussion" aria-labelledby="review-tab-discussion" hidden={tab !== 'discussion'}><ReportCommentsSection key={report.id} reportId={report.id} active={tab === 'discussion'} initialComment={initialComment} /></Box>
       </DialogContent>
       <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 1.5, borderTop: 1, borderColor: 'divider', flexWrap: 'wrap', gap: 1 }}>
         <Button startIcon={<DescriptionRounded />} onClick={() => setDocument(true)}>{tr('View issued document')}</Button><ReportDownloadButton report={report} />{snapshot && <Button disabled={downloading} onClick={() => void download(true)}>{tr('Inspection data · PDF')}</Button>}

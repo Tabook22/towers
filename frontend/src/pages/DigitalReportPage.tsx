@@ -1,7 +1,8 @@
+import { ReportJourney } from '../components/ReportJourney';
 import { ReportTowerExplorer } from '../components/ReportTowerExplorer';
 import TransmissionTowerIcon from '../components/TransmissionTowerIcon';
 import { ReportFormatDownloads } from '../components/ReportFormatDownloads';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Box, Button, Checkbox, Chip, Collapse, InputAdornment, LinearProgress, MenuItem, Paper, Stack, Tab, Tabs, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Typography } from '@mui/material';
@@ -45,7 +46,15 @@ export function DigitalReportPage() {
   const [sort, setSort] = useState('finding_number');
   const [descending, setDescending] = useState(false);
   const [group, setGroup] = useState('tower');
-  const [view, setView] = useState(user?.role === 'client' ? 'overview' : 'report');
+  const [view, setView] = useState('overview');
+  const [exploreRank, setExploreRank] = useState<number | null>(null);
+  const [journeyReturn, setJourneyReturn] = useState<'overview' | 'hotspots' | null>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const previousView = useRef(view);
+  useEffect(() => {
+    if (previousView.current !== view) sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    previousView.current = view;
+  }, [view]);
   const [page, setPage] = useState(0);
   const [measurementPage, setMeasurementPage] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState(10);
@@ -126,16 +135,18 @@ export function DigitalReportPage() {
           { title: 'Evidence images', count: rows.reduce((total, row) => total + row.evidence.length, 0), icon: <PhotoLibraryOutlined />, color: 'primary.main' },
         ].map(metric => <Paper key={metric.title} variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: '20px', boxShadow: '0 4px 18px #103e5205' }}><Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1 }}><Typography variant="h4" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 750 }}>{metric.count}</Typography><Box sx={{ color: metric.color, display: 'flex', p: 1.25, borderRadius: 3, bgcolor: 'action.hover' }}>{metric.icon}</Box></Stack><Typography variant="body2" color="text.secondary">{tr(metric.title)}</Typography></Paper>)}
       </Box>
-      {view === 'overview' && report.has_file && <ReportFormatDownloads report={report} />}
-      <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden' }}>
-        <Tabs value={view} onChange={(_, next: string) => { setView(next); setPage(0); if (next === 'measurements') { setSort('severity'); setDescending(false); setGroup('severity'); } }} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile aria-label={tr('Report sections')} sx={{ px: 1, pt: 1, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 62, mx: .5, borderRadius: '12px 12px 0 0' }, '& .Mui-selected': { bgcolor: 'action.hover' } }}>
+
+      <Paper ref={sectionRef} variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden', scrollMarginTop: 90 }}>
+        <Tabs value={view} onChange={(_, next: string) => { setView(next); setJourneyReturn(null); setPage(0); if (next === 'hotspots') setExploreRank(null); if (next === 'measurements') { setSort('severity'); setDescending(false); setGroup('severity'); } }} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile aria-label={tr('Report sections')} sx={{ px: 1, pt: 1, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 62, mx: .5, borderRadius: '12px 12px 0 0' }, '& .Mui-selected': { bgcolor: 'action.hover' } }}>
           <Tab value="overview" icon={<GridViewRounded fontSize="small" />} iconPosition="start" label={tr('Report overview')} />
+          <Tab value="hotspots" icon={<WarningAmberRounded fontSize="small" />} iconPosition="start" label={tr('Hotspots & evidence')} />
+          <Tab value="issued" icon={<DescriptionRounded fontSize="small" />} iconPosition="start" label={tr('Issued report summary')} />
           <Tab value="report" icon={<DescriptionRounded fontSize="small" />} iconPosition="start" label={tr('Report view')} />
           <Tab value="measurements" icon={<ThermostatRounded fontSize="small" />} iconPosition="start" label={tr('Thermal Inspection Measurements')} />
           <Tab value="tower" icon={<TransmissionTowerIcon fontSize="small" />} iconPosition="start" label={tr('Visual tower form')} />
           <Tab value="table" icon={<TableChartRounded fontSize="small" />} iconPosition="start" label={tr('Table view')} />
         </Tabs>
-        {view !== 'tower' && <Stack spacing={2} sx={{ p: { xs: 2, md: 2.5 } }}>
+        {!['tower', 'overview', 'hotspots', 'issued'].includes(view) && <Stack spacing={2} sx={{ p: { xs: 2, md: 2.5 } }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
             <TextField size="small" label={tr('Search within this report')} placeholder={tr('Tower, readings, notes or any keyword')} value={search} onChange={e => { setSearch(e.target.value); change(); }} fullWidth slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRounded fontSize="small" /></InputAdornment> } }} />
             <Button variant={filtersOpen || activeFilters ? 'contained' : 'outlined'} startIcon={<TuneRounded />} aria-expanded={filtersOpen} aria-controls="digital-report-filters" onClick={() => setFiltersOpen(old => !old)} sx={{ flexShrink: 0 }}>{tr('Filters')}{activeFilters ? ` (${activeFilters})` : ''}</Button>
@@ -157,7 +168,7 @@ export function DigitalReportPage() {
           {(search || activeFilters > 0) && <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>{search && <Chip size="small" label={search} onDelete={() => { setSearch(''); change(); }} />}{Object.entries(filters).filter(([, option]) => option).map(([field, option]) => <Chip key={field} size="small" label={`${label(field)}: ${option}`} onDelete={() => { setFilters(old => ({ ...old, [field]: '' })); change(); }} />)}<Button size="small" onClick={() => { setSearch(''); setFilters({}); change(); }}>{tr('Clear filters')}</Button></Stack>}
         </Stack>}
       </Paper>
-      {view !== 'tower' && <><Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
+      {!['tower', 'overview', 'hotspots', 'issued'].includes(view) && <><Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <Typography variant="subtitle2" sx={{ mr: 1 }}>{tr('{0} of {1} findings', [matching.length, rows.length])}</Typography>
         <Chip label={tr('{0} towers', [new Set(matching.map(row => row.fields.tower).filter(Boolean)).size])} />
         <Chip label={tr('{0} selected', [selectedMatching.length])} />
@@ -170,11 +181,14 @@ export function DigitalReportPage() {
       {error && <Alert severity="error">{error}</Alert>}
       {exporting && <LinearProgress />}
       {!matching.length && <Alert severity="info">{tr('No findings match your search. Try another keyword or clear the filters.')}</Alert>}</>}
-      {view === 'overview' && <Alert severity="info">{tr('The overview shows the complete issued report summary. Choose Report view to browse filtered findings.')}</Alert>}
+      {(view === 'overview' || journeyReturn === 'overview') && <Box hidden={view !== 'overview'}><ReportJourney key={`overview-${id}`} report={report} rows={rows} assessment={query.data.assessment} mode="overview" onExplore={rank => { setExploreRank(rank); setView('hotspots'); }} onTower={key => { setJourneyReturn('overview'); setTowerStartKey(key); setView('tower'); }} onTemplate={key => { setJourneyReturn('overview'); openFinding(key); }} /></Box>}
+      {(view === 'hotspots' || journeyReturn === 'hotspots') && <Box hidden={view !== 'hotspots'}><ReportJourney key={`hotspots-${id}-${exploreRank}`} report={report} rows={rows} assessment={query.data.assessment} mode="hotspots" initialRank={exploreRank} onExplore={() => {}} onTower={key => { setJourneyReturn('hotspots'); setTowerStartKey(key); setView('tower'); }} onTemplate={key => { setJourneyReturn('hotspots'); openFinding(key); }} /></Box>}
+      {view === 'overview' && report.has_file && <Stack spacing={2}><Typography component="h2" variant="h6">{tr('Your issued documents')}</Typography><ReportFormatDownloads report={report} /></Stack>}
+      {journeyReturn && (view === 'tower' || view === 'report') && <Button startIcon={<ArrowBackRounded />} sx={{ alignSelf: 'flex-start' }} onClick={() => { setView(journeyReturn); setJourneyReturn(null); }}>{tr(journeyReturn === 'hotspots' ? 'Back to evidence explorer' : 'Back to inspection overview')}</Button>}
       {view === 'measurements' && <Stack spacing={1}><Typography variant="h6">{tr('Thermal Inspection Measurements')}</Typography><Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>{['High / Critical', 'Medium', 'Low', 'Normal'].map((severity, rank) => <Chip key={severity} color={rank === 0 ? 'error' : rank === 1 ? 'warning' : rank === 3 ? 'success' : 'default'} variant={filters.severity === severity ? 'filled' : 'outlined'} label={`${tr(severity)}: ${new Set(rows.filter(row => severityRank(row.fields.severity) === rank).map(row => row.fields.tower)).size} ${tr('towers')}`} onClick={() => { setFilters(old => ({ ...old, severity: old.severity === severity ? '' : severity })); change(); }} />)}</Stack></Stack>}
       {view === 'report' && measurementPage !== null && <Button startIcon={<ArrowBackRounded />} sx={{ alignSelf: 'flex-start' }} onClick={() => { setView('measurements'); setPage(measurementPage); setMeasurementPage(null); setJumpKey(''); }}>{tr('Back to thermal measurements')}</Button>}
       {view === 'measurements' && <Typography variant="body2" color="text.secondary">{tr('Click a tower or measurement row to view that insulator finding. Click a photograph to enlarge it.')}</Typography>}
-      {view === 'tower' ? <ReportTowerExplorer reportId={id} rows={rows} startKey={towerStartKey} onOpenFinding={openFinding} /> : view === 'measurements' ? (matching.length > 0 && <WordReportReplica reportId={id} section="measurements" onOpenFinding={openFinding} groups={groups.map(([name, findings]) => ({ name: group ? `${label(group)}: ${name || '—'}` : '', keys: findings.map(row => row.key) }))} selected={selected} onSelect={toggle} />) : view === 'overview' ? <WordReportReplica reportId={id} section="overview" groups={[]} selected={selected} onSelect={toggle} /> : view === 'report' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '310px minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
+      {view === 'tower' ? <ReportTowerExplorer reportId={id} rows={rows} startKey={towerStartKey} onOpenFinding={openFinding} /> : view === 'measurements' ? (matching.length > 0 && <WordReportReplica reportId={id} section="measurements" onOpenFinding={openFinding} groups={groups.map(([name, findings]) => ({ name: group ? `${label(group)}: ${name || '—'}` : '', keys: findings.map(row => row.key) }))} selected={selected} onSelect={toggle} />) : view === 'overview' || view === 'hotspots' ? null : view === 'issued' ? <WordReportReplica reportId={id} section="overview" groups={[]} selected={selected} onSelect={toggle} /> : view === 'report' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '310px minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
         <Paper component="nav" aria-label={tr('Finding navigation')} variant="outlined" sx={{ p: 2, borderRadius: 3, position: { lg: 'sticky' }, top: 80, maxHeight: { xs: 320, lg: '70vh' }, overflowY: 'auto', scrollbarWidth: 'thin' }}>
           <Typography variant="subtitle2" sx={{ p: 1 }}>{tr('Jump to finding')} <Chip size="small" label={matching.length} sx={{ ml: 1 }} /></Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1, pb: 1.5 }}>{tr('Browse inspection evidence')}</Typography>
           {matching.map((row, index) => <Button key={row.key} fullWidth size="small" aria-current={(jumpKey === row.key || (!jumpKey && row.key === visible[0]?.key)) ? 'location' : undefined} sx={{ justifyContent: 'flex-start', textAlign: 'start', my: .75, p: 1.5, borderRadius: 2.5, bgcolor: (jumpKey === row.key || (!jumpKey && row.key === visible[0]?.key)) ? 'action.selected' : undefined, border: 1, borderColor: (jumpKey === row.key || (!jumpKey && row.key === visible[0]?.key)) ? 'primary.main' : 'transparent' }} onClick={() => { setPage(Math.floor(index / pageSize)); setJumpKey(row.key); }}>
@@ -186,7 +200,7 @@ export function DigitalReportPage() {
         {group && <Typography variant="h6">{label(group)}: {name || '—'}</Typography>}
         <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3 }}><Table size="small" aria-label={tr('Recorded findings')}><TableHead><TableRow><TableCell>{tr('Select')}</TableCell>{columns.map(field => <TableCell key={field}>{label(field)}</TableCell>)}</TableRow></TableHead><TableBody>{findings.map(row => <TableRow key={row.key} hover selected={selected.includes(row.key)}><TableCell><Checkbox checked={selected.includes(row.key)} onChange={(_, checked) => toggle(row.key, checked)} slotProps={{ input: { 'aria-label': `${tr('Select finding')} ${row.key}` } }} /></TableCell>{columns.map(field => <TableCell key={field} sx={{ whiteSpace: field === 'inspector_notes' ? 'pre-wrap' : 'nowrap' }}>{value(row.fields[field])}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer>
       </Stack>)}
-      {view !== 'overview' && view !== 'tower' && <TablePagination component="div" count={matching.length} page={currentPage} rowsPerPage={pageSize} rowsPerPageOptions={[5, 10, 20, 50]} onPageChange={(_, next) => setPage(next)} onRowsPerPageChange={e => { setPageSize(Number(e.target.value)); setPage(0); }} />}
+      {!['overview', 'hotspots', 'issued', 'tower'].includes(view) && <TablePagination component="div" count={matching.length} page={currentPage} rowsPerPage={pageSize} rowsPerPageOptions={[5, 10, 20, 50]} onPageChange={(_, next) => setPage(next)} onRowsPerPageChange={e => { setPageSize(Number(e.target.value)); setPage(0); }} />}
       {view === 'table' && Object.keys(query.data.assessment).length > 0 && <Paper sx={{ p: 3 }}><Typography variant="h6" gutterBottom>{tr('Assessment at issue time')}</Typography>{Object.entries(query.data.assessment).filter(([, v]) => v !== null && v !== '').map(([field, v]) => <Box key={field} sx={{ mb: 1 }}><Typography variant="caption" color="text.secondary">{label(field)}</Typography><Typography sx={{ whiteSpace: 'pre-wrap' }}>{value(v)}</Typography></Box>)}</Paper>}
     </>}
     <DocxViewerDialog open={wordOpen} onClose={() => setWordOpen(false)} title={report.report_number} fileUrl={mediaUrl(`${base}/file`)} />
