@@ -67,3 +67,21 @@ def test_timeout_stops_converter_children_and_reaps_process(monkeypatch):
         with pytest.raises(report_pdf.subprocess.TimeoutExpired):
             report_pdf._run_converter(['converter'])
     assert calls == [('communicate', 1800), ('killgroup', 12345), ('communicate', None)]
+
+
+def test_progress_counts_completed_parts_and_reports_merge_and_save(report, monkeypatch, tmp_path):
+    from pypdf import PdfWriter, PdfReader
+    source = report_pdf.archived_file(report)
+    source.write_bytes(b'x' * (20 * 1024 * 1024))
+    monkeypatch.setattr(report_pdf.shutil, 'which', lambda _: 'libreoffice')
+    monkeypatch.setattr(report_pdf, '_conversion_document', lambda source, folder: source)
+    monkeypatch.setattr(report_pdf, '_conversion_parts', lambda source, folder: [folder / 'one.docx', folder / 'two.docx'])
+    def convert(args):
+        output = Path(args[args.index('--outdir') + 1]) / (Path(args[-1]).stem + '.pdf')
+        writer = PdfWriter(); writer.add_blank_page(width=200, height=200); writer.write(output); writer.close()
+        return SimpleNamespace(returncode=0, stdout=b'', stderr=b'')
+    monkeypatch.setattr(report_pdf, '_run_converter', convert)
+    stages = []
+    result = report_pdf.prepare_pdf(report, progress=lambda *event: stages.append(event))
+    assert len(PdfReader(result).pages) == 2
+    assert stages == [('preparing', 0, None), ('converting', 0, 2), ('converting', 1, 2), ('converting', 2, 2), ('combining', 2, 2), ('saving', 2, 2), ('complete', 2, 2)]

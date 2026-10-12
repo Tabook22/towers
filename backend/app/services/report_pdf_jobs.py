@@ -16,19 +16,23 @@ def connect(target):
     target.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(target.parent / 'jobs.sqlite3', timeout=30)
     conn.execute('CREATE TABLE IF NOT EXISTS jobs (key TEXT PRIMARY KEY, status TEXT NOT NULL, error TEXT, updated REAL NOT NULL)')
+    conn.execute('CREATE TABLE IF NOT EXISTS progress (key TEXT PRIMARY KEY, stage TEXT NOT NULL, completed INTEGER NOT NULL, total INTEGER)')
     return conn
 
 def status(record):
     options = download_options(record)
     if options['pdf_bytes'] is not None:
-        return dict(options, status='complete', error=None)
+        return dict(options, status='complete', error=None, stage='complete', completed=None, total=None, percent=100)
     target = pdf_file(record)
     if target is None:
         return dict(options, status='unavailable', error='No archived Word document is available for PDF conversion')
     with closing(connect(target)) as conn, conn:
         conn.execute("UPDATE jobs SET status='failed', error='PDF conversion was interrupted. Please try again.' WHERE status IN ('queued','running') AND updated < ?", (time.time() - 120,))
         row = conn.execute('SELECT status,error FROM jobs WHERE key=?', (target.name,)).fetchone()
-    return dict(options, status=row[0] if row else 'idle', error=row[1] if row else None)
+        work = conn.execute('SELECT stage,completed,total FROM progress WHERE key=?', (target.name,)).fetchone()
+    stage, completed, total = work or (row[0] if row else 'idle', 0, None)
+    percent = int(completed / total * 100) if stage == 'converting' and total else None
+    return dict(options, status=row[0] if row else 'idle', error=row[1] if row else None, stage=stage, completed=completed, total=total, percent=percent)
 
 def start(record):
     current = status(record)
@@ -43,6 +47,7 @@ def start(record):
         if row and row[0] in ('queued', 'running'):
             return dict(current, status=row[0], error=None)
         conn.execute("INSERT OR REPLACE INTO jobs VALUES (?, 'queued', NULL, ?)", (target.name, time.time()))
+        conn.execute("INSERT OR REPLACE INTO progress VALUES (?, 'queued', 0, NULL)", (target.name,))
     snapshot = SimpleNamespace(id=record.id, file_path=record.file_path)
     # Start a heartbeat immediately, including time waiting in the executor's queue.
     stopped = threading.Event()
@@ -53,7 +58,7 @@ def start(record):
         stopped.set()
         _update(target, 'failed', 'Could not start PDF conversion. Please try again.')
         raise
-    return dict(current, status='queued', error=None)
+    return dict(current, status='queued', error=None, stage='queued', completed=0, total=None, percent=None)
 
 def _update(target, state, error=None):
     with closing(connect(target)) as conn, conn:
@@ -78,7 +83,10 @@ def _run(record, target, stopped):
                     conn.execute("UPDATE jobs SET status='running', updated=? WHERE key=?", (time.time(), target.name))
                     break
             time.sleep(2)
-        prepare_pdf(record)
+        def progress(stage, completed, total):
+            with closing(connect(target)) as conn, conn:
+                conn.execute('INSERT OR REPLACE INTO progress VALUES (?,?,?,?)', (target.name, stage, completed, total))
+        prepare_pdf(record, progress=progress)
         if pdf_file(record) != target:
             raise RuntimeError('Archived report changed during conversion')
         _update(target, 'complete')

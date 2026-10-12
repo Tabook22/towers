@@ -87,7 +87,7 @@ def test_background_failure_is_visible(tmp_path, monkeypatch):
     target = report_pdf.pdf_file(record)
     with jobs.connect(target) as conn:
         conn.execute("INSERT INTO jobs VALUES (?, 'queued', NULL, ?)", (target.name, jobs.time.time()))
-    def fail(record):
+    def fail(record, progress=None):
         raise RuntimeError('conversion failed')
     monkeypatch.setattr(jobs, 'prepare_pdf', fail)
     stopped = jobs.threading.Event()
@@ -102,7 +102,24 @@ def test_background_success_reuses_cache(tmp_path, monkeypatch):
     target = report_pdf.pdf_file(record)
     with jobs.connect(target) as conn:
         conn.execute("INSERT INTO jobs VALUES (?, 'queued', NULL, ?)", (target.name, jobs.time.time()))
-    monkeypatch.setattr(jobs, 'prepare_pdf', lambda _: target.write_bytes(b'%PDF-valid'))
+    monkeypatch.setattr(jobs, 'prepare_pdf', lambda _, progress=None: target.write_bytes(b'%PDF-valid'))
     jobs._run(record, target, jobs.threading.Event())
     assert jobs.status(record)['status'] == 'complete'
     assert jobs.start(record)['pdf_bytes'] == 10
+
+
+def test_real_progress_is_persisted_for_other_requests(tmp_path, monkeypatch):
+    record = setup_record(tmp_path, monkeypatch)
+    target = report_pdf.pdf_file(record)
+    with jobs.connect(target) as conn:
+        conn.execute("INSERT INTO jobs VALUES (?, 'queued', NULL, ?)", (target.name, jobs.time.time()))
+    def convert(record, progress):
+        progress('converting', 2, 4)
+        state = jobs.status(record)
+        assert state['percent'] == 50 and state['completed'] == 2 and state['total'] == 4
+        progress('combining', 4, 4)
+        assert jobs.status(record)['percent'] is None
+        target.write_bytes(b'%PDF-valid')
+    monkeypatch.setattr(jobs, 'prepare_pdf', convert)
+    jobs._run(record, target, jobs.threading.Event())
+    assert jobs.status(record)['percent'] == 100

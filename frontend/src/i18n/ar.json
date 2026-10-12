@@ -3912,5 +3912,12 @@
   "Prepare a PDF copy of this saved report.": "أعد نسخة PDF من هذا التقرير المحفوظ.",
   "Your Word report is ready. We are preparing your PDF—you can leave this page and return later.": "تقرير Word جاهز. يجري إعداد PDF، ويمكنك مغادرة الصفحة والعودة لاحقاً.",
   "PDF unavailable": "PDF غير متاح",
-  "PDF preparation is temporarily unavailable. Your Word report is ready.": "إعداد PDF غير متاح مؤقتاً. تقرير Word جاهز."
+  "PDF preparation is temporarily unavailable. Your Word report is ready.": "إعداد PDF غير متاح مؤقتاً. تقرير Word جاهز.",
+  "Waiting for PDF conversion": "في انتظار تحويل PDF",
+  "Preparing the Word document": "جارٍ تجهيز مستند Word",
+  "Combining PDF sections": "جارٍ دمج أقسام PDF",
+  "Saving the PDF": "جارٍ حفظ PDF",
+  "Converting report sections": "جارٍ تحويل أقسام التقرير",
+  "PDF conversion progress": "تقدم تحويل PDF",
+  "{0} of {1} sections converted": "تم تحويل {0} من {1} أقسام"
 }

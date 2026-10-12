@@ -46,7 +46,7 @@ def download_options(record):
             'pdf_available': bool(word and shutil.which('libreoffice'))}
 
 
-def prepare_pdf(record):
+def prepare_pdf(record, progress=None):
     source = archived_file(record)
     if not source:
         raise HTTPException(404, 'No archived Word document is available for PDF conversion')
@@ -60,7 +60,7 @@ def prepare_pdf(record):
     if not _conversion_slots.acquire(timeout=30):
         raise HTTPException(429, 'PDF preparation is busy. Please try again shortly.')
     try:
-        return _convert(source, target, executable)
+        return _convert(source, target, executable, progress)
     finally:
         _conversion_slots.release()
 
@@ -171,7 +171,11 @@ def _run_converter(args):
     return subprocess.CompletedProcess(args, process.returncode, stdout, stderr)
 
 
-def _convert(source, target, executable):
+def _convert(source, target, executable, progress=None):
+    def report(stage, completed=0, total=None):
+        if progress:
+            progress(stage, completed, total)
+    report('preparing')
     with tempfile.TemporaryDirectory(prefix='report-pdf-', dir=target.parent) as folder:
         folder = Path(folder)
         # A separate profile prevents interference with other report conversions.
@@ -180,6 +184,7 @@ def _convert(source, target, executable):
         conversion = 'pdf:writer_pdf_Export:{"ReduceImageResolution":{"type":"boolean","value":"true"},"MaxImageResolution":{"type":"long","value":"150"},"Quality":{"type":"long","value":"80"}}'
         parts = _conversion_parts(prepared, folder) if source.stat().st_size >= 20 * 1024 * 1024 else [prepared]
         outputs = []
+        report('converting', 0, len(parts))
         for part in parts:
             try:
                 result = _run_converter([executable, f'-env:UserInstallation={profile}', '--headless', '--convert-to', conversion, '--outdir', str(folder), str(part)])
@@ -193,6 +198,8 @@ def _convert(source, target, executable):
                 if stream.read(5) != b'%PDF-':
                     raise HTTPException(503, 'Could not prepare the PDF. Please retry or download Word.')
             outputs.append(output)
+            report('converting', len(outputs), len(parts))
+        report('combining', len(outputs), len(parts))
         if len(outputs) > 1:
             output = folder / 'combined.pdf'
             writer = PdfWriter()
@@ -204,5 +211,7 @@ def _convert(source, target, executable):
                 writer.close()
         else:
             output = outputs[0]
+        report('saving', len(outputs), len(parts))
         os.replace(output, target)
+        report('complete', len(outputs), len(parts))
     return target
