@@ -1,3 +1,4 @@
+import { ReportMetricGuide } from '../components/ReportMetricGuide';
 import { ReportJourney } from '../components/ReportJourney';
 import { ReportTowerExplorer } from '../components/ReportTowerExplorer';
 import TransmissionTowerIcon from '../components/TransmissionTowerIcon';
@@ -6,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Box, Button, Checkbox, Chip, Collapse, InputAdornment, LinearProgress, MenuItem, Paper, Stack, Tab, Tabs, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Typography } from '@mui/material';
-import { ArrowBackRounded, DownloadRounded, SearchRounded, TuneRounded, DescriptionRounded, GridViewRounded, ThermostatRounded, TableChartRounded, LocationOnOutlined, FactCheckOutlined, PhotoLibraryOutlined, WarningAmberRounded } from '@mui/icons-material';
+import { ArrowBackRounded, DownloadRounded, SearchRounded, TuneRounded, DescriptionRounded, GridViewRounded, ThermostatRounded, TableChartRounded, PhotoLibraryOutlined, WarningAmberRounded } from '@mui/icons-material';
 import { apiClient, mediaUrl } from '../api/client';
 import { useOetcReportHistory } from '../api/hooks';
 import type { InspectionSnapshot, ReportValue } from '../api/types';
@@ -71,7 +72,6 @@ export function DigitalReportPage() {
     return group === 'severity' ? groupFindings(filtered, group).flatMap(([, findings]) => findings) : filtered;
   }, [rows, search, filters, sort, descending, group]);
   const activeFilters = Object.values(filters).filter(Boolean).length;
-  const urgentCount = rows.filter(row => severityRank(row.fields.severity) === 0).length;
   const dateLabel = (date: string) => date ? formatDate(date, { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
   const currentPage = Math.min(page, Math.max(0, Math.ceil(matching.length / pageSize) - 1));
   const visible = matching.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
@@ -127,14 +127,7 @@ export function DigitalReportPage() {
     </Box>
     {layoutQuery.isError && <Alert severity="warning">{tr('Could not load finding navigation. Please refresh the page.')}</Alert>}
     {!query.data ? <Alert severity="warning">{tr('This older report has no saved inspection snapshot. Use the archived Word document; current inspection data will not be substituted.')}</Alert> : <>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2 }}>
-        {[
-          { title: 'Recorded findings', count: rows.length, icon: <FactCheckOutlined />, color: 'primary.main' },
-          { title: 'Towers covered', count: new Set(rows.map(row => row.fields.tower).filter(Boolean)).size, icon: <LocationOnOutlined />, color: 'primary.main' },
-          { title: 'High / Critical', count: urgentCount, icon: <WarningAmberRounded />, color: urgentCount ? 'error.main' : 'text.secondary' },
-          { title: 'Evidence images', count: rows.reduce((total, row) => total + row.evidence.length, 0), icon: <PhotoLibraryOutlined />, color: 'primary.main' },
-        ].map(metric => <Paper key={metric.title} variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: '20px', boxShadow: '0 4px 18px #103e5205' }}><Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1 }}><Typography variant="h4" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 750 }}>{metric.count}</Typography><Box sx={{ color: metric.color, display: 'flex', p: 1.25, borderRadius: 3, bgcolor: 'action.hover' }}>{metric.icon}</Box></Stack><Typography variant="body2" color="text.secondary">{tr(metric.title)}</Typography></Paper>)}
-      </Box>
+      <ReportMetricGuide rows={rows} reportNumber={report.report_number} onFinding={openFinding} onTower={key => { setTowerStartKey(key); setView('tower'); }} />
 
       <Paper ref={sectionRef} variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden', scrollMarginTop: 90 }}>
         <Tabs value={view} onChange={(_, next: string) => { setView(next); setJourneyReturn(null); setPage(0); if (next === 'hotspots') setExploreRank(null); if (next === 'measurements') { setSort('severity'); setDescending(false); setGroup('severity'); } }} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile aria-label={tr('Report sections')} sx={{ px: 1, pt: 1, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 62, mx: .5, borderRadius: '12px 12px 0 0' }, '& .Mui-selected': { bgcolor: 'action.hover' } }}>

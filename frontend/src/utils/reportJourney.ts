@@ -9,6 +9,12 @@ export const severityBands = [
   { label: 'Severity not recorded', color: '#778692', textColor: '#667582' },
 ] as const;
 
+export function reportMetricTotals(rows: DigitalFinding[]) {
+  return [rows.length, new Set(rows.map(row => String(row.fields.tower || '')).filter(Boolean)).size,
+    rows.filter(row => severityRank(row.fields.severity) === 0).length,
+    rows.reduce((sum, row) => sum + row.evidence.length, 0)];
+}
+
 export function priorityFindings(rows: DigitalFinding[]) {
   return [...rows].sort((a, b) => severityRank(a.fields.severity) - severityRank(b.fields.severity)
     || (numericReading(b.fields.delta_t) ?? -Infinity) - (numericReading(a.fields.delta_t) ?? -Infinity)

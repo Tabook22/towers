@@ -6,7 +6,7 @@ const compile = source => ts.transpileModule(source, { compilerOptions: { module
 const url = source => `data:text/javascript;base64,${Buffer.from(compile(source)).toString('base64')}`;
 const digital = url(await readFile(new URL('../src/utils/digitalReport.ts', import.meta.url), 'utf8'));
 const journey = (await readFile(new URL('../src/utils/reportJourney.ts', import.meta.url), 'utf8')).replaceAll("from './digitalReport'", `from '${digital}'`);
-const { numericReading, priorityFindings, journeyTowers, thermalEvidenceIndex, comparisonEvidence } = await import(url(journey));
+const { numericReading, priorityFindings, journeyTowers, thermalEvidenceIndex, comparisonEvidence, reportMetricTotals } = await import(url(journey));
 const row = (key, tower, severity, delta_t) => ({ key, fields: { tower, severity, delta_t }, evidence: [] });
 
 test('priority follows recorded severity before temperature and leaves missing classifications separate', () => {
@@ -41,4 +41,12 @@ test('comparison pairs full and close thermal/visual images without changing the
   const finding = { evidence: ['TH Full', 'TH Close', 'RGB Full', 'RGB Close', 'Additional'].map(image_type => ({ image_type })) };
   assert.deepEqual(comparisonEvidence(finding).map(r => r.index), [0, 2, 1, 3, 4]);
   assert.deepEqual(finding.evidence.map(r => r.image_type), ['TH Full', 'TH Close', 'RGB Full', 'RGB Close', 'Additional']);
+});
+
+test('report metric totals count entries, distinct named towers, recorded urgent severity and image references', () => {
+  const rows = [row('1:1', 'T-1', 'High', 1), row('2:1', 'T-1', 'Critical', 2), row('3:1', 'T-2', 'Normal', 100), row('4:1', '', null, 200)];
+  rows[0].evidence = [{ image_id: 10 }, { image_id: 11 }];
+  rows[1].evidence = [{ image_id: 10 }];
+  assert.deepEqual(reportMetricTotals(rows), [4, 2, 2, 3]);
+  assert.deepEqual(reportMetricTotals([]), [0, 0, 0, 0]);
 });
