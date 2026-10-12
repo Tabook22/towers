@@ -310,8 +310,8 @@ export function HelpChatConversation({ listMaxHeight = 360, listMinHeight = 120 
       <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-end', flexShrink: 0 }}>
         <TextField
           fullWidth
-          size="small" multiline minRows={1} maxRows={4}
-          sx={{ bgcolor: 'background.paper', borderRadius: 3, '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+          size="small" multiline minRows={3} maxRows={8}
+          sx={{ bgcolor: theme => theme.palette.mode === 'dark' ? '#17374a' : '#eaf4ff', borderRadius: 3, '& .MuiOutlinedInput-root': { borderRadius: 3, alignItems: 'flex-start', lineHeight: 1.65, '& fieldset': { borderColor: '#83b8d8' }, '&:hover fieldset': { borderColor: '#3988b6' } } }}
           slotProps={{ htmlInput: { 'aria-label': tr('Your question') } }}
           placeholder={tr("Ask a question, {0}…", [user?.full_name || user?.username || tr("there")])}
           value={draft}
