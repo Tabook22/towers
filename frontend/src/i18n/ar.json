@@ -3981,5 +3981,8 @@
   "Your issued documents": "مستنداتك الصادرة",
   "Back to evidence explorer": "العودة إلى مستكشف الأدلة",
   "Back to inspection overview": "العودة إلى نظرة الفحص العامة",
-  "{0} without severity": "{0} دون تصنيف خطورة"
+  "{0} without severity": "{0} دون تصنيف خطورة",
+  "Insulator severity legend": "دليل ألوان خطورة العوازل",
+  "Insulator severity: {0}": "خطورة العازل: {0}",
+  "Each circle shows the recorded severity of that insulator. Phase colours identify R, Y and B separately.": "تُظهر كل دائرة درجة الخطورة المسجلة لذلك العازل. ألوان الأطوار تميز R وY وB بشكل مستقل."
 }

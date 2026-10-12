@@ -2,11 +2,11 @@ import type { DigitalFinding } from './digitalReport';
 import { severityRank } from './digitalReport';
 
 export const severityBands = [
-  { label: 'High / Critical', color: '#c84444' },
-  { label: 'Medium', color: '#b57818' },
-  { label: 'Low', color: '#477baf' },
-  { label: 'Normal', color: '#28816f' },
-  { label: 'Severity not recorded', color: '#778692' },
+  { label: 'High / Critical', color: '#e53935', textColor: '#bb3030' },
+  { label: 'Medium', color: '#ed8c26', textColor: '#a65a0c' },
+  { label: 'Low', color: '#f2c744', textColor: '#866500' },
+  { label: 'Normal', color: '#299e50', textColor: '#247941' },
+  { label: 'Severity not recorded', color: '#778692', textColor: '#667582' },
 ] as const;
 
 export function priorityFindings(rows: DigitalFinding[]) {
