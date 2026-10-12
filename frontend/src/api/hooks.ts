@@ -1075,7 +1075,7 @@ export function useDeleteOetcReport() {
     onSuccess: (_data, id) => {
       qc.removeQueries({ queryKey: ['oetc-report-images', id] });
       qc.removeQueries({ queryKey: ['oetc-report-comments', id] });
-      return qc.invalidateQueries({ queryKey: ['oetc-report-history'] });
+      return Promise.all([qc.invalidateQueries({ queryKey: ['oetc-report-history'] }), qc.invalidateQueries({ queryKey: ['report-document-library'] })]);
     },
   });
 }
@@ -1098,7 +1098,7 @@ export function useUpdateOetcLineReport() {
     mutationFn: async ({ id, payload }: { id: number; payload: LineInspectionReportUpdate }) =>
       (await apiClient.patch<LineInspectionReportOut>(`/api/reports/oetc-line-report/${id}`, payload)).data,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['oetc-report-history'] });
+      qc.invalidateQueries({ queryKey: ['oetc-report-history'] }); qc.invalidateQueries({ queryKey: ['report-document-library'] });
     },
   });
 }
@@ -1135,7 +1135,7 @@ export function useAddReportComment(reportId: number) {
       (await apiClient.post<ReportCommentOut>(`/api/reports/oetc-line-report/${reportId}/comments`, { body })).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['oetc-report-comments', reportId] });
-      qc.invalidateQueries({ queryKey: ['oetc-report-history'] });
+      qc.invalidateQueries({ queryKey: ['oetc-report-history'] }); qc.invalidateQueries({ queryKey: ['report-document-library'] });
     },
   });
 }

@@ -100,7 +100,7 @@ export function useReportGeneration<T>(kind: 'team' | 'area' | 'consolidated', d
         try { sessionStorage.removeItem(key); } catch { /* optional */ }
         throw new Error(job.error || 'Report generation failed');
       }
-      void qc.invalidateQueries({ queryKey: ['oetc-report-history'] });
+      void qc.invalidateQueries({ queryKey: ['oetc-report-history'] }); qc.invalidateQueries({ queryKey: ['report-document-library'] });
       const downloadStartedAt = Date.now();
       update({ ...job, downloading: true, download_loaded: 0, download_started_at: downloadStartedAt });
       const response = await apiClient.get(`/api/reports/generation-jobs/${job.id}/file`, {
@@ -114,7 +114,7 @@ export function useReportGeneration<T>(kind: 'team' | 'area' | 'consolidated', d
       try { sessionStorage.removeItem(key); } catch { /* optional */ }
     },
     onError: () => { setProgress(previous => previous?.downloading ? { ...previous, downloading: false, status: 'failed', stage: 'Download interrupted', error: 'The report is saved in the library. Retry to download the same file.' } : previous); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['oetc-report-history'] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['oetc-report-history'] }); qc.invalidateQueries({ queryKey: ['report-document-library'] }); },
   });
 
   // A refresh follows the existing job; the same request token cannot create a second report.

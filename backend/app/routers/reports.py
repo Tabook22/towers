@@ -647,6 +647,16 @@ def oetc_consolidated_report(
     )
 
 
+@router.get('/oetc-line-report/library')
+def report_document_library(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Saved document formats, restricted to the same report visibility as history."""
+    from app.services.report_pdf_jobs import status
+    visible = oetc_line_report_history(db=db, user=user)
+    ids = [item.id for item in visible]
+    records = {record.id: record for record in db.query(LineInspectionReport).filter(LineInspectionReport.id.in_(ids)).all()} if ids else {}
+    return [dict(item.model_dump(mode='json'), documents=status(records[item.id])) for item in visible]
+
+
 @router.get("/oetc-line-report/history", response_model=list[LineInspectionReportOut])
 def oetc_line_report_history(
     admin_only: bool = False,

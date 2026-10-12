@@ -1,4 +1,4 @@
-import { DescriptionRounded, Inventory2Outlined, ForumOutlined, ManageSearchRounded, CalendarMonthOutlined, LocationOnOutlined, ArrowForwardRounded, VerifiedOutlined } from '@mui/icons-material';
+import { DescriptionRounded, Inventory2Outlined, ForumOutlined, ManageSearchRounded, CalendarMonthOutlined, LocationOnOutlined, ArrowForwardRounded, VerifiedOutlined, GridViewRounded, TableRowsRounded, PictureAsPdfRounded } from '@mui/icons-material';
 import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, Autocomplete, Box, Button, Checkbox, Chip, Collapse, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, LinearProgress, MenuItem, Paper, Skeleton, Snackbar, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Tooltip, Typography } from '@mui/material';
@@ -9,22 +9,26 @@ import { ReportFormatDownloads } from './ReportFormatDownloads';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRounded';
 import FolderOpenRounded from '@mui/icons-material/FolderOpenRounded';
-import { useDeleteOetcReport, useOetcReportHistory } from '../api/hooks';
+import { useDeleteOetcReport } from '../api/hooks';
 import { getPermissionLevel, type LineInspectionReportOut } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { locale, tr, useLanguage } from '../i18n';
 import { deleteSelectedReports, emptyReportFilters, reportError, reportFilterAvailability, reportTimestamp, reportTowers, reportTypes, selectReports, updateReportFilter, type ReportFilters, type ReportSortKey } from '../utils/reportLibrary';
 import { ReportReviewDialog, type ReviewTab } from './ReportReviewDialog';
 
+import { useReportDocumentLibrary, documentMatches, type DocumentFilter, type ReportLibraryDocument } from '../utils/reportDocuments';
+
 const dateLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' });
 const sortOptions = [['created_at:desc', 'Newest first'], ['created_at:asc', 'Oldest first'], ['line_sector:asc', 'Line A–Z'], ['team_name:asc', 'Team A–Z'], ['tower_name:asc', 'Tower A–Z'], ['tower_count:desc', 'Most towers first'], ['created_by_name:asc', 'Creator A–Z'], ['start_date:desc', 'Inspection date'], ['report_number:asc', 'Report number']];
 
 export function ReportsLibrary({ customer = false, onCreate }: { customer?: boolean; onCreate?: () => void }) {
   useLanguage();
-  const { data: rows = [], isLoading, isError, isFetching, refetch } = useOetcReportHistory({ admin_only: !customer });
+  const { data: rows = [], isLoading, isError, isFetching, refetch } = useReportDocumentLibrary();
   const { user } = useAuth();
   const remove = useDeleteOetcReport();
   const [filters, setFilters] = useState<ReportFilters>(emptyReportFilters);
+  const [layout, setLayout] = useState<'cards' | 'table'>('cards');
+  const [documentFilter, setDocumentFilter] = useState<DocumentFilter>('all');
   const [moreFilters, setMoreFilters] = useState(false);
   const [followUp, setFollowUp] = useState(false);
   const [sort, setSort] = useState('created_at:desc');
@@ -46,12 +50,12 @@ export function ReportsLibrary({ customer = false, onCreate }: { customer?: bool
   const followUpCount = rows.filter(lastReply).length;
   const invalidDates = !!(filters.from && filters.to && filters.from > filters.to);
   const [sortKey, sortDirection] = sort.split(':');
-  const sorted = invalidDates ? [] : selectReports(rows, filters, sortKey as ReportSortKey, sortDirection as 'asc' | 'desc').filter((r) => !followUp || lastReply(r));
+  const sorted = invalidDates ? [] : (selectReports(rows, filters, sortKey as ReportSortKey, sortDirection as 'asc' | 'desc') as ReportLibraryDocument[]).filter((r) => (!followUp || lastReply(r)) && documentMatches(r, documentFilter));
   const currentPage = Math.min(page, Math.max(0, Math.ceil(sorted.length / pageSize) - 1));
-  const activeFilters = Object.values(filters).some(Boolean) || followUp;
+  const activeFilters = Object.values(filters).some(Boolean) || followUp || documentFilter !== 'all';
   const viewing = rows.find((r) => r.id === review?.id);
   const setFilter = (key: keyof ReportFilters, value: string) => { setFilters((old) => updateReportFilter(old, key, value)); setPage(0); setSelected([]); };
-  const reset = () => { setFilters(emptyReportFilters); setFollowUp(false); setPage(0); setSelected([]); };
+  const reset = () => { setFilters(emptyReportFilters); setDocumentFilter('all'); setFollowUp(false); setPage(0); setSelected([]); };
   const canDelete = (r: LineInspectionReportOut) => !customer && (user?.role === 'reviewer' || (user?.role === 'admin' && (user.is_super_admin || getPermissionLevel(user.permissions, 'generate_reports') === 'full')) || (user?.role === 'team_leader' && user.team_id === r.team_id));
   const pageRows = sorted.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   const selectable = sorted.filter(canDelete);
@@ -80,7 +84,7 @@ export function ReportsLibrary({ customer = false, onCreate }: { customer?: bool
   const actions = (r: LineInspectionReportOut) => <Stack direction="row" spacing={.5} sx={{ alignItems: 'center' }}>
     <Button component={Link} to={`/reports/${r.id}/digital`} size="small">{tr('Digital report')}</Button>
     <Button variant="outlined" size="small" onClick={() => setReview({ id: r.id, tab: 'overview' })}>{tr('Review')}</Button>
-    <ReportFormatDownloads report={r} compact />
+    <ReportFormatDownloads report={r} compact initialStatus={(r as ReportLibraryDocument).documents} />
     {canDelete(r) && <Tooltip title={tr('Delete report')}><IconButton color="error" aria-label={tr('Delete {0}', [r.report_number])} onClick={() => { setDeleting([r]); setDeleteError(''); }}><DeleteOutlineRounded fontSize="small" /></IconButton></Tooltip>}
   </Stack>;
   const discussion = (r: LineInspectionReportOut) => <Button size="small" startIcon={<ChatBubbleOutlineRounded sx={{ fontSize: '16px !important' }} />} onClick={() => setReview({ id: r.id, tab: 'discussion' })} sx={{ textAlign: 'start', minWidth: 0, color: lastReply(r) ? 'primary.main' : 'text.secondary', fontSize: 12 }}>
@@ -94,15 +98,26 @@ export function ReportsLibrary({ customer = false, onCreate }: { customer?: bool
     return names.length > 3 ? `${names.slice(0, 2).join(', ')} · ${tr('+{0} more towers', [names.length - 2])}` : names.join(', ') || tr('Team campaign');
   };
   return <Stack spacing={2}>
+    {!customer && <Box sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 4, background: 'linear-gradient(120deg, #113342, #156070)', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2.5} sx={{ alignItems: { md: 'center' }, justifyContent: 'space-between' }}>
+        <Box><Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}><FolderOpenRounded sx={{ color: '#a7e7d8' }} /><Typography variant="overline" sx={{ letterSpacing: 1.5 }}>{tr(customer ? 'Your shared documents' : 'Document workspace')}</Typography></Stack><Typography component="h2" sx={{ fontSize: { xs: 26, md: 34 }, fontWeight: 800, letterSpacing: -.8 }}>{tr('Every report. Both formats. One place.')}</Typography><Typography variant="body2" sx={{ mt: 1, color: '#d3e8ee', maxWidth: 640 }}>{tr('Find your saved documents, follow PDF preparation, and download the format you need.')}</Typography></Box>
+        {onCreate && <Button onClick={onCreate} variant="contained" startIcon={<DescriptionRounded />} sx={{ bgcolor: '#fff', color: '#16485b', boxShadow: 'none', flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' }, '&:hover': { bgcolor: '#e6f3f5' } }}>{tr('Create report')}</Button>}
+      </Stack>
+    </Box>}
+
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 1.5 }}>
-      {[{ text: 'Issued reports', value: rows.length, icon: DescriptionRounded, color: '#12647b' }, { text: 'Archived originals', value: rows.filter(r => r.has_file).length, icon: Inventory2Outlined, color: '#288176' }, { text: customer ? 'Latest team replies' : 'Latest customer replies', value: followUpCount, icon: ForumOutlined, color: '#8866aa' }, { text: 'Matching reports', value: sorted.length, icon: ManageSearchRounded, color: '#aa782b' }].map(({ text, value, icon: Icon, color }) => <Paper key={text} variant="outlined" sx={{ p: 2.5, borderRadius: '20px', display: 'flex', alignItems: 'center', gap: 2 }}>
+      {[{ text: 'Saved Word files', value: rows.filter(r => r.documents.word_bytes != null).length, icon: DescriptionRounded, color: '#12647b' }, { text: 'Ready PDF files', value: rows.filter(r => r.documents.pdf_bytes != null).length, icon: PictureAsPdfRounded, color: '#bb5448' }, { text: 'Preparing PDFs', value: rows.filter(r => ['queued','running'].includes(r.documents.status)).length, icon: Inventory2Outlined, color: '#288176' }, { text: customer ? 'Latest team replies' : 'Latest customer replies', value: followUpCount, icon: ForumOutlined, color: '#8866aa' }].map(({ text, value, icon: Icon, color }) => <Paper key={text} variant="outlined" sx={{ p: 2.5, borderRadius: '20px', display: 'flex', alignItems: 'center', gap: 2 }}>
         <Box sx={{ width: 46, height: 46, borderRadius: 3, bgcolor: `${color}12`, color, display: 'grid', placeItems: 'center', flexShrink: 0 }}><Icon /></Box><Box>{isLoading || isError ? <Skeleton width={35} /> : <Typography sx={{ fontSize: 28, lineHeight: 1.2, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{value}</Typography>}<Typography variant="caption" color="text.secondary">{tr(text)}</Typography></Box>
       </Paper>)}
     </Box>
     <Paper variant="outlined" sx={{ borderRadius: '16px', overflow: 'hidden' }}>
       <Box sx={{ p: { xs: 2, md: 2.5 } }}>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}><Box><Typography component="h2" variant="h6" sx={{ fontWeight: 800 }}>{tr('Report library')}</Typography><Typography variant="body2" color="text.secondary">{tr(customer ? 'Only reports shared with your account appear here.' : 'Only reports created by administrators appear here.')}</Typography></Box><Tooltip title={tr('Refresh report library')}><span><IconButton disabled={isFetching} aria-label={tr('Refresh report library')} onClick={() => void refetch()}><RefreshRounded /></IconButton></span></Tooltip></Stack>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}><Box><Typography component="h2" variant="h6" sx={{ fontWeight: 800 }}>{tr('Report library')}</Typography><Typography variant="body2" color="text.secondary">{tr(customer ? 'Only reports shared with your account appear here.' : 'All reports you can access, with their saved Word and PDF files.')}</Typography></Box><Tooltip title={tr('Refresh report library')}><span><IconButton disabled={isFetching} aria-label={tr('Refresh report library')} onClick={() => void refetch()}><RefreshRounded /></IconButton></span></Tooltip></Stack>
         {!customer && user?.role === 'admin' && user.is_super_admin && <Button component={Link} to="/settings?section=clients" variant="outlined" sx={{ mb: 2 }}>{tr('Manage customer report access')}</Button>}
+        <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1, mb: 2 }}>
+          {([['all','All reports'],['pdf','Ready PDFs'],['word','Saved Word files'],['preparing','Preparing PDFs']] as const).map(([value, text]) => <Chip key={value} clickable aria-pressed={documentFilter === value} variant={documentFilter === value ? 'filled' : 'outlined'} color={documentFilter === value ? 'primary' : 'default'} label={`${tr(text)} · ${rows.filter(r => documentMatches(r, value)).length}`} onClick={() => { setDocumentFilter(value); setPage(0); setSelected([]); }} />)}
+          {!customer && <Stack direction="row" sx={{ ml: 'auto', border: 1, borderColor: 'divider', borderRadius: 2 }}><Tooltip title={tr('Document cards')}><IconButton aria-label={tr('Document cards')} aria-pressed={layout === 'cards'} color={layout === 'cards' ? 'primary' : 'default'} onClick={() => setLayout('cards')}><GridViewRounded /></IconButton></Tooltip><Tooltip title={tr('Table view')}><IconButton aria-label={tr('Table view')} aria-pressed={layout === 'table'} color={layout === 'table' ? 'primary' : 'default'} onClick={() => setLayout('table')}><TableRowsRounded /></IconButton></Tooltip></Stack>}
+        </Stack>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ alignItems: { md: 'center' } }}>
           <TextField fullWidth label={tr('Search reports')} placeholder={tr('Report number, team, tower or line…')} size="small" value={filters.search} onChange={(e) => setFilter('search', e.target.value)} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRounded color="action" /></InputAdornment> } }} />
           <TextField select size="small" label={tr('Sort by')} value={sort} onChange={(e) => { setSort(e.target.value); setPage(0); setSelected([]); }} sx={{ minWidth: 180 }}>{sortOptions.map(([value, text]) => <MenuItem key={value} value={value}>{tr(text)}</MenuItem>)}</TextField>
@@ -129,15 +144,18 @@ export function ReportsLibrary({ customer = false, onCreate }: { customer?: bool
       {isFetching && <LinearProgress />}
       {isError && <Alert severity="error" sx={{ m: 2 }} action={<Button onClick={() => void refetch()}>{tr('Retry')}</Button>}>{tr('Could not load the report library.')}</Alert>}
       {!isLoading && !isError && !sorted.length && <Stack sx={{ p: 5, alignItems: 'center', textAlign: 'center' }} spacing={1.5}><FolderOpenRounded sx={{ fontSize: 42, color: 'text.disabled' }} /><Typography variant="h6">{tr(rows.length ? 'No reports match your filters.' : 'Your report library is ready.')}</Typography><Typography variant="body2" color="text.secondary">{tr(rows.length ? 'Try another search or clear the filters.' : customer ? 'Your administrator has not shared any reports with you yet.' : 'Create a report from recorded inspections to prepare your first customer deliverable.')}</Typography>{rows.length ? <Button onClick={reset}>{tr('Clear filters')}</Button> : onCreate && <Button variant="contained" onClick={onCreate}>{tr('Create report')}</Button>}</Stack>}
-      {customer && <Box sx={{ p: { xs: 2, md: 2.5 }, pt: 0, display: 'grid', gridTemplateColumns: { xs: '1fr', xl: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-        {isLoading ? [1, 2, 3].map(n => <Skeleton key={n} variant="rounded" height={250} />) : !isError && pageRows.map(r => <Paper component="article" key={r.id} variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: '20px', transition: 'box-shadow .2s, border-color .2s', '&:hover': { borderColor: 'primary.main', boxShadow: '0 8px 28px #124b6010' } }}>
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 2 }}><Box sx={{ p: 1.25, display: 'flex', borderRadius: 3, bgcolor: 'action.hover', color: 'primary.main' }}><DescriptionRounded /></Box><Box sx={{ flex: 1 }}><Typography variant="caption" color="text.secondary">{tr(reportTypes[r.report_type || ''] || 'Inspection report')}</Typography><Typography component="h3" variant="h6" sx={{ fontWeight: 750 }}>{r.line_sector || r.team_name || tr('Inspection report')}</Typography></Box>{r.has_file && <Tooltip title={tr('Archived originals')}><VerifiedOutlined color="success" /></Tooltip>}</Stack>
-          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', overflowWrap: 'anywhere', mb: 2 }}>{r.report_number}</Typography>
-          <Stack spacing={1.25} sx={{ mb: 2.5 }}><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><LocationOnOutlined sx={{ fontSize: 18, color: 'text.secondary' }} /><Typography variant="body2">{reportTowers(r).length ? tr('Total towers: {0}', [new Set(reportTowers(r).map(t => t.id)).size]) : scope(r)}</Typography></Stack><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><CalendarMonthOutlined sx={{ fontSize: 18, color: 'text.secondary' }} /><Typography variant="body2">{dateLabel(r.start_date)} — {dateLabel(r.end_date)}</Typography></Stack></Stack>
-          <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 1, alignItems: 'center', borderTop: 1, borderColor: 'divider', pt: 2 }}><Button component={Link} to={`/reports/${r.id}/digital`} variant="contained" endIcon={<ArrowForwardRounded sx={{ transform: theme => theme.direction === 'rtl' ? 'rotate(180deg)' : 'none' }} />} sx={{ boxShadow: 'none' }}>{tr('Digital report')}</Button><Button startIcon={<ManageSearchRounded />} onClick={() => setReview({ id: r.id, tab: 'overview' })}>{tr('Review')}</Button><Box sx={{ flex: 1 }} /><ReportFormatDownloads report={r} compact /></Stack><Stack direction="row" useFlexGap sx={{ mt: 1, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>{discussion(r)}<Typography variant="caption" color="text.secondary">{tr('Issued')} · {reportTimestamp(r.created_at).toLocaleDateString(locale(), { timeZone: 'Asia/Muscat', day: 'numeric', month: 'short', year: 'numeric' })}</Typography></Stack>
+      {(customer || layout === 'cards') && <Box sx={{ p: { xs: 2, md: 2.5 }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
+        {isLoading ? [1,2,3].map(n => <Skeleton key={n} variant="rounded" height={420} />) : pageRows.map(r => <Paper key={r.id} variant="outlined" sx={{ p: 2.5, borderRadius: 4, minWidth: 0, display: 'flex', flexDirection: 'column', bgcolor: 'background.paper', transition: 'box-shadow .2s, border-color .2s', '&:hover': { borderColor: 'primary.main', boxShadow: '0 8px 28px #103e5212' } }}>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}><Chip size="small" variant="outlined" label={tr(reportTypes[r.report_type || ''] || 'Inspection report')} /><Stack direction="row" sx={{ alignItems: 'center' }}>{showSelection && selectionBox(r)}{canDelete(r) && <Tooltip title={tr('Delete report')}><IconButton size="small" aria-label={tr('Delete {0}', [r.report_number])} onClick={() => { setDeleting([r]); setDeleteError(''); }}><DeleteOutlineRounded fontSize="small" /></IconButton></Tooltip>}</Stack></Stack>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1.5 }}><Box sx={{ p: 1.3, borderRadius: 3, display: 'flex', bgcolor: 'action.hover', color: 'primary.main' }}><FolderOpenRounded /></Box><Typography component="h3" variant="h6" sx={{ fontWeight: 800, overflowWrap: 'anywhere', lineHeight: 1.35 }}>{r.report_type === 'tower' ? r.tower_name || r.team_name : r.line_sector || r.team_name || tr('Inspection report')}</Typography>{r.has_file && <Tooltip title={tr('Archived originals')}><VerifiedOutlined color="success" fontSize="small" /></Tooltip>}</Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', overflowWrap: 'anywhere', mb: 2 }}>{r.report_number}</Typography>
+          <Stack spacing={1} sx={{ mb: 2 }}><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><CalendarMonthOutlined fontSize="small" color="action" /><Typography variant="caption">{dateLabel(r.start_date)} — {dateLabel(r.end_date)}</Typography></Stack><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><LocationOnOutlined fontSize="small" color="action" /><Typography variant="caption">{reportTowers(r).length ? tr('Total towers: {0}', [new Set(reportTowers(r).map(t => t.id)).size]) : tr('Team campaign')}</Typography></Stack></Stack>
+          <Box sx={{ flex: 1 }}><ReportFormatDownloads report={r} initialStatus={r.documents} fileRows /></Box>
+          <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center', gap: 1, borderTop: 1, borderColor: 'divider', mt: 2, pt: 1.5 }}><Button component={Link} to={`/reports/${r.id}/digital`} endIcon={<ArrowForwardRounded sx={{ transform: theme => theme.direction === 'rtl' ? 'rotate(180deg)' : 'none' }} />} size="small">{tr('Explore report')}</Button><Button size="small" startIcon={<ManageSearchRounded />} onClick={() => setReview({ id: r.id, tab: 'overview' })}>{tr('Review')}</Button><Box sx={{ flex: 1 }} />{discussion(r)}</Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{tr('Issued')} · {reportTimestamp(r.created_at).toLocaleDateString(locale(), { timeZone: 'Asia/Muscat', day: 'numeric', month: 'short', year: 'numeric' })}</Typography>{!customer && creatorLabel(r)}
         </Paper>)}
       </Box>}
-      <TableContainer sx={{ display: { xs: 'none', md: customer ? 'none' : 'block' } }}><Table sx={{ '& th': { bgcolor: 'action.hover', color: 'text.secondary', fontWeight: 700 }, '& td': { py: 2 } }}>
+      <TableContainer sx={{ display: { xs: 'none', md: customer || layout === 'cards' ? 'none' : 'block' } }}><Table sx={{ '& th': { bgcolor: 'action.hover', color: 'text.secondary', fontWeight: 700 }, '& td': { py: 2 } }}>
         <TableHead><TableRow>{showSelection && <TableCell padding="checkbox"><Checkbox checked={pageSelectable.length > 0 && selectedOnPage === pageSelectable.length} indeterminate={selectedOnPage > 0 && selectedOnPage < pageSelectable.length} disabled={!pageSelectable.length || deletingBusy} slotProps={{ input: { 'aria-label': tr('Select reports on this page') } }} onChange={(_, checked) => setSelected(old => checked ? [...new Set([...old, ...pageSelectable.map(r => r.id)])] : old.filter(id => !pageSelectable.some(r => r.id === id)))} /></TableCell>}{['Report & review', 'Inspection scope', 'Inspection period', 'Created date & time', 'Created by', 'Actions'].map((text) => <TableCell key={text}>{tr(text)}</TableCell>)}</TableRow></TableHead>
         <TableBody>{isLoading ? [1, 2, 3].map((n) => <TableRow key={n}>{Array.from({ length: showSelection ? 7 : 6 }, (_, k) => k).map((k) => <TableCell key={k}><Skeleton /></TableCell>)}</TableRow>) : pageRows.map((r) => <TableRow key={r.id} hover selected={selected.includes(r.id)}>
           {showSelection && <TableCell padding="checkbox">{selectionBox(r)}</TableCell>}
@@ -149,7 +167,7 @@ export function ReportsLibrary({ customer = false, onCreate }: { customer?: bool
           <TableCell>{actions(r)}</TableCell>
         </TableRow>)}</TableBody>
       </Table></TableContainer>
-      <Box sx={{ display: { xs: customer ? 'none' : 'block', md: 'none' } }}>{isLoading ? <Box sx={{ p: 2 }}><Skeleton height={120} /><Skeleton height={120} /></Box> : pageRows.map((r) => <Box key={r.id} sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+      <Box sx={{ display: { xs: customer || layout === 'cards' ? 'none' : 'block', md: 'none' } }}>{isLoading ? <Box sx={{ p: 2 }}><Skeleton height={120} /><Skeleton height={120} /></Box> : pageRows.map((r) => <Box key={r.id} sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
         {showSelection && selectionBox(r)}<Button sx={{ p: 0, overflowWrap: 'anywhere', textAlign: 'start' }} component={Link} to={`/reports/${r.id}/digital`}>{r.report_number}</Button><Typography variant="body2" sx={{ my: .5 }}>{r.team_name} · {scope(r)}</Typography>{towerCount(r)}<Box sx={{ mt: 1 }}>{createdDate(r)}</Box><Typography variant="caption" color="text.secondary">{dateLabel(r.start_date)} — {dateLabel(r.end_date)}</Typography><Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}><Chip size="small" variant="outlined" color={r.has_file ? 'success' : 'warning'} label={tr(r.has_file ? 'Archived' : 'Live regeneration')} />{actions(r)}</Stack>{creatorLabel(r)}{discussion(r)}
       </Box>)}</Box>
       <TablePagination component="div" count={sorted.length} page={currentPage} rowsPerPage={pageSize} rowsPerPageOptions={[10, 25, 50]} onPageChange={(_, next) => setPage(next)} onRowsPerPageChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }} sx={{ '.MuiTablePagination-toolbar': { px: 1.5, flexWrap: 'wrap' }, '.MuiTablePagination-spacer': { display: { xs: 'none', sm: 'block' } } } } />
