@@ -87,3 +87,16 @@ def _run(record, target, stopped):
         _update(target, 'failed', 'Could not create the PDF. Please try again or contact your inspection team.')
     finally:
         stopped.set()
+
+
+def enqueue_reports(records):
+    """Schedule committed archives; a PDF failure must never fail Word generation."""
+    seen = set()
+    for record in records:
+        if record is None or record.id in seen:
+            continue
+        seen.add(record.id)
+        try:
+            start(record)
+        except Exception:
+            log.exception('Could not schedule automatic PDF for report %s; Word remains available', record.id)

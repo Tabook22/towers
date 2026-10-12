@@ -495,6 +495,8 @@ def oetc_line_report(
     db.flush()
     _persist_report_images(db, record.id, visits)
     db.commit()
+    from app.services.report_pdf_jobs import enqueue_reports
+    enqueue_reports([record])
 
     safe_number = payload.report_number.replace("/", "-")
     report_progress.advance('sections')
@@ -530,6 +532,7 @@ def _persist_blocks(
     generated_at = generated_at or utcnow()
     from app.services import report_progress
     report_progress.stage('Saving report to library')
+    saved_records = []
     for b in blocks:
         dates = [v.inspection_date for v in b.visits if v.inspection_date]
         record = LineInspectionReport(
@@ -554,6 +557,7 @@ def _persist_blocks(
             file_path=_save_report_file(b.report_number, generated_at, b.docx_bytes),
         )
         db.add(record)
+        saved_records.append(record)
         db.flush()
         _persist_report_images(db, record.id, b.visits)
     combined = None
@@ -582,6 +586,9 @@ def _persist_blocks(
         db.flush()
         _persist_report_images(db, combined.id, visits)
     db.commit()
+    from app.services.report_pdf_jobs import enqueue_reports
+    # Prepare the complete customer report before its independently archived team sections.
+    enqueue_reports([combined, *saved_records])
     for _ in blocks:
         report_progress.advance('sections')
     return combined

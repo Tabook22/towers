@@ -5,7 +5,7 @@ import { Alert, Autocomplete, Box, Button, Checkbox, Chip, Collapse, Dialog, Dia
 import SearchRounded from '@mui/icons-material/SearchRounded';
 import RefreshRounded from '@mui/icons-material/RefreshRounded';
 import TuneRounded from '@mui/icons-material/TuneRounded';
-import { ReportDownloadButton } from './ReportDownloadButton';
+import { ReportFormatDownloads } from './ReportFormatDownloads';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRounded';
 import FolderOpenRounded from '@mui/icons-material/FolderOpenRounded';
@@ -80,8 +80,7 @@ export function ReportsLibrary({ customer = false, onCreate }: { customer?: bool
   const actions = (r: LineInspectionReportOut) => <Stack direction="row" spacing={.5} sx={{ alignItems: 'center' }}>
     <Button component={Link} to={`/reports/${r.id}/digital`} size="small">{tr('Digital report')}</Button>
     <Button variant="outlined" size="small" onClick={() => setReview({ id: r.id, tab: 'overview' })}>{tr('Review')}</Button>
-    <ReportDownloadButton report={r} pdfOnly />
-    <ReportDownloadButton report={r} iconOnly />
+    <ReportFormatDownloads report={r} compact />
     {canDelete(r) && <Tooltip title={tr('Delete report')}><IconButton color="error" aria-label={tr('Delete {0}', [r.report_number])} onClick={() => { setDeleting([r]); setDeleteError(''); }}><DeleteOutlineRounded fontSize="small" /></IconButton></Tooltip>}
   </Stack>;
   const discussion = (r: LineInspectionReportOut) => <Button size="small" startIcon={<ChatBubbleOutlineRounded sx={{ fontSize: '16px !important' }} />} onClick={() => setReview({ id: r.id, tab: 'discussion' })} sx={{ textAlign: 'start', minWidth: 0, color: lastReply(r) ? 'primary.main' : 'text.secondary', fontSize: 12 }}>
@@ -135,7 +134,7 @@ export function ReportsLibrary({ customer = false, onCreate }: { customer?: bool
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 2 }}><Box sx={{ p: 1.25, display: 'flex', borderRadius: 3, bgcolor: 'action.hover', color: 'primary.main' }}><DescriptionRounded /></Box><Box sx={{ flex: 1 }}><Typography variant="caption" color="text.secondary">{tr(reportTypes[r.report_type || ''] || 'Inspection report')}</Typography><Typography component="h3" variant="h6" sx={{ fontWeight: 750 }}>{r.line_sector || r.team_name || tr('Inspection report')}</Typography></Box>{r.has_file && <Tooltip title={tr('Archived originals')}><VerifiedOutlined color="success" /></Tooltip>}</Stack>
           <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', overflowWrap: 'anywhere', mb: 2 }}>{r.report_number}</Typography>
           <Stack spacing={1.25} sx={{ mb: 2.5 }}><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><LocationOnOutlined sx={{ fontSize: 18, color: 'text.secondary' }} /><Typography variant="body2">{reportTowers(r).length ? tr('Total towers: {0}', [new Set(reportTowers(r).map(t => t.id)).size]) : scope(r)}</Typography></Stack><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><CalendarMonthOutlined sx={{ fontSize: 18, color: 'text.secondary' }} /><Typography variant="body2">{dateLabel(r.start_date)} — {dateLabel(r.end_date)}</Typography></Stack></Stack>
-          <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 1, alignItems: 'center', borderTop: 1, borderColor: 'divider', pt: 2 }}><Button component={Link} to={`/reports/${r.id}/digital`} variant="contained" endIcon={<ArrowForwardRounded sx={{ transform: theme => theme.direction === 'rtl' ? 'rotate(180deg)' : 'none' }} />} sx={{ boxShadow: 'none' }}>{tr('Digital report')}</Button><Button startIcon={<ManageSearchRounded />} onClick={() => setReview({ id: r.id, tab: 'overview' })}>{tr('Review')}</Button><Box sx={{ flex: 1 }} /><ReportDownloadButton report={r} pdfOnly /><ReportDownloadButton report={r} iconOnly /></Stack><Stack direction="row" useFlexGap sx={{ mt: 1, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>{discussion(r)}<Typography variant="caption" color="text.secondary">{tr('Issued')} · {reportTimestamp(r.created_at).toLocaleDateString(locale(), { timeZone: 'Asia/Muscat', day: 'numeric', month: 'short', year: 'numeric' })}</Typography></Stack>
+          <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 1, alignItems: 'center', borderTop: 1, borderColor: 'divider', pt: 2 }}><Button component={Link} to={`/reports/${r.id}/digital`} variant="contained" endIcon={<ArrowForwardRounded sx={{ transform: theme => theme.direction === 'rtl' ? 'rotate(180deg)' : 'none' }} />} sx={{ boxShadow: 'none' }}>{tr('Digital report')}</Button><Button startIcon={<ManageSearchRounded />} onClick={() => setReview({ id: r.id, tab: 'overview' })}>{tr('Review')}</Button><Box sx={{ flex: 1 }} /><ReportFormatDownloads report={r} compact /></Stack><Stack direction="row" useFlexGap sx={{ mt: 1, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>{discussion(r)}<Typography variant="caption" color="text.secondary">{tr('Issued')} · {reportTimestamp(r.created_at).toLocaleDateString(locale(), { timeZone: 'Asia/Muscat', day: 'numeric', month: 'short', year: 'numeric' })}</Typography></Stack>
         </Paper>)}
       </Box>}
       <TableContainer sx={{ display: { xs: 'none', md: customer ? 'none' : 'block' } }}><Table sx={{ '& th': { bgcolor: 'action.hover', color: 'text.secondary', fontWeight: 700 }, '& td': { py: 2 } }}>

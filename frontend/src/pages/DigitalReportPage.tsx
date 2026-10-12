@@ -1,6 +1,6 @@
 import { ReportTowerExplorer } from '../components/ReportTowerExplorer';
 import TransmissionTowerIcon from '../components/TransmissionTowerIcon';
-import { ReportDownloadButton } from '../components/ReportDownloadButton';
+import { ReportFormatDownloads } from '../components/ReportFormatDownloads';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -107,8 +107,7 @@ export function DigitalReportPage() {
         </Box>
         <Stack spacing={1.5} sx={{ alignItems: { xs: 'flex-start', md: 'flex-end' }, justifyContent: 'center' }}>
           <Button startIcon={<TransmissionTowerIcon />} variant="outlined" onClick={() => { setTowerStartKey(jumpKey || matching[0]?.key || ''); setView('tower'); }} disabled={!rows.length} sx={{ color: '#fff', borderColor: '#ffffff66', '&:hover': { borderColor: '#fff', bgcolor: '#ffffff12' } }}>{tr('Visual tower form')}</Button>
-          <ReportDownloadButton report={report} pdfOnly sx={{ color: '#fff', borderColor: '#ffffff66', '&:hover': { borderColor: '#fff', bgcolor: '#ffffff12' } }} />
-          <ReportDownloadButton report={report} variant="contained" sx={{ bgcolor: '#fff', color: '#0d475c', '&:hover': { bgcolor: '#e4f1f4' } }} />
+          <ReportFormatDownloads report={report} compact onDark />
           <Button size="small" startIcon={<DescriptionRounded />} disabled={!report.has_file} onClick={() => setWordOpen(true)} sx={{ color: '#e0f0f4', '&.Mui-disabled': { color: '#adc1c9' } }}>{tr('View issued Word')}</Button>
         </Stack>
       </Stack>
@@ -127,6 +126,7 @@ export function DigitalReportPage() {
           { title: 'Evidence images', count: rows.reduce((total, row) => total + row.evidence.length, 0), icon: <PhotoLibraryOutlined />, color: 'primary.main' },
         ].map(metric => <Paper key={metric.title} variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: '20px', boxShadow: '0 4px 18px #103e5205' }}><Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1 }}><Typography variant="h4" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 750 }}>{metric.count}</Typography><Box sx={{ color: metric.color, display: 'flex', p: 1.25, borderRadius: 3, bgcolor: 'action.hover' }}>{metric.icon}</Box></Stack><Typography variant="body2" color="text.secondary">{tr(metric.title)}</Typography></Paper>)}
       </Box>
+      {view === 'overview' && report.has_file && <ReportFormatDownloads report={report} />}
       <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden' }}>
         <Tabs value={view} onChange={(_, next: string) => { setView(next); setPage(0); if (next === 'measurements') { setSort('severity'); setDescending(false); setGroup('severity'); } }} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile aria-label={tr('Report sections')} sx={{ px: 1, pt: 1, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 62, mx: .5, borderRadius: '12px 12px 0 0' }, '& .Mui-selected': { bgcolor: 'action.hover' } }}>
           <Tab value="overview" icon={<GridViewRounded fontSize="small" />} iconPosition="start" label={tr('Report overview')} />

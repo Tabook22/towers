@@ -3898,5 +3898,19 @@
   "Word report saved. Create your PDF copy.": "تم حفظ تقرير Word. أنشئ نسخة PDF.",
   "Locating the saved Word report…": "جارٍ البحث عن تقرير Word المحفوظ…",
   "The Word file is saved. Refresh to locate its PDF conversion action, or open it from the report library.": "تم حفظ ملف Word. حدّث الصفحة للعثور على إجراء التحويل إلى PDF، أو افتحه من مكتبة التقارير.",
-  "Converting in the background… You can close this window and return to download the PDF when it is ready.": "يجري التحويل في الخلفية… يمكنك إغلاق هذه النافذة والعودة لتنزيل ملف PDF عندما يصبح جاهزاً."
+  "Converting in the background… You can close this window and return to download the PDF when it is ready.": "يجري التحويل في الخلفية… يمكنك إغلاق هذه النافذة والعودة لتنزيل ملف PDF عندما يصبح جاهزاً.",
+  "Your report is ready in Word. PDF preparation starts automatically.": "تقرير Word جاهز. يبدأ إعداد PDF تلقائياً.",
+  "Preparing PDF…": "جارٍ إعداد PDF…",
+  "Retry PDF": "إعادة إعداد PDF",
+  "Word document": "مستند Word",
+  "Available immediately. Keep the original document for your records.": "متاح فوراً. احتفظ بالمستند الأصلي في سجلاتك.",
+  "Ready to download": "جاهز للتنزيل",
+  "PDF report": "تقرير PDF",
+  "A convenient copy for viewing, sharing and printing.": "نسخة مناسبة للعرض والمشاركة والطباعة.",
+  "Preparing automatically in the background": "يجري الإعداد تلقائياً في الخلفية",
+  "PDF preparation needs a retry. Your Word report is ready.": "يلزم إعادة إعداد PDF. تقرير Word جاهز.",
+  "Prepare a PDF copy of this saved report.": "أعد نسخة PDF من هذا التقرير المحفوظ.",
+  "Your Word report is ready. We are preparing your PDF—you can leave this page and return later.": "تقرير Word جاهز. يجري إعداد PDF، ويمكنك مغادرة الصفحة والعودة لاحقاً.",
+  "PDF unavailable": "PDF غير متاح",
+  "PDF preparation is temporarily unavailable. Your Word report is ready.": "إعداد PDF غير متاح مؤقتاً. تقرير Word جاهز."
 }
