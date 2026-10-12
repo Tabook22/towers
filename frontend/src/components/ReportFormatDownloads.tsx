@@ -25,13 +25,18 @@ export function ReportFormatDownloads({ report, compact = false, onDark = false,
   const base = `/api/reports/oetc-line-report/${report.id}`;
   const query = useQuery<PdfStatus>({ queryKey: ['report-pdf-status', user?.id, report.id], enabled: report.has_file, initialData: initialStatus, staleTime: initialStatus ? 15000 : 0, queryFn: async () => (await apiClient.get(`${base}/pdf-status`)).data,
     refetchInterval: q => q.state.data?.status === 'queued' || q.state.data?.status === 'running' ? 3000 : false });
+  const previousPdfStatus = useRef(initialStatus?.status);
+  useEffect(() => {
+    if (['queued', 'running'].includes(previousPdfStatus.current || '') && query.data?.status === 'complete') void queryClient.invalidateQueries({ queryKey: ['report-document-library', user?.id] });
+    previousPdfStatus.current = query.data?.status;
+  }, [query.data?.status, queryClient, user?.id]);
   const preparing = starting || query.data?.status === 'queued' || query.data?.status === 'running';
   const ready = query.data?.pdf_bytes != null;
   const unavailable = !report.has_file || !!query.data && !ready && !query.data.pdf_available;
   const prepare = async () => {
     if (starting) return;
     setStarting(true); setError('');
-    try { await apiClient.post(`${base}/start-pdf`, {}, { timeout: 30000 }); await query.refetch(); }
+    try { await apiClient.post(`${base}/start-pdf`, {}, { timeout: 30000 }); void queryClient.invalidateQueries({ queryKey: ['report-document-library', user?.id] }); await query.refetch(); }
     catch (err) { setError(await reportError(err, tr('Could not prepare the PDF. Please try again.'))); }
     finally { setStarting(false); }
   };
