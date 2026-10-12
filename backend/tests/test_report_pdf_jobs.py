@@ -6,6 +6,38 @@ from PIL import Image
 from app.services import report_pdf, report_pdf_jobs as jobs
 
 
+def test_large_report_parts_keep_all_tables_in_order_and_only_needed_images(tmp_path):
+    from lxml import etree
+    w = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    r = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    source = tmp_path / 'large.docx'
+    tables = ''.join(f'<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Finding {i}</w:t><w:drawing r:embed="img{i}"/></w:r></w:p></w:tc></w:tr></w:tbl>' for i in range(125))
+    document = f'<w:document xmlns:w="{w}" xmlns:r="{r}"><w:body><w:p><w:r><w:t>Summary</w:t></w:r></w:p>{tables}<w:sectPr/></w:body></w:document>'
+    relationships = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + ''.join(f'<Relationship Id="img{i}" Type="{r}/image" Target="media/photo{i}.png"/>' for i in range(125)) + '</Relationships>'
+    with zipfile.ZipFile(source, 'w') as package:
+        package.writestr('word/document.xml', document)
+        package.writestr('word/_rels/document.xml.rels', relationships)
+        package.writestr('word/styles.xml', '<styles/>')
+        for i in range(125):
+            package.writestr(f'word/media/photo{i}.png', b'photo')
+    before = source.read_bytes()
+    parts = report_pdf._conversion_parts(source, tmp_path)
+    assert len(parts) == 4
+    found = []
+    for part in parts:
+        with zipfile.ZipFile(part) as package:
+            tree = etree.fromstring(package.read('word/document.xml'))
+            found.extend(tree.xpath('//w:t/text()', namespaces={'w': w}))
+            assert len(tree.xpath('//w:tbl', namespaces={'w': w})) <= 40
+            assert len(tree.xpath('//w:sectPr', namespaces={'w': w})) == 1
+            refs = etree.fromstring(package.read('word/_rels/document.xml.rels'))
+            media = {n for n in package.namelist() if n.startswith('word/media/')}
+            assert media == {'word/' + item.get('Target') for item in refs}
+            assert package.read('word/styles.xml') == b'<styles/>'
+    assert found == ['Summary'] + [f'Finding {i}' for i in range(125)]
+    assert source.read_bytes() == before
+
+
 def test_conversion_copy_preserves_document_and_source(tmp_path):
     photo = BytesIO()
     Image.new('RGB', (3200, 2600), 'red').save(photo, 'PNG')

@@ -9,6 +9,10 @@ import tempfile
 import threading
 import zipfile
 from io import BytesIO
+from copy import deepcopy
+import posixpath
+from lxml import etree
+from pypdf import PdfWriter
 from PIL import Image
 
 from fastapi import HTTPException
@@ -81,8 +85,72 @@ def _conversion_document(source, folder):
                                 data = output.getvalue()
                 except (OSError, ValueError):
                     pass  # Preserve unsupported images rather than lose evidence.
-            target.writestr(entry, data)
+            target.writestr(deepcopy(entry), data)
     return prepared
+
+
+def _conversion_parts(source, folder):
+    """Bound Writer layout work by complete tables; retain ordered XML and used media."""
+    w = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    r = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    with zipfile.ZipFile(source) as package:
+        document = etree.fromstring(package.read('word/document.xml'))
+        body = document.find('{%s}body' % w)
+        # Pagination fields require whole-document layout; do not alter their semantics.
+        fields = any(b'NUMPAGES' in package.read(name) or b'instrText' in package.read(name)
+                     for name in package.namelist() if name.startswith('word/') and name.endswith('.xml') and not name.endswith('.rels'))
+        if body is None or len(body.findall('{%s}tbl' % w)) < 120 or fields:
+            return [source]
+        section = body.find('{%s}sectPr' % w)
+        groups = []; current = []; tables = 0
+        for child in body:
+            if child is section:
+                continue
+            if child.tag == '{%s}tbl' % w:
+                if tables == 40:
+                    groups.append(current); current = []; tables = 0
+                tables += 1
+            current.append(child)
+        if current:
+            groups.append(current)
+        relations = etree.fromstring(package.read('word/_rels/document.xml.rels'))
+        images = {item.get('Id'): posixpath.normpath('word/' + item.get('Target')) for item in relations
+                  if item.get('Type', '').endswith('/image') and item.get('TargetMode') != 'External'}
+        shared = set()
+        for name in package.namelist():
+            if name.endswith('.rels') and name != 'word/_rels/document.xml.rels':
+                base = posixpath.dirname(posixpath.dirname(name))
+                for item in etree.fromstring(package.read(name)):
+                    if item.get('Type', '').endswith('/image') and item.get('TargetMode') != 'External':
+                        shared.add(posixpath.normpath(base + '/' + item.get('Target')))
+        parts = []
+        for index, children in enumerate(groups):
+            tree = deepcopy(document); part_body = tree.find('{%s}body' % w)
+            part_body[:] = [deepcopy(child) for child in children]
+            if section is not None:
+                part_body.append(deepcopy(section))
+            ids = {value for element in part_body.iter() for key, value in element.attrib.items()
+                   if key.startswith('{%s}' % r)}
+            used = shared | {images[key] for key in ids if key in images}
+            rels = deepcopy(relations)
+            for item in list(rels):
+                if item.get('Id') in images and images[item.get('Id')] not in used:
+                    rels.remove(item)
+            path = folder / ('part-%04d.docx' % index)
+            with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as target:
+                for entry in package.infolist():
+                    if entry.filename.startswith('word/media/') and entry.filename not in used:
+                        continue
+                    if entry.filename == 'word/document.xml':
+                        data = etree.tostring(tree, xml_declaration=True, encoding='UTF-8', standalone=True)
+                    elif entry.filename == 'word/_rels/document.xml.rels':
+                        data = etree.tostring(rels, xml_declaration=True, encoding='UTF-8', standalone=True)
+                    else:
+                        data = package.read(entry)
+                    target.writestr(deepcopy(entry), data)
+            parts.append(path)
+        log.info('Converting archived report in %s complete-table parts', len(parts))
+        return parts
 
 
 def _run_converter(args):
@@ -110,16 +178,31 @@ def _convert(source, target, executable):
         profile = (folder / 'profile').resolve().as_uri()
         prepared = _conversion_document(source, folder)
         conversion = 'pdf:writer_pdf_Export:{"ReduceImageResolution":{"type":"boolean","value":"true"},"MaxImageResolution":{"type":"long","value":"150"},"Quality":{"type":"long","value":"80"}}'
-        try:
-            result = _run_converter([executable, f'-env:UserInstallation={profile}', '--headless', '--convert-to', conversion, '--outdir', str(folder), str(prepared)])
-        except (OSError, subprocess.TimeoutExpired) as error:
-            raise HTTPException(503, 'Could not prepare the PDF. Please retry or download Word.') from error
-        output = folder / (source.stem + '.pdf')
-        if result.returncode or not output.is_file() or output.stat().st_size < 5:
-            log.error('PDF converter failed: exit=%s stderr=%s stdout=%s', result.returncode, result.stderr[-2000:], result.stdout[-2000:])
-            raise HTTPException(503, 'Could not prepare the PDF. Please retry or download Word.')
-        with output.open('rb') as stream:
-            if stream.read(5) != b'%PDF-':
+        parts = _conversion_parts(prepared, folder) if source.stat().st_size >= 20 * 1024 * 1024 else [prepared]
+        outputs = []
+        for part in parts:
+            try:
+                result = _run_converter([executable, f'-env:UserInstallation={profile}', '--headless', '--convert-to', conversion, '--outdir', str(folder), str(part)])
+            except (OSError, subprocess.TimeoutExpired) as error:
+                raise HTTPException(503, 'Could not prepare the PDF. Please retry or download Word.') from error
+            output = folder / (part.stem + '.pdf')
+            if result.returncode or not output.is_file() or output.stat().st_size < 5:
+                log.error('PDF converter failed: exit=%s stderr=%s stdout=%s', result.returncode, result.stderr[-2000:], result.stdout[-2000:])
                 raise HTTPException(503, 'Could not prepare the PDF. Please retry or download Word.')
+            with output.open('rb') as stream:
+                if stream.read(5) != b'%PDF-':
+                    raise HTTPException(503, 'Could not prepare the PDF. Please retry or download Word.')
+            outputs.append(output)
+        if len(outputs) > 1:
+            output = folder / 'combined.pdf'
+            writer = PdfWriter()
+            try:
+                for part_pdf in outputs:
+                    writer.append(part_pdf)
+                writer.write(output)
+            finally:
+                writer.close()
+        else:
+            output = outputs[0]
         os.replace(output, target)
     return target
