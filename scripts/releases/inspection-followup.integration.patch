@@ -1,0 +1,54 @@
+--- a/frontend/src/pages/TowersPage.tsx
++++ b/frontend/src/pages/TowersPage.tsx
+@@ -73,7 +73,7 @@
+ import { mediaUrl } from '../api/client';
+ import { useAuth } from '../auth/AuthContext';
+ import { getPermissionLevel, type DashboardTowerRow, type Tower, type TowerWithStats } from '../api/types';
+-import { VisitStatusChip } from '../components/Badges';
++import { TowerInspectionStatus } from '../components/TowerInspectionStatus';
+ import { MapPicker } from '../components/MapPicker';
+ import { TowerActionsDialog } from '../components/TowerActionsDialog';
+ import { TowersOverviewMap } from '../components/TowersOverviewMap';
+@@ -593,7 +593,7 @@
+                   )}
+                 </TableCell>
+                 <TableCell sx={{ minWidth: 180 }}>
+-                  <VisitStatusChip status={t.latest_visit_status} />
++                  <TowerInspectionStatus status={t.latest_visit_status} towerId={t.id} towerName={t.tower_id} />
+                   <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mt: 1, flexWrap: 'wrap' }}>
+                     <Typography variant="caption" color="text.secondary">{tr('Visits: {0}', [t.visit_count])}</Typography>
+                     {t.open_hotspots > 0 && <Chip size="small" icon={<LocalFireDepartmentRounded />} label={tr('Hotspots: {0}', [t.open_hotspots])} color="warning" variant="outlined" />}
+--- a/frontend/src/pages/VisitDetailPage.tsx
++++ b/frontend/src/pages/VisitDetailPage.tsx
+@@ -174,6 +174,31 @@
+     setReceipt({ title, message, time: new Date().toLocaleString(locale()) });
+ 
+   };
++  const appliedFollowUp = useRef('');
++  useEffect(() => {
++    if (!visit || !lists || !working.ready) return;
++    const target = searchParams.get('check') as VisitCheckTarget | null;
++    const positionId = Number(searchParams.get('position'));
++    const request = `${id}:${searchParams.toString()}`;
++    if (!target || appliedFollowUp.current === request) return;
++    const allowed: VisitCheckTarget[] = ['screening', 'evidence', 'temperatures', 'capture_dates', 'inspector_name', 'inspection_date'];
++    if (!allowed.includes(target)) return;
++    const frame = requestAnimationFrame(() => {
++      appliedFollowUp.current = request;
++      if (target === 'inspector_name' || target === 'inspection_date') {
++        setDetailsExpanded(true);
++        requestAnimationFrame(() => {
++          const input = target === 'inspector_name' ? inspectorInput.current : inspectionDateInput.current;
++          input?.scrollIntoView({ block: 'center' }); input?.focus({ preventScroll: true });
++        });
++      } else if (visit.positions.some(p => p.id === positionId)) {
++        setPositionsExpanded(true); setActiveCheck(null); setSelectedPositionId(positionId);
++        setCheckFocus({ target, request: Date.now() });
++        requestAnimationFrame(() => positionEditor.current?.scrollIntoView({ block: 'start' }));
++      }
++    });
++    return () => cancelAnimationFrame(frame);
++  }, [id, searchParams, visit, lists, working.ready]);
+   const header = useMemo(() => ({ ...visit, ...headerDraft }), [visit, headerDraft]);
+ 
+   if (isError) {
