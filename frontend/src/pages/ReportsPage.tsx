@@ -210,7 +210,7 @@ export function ReportsPage() {
         {canManageProjectPlans && <Tab value="create" icon={<DescriptionRoundedIcon />} label={<Box><Typography component="span" sx={{ display: 'block', fontWeight: 800, mb: .5 }}>{tr("Create report")}</Typography><Typography component="span" variant="caption" color="text.secondary">{tr("Choose the scope, add findings and prepare the customer report.")}</Typography></Box>} id="report-tab-create" aria-controls="report-panel-create" />}
         <Tab value="tools" icon={<DesignServicesRounded />} label={<Box><Typography component="span" sx={{ display: 'block', fontWeight: 800, mb: .5 }}>{tr("Exports & templates")}</Typography><Typography component="span" variant="caption" color="text.secondary">{tr("Explore team activity, tower exports and document templates.")}</Typography></Box>} id="report-tab-tools" aria-controls="report-panel-tools" />
       </Tabs>
-      <Box role="tabpanel" id="report-panel-library" aria-labelledby="report-tab-library" hidden={tab !== 'library'}><ReportHistoryTable key={libraryVersion} onCreate={canManageProjectPlans ? () => setTab('create') : undefined} /></Box>
+      <Box role="tabpanel" id="report-panel-library" aria-labelledby="report-tab-library" hidden={tab !== 'library'}><ReportHistoryTable key={libraryVersion} showIntro={false} /></Box>
       {canManageProjectPlans && <Box role="tabpanel" id="report-panel-create" aria-labelledby="report-tab-create" hidden={tab !== 'create'}><Box><OfficialReportForm showHistory={false} onCreated={() => { setCreated(true); setLibraryVersion((n) => n + 1); setTab('library'); }} /></Box></Box>}
       <Box role="tabpanel" id="report-panel-tools" aria-labelledby="report-tab-tools" hidden={tab !== 'tools'}>
       <Stack spacing={2}>

@@ -21,7 +21,7 @@ import { useReportDocumentLibrary, documentMatches, type DocumentFilter, type Re
 const dateLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' });
 const sortOptions = [['created_at:desc', 'Newest first'], ['created_at:asc', 'Oldest first'], ['line_sector:asc', 'Line A–Z'], ['team_name:asc', 'Team A–Z'], ['tower_name:asc', 'Tower A–Z'], ['tower_count:desc', 'Most towers first'], ['created_by_name:asc', 'Creator A–Z'], ['start_date:desc', 'Inspection date'], ['report_number:asc', 'Report number']];
 
-export function ReportsLibrary({ customer = false, onCreate }: { customer?: boolean; onCreate?: () => void }) {
+export function ReportsLibrary({ customer = false, onCreate, showIntro = true }: { customer?: boolean; onCreate?: () => void; showIntro?: boolean }) {
   useLanguage();
   const { data: rows = [], isLoading, isError, isFetching, refetch } = useReportDocumentLibrary();
   const { user } = useAuth();
@@ -98,7 +98,7 @@ export function ReportsLibrary({ customer = false, onCreate }: { customer?: bool
     return names.length > 3 ? `${names.slice(0, 2).join(', ')} · ${tr('+{0} more towers', [names.length - 2])}` : names.join(', ') || tr('Team campaign');
   };
   return <Stack spacing={2}>
-    {!customer && <Box sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 4, background: 'linear-gradient(120deg, #113342, #156070)', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+    {!customer && showIntro && <Box sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 4, background: 'linear-gradient(120deg, #113342, #156070)', color: '#fff', position: 'relative', overflow: 'hidden' }}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2.5} sx={{ alignItems: { md: 'center' }, justifyContent: 'space-between' }}>
         <Box><Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}><FolderOpenRounded sx={{ color: '#a7e7d8' }} /><Typography variant="overline" sx={{ letterSpacing: 1.5 }}>{tr(customer ? 'Your shared documents' : 'Document workspace')}</Typography></Stack><Typography component="h2" sx={{ fontSize: { xs: 26, md: 34 }, fontWeight: 800, letterSpacing: -.8 }}>{tr('Every report. Both formats. One place.')}</Typography><Typography variant="body2" sx={{ mt: 1, color: '#d3e8ee', maxWidth: 640 }}>{tr('Find your saved documents, follow PDF preparation, and download the format you need.')}</Typography></Box>
         {onCreate && <Button onClick={onCreate} variant="contained" startIcon={<DescriptionRounded />} sx={{ bgcolor: '#fff', color: '#16485b', boxShadow: 'none', flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' }, '&:hover': { bgcolor: '#e6f3f5' } }}>{tr('Create report')}</Button>}
