@@ -11,7 +11,7 @@ const workflow = compile((await source('visitWorkflow')).replace("'./positionCha
 const entryModule = compile((await source('visitEntry')).replace("'./visitWorkflow'", JSON.stringify(workflow)).replace("'./positionChanges'", JSON.stringify(changes)));
 const { entryPositions, emptyEntry } = await import(entryModule);
 const { mergePositionDraft } = await import(workflow);
-const { visitVisualLayout, matchesVisualSlot, visualSides, visualSlots, prepareVisualEntry, editVisualReading, visualScreeningPatch, numericReading } = await import(compile((await source('visualTower')).replace("'./visitEntry'", JSON.stringify(entryModule)).replace("'./visitWorkflow'", JSON.stringify(workflow))));
+const { visitVisualLayout, visualSetupComplete, matchesVisualSlot, visualSides, visualSlots, prepareVisualEntry, editVisualReading, visualScreeningPatch, numericReading } = await import(compile((await source('visualTower')).replace("'./visitEntry'", JSON.stringify(entryModule)).replace("'./visitWorkflow'", JSON.stringify(workflow))));
 const slots = visualSlots('OHL1', 'Tension', 'Double', 'Ashoor', 'Saada');
 
 test('front and back use independent identities, readings and draft images while legacy remains unassigned', () => {
@@ -226,4 +226,13 @@ test('legacy Suspension reuses its identity and image links; ambiguous history i
   assert.equal(current.tref_c, 24);
   assert.equal(entry.additions.length, 11);
   assert.throws(() => prepareVisualEntry({ ...saved, positions: [old, { ...old, id: 90, direction: 'Saada' }] }, emptyEntry(), layout), /Multiple historical/);
+});
+
+
+test('partial linked Tension positions keep missing side-direction setup visible', () => {
+  assert.equal(visualSetupComplete('Tension', 'Ashoor', '', true), false);
+  assert.equal(visualSetupComplete('Tension', '', '', false), false);
+  assert.equal(visualSetupComplete('Tension', 'Ashoor', 'Ashoor', true), false);
+  assert.equal(visualSetupComplete('Tension', 'Ashoor', 'Saada', true), true);
+  assert.equal(visualSetupComplete('Suspension', '', '', true), true);
 });

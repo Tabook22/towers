@@ -4,6 +4,11 @@ import { mergePositionDraft } from './visitWorkflow';
 
 export type VisualLayout = { ohl: string; mount: string; count: string; directionA: string; directionB: string; back: boolean; view_side?: string };
 
+/** Linked positions on one side must not hide unfinished direction setup on the other. */
+export function visualSetupComplete(mount: string, directionA: string, directionB: string, positionsReady: boolean): boolean {
+  return positionsReady && (mount === 'Suspension' || Boolean(directionA && directionB && directionA !== directionB));
+}
+
 /** Browser preferences choose presentation; recorded visit configuration is authoritative. */
 export function visitVisualLayout(positions: Position[], preference?: Partial<VisualLayout> | null): VisualLayout {
   const active = positions.filter(p => p.in_scope !== false && p.direction);

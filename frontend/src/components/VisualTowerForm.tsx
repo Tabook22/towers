@@ -16,7 +16,7 @@ import type { DraftImage } from '../api/visitEntry';
 import { evidenceProgress, needsInspectionWork, nextIncompletePosition } from '../utils/inspectionProgress';
 import { positionIdentity, resolveSuspensionSlots } from '../utils/visitEntry';
 import { positionLabel } from '../utils/positionChanges';
-import { matchesVisualSlot, numericReading, visualScreeningPatch, visualSides, visualSlots, visitVisualLayout, type VisualLayout } from '../utils/visualTower';
+import { matchesVisualSlot, numericReading, visualScreeningPatch, visualSides, visualSlots, visualSetupComplete, visitVisualLayout, type VisualLayout } from '../utils/visualTower';
 import { TowerDrawingSheet } from './TowerDrawingSheet';
 import { TowerPositionMap } from './TowerPositionMap';
 import { InspectionReadingField } from './InspectionReadingField';
@@ -66,6 +66,7 @@ export function VisualTowerForm({ visit, positions, lists, userKey, disabled, on
   const [worksheet, setWorksheet] = useState(false);
   const [editorInvalid, setEditorInvalid] = useState(false);
   const quickEditor = useRef<HTMLDivElement>(null);
+  const directionSetup = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (detailKey && !worksheet && window.innerWidth < 1200) quickEditor.current?.scrollIntoView({ block: 'start' });
   }, [detailKey, worksheet]);
@@ -232,6 +233,7 @@ export function VisualTowerForm({ visit, positions, lists, userKey, disabled, on
         }} disabled={invalid || locked} aria-label={tr('Tower side')}>
           <ToggleButton value="OHL1">{tr('OHL1 — South')}</ToggleButton><ToggleButton value="OHL2">{tr('OHL2 — North')}</ToggleButton>
         </ToggleButtonGroup>}
+        {!suspension && !gantry && !validDirections && <Alert severity="warning" action={<Button color="inherit" disabled={locked || invalid} onClick={() => { directionSetup.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }); directionSetup.current?.querySelector<HTMLElement>('[role="combobox"]')?.focus(); }}>{tr('Complete drawing setup')}</Button>}><Typography variant="body2" sx={{ fontWeight: 700 }}>{tr('Set the side directions to enable inspection')}</Typography><Typography variant="body2">{tr('Choose the actual direction for the left and right sides below. Tension towers need two different directions before both sides can be inspected. Confirm the tower type and number of strings first.')}</Typography></Alert>}
         {gantry && <Alert severity="info">{tr('Gantry: use the individual position cards below. A dedicated diagram requires the site arrangement.')}</Alert>}
         {suspension && worksheet && <Alert severity="info">{tr('Suspension: both OHL sides are shown. Line direction is not required. Select the actual number of strings; existing evidence stays linked.')}</Alert>}
         {layoutError && <Alert severity="warning" action={<Button disabled={invalid || locked} onClick={() => { applyLayout(visitVisualLayout(positions, { ohl, back, view_side: viewSide })); setError(''); }}>{tr('Use visit layout')}</Button>}>{tr(layoutError)}</Alert>}
@@ -244,7 +246,7 @@ export function VisualTowerForm({ visit, positions, lists, userKey, disabled, on
         <ToggleButtonGroup exclusive size="small" value={worksheet ? 'worksheet' : 'quick'} disabled={invalid || locked} onChange={(_, value) => { if (value) setWorksheet(value === 'worksheet'); }} aria-label={tr('Entry view')}>
           <ToggleButton value="quick">{tr('Quick inspection')}</ToggleButton><ToggleButton value="worksheet">{tr('Detailed worksheet')}</ToggleButton>
         </ToggleButtonGroup>
-        <TowerDrawingSheet count={count} setupComplete={ready}
+        <TowerDrawingSheet count={count} setupComplete={visualSetupComplete(mount, directionA, directionB, ready)}
           overview={!worksheet && <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(310px, 350px) minmax(0, 1fr)' }, gap: 2.5, mt: 2, alignItems: 'start' }}>
             {!gantry && <TowerPositionMap slots={slots} positions={positions} stagedImages={stagedImages} imageTypes={lists.image_type} back={back} suspension={suspension} directionA={directionA} selectedKey={detailKey} disabled={locked || invalid || !!layoutError || viewSide === 'Unspecified'} onSelect={openDetails} />}
             <Stack ref={quickEditor} spacing={2} sx={{ minWidth: 0, scrollMarginTop: 16 }}>
@@ -263,9 +265,9 @@ export function VisualTowerForm({ visit, positions, lists, userKey, disabled, on
             <TextField select size="small" label={tr('Number of strings')} value={count} disabled={invalid || locked} onChange={event => { setCount(event.target.value); setDetailKey(null); }}><MenuItem value="Single">1</MenuItem><MenuItem value="Double">2</MenuItem></TextField>
             <TextField select size="small" label={tr('Viewing side')} value={viewSide} disabled={invalid || locked} onChange={event => { const side = event.target.value; applyLayout(visitVisualLayout(positions, { ohl, mount, count, directionA, directionB, back: side === 'Back', view_side: side })); setDetailKey(null); setError(''); }}><MenuItem value="Front">{tr('Front view')}</MenuItem><MenuItem value="Back">{tr('Back view')}</MenuItem>{candidates.some(p => !p.view_side || p.view_side === 'Unspecified') && <MenuItem value="Unspecified">{tr('View not recorded')}</MenuItem>}</TextField>
           </Box>}
-          directions={visualSides(back).map((side, index) => suspension ? <Paper key={side} variant="outlined" sx={{ p: 1.5, bgcolor: '#edf5f4', color: '#194b55', textAlign: 'center' }}><Typography sx={{ fontWeight: 800 }}>{tr(side === 'A' ? 'OHL1 — South' : 'OHL2 — North')}</Typography><Typography variant="caption">{tr('R / Y / B · No direction required')}</Typography></Paper> : <TextField key={side} fullWidth select size="small" label={tr(index === 0 ? 'Left side direction' : 'Right side direction')} value={side === 'A' ? directionA : directionB} disabled={invalid || locked}
+          directions={visualSides(back).map((side, index) => suspension ? <Paper key={side} variant="outlined" sx={{ p: 1.5, bgcolor: '#edf5f4', color: '#194b55', textAlign: 'center' }}><Typography sx={{ fontWeight: 800 }}>{tr(side === 'A' ? 'OHL1 — South' : 'OHL2 — North')}</Typography><Typography variant="caption">{tr('R / Y / B · No direction required')}</Typography></Paper> : <TextField key={side} ref={index === 0 ? directionSetup : undefined} sx={{ scrollMarginTop: 110 }} fullWidth select size="small" label={tr(index === 0 ? 'Left side direction' : 'Right side direction')} value={side === 'A' ? directionA : directionB} disabled={invalid || locked}
             error={!(side === 'A' ? directionA : directionB) || directionA === directionB}
-            helperText={tr(!(side === 'A' ? directionA : directionB) ? 'Select a direction to enable readings.' : side === 'A' ? 'A — left in front view' : 'B — right in front view')}
+            helperText={tr(!(side === 'A' ? directionA : directionB) ? 'Select a direction to enable readings.' : directionA === directionB ? 'Choose a different direction for each side.' : side === 'A' ? 'A — left in front view' : 'B — right in front view')}
             onChange={event => { if (side === 'A') setDirectionA(event.target.value); else setDirectionB(event.target.value); setDetailKey(null); }}>
             <MenuItem value="">{tr('Select direction')}</MenuItem>{directions.map(value => <MenuItem key={value} value={value}>{tr(value)}</MenuItem>)}
           </TextField>)}
