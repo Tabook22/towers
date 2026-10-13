@@ -1,10 +1,12 @@
+import { missingFieldHighlight } from '../utils/missingFieldHighlight';
 import { useEffect, useRef, useState } from 'react';
 import type { Ref } from 'react';
 import { TextField } from '@mui/material';
 import { tr } from '../i18n';
 import { parseInspectionReading } from '../utils/inspectionReading';
 
-export function InspectionReadingField({ label, value, onChange, onInvalid, inputRef, disabled = false }: {
+export function InspectionReadingField({ label, value, onChange, onInvalid, inputRef, disabled = false, highlightMissing = false }: {
+  highlightMissing?: boolean;
   label: string; value: number | null; onChange: (value: number | null) => void;
   onInvalid: (invalid: boolean) => void; inputRef?: Ref<HTMLInputElement>; disabled?: boolean;
 }) {
@@ -20,7 +22,8 @@ export function InspectionReadingField({ label, value, onChange, onInvalid, inpu
   }, [value]);
   const parsed = parseInspectionReading(raw);
   return <TextField size="small" label={label} fullWidth inputRef={inputRef} disabled={disabled} autoComplete="off"
-    value={raw} error={!parsed.valid} helperText={!parsed.valid ? tr('Enter a valid temperature, or leave it blank.') : undefined}
+    sx={highlightMissing ? missingFieldHighlight : undefined}
+    value={raw} error={!parsed.valid} helperText={!parsed.valid ? tr('Enter a valid temperature, or leave it blank.') : highlightMissing ? tr('Missing — complete this field') : undefined}
     slotProps={{ htmlInput: { inputMode: 'decimal' } }} onChange={event => {
       const text = event.target.value;
       const next = parseInspectionReading(text);

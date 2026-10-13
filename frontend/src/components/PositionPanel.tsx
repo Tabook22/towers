@@ -1,3 +1,4 @@
+import { missingFieldHighlight } from '../utils/missingFieldHighlight';
 import { tr, useLanguage, locale } from '../i18n';
 import { inspectionValue } from '../i18n/inspection';
 import { useEffect, useRef, useState } from 'react';
@@ -247,8 +248,8 @@ export function PositionPanel({
       return typeDiff !== 0 ? typeDiff : a.sequence - b.sequence;
     });
 
-  const evidenceUpload = <Stack spacing={1} ref={compact ? evidenceSection : undefined} tabIndex={compact ? -1 : undefined} sx={{ scrollMarginTop: 80 }}>
-<PositionEvidenceUpload compact={compact} stagedImages={stagedImages} position={visitEntryMode ? position : savedPosition} types={lists.image_type} onStage={onStageEvidence}
+  const evidenceUpload = <Stack spacing={1} ref={compact ? evidenceSection : undefined} tabIndex={compact ? -1 : undefined} sx={{ scrollMarginTop: 80, ...(checkFocus?.target === 'capture_dates' ? { border: '2px solid', borderColor: 'warning.main', borderRadius: 2, p: 1.5 } : {}) }}>
+<PositionEvidenceUpload highlightMissing={!!checkFocus} compact={compact} stagedImages={stagedImages} position={visitEntryMode ? position : savedPosition} types={lists.image_type} onStage={onStageEvidence}
               disabled={saving || externalSaving} onUpload={onUploadImage} onExtra={onAddExtraImage} onBusyChange={onUploadBusyChange} />
             {draftEvidence}
   </Stack>;
@@ -314,6 +315,7 @@ export function PositionPanel({
         </Box>
       </AccordionSummary>
       <AccordionDetails sx={compact ? { p: { xs: 1.5, sm: 2.5 } } : undefined}>
+        {checkFocus && <Alert severity="warning" sx={{ mb: 2, border: '1px solid', borderColor: 'warning.main' }}>{tr('You are completing a checklist item. Amber fields and photo buttons need attention. Highlights clear as you complete them; review and save the visit to confirm your changes.')}</Alert>}
         <Stack component="fieldset" disabled={saving || deleting || externalSaving} spacing={2} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
           {!visitEntryMode && <><Alert severity={dirty ? 'warning' : lastSaved ? 'success' : 'info'}>
             {dirty ? tr("Unsaved changes — review and confirm saving before using these changes in a report.") : lastSaved ? tr("Saved on the server. Confirmed at {0}.", [lastSaved]) : tr("No unsaved field edits in this card. Changes require review and confirmation before saving.")}
@@ -369,10 +371,11 @@ export function PositionPanel({
                 size="small"
                 label={tr("Screening result")}
                 ref={screeningField}
+                sx={checkFocus && position.installed && (!position.screening_result || position.screening_result === 'Not inspected') ? missingFieldHighlight : undefined}
                 fullWidth
                 disabled={!compact && !position.installed}
                 helperText={
-                  compact ? undefined : !position.installed ? tr("Locked to \"Not installed\" until you toggle Installed on") : position.screening_result === 'Not inspected' ? tr("Still counts as unscreened — this is what \"Inspection incomplete\" means. Setting Hotspot? below fills this in automatically.") : undefined
+                  checkFocus && position.installed && (!position.screening_result || position.screening_result === 'Not inspected') ? tr('Missing — complete this field') : compact ? undefined : !position.installed ? tr("Locked to \"Not installed\" until you toggle Installed on") : position.screening_result === 'Not inspected' ? tr("Still counts as unscreened — this is what \"Inspection incomplete\" means. Setting Hotspot? below fills this in automatically.") : undefined
                 }
                 value={position.screening_result}
                 onChange={(e) => {
@@ -448,6 +451,7 @@ export function PositionPanel({
               <InspectionReadingField
                 label={tr("Tmax (°C)")}
                 inputRef={maxInput}
+                highlightMissing={!!checkFocus && position.hotspot === 'Yes' && tmaxDraft == null}
                 value={tmaxDraft}
                 onInvalid={bad => markReading('max', bad)}
                 onChange={value => onUpdate({ tmax_c: value })}
@@ -457,6 +461,7 @@ export function PositionPanel({
               <InspectionReadingField
                 label={tr("Tref (°C)")}
                 inputRef={refInput}
+                highlightMissing={!!checkFocus && position.hotspot === 'Yes' && trefDraft == null}
                 value={trefDraft}
                 onInvalid={bad => markReading('ref', bad)}
                 onChange={value => onUpdate({ tref_c: value })}

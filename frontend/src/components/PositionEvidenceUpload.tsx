@@ -1,3 +1,4 @@
+import { missingPositionEvidence } from '../utils/inspectionFollowUp';
 import { tr, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Stack, Typography } from '@mui/material';
@@ -11,9 +12,10 @@ import { uniqueEvidenceFiles } from '../utils/evidenceDuplicates';
 
 interface UploadItem { file: File; type: string; baselineId?: number; token: string }
 
-export function PositionEvidenceUpload({ position, types, disabled, onUpload, onExtra, onBusyChange, onStage, stagedImages = [], compact = false }: {
+export function PositionEvidenceUpload({ position, types, disabled, onUpload, onExtra, onBusyChange, onStage, stagedImages = [], compact = false, highlightMissing = false }: {
   stagedImages?: DraftImage[];
   compact?: boolean;
+  highlightMissing?: boolean;
   onStage?: (type: string, file: File, token: string) => Promise<unknown>;
   position: Position; types: string[]; disabled?: boolean;
   onUpload: (id: number, file: File, meta: Record<string, unknown>) => Promise<unknown>;
@@ -64,7 +66,8 @@ export function PositionEvidenceUpload({ position, types, disabled, onUpload, on
         const baseline = position.images.find(i => i.image_type === type && i.sequence === 1);
         const label = stagedCount ? tr("{0} confirmed · {1} draft", [images.length, stagedCount]) : images.length ? tr("{0} image(s)", [images.length]) : evidenceStatusForPosition(position, type, baseline) === 'NOT REQUIRED' ? tr("Optional") : tr("Missing");
         const hasEvidence = images.length + stagedCount > 0;
-        return <Button key={type} size="small" variant="outlined" aria-label={`${tr(type)} · ${label}`} sx={compact ? { minHeight: 88, minWidth: 0, px: 1.25, py: 1.5, borderRadius: '12px', borderColor: 'divider', bgcolor: 'background.paper', justifyContent: 'flex-start', textAlign: 'start', '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' } } : { minHeight: 44 }} startIcon={compact ? undefined : <AddPhotoAlternateIcon />} disabled={disabled || uploading || !position.direction || remaining.length > 0}
+        const needsAttention = highlightMissing && !stagedCount && missingPositionEvidence(position, [type]).length > 0;
+        return <Button key={type} size="small" variant="outlined" aria-label={`${tr(type)} · ${label}`} sx={[compact ? { minHeight: 88, minWidth: 0, px: 1.25, py: 1.5, borderRadius: '12px', borderColor: 'divider', bgcolor: 'background.paper', justifyContent: 'flex-start', textAlign: 'start', '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' } } : { minHeight: 44 }, needsAttention ? { borderColor: 'warning.main', bgcolor: 'warning.light', color: '#4b2d00', boxShadow: '0 0 0 2px #ed9d2630', '&:hover': { bgcolor: 'warning.light', borderColor: 'warning.dark' } } : {}]} startIcon={compact ? undefined : <AddPhotoAlternateIcon />} disabled={disabled || uploading || !position.direction || remaining.length > 0}
           onClick={() => { typeRef.current = type; fileInput.current?.click(); }}>
           {compact ? <Stack spacing={.65} sx={{ minWidth: 0 }}>
             {hasEvidence ? <CheckCircleRounded sx={{ fontSize: 20, color: 'success.main' }} /> : <AddPhotoAlternateIcon sx={{ fontSize: 20, color: 'primary.main' }} />}

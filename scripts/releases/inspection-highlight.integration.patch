@@ -1,0 +1,25 @@
+--- a/frontend/src/pages/VisitDetailPage.tsx
++++ b/frontend/src/pages/VisitDetailPage.tsx
+@@ -1,3 +1,4 @@
++import { missingFieldHighlight } from '../utils/missingFieldHighlight';
+ import { tr, useLanguage, locale } from '../i18n';
+ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+ import {
+@@ -385,6 +386,8 @@
+                 type="date"
+                 label={tr("Inspection date")}
+                 inputRef={inspectionDateInput}
++                sx={searchParams.has('check') && !header.inspection_date ? missingFieldHighlight : undefined}
++                helperText={searchParams.has('check') && !header.inspection_date ? tr('Missing — complete this field') : undefined}
+                 fullWidth
+                 slotProps={{ inputLabel: { shrink: true } }}
+                 value={(header.inspection_date as string) || ''}
+@@ -396,6 +399,8 @@
+                 size="small"
+                 label={tr("Inspector")}
+                 inputRef={inspectorInput}
++                sx={searchParams.has('check') && !header.inspector_name ? missingFieldHighlight : undefined}
++                helperText={searchParams.has('check') && !header.inspector_name ? tr('Missing — complete this field') : undefined}
+                 fullWidth
+                 value={(header.inspector_name as string) || ''}
+                 onChange={(e) => saveHeaderField('inspector_name', e.target.value)}

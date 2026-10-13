@@ -4052,5 +4052,7 @@
   "No other missing items found.": "لا توجد بنود ناقصة أخرى.",
   "This checklist uses saved records. Confirm your draft changes to update the tower status. Access permissions still apply.": "تعتمد هذه القائمة على السجلات المحفوظة. أكد تغييرات المسودة لتحديث حالة البرج. تبقى صلاحيات الوصول مطبقة.",
   "Open inspection visit": "فتح زيارة الفحص",
-  "Photo capture date differs from the inspection date. Check the saved dates.": "تاريخ التقاط الصورة يختلف عن تاريخ الفحص. تحقق من التواريخ المحفوظة."
+  "Photo capture date differs from the inspection date. Check the saved dates.": "تاريخ التقاط الصورة يختلف عن تاريخ الفحص. تحقق من التواريخ المحفوظة.",
+"You are completing a checklist item. Amber fields and photo buttons need attention. Highlights clear as you complete them; review and save the visit to confirm your changes.": "أنت تستكمل بندًا من قائمة النواقص. الحقول وأزرار الصور المظللة بالكهرماني تحتاج إلى استكمال. يزول التظليل عند الاستكمال؛ راجع الزيارة واحفظها لتأكيد التغييرات.",
+"Missing — complete this field": "ناقص — أكمل هذا الحقل"
 }
