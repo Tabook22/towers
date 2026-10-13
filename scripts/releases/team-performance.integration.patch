@@ -1,0 +1,58 @@
+--- a/frontend/src/components/TowerReconciliation.tsx
++++ b/frontend/src/components/TowerReconciliation.tsx
+@@ -1,3 +1,5 @@
++import { TeamPerformanceCards } from './TeamPerformanceCards';
++import { towerDataStatus, towerRemainingWork } from '../utils/teamPerformance';
+ import { useState } from 'react';
+ import { Link as RouterLink } from 'react-router-dom';
+ import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
+@@ -11,7 +13,7 @@
+ import { apiClient } from '../api/client';
+ 
+ const filterLabels: Record<TowerCoverageFilter, string> = {
+-  all: 'All assigned towers', without_evidence: 'No archived evidence', without_visit: 'No visit recorded',
++  remaining: 'Remaining towers', in_progress: 'In progress', all: 'All assigned towers', without_evidence: 'No archived evidence', without_visit: 'No visit recorded',
+   screening: 'Screening needs work', categories: 'Four-category gaps', ready: 'Screening + evidence ready',
+ };
+ 
+@@ -81,6 +83,7 @@
+           <Typography variant="h4" sx={{ fontWeight: 800, mt: .5 }}>{value}</Typography>
+         </Paper>)}
+       </Box>
++      <TeamPerformanceCards teams={teams} onOpen={openTeam} />
+       <Box component="details">
+         <Typography variant="body2" color="text.secondary">{tr('Required image categories can be satisfied by saved photos or an explicit Not required decision with a recorded reason. Unreviewed empty defaults are not exemptions.')}</Typography>
+         <Box component="summary" sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 700 }}>{tr('How these counts work')}</Box>
+@@ -123,12 +126,13 @@
+           </Stack>
+           <Typography variant="body2" color="text.secondary">{tr('Image counts include every saved visit by this team. Screening and category slots use only its latest visit. A visit record alone does not prove a field visit; private drafts are excluded.')}</Typography>
+           <TableContainer sx={{ maxHeight: 440 }}><Table stickyHeader size="small" aria-label={tr('Assigned tower checklist')} sx={{ minWidth: 850 }}>
+-            <TableHead><TableRow>{['Tower', 'Latest inspection', 'Images / field photos', 'Screened / installed', 'Covered / expected categories', 'Next step'].map(label => <TableCell key={label}>{tr(label)}</TableCell>)}</TableRow></TableHead>
++            <TableHead><TableRow>{['Tower', 'Latest inspection', 'Images / field photos', 'Screened / installed', 'Covered / expected categories', 'Data status / remaining work', 'Next step'].map(label => <TableCell key={label}>{tr(label)}</TableCell>)}</TableRow></TableHead>
+             <TableBody>{filtered.map(tower => <TableRow key={tower.id}>
+               <TableCell><Button component={RouterLink} to={`/towers/${tower.id}`} sx={{ textTransform: 'none' }}>{tower.tower_id}</Button></TableCell>
+               <TableCell>{tower.inspection_date || '—'}</TableCell><TableCell>{tower.archive_images}</TableCell>
+               <TableCell>{tower.visit_id === null ? '—' : `${tower.screened_positions} / ${tower.installed_positions}`}</TableCell>
+               <TableCell>{tower.visit_id === null ? '—' : `${tower.covered_categories} / ${tower.expected_categories}`}{tower.visit_id !== null && tower.installed_positions === 0 && <Typography variant="caption" sx={{ display: 'block' }}>{tr('No installed positions recorded')}</Typography>}</TableCell>
++              <TableCell><Chip size="small" variant="outlined" color={towerDataStatus(tower) === 'complete' ? 'success' : towerDataStatus(tower) === 'in_progress' ? 'warning' : 'default'} label={tr(towerDataStatus(tower) === 'complete' ? 'Data complete' : towerDataStatus(tower) === 'in_progress' ? 'In progress' : 'No visit recorded')} />{towerRemainingWork(tower).filter(reason => reason !== 'No visit recorded').map(reason => <Typography key={reason} variant="caption" sx={{ display: 'block', mt: .5 }}>{tr(reason)}</Typography>)}</TableCell>
+               <TableCell>{tower.visit_id !== null ? <Button component={RouterLink} to={`/visits/${tower.visit_id}`} color={tower.screening_and_evidence_ready ? 'success' : 'primary'}>{tr(tower.screening_and_evidence_ready ? 'Review inspection' : 'Continue inspection')}</Button> : <Button component={RouterLink} to={`/teams/${selected?.id}`}>{tr('Plan inspection')}</Button>}</TableCell>
+             </TableRow>)}</TableBody>
+           </Table></TableContainer>
+--- a/frontend/src/utils/towerReconciliation.ts
++++ b/frontend/src/utils/towerReconciliation.ts
+@@ -1,12 +1,14 @@
+ import type { ReconciliationTeam, ReconciliationTower } from '../api/towerReconciliation';
+ 
+-export type TowerCoverageFilter = 'all' | 'without_evidence' | 'without_visit' | 'screening' | 'categories' | 'ready';
++export type TowerCoverageFilter = 'all' | 'without_evidence' | 'without_visit' | 'screening' | 'categories' | 'ready' | 'remaining' | 'in_progress';
+ export function matchesTowerCoverage(tower: ReconciliationTower, filter: TowerCoverageFilter) {
+   switch (filter) {
+     case 'without_evidence': return tower.archive_images === 0;
+     case 'without_visit': return tower.visit_id === null;
+     case 'screening': return tower.visit_id !== null && !tower.screening_ready;
+     case 'categories': return tower.visit_id !== null && !tower.four_category_coverage;
++    case 'remaining': return !tower.screening_and_evidence_ready;
++    case 'in_progress': return tower.visit_id !== null && !tower.screening_and_evidence_ready;
+     case 'ready': return tower.screening_and_evidence_ready;
+     default: return true;
+   }

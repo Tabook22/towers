@@ -4020,5 +4020,15 @@
   "Search sources": "مصادر البحث",
   "Your question": "سؤالك",
   "Enter to send · Shift + Enter for a new line": "Enter للإرسال · Shift + Enter لسطر جديد",
-  "Drag to move": "اسحب لتحريك النافذة"
+  "Drag to move": "اسحب لتحريك النافذة",
+  "Team recording progress": "تقدم إدخال سجلات الفرق",
+  "Assigned towers = data complete + in progress + no visit recorded. Remaining = assigned − data complete.": "الأبراج المخصصة = البيانات المكتملة + قيد العمل + دون زيارة مسجلة. المتبقي = المخصص − البيانات المكتملة.",
+  "Data complete": "البيانات مكتملة",
+  "Data completion": "اكتمال البيانات",
+  "Remaining towers": "الأبراج المتبقية",
+  "View remaining towers · {0}": "عرض الأبراج المتبقية · {0}",
+  "Recording progress for {0}": "تقدم إدخال السجلات لفريق {0}",
+  "{0}: {1} towers for {2}": "{0}: {1} برج لفريق {2}",
+  "Data status / remaining work": "حالة البيانات / العمل المتبقي",
+  "Data complete means the latest recorded visit has screening and required evidence coverage. Confirm the physical tower configuration and supervisor approval separately; this graph does not certify final acceptance. A field visit may still be waiting for manual database entry.": "اكتمال البيانات يعني أن أحدث زيارة مسجلة تتضمن الفحص وتغطية الأدلة المطلوبة. تحقق بصورة منفصلة من مطابقة تكوين البرج الفعلي وموافقة المشرف؛ لا يؤكد هذا الرسم القبول النهائي. قد تكون الزيارة الميدانية بانتظار الإدخال اليدوي في قاعدة البيانات."
 }
