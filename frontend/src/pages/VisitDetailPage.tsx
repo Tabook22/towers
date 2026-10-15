@@ -1,3 +1,5 @@
+import { ReadingCorrectionLauncher } from '../components/ReadingCorrectionLauncher';
+import { missingFieldHighlight } from '../utils/missingFieldHighlight';
 import { tr, useLanguage, locale } from '../i18n';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
@@ -65,6 +67,8 @@ import { addEntryPosition, entryHasChanges, entryPositions, prepareEntryLayout }
 import { VisitEquipmentPreset } from '../components/VisitEquipmentPreset';
 import { mergePositionDraft, visitReviewChecks, type VisitReviewCheck, type VisitCheckTarget, type PositionDrafts } from '../utils/visitWorkflow';
 import { evidenceProgress } from '../utils/inspectionProgress';
+import { evidenceRequirements } from '../utils/evidenceRequirements';
+import { EvidenceRequirementsDialog } from '../components/EvidenceRequirementsDialog';
 import { VisualTowerForm } from '../components/VisualTowerForm';
 import { editVisualReading, prepareVisualEntry } from '../utils/visualTower';
 
@@ -103,6 +107,7 @@ function VisitDetailWorkspace() {
   const id = Number(visitId);
   const [searchParams] = useSearchParams();
   const queryClient=useQueryClient();
+  const [requirementsTab, setRequirementsTab] = useState<'missing' | 'screening' | null>(null);
   useEffect(()=>{
     if(!('BroadcastChannel' in window))return;
     const channel=new BroadcastChannel('thermal-inspection-saved');
@@ -171,6 +176,31 @@ function VisitDetailWorkspace() {
     setReceipt({ title, message, time: new Date().toLocaleString(locale()) });
 
   };
+  const appliedFollowUp = useRef('');
+  useEffect(() => {
+    if (!visit || !lists || !working.ready) return;
+    const target = searchParams.get('check') as VisitCheckTarget | null;
+    const positionId = Number(searchParams.get('position'));
+    const request = `${id}:${searchParams.toString()}`;
+    if (!target || appliedFollowUp.current === request) return;
+    const allowed: VisitCheckTarget[] = ['screening', 'evidence', 'temperatures', 'capture_dates', 'inspector_name', 'inspection_date'];
+    if (!allowed.includes(target)) return;
+    const frame = requestAnimationFrame(() => {
+      appliedFollowUp.current = request;
+      if (target === 'inspector_name' || target === 'inspection_date') {
+        setDetailsExpanded(true);
+        requestAnimationFrame(() => {
+          const input = target === 'inspector_name' ? inspectorInput.current : inspectionDateInput.current;
+          input?.scrollIntoView({ block: 'center' }); input?.focus({ preventScroll: true });
+        });
+      } else if (visit.positions.some(p => p.id === positionId)) {
+        setPositionsExpanded(true); setActiveCheck(null); setSelectedPositionId(positionId);
+        setCheckFocus({ target, request: Date.now() });
+        requestAnimationFrame(() => positionEditor.current?.scrollIntoView({ block: 'start' }));
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [id, searchParams, visit, lists, working.ready]);
   const header = useMemo(() => ({ ...visit, ...headerDraft }), [visit, headerDraft]);
 
   if (isError) {
@@ -196,9 +226,6 @@ function VisitDetailWorkspace() {
     return { ...current, headerBefore: before, headerDraft: Object.keys(changes).length ? changes : null };
   });
   const saveHeaderField = (field: string, value: unknown) => saveHeaderFields({ [field]: value });
-  const pendingEvidence = visit.positions.filter(p => p.in_scope !== false)
-    .flatMap((p) => p.images.map((img) => ({ position: p, image: img })))
-    .filter(({ image }) => image.evidence_status === 'PENDING CAPTURE' || image.evidence_status === 'RECAPTURE REQUIRED');
 
   // Visits start with 12 canonical slots; edited/deleted slots can be added again.
   // A slot only counts as "real" once it has actual data:
@@ -211,7 +238,7 @@ function VisitDetailWorkspace() {
     p.images.some((img) => !!img.file_path) ||
     !!p.voice_note_path;
   const allPositions = entryPositions(visit, entry);
-  const visiblePositions = allPositions.filter(p => p.in_scope !== false && (isPositionActive(p) || !!drafts[p.id] || p.id < 0));
+  const visiblePositions = allPositions.filter(p => p.in_scope !== false && (isPositionActive(p) || !!drafts[p.id] || p.id < 0 || p.id === selectedPositionId));
   const hiddenIds = new Set(allPositions.filter(p => !visiblePositions.some(v => v.id === p.id)).map(p => p.id));
   const addSlot = (slot: PositionSlot) => {
     const next = addEntryPosition(visit, entry, slot);
@@ -360,6 +387,8 @@ function VisitDetailWorkspace() {
                 type="date"
                 label={tr("Inspection date")}
                 inputRef={inspectionDateInput}
+                sx={searchParams.has('check') && !header.inspection_date ? missingFieldHighlight : undefined}
+                helperText={searchParams.has('check') && !header.inspection_date ? tr('Missing — complete this field') : undefined}
                 fullWidth
                 slotProps={{ inputLabel: { shrink: true } }}
                 value={(header.inspection_date as string) || ''}
@@ -371,6 +400,8 @@ function VisitDetailWorkspace() {
                 size="small"
                 label={tr("Inspector")}
                 inputRef={inspectorInput}
+                sx={searchParams.has('check') && !header.inspector_name ? missingFieldHighlight : undefined}
+                helperText={searchParams.has('check') && !header.inspector_name ? tr('Missing — complete this field') : undefined}
                 fullWidth
                 value={(header.inspector_name as string) || ''}
                 onChange={(e) => saveHeaderField('inspector_name', e.target.value)}
@@ -589,10 +620,11 @@ function VisitDetailWorkspace() {
           startIcon={<ArrowBackIcon />}
           onClick={() => {
             if (uploadBusy && !window.confirm(tr("An upload is still pending. Leave this page?"))) return;
-            navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`);
+            if (searchParams.get('correct') === '1' && window.history.state?.idx > 0) navigate(-1);
+            else navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`);
           }}
         >
-          {visit.team_id ? tr("Back to team") : tr("Back to tower")}
+          {searchParams.get('correct') === '1' ? tr('Previous page') : visit.team_id ? tr("Back to team") : tr("Back to tower")}
         </Button>
         <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap' }}>
           <Button
@@ -624,12 +656,23 @@ function VisitDetailWorkspace() {
         </Stack>
       </Stack>
 
+      {['admin', 'reviewer', 'inspector', 'team_leader', 'team_member'].includes(user?.role || '') && (!isTeamMember || visit.assigned_member_id == null || visit.assigned_member_id === user?.id) && <ReadingCorrectionLauncher
+        positions={visiblePositions} severities={lists.severity} requestedPosition={Number(searchParams.get('position')) || undefined} requestedCorrection={searchParams.get('correct') === '1'}
+        disabled={!working.ready || uploadBusy || working.busy || working.uncertain || positionInvalid || visualInvalid}
+        onDetails={positionId => { setVisualOpen(false); setActiveCheck(null); openPosition(positionId); }}
+        onReview={(position, changes) => {
+          const saved = visit.positions.find(item => item.id === position.id);
+          if (!saved) return;
+          setDrafts(current => mergePositionDraft(current, saved, changes));
+          setSelectedPositionId(position.id); setReviewRequest(Date.now());
+        }} />}
+
       <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: '24px' }}>
         <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
           <Box sx={{ display: 'grid', placeItems: 'center', p: 1.5, borderRadius: '18px', bgcolor: 'primary.main', color: 'primary.contrastText' }}><TransmissionTowerIcon sx={{ fontSize: 36 }} /></Box>
           <Typography variant="h4" sx={{ fontWeight: 800 }}>
             {visit.tower?.tower_id}{tr(" — Field Inspection Visit")}</Typography>
-          <VisitStatusChip status={visit.rollup?.visit_status} />
+          <Button onClick={() => setRequirementsTab('screening')} aria-label={tr('View unfinished screening')}><VisitStatusChip status={visit.rollup?.visit_status} /></Button>
           {visit.team_id && (
             <Chip
               icon={<GroupsIcon />}
@@ -659,7 +702,7 @@ function VisitDetailWorkspace() {
             <KpiTile label={tr(hasDraft ? "Draft hotspots" : "Hotspots")} value={shownRollup.hotspots} icon={<LocalFireDepartmentIcon />} color="#d32f2f" />
           </Grid>
           <Grid size={{ xs: 6, sm: 3 }}>
-            <KpiTile label={tr(hasDraft ? "Draft evidence pending" : "Images pending")} value={shownRollup.images_pending} icon={<PendingActionsIcon />} color="#f57c00" />
+            <KpiTile label={tr(hasDraft ? "Draft evidence pending" : "Images pending")} value={evidenceRequirements(allPositions, lists.image_type, pendingDraftImages).filter(s => s.missing).length} icon={<PendingActionsIcon />} color="#f57c00" onClick={() => setRequirementsTab('missing')} hint="View incomplete evidence" />
           </Grid>
         </Grid>
       )}
@@ -676,7 +719,8 @@ function VisitDetailWorkspace() {
         renderPositionDetails={(p, focus, onInvalid) => renderPositionPanel(p, true, focus, onInvalid)}
         onShared={ids => setSharedRequest({ ids, request: Date.now() })}
         onReview={() => { setPositionsExpanded(true); setReviewRequest(value => value + 1); }}
-        onLater={async () => { await working.flush(); navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`); }}
+        onLater={async () => { await working.flush(); if (searchParams.get('correct') === '1' && window.history.state?.idx > 0) navigate(-1);
+            else navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`); }}
         disabled={working.busy || working.uncertain || positionInvalid} onInvalid={setVisualInvalid}
         onHeader={saveHeaderFields}
         onPrepare={slots => working.change(current => prepareVisualEntry(visit, current, slots))}
@@ -685,9 +729,7 @@ function VisitDetailWorkspace() {
       </DashboardSection>
       {invalidHumidity && <Alert severity="error">{tr('Humidity must be between 0 and 100% before confirming the visit.')}</Alert>}
 
-      {!hasDraft && pendingEvidence.length > 0 && (
-        <Alert severity="info">{tr("Evidence check: ")}{pendingEvidence.length}{tr(" image(s) still pending across this visit. This is informational only — it doesn't hold the visit back from \"Ready for review\".")}</Alert>
-      )}
+      <EvidenceRequirementsDialog open={requirementsTab !== null} initialTab={requirementsTab || 'missing'} onClose={() => setRequirementsTab(null)} positions={allPositions} types={lists.image_type} staged={pendingDraftImages} visitId={id} canChange={['admin', 'reviewer', 'team_leader'].includes(user?.role || '')} disabled={working.busy || working.uncertain || uploadBusy} onOpenPosition={positionId => openPosition(positionId, requirementsTab === 'screening' ? 'screening' : 'evidence')} />
 
       <DashboardSection icon={<FactCheckIcon />} tone="teal" title={tr("Inspection positions")} eyebrow={tr("3 · CHECK & CONFIRM")}
         description={tr("Review each position, resolve missing checks and confirm the whole visit once. These confirmed records feed the report.")}
@@ -706,7 +748,8 @@ function VisitDetailWorkspace() {
             status={working.status} draftError={tr(working.error)}
             onPrepare={(slots, remember) => working.change(prepareEntryLayout(visit, entry, slots, remember))}
             onConfirm={async reviewedImageIds => { await working.commit(reviewedImageIds); confirmSaved('Visit saved', 'Visit details, positions and draft evidence were confirmed together.'); }}
-            onLater={async () => { await working.flush(); navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`); }}
+            onLater={async () => { await working.flush(); if (searchParams.get('correct') === '1' && window.history.state?.idx > 0) navigate(-1);
+            else navigate(visit.team_id ? `/teams/${visit.team_id}` : `/towers/${visit.tower_id}`); }}
             onDiscard={working.discard} onReload={working.reload} onCompareLatest={working.compareLatest} />
           <InspectionDisclosure icon={<AddLocationAltRounded />} title={tr("Add an individual position or exception")} description={tr('Need an extra position? Follow these three groups. For a whole tower, use Prepare tower positions above.')} >
           <Box component="fieldset" disabled={uploadBusy || working.busy || working.uncertain} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}><AddPositionBar

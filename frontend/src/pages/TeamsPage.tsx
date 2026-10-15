@@ -68,6 +68,7 @@ import { getPermissionLevel, type AdminUser, type Team } from '../api/types';
 import { TowerAssignmentPicker } from '../components/TowerAssignmentPicker';
 import { MenuPermissionsEditor } from '../components/MenuPermissionsEditor';
 import { TeamActivitySummary } from '../components/TeamActivitySummary';
+import { TowerReconciliation } from '../components/TowerReconciliation';
 import {useOffline} from '../offline/OfflineProvider';
 import {queryNotice} from '../utils/queryNotice';
 import RefreshRounded from '@mui/icons-material/RefreshRounded';
@@ -396,6 +397,7 @@ export function TeamsPage() {
 
       {!blocked && <TeamJourney teams={teams || []} canPlan={canManageTeams || user?.role === 'team_leader'} />}
       {!blocked && <TeamInspectionGuide teams={teams || []} />}
+      {!blocked && <TowerReconciliation />}
 
       {!blocked && (
       <DashboardSection icon={<GroupsIcon />} title={tr("Choose your team")} eyebrow={tr("YOUR FIELD CREWS")} tone="green"
@@ -410,7 +412,7 @@ export function TeamsPage() {
           {visibleTeams.map(t => <Paper component="article" key={t.id} variant="outlined" sx={{ p: 2.5, borderRadius: '22px', borderTop: '3px solid', borderTopColor: t.status === 'active' ? 'success.main' : 'divider', display: 'flex', flexDirection: 'column', gap: 1.8 }}>
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
               <Avatar sx={{ width: 48, height: 48, bgcolor: 'action.hover', color: 'primary.main', borderRadius: '16px' }}><EngineeringRounded sx={{ fontSize: 30 }} /></Avatar>
-              <Box sx={{ flex: 1, minWidth: 0 }}><Typography sx={{ fontSize: '1.12rem', fontWeight: 800, overflowWrap: 'anywhere' }}>{t.name}</Typography><Chip size="small" label={tr(t.status === 'active' ? 'Active' : t.status === 'paused' ? 'Paused' : t.status === 'completed' ? 'Completed' : t.status)} color={STATUS_COLORS[t.status] || 'default'} sx={{ mt: .5 }} /></Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}><Typography sx={{ fontSize: '1.12rem', fontWeight: 800, overflowWrap: 'anywhere' }}>{t.name}</Typography><Chip size="small" label={tr(t.status === 'active' ? 'Active' : t.status === 'paused' ? 'Paused' : t.status === 'completed' ? 'Completed (manual status)' : t.status)} color={STATUS_COLORS[t.status] || 'default'} sx={{ mt: .5 }} /></Box>
               {canManageTeams && <IconButton size="small" aria-label={tr("Team actions: {0}", [t.name])} onClick={event => openMenu(event, `team:${t.id}`)}><MoreVertIcon /></IconButton>}
             </Stack>
             <Box sx={{ p: 1.5, borderRadius: '14px', bgcolor: 'action.hover' }}><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><BadgeIcon color="primary" /><Box><Typography variant="caption" color="text.secondary">{tr("Team leader")}</Typography><Typography sx={{ fontWeight: 700 }}>{t.leader_name || tr("Leader not assigned")}</Typography>{t.leader_phone && <Typography variant="caption" dir="ltr">{t.leader_phone}</Typography>}</Box></Stack></Box>
@@ -781,11 +783,12 @@ export function TeamsPage() {
                   select
                   fullWidth
                   value={form.status}
+                  helperText={tr('Team status is set manually. It does not certify that assigned inspections or evidence are complete.')}
                   onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
                 >
                   <MenuItem value="active">{tr("Active")}</MenuItem>
                   <MenuItem value="paused">{tr("Paused")}</MenuItem>
-                  <MenuItem value="completed">{tr("Completed")}</MenuItem>
+                  <MenuItem value="completed">{tr("Completed (manual status)")}</MenuItem>
                 </TextField>
               </Grid>
             </Grid>

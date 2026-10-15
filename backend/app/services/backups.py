@@ -56,18 +56,26 @@ FILE_FIELDS = {
 }
 
 
-def legacy_columns(*, before_view_side=False, before_report_snapshot=False, before_archive_relative_path=False, before_profile_names=False):
-    return {name: {column} for name, column, missing in (
+def legacy_columns(*, before_view_side=False, before_report_snapshot=False, before_archive_relative_path=False, before_profile_names=False, before_evidence_exemptions=False, before_report_sharing=False):
+    missing_columns = {name: {column} for name, column, missing in (
         ('positions', 'view_side', before_view_side),
         ('line_inspection_reports', 'inspection_snapshot', before_report_snapshot),
         ('team_archive_images', 'relative_path', before_archive_relative_path),
-    ) if missing} | ({'users': {'first_name', 'last_name'}} if before_profile_names else {})
+    ) if missing}
+    if before_profile_names:
+        missing_columns.setdefault('users', set()).update(('first_name', 'last_name'))
+    if before_report_sharing:
+        missing_columns.setdefault('users', set()).add('allowed_report_ids')
+    if before_evidence_exemptions:
+        missing_columns['images'] = {'exemption_reason', 'exemption_by', 'exemption_at', 'exemption_history'}
+    return missing_columns
 
 
 def schema_signature(*, before_view_side=False, before_creation_requests=False,
-                     before_report_snapshot=False, before_archive_relative_path=False, before_profile_names=False):
+                     before_report_snapshot=False, before_archive_relative_path=False, before_profile_names=False, before_evidence_exemptions=False, before_report_sharing=False):
     missing = legacy_columns(before_view_side=before_view_side, before_report_snapshot=before_report_snapshot,
-                             before_archive_relative_path=before_archive_relative_path, before_profile_names=before_profile_names)
+                             before_archive_relative_path=before_archive_relative_path, before_profile_names=before_profile_names,
+                             before_evidence_exemptions=before_evidence_exemptions, before_report_sharing=before_report_sharing)
     schema = {name: [(c.name, str(c.type), c.nullable, c.primary_key,
                         sorted(f.target_fullname for f in c.foreign_keys)) for c in table.columns
                         if c.name not in missing.get(name, set())]
@@ -136,9 +144,10 @@ def resolve_file(base, rel):
 
 
 def check_database(conn, *, before_view_side=False, before_creation_requests=False,
-                   before_report_snapshot=False, before_archive_relative_path=False, before_profile_names=False):
+                   before_report_snapshot=False, before_archive_relative_path=False, before_profile_names=False, before_evidence_exemptions=False, before_report_sharing=False):
     missing = legacy_columns(before_view_side=before_view_side, before_report_snapshot=before_report_snapshot,
-                             before_archive_relative_path=before_archive_relative_path, before_profile_names=before_profile_names)
+                             before_archive_relative_path=before_archive_relative_path, before_profile_names=before_profile_names,
+                             before_evidence_exemptions=before_evidence_exemptions, before_report_sharing=before_report_sharing)
     if conn.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
         raise ValueError('Database integrity check failed.')
     if conn.execute("SELECT 1 FROM sqlite_master WHERE type IN ('trigger','view') OR sql LIKE '%VIRTUAL TABLE%'").fetchone():
@@ -369,8 +378,10 @@ def validate_archive(archive, destination, progress=lambda *a: None):
                         options = dict(before_view_side=side, before_creation_requests=creation,
                                        before_report_snapshot=snapshot, before_archive_relative_path=relative)
                         for profile in (False, True):
-                            variant = {**options, 'before_profile_names': profile}
-                            supported[schema_signature(**variant)] = variant
+                            for exemptions in (False, True):
+                                for sharing in (False, True):
+                                    variant = {**options, 'before_profile_names': profile, 'before_evidence_exemptions': exemptions, 'before_report_sharing': sharing}
+                                    supported[schema_signature(**variant)] = variant
         if manifest.get('format_version') not in (1, FORMAT_VERSION) or manifest.get('schema_version') not in supported or manifest.get('app_version') != APP_VERSION:
             raise ValueError('Incompatible backup format, application or schema version.')
         options = supported[manifest['schema_version']]
@@ -427,6 +438,13 @@ def validate_archive(archive, destination, progress=lambda *a: None):
             # Only the verified extracted copy is upgraded. The uploaded archive remains intact.
             # Restore inserts into trusted current tables, so its old unique constraint is harmless.
             with connect(destination / 'database.sqlite3') as conn:
+                if options['before_report_sharing']:
+                    # NULL grants no customer access; never infer historical report sharing.
+                    conn.execute('ALTER TABLE users ADD COLUMN allowed_report_ids JSON')
+                if options['before_evidence_exemptions']:
+                    for column in ('exemption_reason', 'exemption_by', 'exemption_at', 'exemption_history'):
+                        trusted_column = Base.metadata.tables['images'].columns[column]
+                        conn.execute(f'ALTER TABLE images ADD COLUMN "{column}" {trusted_column.type}')
                 if options['before_profile_names']:
                     conn.execute('ALTER TABLE users ADD COLUMN first_name VARCHAR(100)')
                     conn.execute('ALTER TABLE users ADD COLUMN last_name VARCHAR(100)')

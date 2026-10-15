@@ -1,10 +1,12 @@
+import { EditSourceInspectionButton } from './EditSourceInspectionButton';
+import { useReportHistoryState, useReportNavigation } from '../hooks/ReportNavigation';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Box, Button, Chip, Dialog, DialogContent, DialogTitle, IconButton, InputAdornment, MenuItem, Paper, Stack, TablePagination, TextField, Typography } from '@mui/material';
-import { ArrowBackRounded, ArrowForwardRounded, ChatBubbleOutlineRounded, CloseRounded, DescriptionOutlined, FactCheckOutlined, LockOutlined, PhotoLibraryOutlined, SearchRounded, ThermostatRounded, WarningAmberRounded, ZoomInRounded } from '@mui/icons-material';
+import { ArrowBackRounded, ArrowForwardRounded, ChatBubbleOutlineRounded, CloseRounded, DescriptionOutlined, LockOutlined, PhotoLibraryOutlined, SearchRounded, ThermostatRounded, WarningAmberRounded, ZoomInRounded } from '@mui/icons-material';
 import { apiClient, mediaUrl } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import type { InspectionSnapshot, LineInspectionReportOut } from '../api/types';
+import type { LineInspectionReportOut } from '../api/types';
 import { severityRank, type DigitalFinding } from '../utils/digitalReport';
 import { comparisonEvidence, journeyTowers, numericReading, priorityFindings, severityBands, thermalEvidenceIndex } from '../utils/reportJourney';
 import { formatDate, tr, useLanguage } from '../i18n';
@@ -18,11 +20,11 @@ const bandOf = (row: DigitalFinding) => severityBands[severityRank(row.fields.se
 const badge = (row: DigitalFinding) => <Chip size="small" icon={severityRank(row.fields.severity) === 0 ? <WarningAmberRounded /> : undefined} label={tr(bandOf(row).label)} variant="outlined" sx={{ color: theme => theme.palette.mode === 'dark' ? bandOf(row).color : bandOf(row).textColor, borderColor: `${bandOf(row).color}70`, bgcolor: `${bandOf(row).color}0d`, fontWeight: 700 }} />;
 
 /** Presentation of the frozen issued snapshot. Every photograph uses a report-scoped endpoint. */
-export function ReportJourney({ report, rows, assessment, mode, initialRank = null, onExplore, onTower, onTemplate }: {
+export function ReportJourney({ report, rows, mode, active, initialRank = null, onExplore, onTower, onTemplate }: {
   report: LineInspectionReportOut;
   rows: DigitalFinding[];
-  assessment: InspectionSnapshot['assessment'];
   mode: 'overview' | 'hotspots';
+  active: boolean;
   initialRank?: number | null;
   onExplore: (rank: number | null) => void;
   onTower: (key: string) => void;
@@ -30,13 +32,14 @@ export function ReportJourney({ report, rows, assessment, mode, initialRank = nu
 }) {
   useLanguage();
   const { user } = useAuth();
-  const [rank, setRank] = useState<number | null>(initialRank);
-  const [search, setSearch] = useState('');
-  const [tower, setTower] = useState('');
-  const [page, setPage] = useState(0);
-  const [focus, setFocus] = useState<string | null>(null);
-  const [photo, setPhoto] = useState<{ row: DigitalFinding; index: number } | null>(null);
-  const [discussion, setDiscussion] = useState<DigitalFinding | null>(null);
+  const navigation = useReportNavigation();
+  const [rank, setRank] = useReportHistoryState<number | null>(`${mode}.rank`, initialRank);
+  const [search, setSearch] = useReportHistoryState(`${mode}.search`, '');
+  const [tower, setTower] = useReportHistoryState(`${mode}.tower`, '');
+  const [page, setPage] = useReportHistoryState(`${mode}.page`, 0);
+  const [focus, setFocus] = useReportHistoryState<string | null>(`${mode}.focus`, null, true);
+  const [photo, setPhoto] = useReportHistoryState<{ row: DigitalFinding; index: number } | null>(`${mode}.photo`, null, true);
+  const [discussion, setDiscussion] = useReportHistoryState<DigitalFinding | null>(`${mode}.discussion`, null, true);
   const [failed, setFailed] = useState<string[]>([]);
   const towers = useMemo(() => journeyTowers(rows), [rows]);
   const ordered = useMemo(() => priorityFindings(rows), [rows]);
@@ -45,7 +48,6 @@ export function ReportJourney({ report, rows, assessment, mode, initialRank = nu
     && search.trim().toLowerCase().split(/\s+/).every(term => Object.values(row.fields).join(' ').toLowerCase().includes(term))), [ordered, rank, search, tower]);
   const focused = rows.find(row => row.key === focus);
   const focusIndex = matches.findIndex(row => row.key === focus);
-  const urgent = rows.filter(row => severityRank(row.fields.severity) === 0);
   const counts = severityBands.map((_, index) => rows.filter(row => severityRank(row.fields.severity) === index).length);
   const currentPage = Math.min(page, Math.max(0, Math.ceil(matches.length / 12) - 1));
   const evidence = useQuery({ queryKey: ['digital-report-evidence', user?.id, report.id], queryFn: async () => (await apiClient.get<{ available: string[] }>(`/api/reports/oetc-line-report/${report.id}/digital-evidence`)).data.available });
@@ -70,13 +72,8 @@ export function ReportJourney({ report, rows, assessment, mode, initialRank = nu
   </Paper>;
   return <Stack spacing={3}>
     {mode === 'overview' ? <>
-      <Paper variant="outlined" sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 4, background: theme => theme.palette.mode === 'dark' ? undefined : 'linear-gradient(135deg, #fff 40%, #edf7f6)' }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ alignItems: { md: 'center' } }}><Box sx={{ flex: 1 }}><Typography variant="overline" color="primary" sx={{ letterSpacing: '.12em' }}>{tr('Your inspection, at a glance')}</Typography><Typography component="h2" variant="h5" sx={{ fontWeight: 800, mt: .5, mb: 1 }}>{tr(urgent.length ? 'Start with the findings that need attention' : 'Explore the recorded condition of your assets')}</Typography><Typography color="text.secondary" variant="body2">{tr('Understand the scope, examine priority findings, then compare the evidence behind each observation.')}</Typography></Box><Button size="large" variant="contained" startIcon={<FactCheckOutlined />} onClick={() => onExplore(urgent.length ? 0 : null)} disabled={!rows.length} sx={{ px: 3, py: 1.5, flexShrink: 0 }}>{tr(urgent.length ? 'Explore priority findings' : 'Explore all findings')}</Button></Stack>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mt: 3, pt: 2.5, borderTop: 1, borderColor: 'divider' }}>{[['01', 'Understand', 'Review the scope and team assessment.'], ['02', 'Examine', 'Open a finding, compare photographs and explore its tower.'], ['03', 'Keep & discuss', 'Download the issued documents or ask the team a question.']].map(([number, title, copy]) => <Stack key={number} direction="row" spacing={1.5}><Typography sx={{ color: 'primary.main', fontSize: 24, fontWeight: 800, opacity: .65 }}>{number}</Typography><Box><Typography variant="subtitle2">{tr(title)}</Typography><Typography variant="caption" color="text.secondary">{tr(copy)}</Typography></Box></Stack>)}</Box>
-      </Paper>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 3 }}>
         <Paper variant="outlined" sx={{ p: 3, borderRadius: 3 }}><Typography component="h2" variant="h6" sx={{ fontWeight: 750, mb: .5 }}>{tr('Condition breakdown')}</Typography><Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr('Select a category to explore its recorded findings.')}</Typography><Box aria-hidden="true" sx={{ display: 'flex', height: 16, borderRadius: 2, overflow: 'hidden', bgcolor: 'action.hover', mb: 2 }}>{counts.map((count, i) => count > 0 && <Box key={i} sx={{ width: `${count / rows.length * 100}%`, bgcolor: severityBands[i].color }} />)}</Box><Stack spacing={.5}>{severityBands.map((band, i) => <Button key={band.label} disabled={!counts[i]} onClick={() => onExplore(i)} sx={{ justifyContent: 'space-between', color: 'text.primary', px: 1.5, py: 1 }}><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: band.color }} /><Typography variant="body2">{tr(band.label)}</Typography></Stack><Typography sx={{ fontWeight: 800 }}>{counts[i]}</Typography></Button>)}</Stack><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>{tr('Severity is the team’s recorded classification. Missing classifications are shown separately.')}</Typography></Paper>
-        <Paper variant="outlined" sx={{ p: 3, borderRadius: 3 }}><Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}><FactCheckOutlined color="primary" /><Typography component="h2" variant="h6" sx={{ fontWeight: 750 }}>{tr('Team assessment at issue time')}</Typography></Stack><Stack spacing={2}>{[['overall_condition', 'Overall condition'], ['probable_cause', 'Probable cause'], ['corrective_action', 'Recommended corrective action']].map(([field, title]) => <Box key={field}><Typography variant="caption" color="text.secondary">{tr(title)}</Typography><Typography variant="body2" sx={{ mt: .5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{field === 'overall_condition' && assessment[field] ? tr(String(assessment[field])) : display(assessment[field])}</Typography></Box>)}</Stack><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 3 }}>{tr('These are the recorded recommendations in the issued report.')}</Typography></Paper>
       </Box>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 2 }}><Box><Typography component="h2" variant="h6" sx={{ fontWeight: 750 }}>{tr('Priority evidence')}</Typography><Typography variant="body2" color="text.secondary">{tr('Highest recorded severity first, followed by temperature difference.')}</Typography></Box><Button onClick={() => onExplore(null)}>{tr('View all findings')}</Button></Stack>
       {!rows.length ? <Alert severity="info">{tr('No recorded positions in this report.')}</Alert> : <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(3, 1fr)' }, gap: 2 }}>{ordered.slice(0, 3).map(card)}</Box>}
@@ -90,16 +87,16 @@ export function ReportJourney({ report, rows, assessment, mode, initialRank = nu
       <TablePagination component="div" count={matches.length} page={currentPage} rowsPerPage={12} rowsPerPageOptions={[12]} onPageChange={(_, next) => setPage(next)} />
     </>}
     {evidence.isError && <Alert severity="warning" action={<Button onClick={() => void evidence.refetch()}>{tr('Retry')}</Button>}>{tr('Could not load original photographs. The issued report remains available.')}</Alert>}
-    <Dialog open={!!focused} onClose={() => setFocus(null)} maxWidth="lg" fullWidth aria-labelledby="journey-finding-title">
-      <DialogTitle id="journey-finding-title"><Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}><Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 800 }}>{focused ? display(focused.fields.tower) : ''}</Typography><Typography variant="body2" color="text.secondary">{focused ? [focused.fields.ohl, focused.fields.phase, focused.fields.string, focused.fields.view_side].filter(Boolean).join(' · ') : ''}</Typography></Box><IconButton aria-label={tr('Close')} onClick={() => setFocus(null)}><CloseRounded /></IconButton></Stack></DialogTitle>
+    <Dialog open={active && !!focused} onClose={() => navigation.close(`${mode}.focus`)} maxWidth="lg" fullWidth aria-labelledby="journey-finding-title">
+      <DialogTitle id="journey-finding-title"><Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}><Box sx={{ flex: 1 }}><Typography sx={{ fontWeight: 800 }}>{focused ? display(focused.fields.tower) : ''}</Typography><Typography variant="body2" color="text.secondary">{focused ? [focused.fields.ohl, focused.fields.phase, focused.fields.string, focused.fields.view_side].filter(Boolean).join(' · ') : ''}</Typography></Box><IconButton aria-label={tr('Close')} onClick={() => navigation.close(`${mode}.focus`)}><CloseRounded /></IconButton></Stack></DialogTitle>
       {focused && <DialogContent><Stack spacing={3}><Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>{badge(focused)}<Chip icon={<LockOutlined />} size="small" label={tr('Issued report · view only')} /><Typography variant="caption" color="text.secondary">{tr('No. {0}', [focused.fields.finding_number ?? focused.key])}</Typography><Box sx={{ flex: 1 }} /><Button startIcon={<ArrowBackRounded />} disabled={focusIndex <= 0} onClick={() => setFocus(matches[focusIndex - 1].key)}>{tr('Previous finding')}</Button><Button endIcon={<ArrowForwardRounded />} disabled={focusIndex < 0 || focusIndex >= matches.length - 1} onClick={() => setFocus(matches[focusIndex + 1].key)}>{tr('Next finding')}</Button></Stack>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5 }}>{[['tmax_c', 'Tmax'], ['tref_c', 'Tref'], ['delta_t', 'ΔT']].map(([field, title]) => <Paper key={field} variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover' }}><Typography variant="caption" color="text.secondary">{title}</Typography><Typography variant="h5" sx={{ fontWeight: 800 }}>{reading(focused.fields[field])}</Typography></Paper>)}</Box>
         <Box><Typography variant="h6" sx={{ mb: 1 }}>{tr('Recorded observations')}</Typography><Box component="dl" sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, m: 0, gap: 2 }}>{[['screening_result', 'Screening result'], ['thermal_indication', 'Thermal indications'], ['visual_indications', 'Visual indications'], ['inspector_notes', 'Inspector notes']].map(([field, title]) => <Box key={field}><Typography component="dt" variant="caption" color="text.secondary">{tr(title)}</Typography><Typography component="dd" variant="body2" sx={{ m: 0, mt: .5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{field === 'inspector_notes' ? display(focused.fields[field]) : tr(display(focused.fields[field]))}</Typography></Box>)}</Box></Box>
         <Box><Typography variant="h6">{tr('Compare thermal & visual evidence')}</Typography><Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{tr('Select a photograph to zoom and examine the original detail.')}</Typography><Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>{comparisonEvidence(focused).map(({ item, index }) => <Paper key={index} variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden' }}>{thumbnail(focused, index, 260, true)}<Box sx={{ p: 1.5 }}><Typography variant="subtitle2">{tr(item.image_type)}</Typography><Typography variant="caption" color="text.secondary">{item.capture_date ? formatDate(item.capture_date, { day: 'numeric', month: 'short', year: 'numeric' }) : tr('Date not recorded')} {item.capture_time || ''}</Typography></Box></Paper>)}</Box>{!focused.evidence.length && <Alert severity="info">{tr('No photographs included for this position.')}</Alert>}</Box>
-        <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap' }}><Button variant="contained" startIcon={<TransmissionTowerIcon />} onClick={() => { setFocus(null); onTower(focused.key); }}>{tr('Explore the tower')}</Button><Button startIcon={<DescriptionOutlined />} onClick={() => { setFocus(null); onTemplate(focused.key); }}>{tr('View in report template')}</Button><Button startIcon={<ChatBubbleOutlineRounded />} onClick={() => { setDiscussion(focused); setFocus(null); }}>{tr('Ask about this finding')}</Button></Stack>
+        <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap' }}><Button variant="contained" startIcon={<TransmissionTowerIcon />} onClick={() => { onTower(focused.key); }}>{tr('Explore the tower')}</Button><Button startIcon={<DescriptionOutlined />} onClick={() => { onTemplate(focused.key); }}>{tr('View in report template')}</Button><EditSourceInspectionButton findingKey={focused.key} /><Button startIcon={<ChatBubbleOutlineRounded />} onClick={() => { setDiscussion(focused); }}>{tr('Ask about this finding')}</Button></Stack>
       </Stack></DialogContent>}
     </Dialog>
-    {photo && <ImageLightbox open onClose={() => setPhoto(null)} title={`${display(photo.row.fields.tower)} · ${photo.row.evidence[photo.index].image_type}`} subtitle={tr('Issued report · view only')} imageUrl={imageSrc(photo.row, photo.index)} />}
-    {discussion && <ReportReviewDialog key={discussion.key} report={report} initialTab="discussion" initialComment={`${tr('Finding reference')}: ${report.report_number} / ${display(discussion.fields.tower)} / ${tr('No. {0}', [discussion.fields.finding_number ?? discussion.key])} / ${[discussion.fields.ohl, discussion.fields.phase, discussion.fields.string, discussion.fields.view_side].filter(Boolean).join(' · ')}\n\n`} onClose={() => setDiscussion(null)} />}
+    {active && photo && <ImageLightbox open onClose={() => navigation.close(`${mode}.photo`)} title={`${display(photo.row.fields.tower)} · ${photo.row.evidence[photo.index].image_type}`} subtitle={tr('Issued report · view only')} imageUrl={imageSrc(photo.row, photo.index)} />}
+    {active && discussion && <ReportReviewDialog key={discussion.key} report={report} initialTab="discussion" initialComment={`${tr('Finding reference')}: ${report.report_number} / ${display(discussion.fields.tower)} / ${tr('No. {0}', [discussion.fields.finding_number ?? discussion.key])} / ${[discussion.fields.ohl, discussion.fields.phase, discussion.fields.string, discussion.fields.view_side].filter(Boolean).join(' · ')}\n\n`} onClose={() => navigation.close(`${mode}.discussion`)} />}
   </Stack>;
 }

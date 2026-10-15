@@ -208,12 +208,15 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            <OfflineProvider>
-              <AppRoutes />
-            </OfflineProvider>
+            <AccountWorkspace />
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>
     </ColorModeProvider>
   );
+}
+
+function AccountWorkspace() {
+  const { user } = useAuth();
+  return <OfflineProvider key={user ? `${user.id}:${user.username}` : 'signed-out'}><AppRoutes /></OfflineProvider>;
 }

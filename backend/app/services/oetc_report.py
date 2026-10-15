@@ -115,6 +115,7 @@ def _finding_context(tpl, seq: int, visit: Visit, pos: Position) -> dict:
         "mount_type": pos.mount_type,
         "gs_side": pos.gs_side or (pos.direction if pos.mount_type == "Tension" else None),
         "direction": direction_label(pos),
+        "tension_direction": (pos.direction or "Not recorded") if pos.mount_type == "Tension" else "—",
         "position_label": position_label(pos),
         "view_side": view_label(pos),
         # Every insulator on this line is composite — the field stays a real, editable dropdown

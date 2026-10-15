@@ -24,6 +24,31 @@ Data flow: a Tower has many Visits; each Visit auto-creates its 12 fixed Positio
 2 strings); each Position starts with 4 image slots (`TH Full` / `TH Close` / `RGB Full` / `RGB Close`) and can have supplementary images. Position and
 Image IDs are generated server-side from the workbook's original formulas and are never user-editable.
 
+## Tower assignment and evidence reconciliation
+
+Teams and Image Archive show an all-time tower reconciliation, also available in a team's
+inspection history. Current active assignments are compared with uploaded position images and
+field photos attributed to that team's visits. Shared towers count once in the overall archive
+total and once under each contributing team. Historical uploads outside current assignments are
+listed separately; inactive inventory and active unassigned towers are outside the assigned scope.
+The summary covers active teams, while the archive library retains uploads from archived teams.
+
+Screening and four-category coverage use the latest visit by inspection date, then visit ID,
+for that tower and assigned team. Every recorded, in-scope installed position needs TH Full,
+TH Close, RGB Full and RGB Close; repeated captures cannot substitute for a missing category.
+Recapture-requested images, private drafts and unuploaded slots do not satisfy coverage. Default
+NOT REQUIRED slots are not treated as reviewed exemptions. Empty or prepared-only inspections
+cannot certify readiness. Validate the recorded layout and documented exceptions separately.
+
+The searchable checklist links to inspections and exports CSV, including historical evidence
+outside current assignments. Team status is explicitly manual, with a warning if a Completed
+team lacks screening plus four-category coverage. These are read-only operational checks;
+existing report eligibility, inspection rollups and historical team statuses are preserved.
+No schema migration is required. Deploy frontend and backend together; the new endpoint is
+`GET /api/teams/tower-reconciliation`, restricted to admins, reviewers and scoped team leaders.
+Coverage is in `backend/tests/test_tower_reconciliation.py` and
+`frontend/tests/towerReconciliation.test.mjs`.
+
 ## Field visit entry: one final confirmation
 
 1. Open **Prepare tower positions**, choose circuits, strings and directions, and select
@@ -121,6 +146,25 @@ does not count. This is recorded activity, not GPS verification. Missing dates/t
 explicitly; the tower's current team assignment never substitutes for the team on a visit.
 
 ## Setup
+
+### Shared-device offline safety
+
+Offline queue entries are owned by the account that captured them. Signing out or changing
+accounts clears cached server data and resets the field workspace; another account cannot
+preview, discard, merge or send that work. Sign back into the original account to resume.
+Concurrent sync attempts share a batch, and browsers supporting Web Locks serialize batches
+across tabs. Queued photo replacement retains the old image if saving the replacement fails.
+
+Entries saved before account ownership was added remain in IndexedDB (`iip-offline-v1`,
+`outbox`) but cannot upload automatically because their original owner cannot be verified.
+A warning asks users to preserve browser data. An administrator must export those records
+and attachments and verify their inspection/account associations before manual recovery;
+do not clear browser storage or assign them automatically to whoever next signs in.
+
+Sync failures now appear in the status banner with a retry action; details stay in the saved
+work queue. Portable backup import also accepts releases without the four evidence-exemption
+columns or customer report-sharing field, adding empty nullable fields only to the verified
+extracted copy. Older customer accounts receive no report grants during recovery.
 
 ### Backend
 

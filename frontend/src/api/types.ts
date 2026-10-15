@@ -9,6 +9,8 @@ export interface Area {
 }
 
 export interface Tower {
+  map_visit_recorded?: boolean;
+  map_evidence_missing?: boolean;
   inspection_layout?: PositionSlot[] | null;
   id: number;
   tower_id: string;
@@ -46,6 +48,10 @@ export interface TowerWithStats extends Tower {
 }
 
 export interface ImageRow {
+  exemption_reason?: string | null;
+  exemption_by?: string | null;
+  exemption_at?: string | null;
+  exemption_history?: Record<string, unknown>[] | null;
   view_side?: string | null;
   id: number;
   position_id: number;

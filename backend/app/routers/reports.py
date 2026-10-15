@@ -751,6 +751,26 @@ def report_inspection_data(report_id: int, db: Session = Depends(get_db), user: 
     return {"snapshot": record.inspection_snapshot}
 
 
+@router.get("/oetc-line-report/{report_id}/tower-locations")
+def report_tower_locations(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Current map metadata for the saved report scope, never the whole tower catalog."""
+    record = db.get(LineInspectionReport, report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Report not found")
+    _check_report_access(record, user)
+    scope = record.scope_towers
+    if scope is None:
+        scope = ([{"id": record.tower.id, "name": record.tower.tower_id}] if record.tower else
+                 _report_tower_scope([image.position.visit for image in record.images if image.position and image.position.visit]))
+    tower_ids = {item['id'] for item in scope}
+    towers = db.query(Tower).filter(Tower.id.in_(tower_ids)).all() if tower_ids else []
+    return {"towers": [{
+        "id": tower.id, "latitude": tower.latitude, "longitude": tower.longitude,
+        "area": tower.area, "line_sector": tower.line_sector,
+        "location_name": tower.location_name, "voltage": tower.voltage, "tower_type": tower.tower_type,
+    } for tower in towers]}
+
+
 class DigitalReportExport(BaseModel):
     kind: Literal['xlsx', 'docx']
     finding_keys: list[str] = Field(min_length=1, max_length=100000)

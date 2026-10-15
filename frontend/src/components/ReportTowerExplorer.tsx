@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { EditSourceInspectionButton } from './EditSourceInspectionButton';
+import { useReportHistoryState, useReportNavigation } from '../hooks/ReportNavigation';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Box, Button, Chip, Dialog, DialogContent, DialogTitle, IconButton, MenuItem, Paper, Stack, TextField, Tooltip, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { ArrowBackRounded, ArrowForwardRounded, CloseRounded, DescriptionOutlined, LockOutlined, PhotoLibraryOutlined, ThermostatRounded, ZoomInRounded, ZoomOutRounded, RestartAltRounded } from '@mui/icons-material';
@@ -18,28 +20,25 @@ const details = ['ohl', 'phase', 'string', 'direction', 'view_side', 'mount_type
 const labels: Record<string, string> = { ohl: 'Circuit', phase: 'Phase', string: 'String', direction: 'Direction', view_side: 'Viewing side', mount_type: 'Tower type', string_count: 'String count', gs_side: 'GS side', tower_proximity: 'Tower proximity', installed: 'Installed', screening_result: 'Screening result', severity: 'Severity', tmax_c: 'Tmax (°C)', tref_c: 'Tref (°C)', delta_t: 'ΔT (°C)', manufacturer: 'Manufacturer', year_installed: 'Year installed', insulator_type: 'Insulator type', pollution_condition: 'Pollution condition', thermal_indication: 'Thermal indications', visual_indications: 'Visual indications', confidence: 'Confidence', inspector_notes: 'Inspector notes' };
 
 /** Uses only frozen report findings and report-scoped archived photographs. No mutation APIs. */
-export function ReportTowerExplorer({ reportId, rows, startKey, onOpenFinding }: { reportId: number; rows: DigitalFinding[]; startKey: string; onOpenFinding: (key: string) => void }) {
+export function ReportTowerExplorer({ reportId, rows, startKey, active, onOpenFinding }: { reportId: number; rows: DigitalFinding[]; startKey: string; active: boolean; onOpenFinding: (key: string) => void }) {
   useLanguage();
   const theme = useTheme();
   const compact = useMediaQuery(theme.breakpoints.down('sm'));
-  const [presentation, setPresentation] = useState<string | null>(null);
+  const [presentation, setPresentation] = useReportHistoryState<string | null>('towerPresentation', null);
   const mode = presentation || (compact ? 'cards' : 'diagram');
   const { user } = useAuth();
+  const navigation = useReportNavigation();
   const layouts = useMemo(() => reportTowerLayouts(rows), [rows]);
-  const [layoutKey, setLayoutKey] = useState('');
-  const [positionKey, setPositionKey] = useState<string | null>(null);
-  const [photo, setPhoto] = useState<{ row: DigitalFinding; index: number } | null>(null);
+  const [layoutKey, setLayoutKey] = useReportHistoryState('towerLayout', '', true);
+  const [positionKey, setPositionKey] = useReportHistoryState<string | null>('towerPosition', null, true);
+  const [photo, setPhoto] = useReportHistoryState<{ row: DigitalFinding; index: number } | null>('towerPhoto', null, true);
   const [zoom, setZoom] = useState(1);
   const [failedImages, setFailedImages] = useState<string[]>([]);
   const evidence = useQuery({ queryKey: ['digital-report-evidence', user?.id, reportId], queryFn: async () => (await apiClient.get<{ available: string[] }>(`/api/reports/oetc-line-report/${reportId}/digital-evidence`)).data.available });
   const available = useMemo(() => new Set(evidence.data || []), [evidence.data]);
   const unavailable = (key: string) => !available.has(key) || failedImages.includes(key);
   const imageSrc = (row: DigitalFinding, index: number) => mediaUrl(`/api/reports/oetc-line-report/${reportId}/digital-evidence/${encodeURIComponent(`${row.key}:${index}`)}`);
-  useEffect(() => {
-    const initial = layouts.find(item => item.rows.some(row => row.key === startKey));
-    if (initial) setLayoutKey(initial.key);
-  }, [layouts, startKey]);
-  const layout = layouts.find(item => item.key === layoutKey) || layouts[0];
+  const layout = layouts.find(item => item.key === layoutKey) || layouts.find(item => item.rows.some(row => row.key === startKey)) || layouts[0];
   const position = rows.find(row => row.key === positionKey);
   const imageFailure = (key: string) => setFailedImages(old => old.includes(key) ? old : [...old, key]);
   const openPhoto = (row: DigitalFinding, index: number) => { setPhoto({ row, index }); setZoom(1); };
@@ -82,9 +81,9 @@ export function ReportTowerExplorer({ reportId, rows, startKey, onOpenFinding }:
       const row = reportTowerSlot(layout, side, phase, string);
       return row ? card(row) : <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, borderStyle: 'dashed', bgcolor: 'background.paper' }}><Typography variant="body2" sx={{ fontWeight: 700 }}>{phase} · {string}</Typography><Typography variant="caption" color="text.secondary">{tr('Not included in issued report')}</Typography></Paper>;
     }} /> : <>{!layout.drawable && <Alert severity="info">{tr('The saved arrangement does not support a reliable tower schematic. Every recorded position is shown below.')}</Alert>}{context}<Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(4, 1fr)' }, gap: 2 }}>{layout.rows.map(row => <Box key={row.key}>{card(row)}</Box>)}</Box></>}
-    <Dialog open={!!position} onClose={() => setPositionKey(null)} fullWidth maxWidth="md" aria-labelledby="report-position-title">
-      <DialogTitle id="report-position-title"><Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}><TransmissionTowerIcon color="primary" /><Box sx={{ flex: 1 }}><Typography component="span" sx={{ fontWeight: 800 }}>{position ? display(position.fields.tower) : ''}</Typography><Typography variant="body2" color="text.secondary">{position ? [position.fields.ohl, position.fields.phase, position.fields.string, position.fields.direction, position.fields.view_side].filter(Boolean).join(' · ') : ''}</Typography></Box><IconButton aria-label={tr('Close')} onClick={() => setPositionKey(null)}><CloseRounded /></IconButton></Stack></DialogTitle>
-      {position && <DialogContent><Stack spacing={2.5}><Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 1, alignItems: 'center' }}><Chip icon={<LockOutlined />} label={tr('View only')} size="small" /><Chip size="small" variant="outlined" sx={{ color: theme => theme.palette.mode === 'dark' ? severityBands[severityRank(position.fields.severity)].color : severityBands[severityRank(position.fields.severity)].textColor, borderColor: severityBands[severityRank(position.fields.severity)].color }} label={position.fields.severity ? tr(String(position.fields.severity)) : tr('Severity not recorded')} /><Button size="small" startIcon={<DescriptionOutlined />} onClick={() => { setPositionKey(null); onOpenFinding(position.key); }}>{tr('View in report template')}</Button></Stack>
+    <Dialog open={active && !!position} onClose={() => navigation.close('towerPosition')} fullWidth maxWidth="md" aria-labelledby="report-position-title">
+      <DialogTitle id="report-position-title"><Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}><TransmissionTowerIcon color="primary" /><Box sx={{ flex: 1 }}><Typography component="span" sx={{ fontWeight: 800 }}>{position ? display(position.fields.tower) : ''}</Typography><Typography variant="body2" color="text.secondary">{position ? [position.fields.ohl, position.fields.phase, position.fields.string, position.fields.direction, position.fields.view_side].filter(Boolean).join(' · ') : ''}</Typography></Box><IconButton aria-label={tr('Close')} onClick={() => navigation.close('towerPosition')}><CloseRounded /></IconButton></Stack></DialogTitle>
+      {position && <DialogContent><Stack spacing={2.5}><Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 1, alignItems: 'center' }}><Chip icon={<LockOutlined />} label={tr('View only')} size="small" /><Chip size="small" variant="outlined" sx={{ color: theme => theme.palette.mode === 'dark' ? severityBands[severityRank(position.fields.severity)].color : severityBands[severityRank(position.fields.severity)].textColor, borderColor: severityBands[severityRank(position.fields.severity)].color }} label={position.fields.severity ? tr(String(position.fields.severity)) : tr('Severity not recorded')} /><Button size="small" startIcon={<DescriptionOutlined />} onClick={() => { onOpenFinding(position.key); }}>{tr('View in report template')}</Button><EditSourceInspectionButton findingKey={position.key} /></Stack>
         <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>{details.map(field => <Box key={field} sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 2, gridColumn: field === 'inspector_notes' ? '1 / -1' : undefined }}><Typography component="dt" variant="caption" color="text.secondary">{tr(labels[field])}</Typography><Typography component="dd" variant="body2" sx={{ m: 0, mt: .5, fontWeight: 600, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{position.fields[field] === null || position.fields[field] === undefined || position.fields[field] === '' ? '—' : inspectionValue(field, position.fields[field])}</Typography></Box>)}</Box>
         <Typography variant="h6" sx={{ fontWeight: 750 }}>{tr('Original evidence photographs')}</Typography>
         {!position.evidence.length && <Alert severity="info">{tr('No photographs included for this position.')}</Alert>}
@@ -94,8 +93,8 @@ export function ReportTowerExplorer({ reportId, rows, startKey, onOpenFinding }:
         })}</Box>
       </Stack></DialogContent>}
     </Dialog>
-    <Dialog open={!!photo} onClose={() => setPhoto(null)} fullWidth maxWidth="xl" aria-labelledby="report-photo-title">
-      <DialogTitle id="report-photo-title"><Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}><Typography sx={{ flex: 1, fontWeight: 750 }}>{photo ? `${display(photo.row.fields.tower)} · ${photo.row.evidence[photo.index].image_type}` : ''}</Typography><Chip size="small" icon={<LockOutlined />} label={tr('View only')} /><IconButton aria-label={tr('Close photograph')} onClick={() => setPhoto(null)}><CloseRounded /></IconButton></Stack></DialogTitle>
+    <Dialog open={active && !!photo} onClose={() => navigation.close('towerPhoto')} fullWidth maxWidth="xl" aria-labelledby="report-photo-title">
+      <DialogTitle id="report-photo-title"><Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}><Typography sx={{ flex: 1, fontWeight: 750 }}>{photo ? `${display(photo.row.fields.tower)} · ${photo.row.evidence[photo.index].image_type}` : ''}</Typography><Chip size="small" icon={<LockOutlined />} label={tr('View only')} /><IconButton aria-label={tr('Close photograph')} onClick={() => navigation.close('towerPhoto')}><CloseRounded /></IconButton></Stack></DialogTitle>
       {photo && <DialogContent><Stack direction="row" useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}><IconButton aria-label={tr('Previous photograph')} disabled={!photo.row.evidence.slice(0, photo.index).some((_, index) => !unavailable(`${photo.row.key}:${index}`))} onClick={() => { const index = photo.row.evidence.map((_, i) => i).filter(i => i < photo.index && !unavailable(`${photo.row.key}:${i}`)).at(-1); if (index !== undefined) openPhoto(photo.row, index); }}><ArrowBackRounded /></IconButton><Typography variant="caption">{photo.index + 1} / {photo.row.evidence.length}</Typography><IconButton aria-label={tr('Next photograph')} disabled={!photo.row.evidence.some((_, index) => index > photo.index && !unavailable(`${photo.row.key}:${index}`))} onClick={() => { const index = photo.row.evidence.findIndex((_, i) => i > photo.index && !unavailable(`${photo.row.key}:${i}`)); if (index >= 0) openPhoto(photo.row, index); }}><ArrowForwardRounded /></IconButton><Box sx={{ flex: 1 }} /><IconButton aria-label={tr('Zoom out')} disabled={zoom <= 1} onClick={() => setZoom(z => Math.max(1, z - .5))}><ZoomOutRounded /></IconButton><Typography variant="caption">{Math.round(zoom * 100)}%</Typography><IconButton aria-label={tr('Zoom in')} disabled={zoom >= 4} onClick={() => setZoom(z => Math.min(4, z + .5))}><ZoomInRounded /></IconButton><Button startIcon={<RestartAltRounded />} onClick={() => setZoom(1)}>{tr('Reset')}</Button></Stack><Box tabIndex={0} role="region" aria-label={tr('Photograph zoom and pan')} sx={{ overflow: 'auto', maxHeight: '72vh', bgcolor: '#102b37', borderRadius: 2 }}>{unavailable(`${photo.row.key}:${photo.index}`) ? <Alert severity="warning">{tr('Original photograph unavailable')}</Alert> : <Box component="img" src={imageSrc(photo.row, photo.index)} alt={photo.row.evidence[photo.index].image_type} onError={() => imageFailure(`${photo.row.key}:${photo.index}`)} sx={{ display: 'block', width: `${zoom * 100}%`, maxWidth: 'none' }} />}</Box></DialogContent>}
     </Dialog>
   </Stack>;

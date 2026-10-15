@@ -12,6 +12,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import effective_team_id, get_current_user, require_permission_level
 from app.utils import natural_sort_key
+from app.services.tower_map_status import tower_map_status
 from app.models import (
     Area,
     NightTowerClaim,
@@ -86,12 +87,15 @@ def list_towers(
     all_matching.sort(key=lambda t: natural_sort_key(t.tower_id))
     towers = all_matching[skip : skip + limit]
 
+    map_status = tower_map_status(db, [t.id for t in towers])
     rows = []
     for t in towers:
         latest_visit = (
             db.query(Visit).filter(Visit.tower_id == t.id).order_by(Visit.inspection_date.desc(), Visit.id.desc()).first()
         )
         stats = TowerWithStats.model_validate(t)
+        for key, value in map_status.get(t.id, {}).items():
+            setattr(stats, key, value)
         stats.assigned_team_name = t.assigned_team.name if t.assigned_team else None
         stats.visit_count = db.query(Visit).filter(Visit.tower_id == t.id).count()
         if latest_visit:

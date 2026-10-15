@@ -1,6 +1,7 @@
 import { tr, useLanguage } from '../i18n';
 import { BackupRestoreSection } from '../components/BackupRestoreSection';
 import { CustomerReportPicker } from '../components/CustomerReportPicker';
+import { ReportLogoSettings } from '../components/ReportLogoSettings';
 import { useSearchParams } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -1596,6 +1597,7 @@ export function SettingsPage() {
     ...(isSuperAdmin ? [{ id: 'backups', label: 'Backup & Recovery', description: 'Protect your inspection records', icon: <BackupRoundedIcon />, content: <BackupRestoreSection /> }] : []),
     ...(user?.role === 'admin' ? [{ id: 'requests', label: 'Account requests', description: 'Review new account registrations', icon: <HourglassEmptyIcon />, content: <PendingAccountsSection /> }] : []),
     ...(canManageSettings ? [
+      { id: 'report-logo', label: 'Report logo', description: 'Company identity on reports', icon: <BusinessRoundedIcon />, content: <ReportLogoSettings /> },
       { id: 'appearance', label: 'Appearance', description: 'Make the workspace your own', icon: <PaletteRoundedIcon />, content: <BrandingSection /> },
       { id: 'organization', label: 'Organization', description: 'Manage your organization identity', icon: <BusinessRoundedIcon />, content: <OrganizationBrandingSection /> },
     ] : []),

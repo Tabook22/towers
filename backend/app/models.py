@@ -459,6 +459,10 @@ class Image(Base):
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     evidence_status: Mapped[str] = mapped_column(String(30), default="NOT REQUIRED")
+    exemption_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    exemption_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    exemption_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    exemption_history: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)  # relative to storage/images
     thumbnail_path: Mapped[str | None] = mapped_column(String(500), nullable=True)

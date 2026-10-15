@@ -1,4 +1,5 @@
-import { apiClient } from '../api/client';
+import { apiClient as sharedApiClient } from '../api/client';
+import { currentAccountKey, requireSameSession } from '../auth/session';
 import { deleteOutbox, listOutbox } from './db';
 import { markAttempt } from './enqueue';
 import { errorMessage, isRetryableError } from './network';
@@ -8,7 +9,11 @@ function appendFile(form: FormData, field: string, file: OutboxFile) {
   form.append(field, file.blob, file.name);
 }
 
-async function sendItem(item: OutboxItem): Promise<void> {
+async function sendItem(item: OutboxItem, token: string): Promise<void> {
+  const apiClient = {
+    post: (url: string, data: unknown, config = {}) => sharedApiClient.post(url, data, { ...config, iipSessionToken: token }),
+    patch: (url: string, data: unknown) => sharedApiClient.patch(url, data, { iipSessionToken: token }),
+  };
   switch (item.kind) {
     case 'community-message': {
       const form = new FormData();
@@ -179,16 +184,35 @@ async function sendItem(item: OutboxItem): Promise<void> {
 
 export type FlushResult = { sent: number; remaining: number; failed: number };
 
-export async function flushOutbox(): Promise<FlushResult> {
+let activeFlush: Promise<FlushResult> | undefined;
+
+export function flushOutbox(): Promise<FlushResult> {
+  if (activeFlush) return activeFlush;
+  const run = typeof navigator !== 'undefined' && navigator.locks
+    ? navigator.locks.request('iip-outbox-flush', flushOwnedOutbox)
+    : flushOwnedOutbox();
+  activeFlush = run.finally(() => { activeFlush = undefined; });
+  return activeFlush;
+}
+
+async function flushOwnedOutbox(): Promise<FlushResult> {
+  const token = localStorage.getItem('iip_token');
+  const owner = currentAccountKey();
+  if (!token || !owner) return { sent: 0, remaining: 0, failed: 0 };
   const items = await listOutbox();
   let sent = 0;
   let failed = 0;
   for (const item of items) {
+    requireSameSession(token);
+    if (item.ownerKey !== owner) continue;
     try {
-      await sendItem(item);
-      await deleteOutbox(item.id);
+      await sendItem(item, token);
+      requireSameSession(token);
+      // A newer local edit/replacement can arrive while this request is in flight.
+      await deleteOutbox(item.id, item);
       sent += 1;
     } catch (err) {
+      requireSameSession(token);
       failed += 1;
       const msg = errorMessage(err);
       await markAttempt(item.id, msg);

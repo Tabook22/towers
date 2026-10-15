@@ -9,6 +9,7 @@ from app.models import Position, Tower, User, UserRole, Visit
 from app.schemas import DashboardSummary, DashboardTowerRow, DashboardTowerHistory, DashboardVisitRecord, VisitOut, VisitRollup
 from app.services.rollup import visit_rollup
 from app.utils import natural_sort_key
+from app.services.tower_map_status import tower_map_status
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -71,6 +72,7 @@ def dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_cu
     total_pending = 0
     total_visits = 0
 
+    map_status = tower_map_status(db, [t.id for t in towers], leader_team_id if is_crew else None)
     for tower in towers:
         visit_q = db.query(Visit).filter(Visit.tower_id == tower.id)
         if is_crew and leader_team_id:
@@ -94,7 +96,10 @@ def dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_cu
             visit_out.team_name = latest.team.name if latest.team else None
             visit_out.rollup = rollup
 
-        rows.append(DashboardTowerRow(tower=tower, latest_visit=visit_out, rollup=rollup))
+        row = DashboardTowerRow(tower=tower, latest_visit=visit_out, rollup=rollup)
+        for key, value in map_status.get(tower.id, {}).items():
+            setattr(row.tower, key, value)
+        rows.append(row)
 
     return DashboardSummary(
         tower_count=len(towers),

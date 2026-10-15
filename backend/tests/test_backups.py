@@ -109,13 +109,20 @@ def test_missing_report_history_parent_still_rejects_backup(setup, field):
 
 @pytest.mark.parametrize('before_creation_requests', [False, True])
 @pytest.mark.parametrize('before_report_fields', [False, True])
-def test_backup_before_viewing_sides_imports_without_assigning_old_readings(setup, before_creation_requests, before_report_fields):
+@pytest.mark.parametrize('before_evidence_exemptions', [False, True])
+def test_backup_before_viewing_sides_imports_without_assigning_old_readings(setup, before_creation_requests, before_report_fields, before_evidence_exemptions):
     instance, engine, directory, tmp = setup
+    before_report_sharing = before_creation_requests and before_report_fields and before_evidence_exemptions
     folder = tmp / 'old-snapshot'
     manifest = service.snapshot(folder)
     database = folder / 'database.sqlite3'
     with service.connect(database) as conn:
         conn.execute('PRAGMA foreign_keys=OFF')
+        if before_report_sharing:
+            conn.execute('ALTER TABLE users DROP COLUMN allowed_report_ids')
+        if before_evidence_exemptions:
+            for column in ('exemption_reason', 'exemption_by', 'exemption_at', 'exemption_history'):
+                conn.execute(f'ALTER TABLE images DROP COLUMN {column}')
         if before_creation_requests:
             conn.execute('DROP TABLE visit_creation_requests')
             manifest['counts'].pop('visit_creation_requests')
@@ -135,8 +142,9 @@ def test_backup_before_viewing_sides_imports_without_assigning_old_readings(setu
         conn.execute('ALTER TABLE old_view_positions RENAME TO positions')
     manifest['schema_version'] = service.schema_signature(before_view_side=True, before_creation_requests=before_creation_requests,
         before_report_snapshot=before_report_fields, before_archive_relative_path=before_report_fields,
-        before_profile_names=before_creation_requests and before_report_fields)
-    if before_creation_requests and before_report_fields:
+        before_profile_names=before_creation_requests and before_report_fields, before_evidence_exemptions=before_evidence_exemptions,
+        before_report_sharing=before_report_sharing)
+    if before_creation_requests and before_report_fields and before_evidence_exemptions:
         # Actual deployed release signature, not merely a fixture-derived expectation.
         assert manifest['schema_version'] == '23922df3695b4c5c747d75db57e2fad84416d916f1a91a1c0dbd3aa375f79e72'
     for item in manifest['members']:
@@ -151,6 +159,10 @@ def test_backup_before_viewing_sides_imports_without_assigning_old_readings(setu
     assert migrated['schema_version'] == service.schema_signature()
     assert migrated['source_schema_version'] == manifest['schema_version']
     with service.connect(validated / 'database.sqlite3') as conn:
+        if before_report_sharing:
+            assert conn.execute('SELECT allowed_report_ids FROM users').fetchone()[0] is None
+        if before_evidence_exemptions:
+            assert conn.execute('SELECT exemption_reason, exemption_by, exemption_at, exemption_history FROM images').fetchone()[:] == (None, None, None, None)
         assert {r[0] for r in conn.execute('SELECT view_side FROM positions')} == {'Unspecified'}
         assert service.counts(conn) == migrated['counts']
         if before_report_fields:

@@ -84,6 +84,10 @@ def test_snapshot_and_issued_assessment_do_not_drift(data):
 def test_snapshot_access_boundary_and_legacy_are_explicit(data):
     db, record, _, _, _, _, _, _ = data
     client = User(username='customer', role='client')
+    with pytest.raises(HTTPException) as error:
+        reports.report_inspection_data(record.id, db, client)
+    assert error.value.status_code == 403
+    client.allowed_report_ids = [record.id]
     assert reports.report_inspection_data(record.id, db, client)['snapshot']
     for user in [User(username='crew', role='team_member'), User(username='other', role='team_leader', team_id=999)]:
         for endpoint in [reports.report_inspection_data, reports.report_inspection_data_pdf]:

@@ -20,6 +20,7 @@ from app.config import settings
 from app.security import decode_access_token
 
 CLIENT_ALLOWED_PATH_PREFIXES = (
+    "/api/settings/report-logo",
     "/api/auth/me",
     "/api/auth/change-password",
     "/api/reports/oetc-line-report",

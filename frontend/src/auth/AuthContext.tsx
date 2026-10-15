@@ -2,6 +2,7 @@ import { tr, useLanguage } from '../i18n';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { apiClient } from '../api/client';
 import type { LoginResponse } from '../api/types';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface AuthUser {
   id: number | null;
@@ -29,7 +30,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 function readStoredUser(): AuthUser | null {
   const raw = localStorage.getItem('iip_user');
-  if (!raw) return null;
+  if (!raw || !localStorage.getItem('iip_token')) return null;
   try {
     return JSON.parse(raw) as AuthUser;
   } catch {
@@ -39,12 +40,12 @@ function readStoredUser(): AuthUser | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   useLanguage();
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(readStoredUser());
 
   useEffect(() => {
     const token = localStorage.getItem('iip_token');
     if (!token) return;
-    if (user?.id && user.team_id) return;
     void apiClient
       .get<{
         id: number;
@@ -59,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         menu_permissions: Record<string, string>;
       }>('/api/auth/me')
       .then(({ data }) => {
+        if (localStorage.getItem('iip_token') !== token) return;
         const u: AuthUser = {
           id: data.id,
           username: data.username,
@@ -75,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(u);
       })
       .catch(() => undefined);
-    // Existing sessions stored before user_id existed on login.
+    // Refresh permissions and legacy session identities when the app opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -89,17 +91,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // got that role's 403 back. The `storage` event fires in every OTHER tab when localStorage
     // changes, so re-reading here keeps this tab's identity in sync instead of silently stale.
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'iip_token' || e.key === 'iip_user') setUser(readStoredUser());
+      if (e.key === null || e.key === 'iip_token' || e.key === 'iip_user') {
+        queryClient.clear();
+        setUser(readStoredUser());
+      }
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  }, [queryClient]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       isAuthenticated: !!user,
       login: (data: LoginResponse) => {
+        queryClient.clear();
         localStorage.setItem('iip_token', data.access_token);
         const u = {
           id: data.user_id,
@@ -117,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(u);
       },
       logout: () => {
+        queryClient.clear();
         localStorage.removeItem('iip_token');
         localStorage.removeItem('iip_user');
         // So the next sign-in in this same tab (a shared device, a different admin) sees the
@@ -125,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
       },
     }),
-    [user],
+    [user, queryClient],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

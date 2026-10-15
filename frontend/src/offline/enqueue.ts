@@ -1,6 +1,7 @@
-import { deleteOutbox, getOutbox, listOutbox, newOutboxId, putOutbox } from './db';
+import { getOutbox, listOutbox, newOutboxId, putOutbox } from './db';
 import { isBrowserOnline, isRetryableError } from './network';
 import { QUEUED, type OutboxFile, type OutboxItem, type QueuedResult } from './types';
+import { currentAccountKey, requireSameSession } from '../auth/session';
 
 export function asOutboxFile(file: File | Blob, name?: string): OutboxFile {
   const named = file as File;
@@ -29,7 +30,10 @@ function samePath(a: OutboxItem, b: NewItem, key: string): boolean {
 
 /** Merge or replace a pending item so the same photo/field isn't queued twice. */
 export async function enqueue(draft: NewItem): Promise<OutboxItem> {
+  const ownerKey = draft.ownerKey ?? currentAccountKey();
+  if (!ownerKey) throw new Error('Sign in before saving offline work.');
   const existing = await listOutbox();
+  if (ownerKey !== currentAccountKey()) throw new Error('Sign-in changed. Save this work again with the original account.');
 
   if (draft.kind === 'ping' && draft.json) {
     const last = [...existing].reverse().find((i) => i.kind === 'ping' && i.json);
@@ -80,12 +84,15 @@ export async function enqueue(draft: NewItem): Promise<OutboxItem> {
   if (draft.kind === 'image-upload' || draft.kind === 'annotation') {
     const prev = existing.find((i) => samePath(i, draft, 'imageId'));
     if (prev) {
-      await deleteOutbox(prev.id);
+      const replacement: OutboxItem = { ...draft, ownerKey, id: prev.id, createdAt: Date.now(), attempts: 0 };
+      await putOutbox(replacement);
+      return replacement;
     }
   }
 
   const item: OutboxItem = {
     ...draft,
+    ownerKey,
     id: newOutboxId(),
     createdAt: Date.now(),
     attempts: 0,
@@ -95,15 +102,19 @@ export async function enqueue(draft: NewItem): Promise<OutboxItem> {
 }
 
 export async function sendOrQueue<T>(send: () => Promise<T>, draft: NewItem): Promise<T | QueuedResult> {
+  const token = localStorage.getItem('iip_token');
+  const ownedDraft = { ...draft, ownerKey: currentAccountKey() ?? undefined };
+  requireSameSession(token);
   if (!isBrowserOnline()) {
-    await enqueue(draft);
+    await enqueue(ownedDraft);
     return QUEUED;
   }
   try {
     return await send();
   } catch (err) {
     if (isRetryableError(err)) {
-      await enqueue(draft);
+      requireSameSession(token);
+      await enqueue(ownedDraft);
       return QUEUED;
     }
     throw err;

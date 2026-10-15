@@ -19,6 +19,7 @@ import { useAuth } from '../auth/AuthContext';
 import { mediaUrl } from '../api/client';
 import { ImageLightbox } from '../components/ImageLightbox';
 import { InspectionEvidenceArchive } from '../components/InspectionEvidenceArchive';
+import { TowerReconciliation } from '../components/TowerReconciliation';
 import type { TeamArchiveImage } from '../api/types';
 
 const months = [
@@ -89,6 +90,7 @@ export function ArchivePage() {
           </Paper>)}
         </Box>
       </DashboardSection>
+      <TowerReconciliation />
       <InspectionEvidenceArchive />
       <DashboardSection icon={<GroupsRounded />} title={tr('General team uploads')} description={tr('Site conditions, equipment and handover photos, organized by upload year, month, day and team.')} eyebrow={tr('THE WIDER FIELD PICTURE')} tone="amber" defaultExpanded={false}>
           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>

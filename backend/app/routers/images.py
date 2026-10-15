@@ -5,6 +5,7 @@ import datetime as dt
 import io
 import hashlib
 import uuid
+from pydantic import BaseModel, Field
 from pathlib import Path
 
 import cv2
@@ -33,6 +34,44 @@ from app.services.report_images import selected_images
 from app.services.smart_enhance import smart_enhance
 
 router = APIRouter(prefix="/api/images", tags=["images"])
+
+
+class EvidenceRequirement(BaseModel):
+    required: bool
+    reason: str = Field(default='', max_length=1000)
+
+
+@router.post('/{image_id}/requirement', response_model=ImageOut)
+def set_evidence_requirement(image_id: int, payload: EvidenceRequirement,
+                             db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if user.role not in ('admin', 'reviewer', 'team_leader'):
+        raise HTTPException(403, 'Only an administrator, reviewer or team leader can change evidence requirements')
+    img = _load_image(db, image_id, user)
+    if img.sequence != 1:
+        raise HTTPException(400, 'Only a baseline evidence slot has a requirement')
+    reason = payload.reason.strip()
+    if not payload.required and not reason:
+        raise HTTPException(422, 'Explain why this evidence is not required')
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    history = list(img.exemption_history or [])
+    if not payload.required and img.exemption_reason == reason and img.evidence_status == 'NOT REQUIRED':
+        return img
+    if payload.required:
+        previous = next((e.get('previous_status') for e in reversed(history) if e.get('action') == 'not_required'), None)
+        img.evidence_status = 'RECAPTURE REQUIRED' if previous == 'RECAPTURE REQUIRED' else ('COMPLETE' if img.file_path else 'PENDING CAPTURE')
+        img.exemption_reason = img.exemption_by = img.exemption_at = None
+    else:
+        prior_status = img.evidence_status
+        if img.exemption_reason and prior_status == 'NOT REQUIRED':
+            prior_status = next((e.get('previous_status') for e in reversed(history) if e.get('action') == 'not_required'), prior_status)
+        history.append(dict(action='not_required', reason=reason, by=user.username, at=now.isoformat(), previous_status=prior_status))
+        img.evidence_status = 'NOT REQUIRED'
+        img.exemption_reason, img.exemption_by, img.exemption_at = reason, user.username, now
+    if payload.required:
+        history.append(dict(action='required', by=user.username, at=now.isoformat()))
+    img.exemption_history = history
+    db.commit(); db.refresh(img)
+    return img
 
 ACCEPTED_CONTENT_TYPES = ACCEPTED_IMAGE_CONTENT_TYPES
 
@@ -63,6 +102,9 @@ def update_image(
     image_id: int, payload: ImageUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
     img = _load_image(db, image_id, user)
+    if payload.evidence_status is not None and payload.evidence_status != 'NOT REQUIRED' and img.exemption_reason:
+        img.exemption_history = list(img.exemption_history or []) + [dict(action='status_changed', by=user.username, at=dt.datetime.now(dt.timezone.utc).isoformat(), status=payload.evidence_status)]
+        img.exemption_reason = img.exemption_by = img.exemption_at = None
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(img, k, v)
     db.commit()

@@ -125,6 +125,7 @@ import { HandoverPackCard } from '../components/HandoverPackCard';
 import { ClaimTowerDialog } from '../components/ClaimTowerDialog';
 import { TeamTowerWork } from '../components/TeamTowerWork';
 import { TeamInspectionGuide } from '../components/TeamInspectionGuide';
+import { TowerReconciliation } from '../components/TowerReconciliation';
 import { DashboardSection } from '../components/DashboardSection';
 import EngineeringRounded from '@mui/icons-material/EngineeringRounded';
 import { TeamPlanControls, TeamPlanNotice, planBlockMessages } from '../components/TeamPlanControls';
@@ -930,7 +931,7 @@ export function TeamDetailPage() {
         <Typography variant="h4" sx={{ fontWeight: 800 }}>
           {team.name}
         </Typography>
-        <Chip label={tr(team.status === 'active' ? 'Active' : team.status === 'paused' ? 'Paused' : team.status === 'completed' ? 'Completed' : team.status)} color={STATUS_COLORS[team.status] || 'default'} />
+        <Chip label={tr(team.status === 'active' ? 'Active' : team.status === 'paused' ? 'Paused' : team.status === 'completed' ? 'Completed (manual status)' : team.status)} color={STATUS_COLORS[team.status] || 'default'} />
         {!team.is_active && <Chip label={tr("Archived")} variant="outlined" />}
         <Box sx={{ flex: 1 }} />
         {canManage && (
@@ -949,6 +950,7 @@ export function TeamDetailPage() {
         notice={guideNotice?.message || null} onDismissNotice={() => setGuideNotice(null)}
         onContinue={() => { if (guideNotice) { proceedGuideTarget(guideNotice.target); setGuideNotice(null); } }} />
       <TeamInspectionGuide teams={[team]} currentTeamId={id} />
+      <TeamTabPanel value="history" activeTab={activeTab}><TowerReconciliation teamId={id} /></TeamTabPanel>
       <TeamTabPanel value="work" activeTab={activeTab}>
         <Stack spacing={2}>
           <TeamDailyVisits visits={missionsError ? undefined : missions} date={inspectionDay} onDate={selectPlanDay} canAdd={canStartInspection} onView={() => { setVisitsExpanded(true); setHistoryDay(inspectionDay); changeTab('history'); }} onAdd={() => {

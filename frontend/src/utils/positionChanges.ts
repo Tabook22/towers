@@ -1,7 +1,8 @@
 import type { ImageRow, Position } from '../api/types';
 
 /** Mirror the server's empty-slot defaults without changing saved photos or recapture decisions. */
-export function evidenceStatusForPosition(position: Pick<Position, 'installed' | 'screening_result'>, type: string, image?: Pick<ImageRow, 'file_path' | 'evidence_status'>, recalculate = false): ImageRow['evidence_status'] {
+export function evidenceStatusForPosition(position: Pick<Position, 'installed' | 'screening_result'>, type: string, image?: Pick<ImageRow, 'file_path' | 'evidence_status' | 'exemption_reason'>, recalculate = false): ImageRow['evidence_status'] {
+  if (image?.evidence_status === 'NOT REQUIRED' && image.exemption_reason) return 'NOT REQUIRED';
   if (image?.file_path || image?.evidence_status === 'RECAPTURE REQUIRED') return image.evidence_status;
   if (!position.installed || position.screening_result === 'Not installed' || (position.screening_result === 'Normal' && ['TH Close', 'RGB Close'].includes(type))) return 'NOT REQUIRED';
   if (image?.evidence_status === 'NOT REQUIRED' && !recalculate) return 'NOT REQUIRED';

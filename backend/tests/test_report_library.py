@@ -208,6 +208,8 @@ def test_complete_download_is_archived_and_visible_to_customer(library, monkeypa
     assert len(saved.inspection_snapshot['visits']) == 2
     assert saved.inspection_snapshot['report_creator']['id'] == admin.id
     customer = User(username='customer', hashed_password='x', role='client')
+    assert reports.oetc_line_report_history(db=db, user=customer) == []
+    customer.allowed_report_ids = [saved.id]
     assert saved.id in [r.id for r in reports.oetc_line_report_history(db=db, user=customer)]
     assert reports.download_saved_oetc_report(saved.id, db=db, user=customer).path
     leader = User(username='crew', hashed_password='x', role='team_leader', team_id=team.id)

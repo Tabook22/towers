@@ -200,6 +200,8 @@ class TowerUpdate(BaseModel):
 
 
 class TowerOut(TowerBase):
+    map_visit_recorded: bool = False
+    map_evidence_missing: bool = False
     inspection_layout: list[dict] | None = None
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -315,6 +317,10 @@ class ImageRetype(BaseModel):
 
 
 class ImageOut(BaseModel):
+    exemption_reason: str | None = None
+    exemption_by: str | None = None
+    exemption_at: dt.datetime | None = None
+    exemption_history: list[dict] | None = None
     model_config = ConfigDict(from_attributes=True)
     id: int
     position_id: int

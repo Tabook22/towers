@@ -8,8 +8,6 @@ import {
   MenuItem,
   Paper,
   Stack,
-  Tab,
-  Tabs,
   Snackbar,
   Table,
   TableBody,
@@ -35,6 +33,7 @@ import DesignServicesRounded from '@mui/icons-material/DesignServicesRounded';
 import TransmissionTowerIcon from '../components/TransmissionTowerIcon';
 import { DashboardSection } from '../components/DashboardSection';
 import { ReportHistoryTable } from '../components/ReportHistoryTable';
+import { ReportLogo } from '../components/ReportLogo';
 import {
   useAreas,
   useDashboardSummary,
@@ -197,22 +196,22 @@ export function ReportsPage() {
     <Stack spacing={2.5} sx={{ '@media (prefers-reduced-motion: reduce)': { '& *, & *::before, & *::after': { transition: 'none !important', animation: 'none !important' } } }}>
       <Box sx={{ p: { xs: 2.5, md: 3 }, borderRadius: '24px', boxShadow: '0 14px 36px rgba(12,65,82,.14)', color: '#fff', position: 'relative', overflow: 'hidden', background: 'radial-gradient(ellipse at 95% 0%, #258e97 0%, transparent 60%), linear-gradient(115deg, #102c3b, #145466)', '&::after': { content: '""', position: 'absolute', width: 280, height: 280, border: '1px solid #ffffff12', borderRadius: '50%', right: -90, bottom: -190, pointerEvents: 'none' } }}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, position: 'relative', zIndex: 1 }}>
-          <Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}><FolderCopyRoundedIcon sx={{ fontSize: 19, color: '#76d5c6' }} /><Typography variant="overline" sx={{ color: '#9fe4da', letterSpacing: 2 }}>{tr("Inspection intelligence")}</Typography></Stack>
             <Typography variant="h3" component="h1" sx={{ fontWeight: 750, letterSpacing: '-0.04em', fontSize: { xs: 27, md: 32 }, mb: 1 }}>{tr("Every inspection. Clearly reported.")}</Typography>
             <Typography sx={{ color: '#bed3dc', maxWidth: 650 }}>{tr("Your reporting workspace. Create customer-ready documents and keep every saved report within reach.")}</Typography>
           </Box>
-          {canManageProjectPlans && <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setTab('create')} sx={{ bgcolor: '#b9f2df', color: '#103b35', px: 2.5, py: 1.3, flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' }, '&:hover': { bgcolor: '#d6f9ed' } }}>{tr("Create report")}</Button>}
+          <ReportLogo />
+          <Stack spacing={1} sx={{ flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' } }}>
+            {canManageProjectPlans && <Button id="report-create-button" variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setTab('create')} sx={{ bgcolor: '#b9f2df', color: '#103b35', px: 2.5, py: 1.3, '&:hover': { bgcolor: '#d6f9ed' } }}>{tr("Create report")}</Button>}
+            <Button id="report-tools-button" startIcon={<DesignServicesRounded />} onClick={() => setTab('tools')} sx={{ color: '#e0f0f4', '&:hover': { bgcolor: '#ffffff12' } }}>{tr("Exports & templates")}</Button>
+            {tab !== 'library' && <Button id="report-library-button" onClick={() => setTab('library')} sx={{ color: '#e0f0f4', '&:hover': { bgcolor: '#ffffff12' } }}>{tr('Back to reports')}</Button>}
+          </Stack>
         </Stack>
       </Box>
-      <Tabs value={tab} onChange={(_, value) => setTab(value)} aria-label={tr("Reporting workspace")} variant="scrollable" sx={{ '& .MuiTabs-indicator': { display: 'none' }, '& .MuiTabs-list': { gap: 1.5 }, '& .MuiTab-root': { flex: 1, minWidth: { xs: 170, sm: 200 }, maxWidth: 'none', alignItems: 'flex-start', textAlign: 'start', border: '1px solid', borderColor: 'divider', borderRadius: '18px', bgcolor: 'background.paper', p: 2, transition: 'background-color .2s, box-shadow .2s, border-color .2s', boxShadow: '0 3px 12px rgba(16,62,82,.03)', '&:hover': { borderColor: 'primary.main', boxShadow: '0 6px 20px rgba(16,62,82,.09)' }, minHeight: 88, textTransform: 'none', '&.Mui-selected': { borderColor: 'primary.main', bgcolor: 'action.hover', boxShadow: 'inset 0 3px 0 currentColor' }, '&.Mui-focusVisible': { outline: '3px solid', outlineColor: 'primary.main', outlineOffset: -4 } } }}>
-        <Tab value="library" sx={{ '& .MuiSvgIcon-root': { color: '#207f83', bgcolor: '#207f8314', borderRadius: 2.5, p: .8, width: 38, height: 38 } }} icon={<FolderCopyRoundedIcon />} label={<Box><Typography component="span" sx={{ display: 'block', fontWeight: 800, mb: .5 }}>{tr("Report library")}</Typography><Typography component="span" variant="caption" color="text.secondary">{tr("Find saved reports, review evidence and download documents.")}</Typography></Box>} id="report-tab-library" aria-controls="report-panel-library" />
-        {canManageProjectPlans && <Tab value="create" sx={{ '& .MuiSvgIcon-root': { color: '#417bc1', bgcolor: '#417bc114', borderRadius: 2.5, p: .8, width: 38, height: 38 } }} icon={<DescriptionRoundedIcon />} label={<Box><Typography component="span" sx={{ display: 'block', fontWeight: 800, mb: .5 }}>{tr("Create report")}</Typography><Typography component="span" variant="caption" color="text.secondary">{tr("Choose the scope, add findings and prepare the customer report.")}</Typography></Box>} id="report-tab-create" aria-controls="report-panel-create" />}
-        <Tab value="tools" sx={{ '& .MuiSvgIcon-root': { color: '#b78329', bgcolor: '#b7832914', borderRadius: 2.5, p: .8, width: 38, height: 38 } }} icon={<DesignServicesRounded />} label={<Box><Typography component="span" sx={{ display: 'block', fontWeight: 800, mb: .5 }}>{tr("Exports & templates")}</Typography><Typography component="span" variant="caption" color="text.secondary">{tr("Explore team activity, tower exports and document templates.")}</Typography></Box>} id="report-tab-tools" aria-controls="report-panel-tools" />
-      </Tabs>
-      <Box role="tabpanel" id="report-panel-library" aria-labelledby="report-tab-library" hidden={tab !== 'library'}><ReportHistoryTable key={libraryVersion} showIntro={false} /></Box>
-      {canManageProjectPlans && <Box role="tabpanel" id="report-panel-create" aria-labelledby="report-tab-create" hidden={tab !== 'create'}><Box><OfficialReportForm showHistory={false} onCreated={() => { setCreated(true); setLibraryVersion((n) => n + 1); setTab('library'); }} /></Box></Box>}
-      <Box role="tabpanel" id="report-panel-tools" aria-labelledby="report-tab-tools" hidden={tab !== 'tools'}>
+      <Box id="report-panel-library" hidden={tab !== 'library'}><ReportHistoryTable key={libraryVersion} showIntro={false} /></Box>
+      {canManageProjectPlans && <Box role="region" id="report-panel-create" aria-labelledby="report-create-button" hidden={tab !== 'create'}><Box><OfficialReportForm showHistory={false} onCreated={() => { setCreated(true); setLibraryVersion((n) => n + 1); setTab('library'); }} /></Box></Box>}
+      <Box role="region" id="report-panel-tools" aria-labelledby="report-tools-button" hidden={tab !== 'tools'}>
       <Stack spacing={2}>
 
       <ReportSection

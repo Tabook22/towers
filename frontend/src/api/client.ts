@@ -1,4 +1,11 @@
 import axios from 'axios';
+import { requireSameSession } from '../auth/session';
+
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    iipSessionToken?: string;
+  }
+}
 
 function resolveApiBase(): string {
   const env = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
@@ -33,6 +40,7 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
+  if (config.iipSessionToken !== undefined) requireSameSession(config.iipSessionToken);
   const token = localStorage.getItem('iip_token');
   if (token) {
     config.headers = config.headers ?? {};
@@ -44,7 +52,10 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error?.response?.status === 401) {
+    // An old request must not sign out a new account that logged in while it was pending.
+    const sentAuthorization = error?.config?.headers?.Authorization;
+    const currentToken = localStorage.getItem('iip_token');
+    if (error?.response?.status === 401 && currentToken && sentAuthorization === `Bearer ${currentToken}`) {
       localStorage.removeItem('iip_token');
       localStorage.removeItem('iip_user');
       if (!window.location.pathname.startsWith('/login')) {

@@ -143,6 +143,11 @@ def test_oetc_area_report_gives_each_team_block_its_own_distinct_auto_number():
         oetc_area_report(payload=payload, db=db, user=admin)
 
         records = db.query(LineInspectionReport).all()
+        assert len(records) == 3
+        combined = [record for record in records if record.report_type == 'line']
+        assert len(combined) == 1
+        assert {tower['id'] for tower in combined[0].scope_towers} == {tower1.id, tower2.id}
+        records = [record for record in records if record.report_type == 'area']
         assert len(records) == 2
         numbers = {r.report_number for r in records}
         assert len(numbers) == 2

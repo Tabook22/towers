@@ -1,9 +1,13 @@
 import { useAuth } from '../auth/AuthContext';
+import { useReportHistoryState, useReportNavigation } from '../hooks/ReportNavigation';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Dialog, DialogContent, DialogTitle, LinearProgress, MenuItem, TextField, Stack, Typography } from '@mui/material';
 import { apiClient } from '../api/client';
 import { tr, useLanguage } from '../i18n';
 import { reportError } from '../utils/reportLibrary';
+import { isAxiosError } from 'axios';
+import type { DigitalFinding } from '../utils/digitalReport';
+import { SavedReportFindings } from './SavedReportFindings';
 
 type DrawingTool = 'pan' | 'pen' | 'highlight' | 'circle' | 'line';
 interface Mark { tool: DrawingTool; color: string; width: number; points: [number, number][] }
@@ -17,18 +21,25 @@ interface Props {
   section?: 'findings' | 'overview' | 'measurements';
   onOpenFinding?: (key: string) => void;
   onOpenTower?: (key: string) => void;
+  fallbackRows?: DigitalFinding[];
+  preferSnapshot?: boolean;
 }
 
 /** Render copied original Word tables with their original styles and embedded photographs. */
-export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelect, onOpenFinding, onOpenTower, section: documentSection = 'findings' }: Props) {
+export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelect, onOpenFinding, onOpenTower, fallbackRows = [], preferSnapshot = false, section: documentSection = 'findings' }: Props) {
   useLanguage();
   const { user } = useAuth();
   const canAnnotate = user?.role !== 'client';
   const host = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [savedView, setSavedView] = useState(false);
   const [zoom, setZoom] = useState<number | null>(null);
-  const [gallery, setGallery] = useState<{ title: string; images: { src: string; caption: string }[]; index: number } | null>(null);
+  const navigation = useReportNavigation();
+  const galleryKey = `replica.${documentSection}.gallery`;
+  const [gallerySelection, setGallerySelection] = useReportHistoryState<{ key: string; index: number } | null>(galleryKey, null, true);
+  const [galleryItems, setGalleryItems] = useState<Record<string, { title: string; images: { src: string; caption: string }[] }>>({});
+  const gallery = gallerySelection && galleryItems[gallerySelection.key] ? { ...galleryItems[gallerySelection.key], index: gallerySelection.index } : null;
   const [windowWidth, setWindowWidth] = useState(90);
   const [windowHeight, setWindowHeight] = useState(90);
   const [maximized, setMaximized] = useState(false);
@@ -41,7 +52,7 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
   const [draft, setDraft] = useState<Mark | null>(null);
   const draftRef = useRef<Mark | null>(null);
   const clearDrawing = () => { draftRef.current = null; setDraft(null); };
-  const closeGallery = () => { setGallery(null); setMarks({}); clearDrawing(); setTool('pan'); };
+  const closeGallery = () => { navigation.close(galleryKey); setMarks({}); clearDrawing(); setTool('pan'); };
   const imageViewport = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const zoomAnchor = useRef<{ x: number; y: number; fractionX: number; fractionY: number } | null>(null);
@@ -51,7 +62,7 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
   const [imageFailed, setImageFailed] = useState(false);
   const moveImage = (offset: number) => {
     clearDrawing();
-    setGallery(old => old ? { ...old, index: Math.max(0, Math.min(old.images.length - 1, old.index + offset)) } : null);
+    if (gallery && gallerySelection) setGallerySelection({ ...gallerySelection, index: Math.max(0, Math.min(gallery.images.length - 1, gallery.index + offset)) });
     setImageZoom(null); setImageWidth(0); setImageFailed(false);
   };
   const [fit, setFit] = useState(1);
@@ -74,8 +85,9 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
     let cancelled = false;
     host.current?.replaceChildren();
     const timer = window.setTimeout(async () => {
-      setLoading(true); setError(''); setGallery(null); setMarks({}); draftRef.current = null; setDraft(null); setTool('pan');
+      setLoading(true); setError(''); setSavedView(false); setMarks({}); draftRef.current = null; setDraft(null); setTool('pan');
       try {
+        if (preferSnapshot && documentSection !== 'overview') { setSavedView(true); return; }
         const keys: string[] = (JSON.parse(signature) as FindingGroup[]).flatMap(group => group.keys);
         if (!keys.length && documentSection !== 'overview') { setLoading(false); return; }
         const response = await apiClient.post(`/api/reports/oetc-line-report/${reportId}/digital-document`, { finding_keys: keys, section: documentSection }, { responseType: 'blob', signal: controller.signal });
@@ -133,11 +145,12 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
               const towerCells = detailRows[2]?.querySelectorAll('td');
               const phaseCells = detailRows[3]?.querySelectorAll('td');
               const title = [detailRows[0]?.textContent?.trim(), towerCells?.[1]?.textContent?.trim(), phaseCells?.[1]?.textContent?.trim(), towerCells?.[3]?.textContent?.trim()].filter(Boolean).join(' · ');
+              setGalleryItems(old => ({ ...old, [key]: { title, images } }));
               photos.forEach((photo, index) => {
                 photo.style.cursor = 'zoom-in';
                 photo.tabIndex = 0; photo.setAttribute('role', 'button');
                 photo.setAttribute('aria-label', `${tr('Open report photograph')}: ${images[index].caption}`);
-                const open = () => { setMarks({}); draftRef.current = null; setDraft(null); setTool('pan'); setGallery({ title, images, index }); setImageZoom(null); setImageWidth(0); setImageFailed(false); };
+                const open = () => { setMarks({}); draftRef.current = null; setDraft(null); setTool('pan'); setGallerySelection({ key, index }); setImageZoom(null); setImageWidth(0); setImageFailed(false); };
                 photo.addEventListener('click', open);
                 photo.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
               });
@@ -185,11 +198,15 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
         }
         host.current.replaceChildren(...Array.from(rendered.childNodes));
       } catch (err) {
-        if (!cancelled) setError(await reportError(err, tr('Could not load the original Word layout. Please try again.')));
+        if (!cancelled) {
+          const status = isAxiosError(err) ? err.response?.status : undefined;
+          if (documentSection !== 'overview' && status !== 401 && status !== 403) setSavedView(true);
+          setError(await reportError(err, tr('Could not load the original Word layout. Please try again.')));
+        }
       } finally { if (!cancelled) setLoading(false); }
     }, 250);
     return () => { cancelled = true; controller.abort(); window.clearTimeout(timer); };
-  }, [reportId, signature, documentSection]);
+  }, [reportId, signature, documentSection, preferSnapshot]);
 
   useEffect(() => {
     host.current?.querySelectorAll<HTMLInputElement>('[data-selection-key]').forEach(input => {
@@ -339,14 +356,20 @@ export function WordReportReplica({ reportId, groups, jumpKey, selected, onSelec
     </Dialog>
     <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', p: 1.5, flexWrap: 'wrap', borderBottom: 1, borderColor: 'divider' }}>
       <Typography variant="overline" sx={{ color: 'text.secondary', mr: 'auto', px: 1 }}>{tr('Document reader')}</Typography>
+      {!savedView && <>
       <Button size="small" onClick={() => setZoom(null)}>{tr('Fit to width')}</Button>
       <Button size="small" aria-label={tr('Zoom out')} sx={{ minWidth: 36 }} onClick={() => setZoom(Math.max(.25, (zoom ?? fit) - .1))}>−</Button>
       <Typography variant="caption">{Math.round((zoom ?? fit) * 100)}%</Typography>
       <Button size="small" aria-label={tr('Zoom in')} sx={{ minWidth: 36 }} onClick={() => setZoom(Math.min(2, (zoom ?? fit) + .1))}>+</Button>
       <Button size="small" onClick={() => setZoom(1)}>100%</Button>
+      </>}
     </Stack>
     {loading && <LinearProgress aria-label={tr('Loading original Word layout')} />}
-    {error && <Alert severity="error" sx={{ my: 2 }}>{error}</Alert>}
+    {error && !(savedView && fallbackRows.length) && <Alert severity="error" sx={{ my: 2 }}>{error}</Alert>}
+    {!loading && savedView && fallbackRows.length > 0 && <SavedReportFindings reportId={reportId} groups={groups} rows={fallbackRows} jumpKey={jumpKey} selected={selected} onSelect={onSelect} onOpenTower={onOpenTower} onOpenFinding={onOpenFinding} onPhoto={(key, title, images, index) => {
+      setGalleryItems(old => ({ ...old, [key]: { title, images } }));
+      setGallerySelection({ key, index }); setMarks({}); clearDrawing(); setTool('pan'); setImageZoom(null); setImageWidth(0); setImageFailed(false);
+    }} />}
     <Box ref={host} dir="ltr" sx={{ overflowX: 'auto', bgcolor: theme => theme.palette.mode === 'dark' ? '#101a22' : '#edf1f4', minHeight: loading ? 240 : undefined,
       '& .issued-word-wrapper': { background: 'transparent', padding: '12px', display: 'flex', justifyContent: 'center', minWidth: 'fit-content', zoom: zoom ?? fit },
       '& section.issued-word': { flexShrink: 0, boxShadow: '0 4px 24px rgba(0,0,0,.12)', color: '#000', background: '#fff' },

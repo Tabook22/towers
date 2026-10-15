@@ -25,6 +25,8 @@ export interface OutboxFile {
 }
 
 export interface OutboxItem {
+  ownerKey?: string;
+  revision?: string;
   id: string;
   kind: OutboxKind;
   createdAt: number;

@@ -112,7 +112,10 @@ function OfflineQueueDialog({
 
 export function OfflineBanner() {
   useLanguage();
-  const { online, pendingCount, syncing } = useOffline();
+  const { online, pendingCount, syncing, lastFlushError, flushNow, unownedCount } = useOffline();
+  if (unownedCount > 0) return <Alert severity="warning" sx={{ borderRadius: 0 }}>
+    {tr("Older saved work needs administrator recovery before it can be sent. Keep this browser's data.")}
+  </Alert>;
   if (online && pendingCount === 0) return null;
   if (!online) {
     return (
@@ -120,6 +123,11 @@ export function OfflineBanner() {
     );
   }
   if (syncing || pendingCount > 0) {
+    if (lastFlushError && !syncing) {
+      return <Alert severity="warning" sx={{ borderRadius: 0 }} action={<Button color="inherit" size="small" onClick={() => void flushNow()}>{tr("Send now")}</Button>}>
+        {tr("Saved work could not be sent. Open the saved-work queue for details.")}
+      </Alert>;
+    }
     return (
       <Alert severity="info" sx={{ borderRadius: 0 }}>
         {syncing ? tr("Sending {0} saved item{1} from this phone…", [pendingCount, pendingCount === 1 ? '' : tr("s")]) : tr("{0} saved item{1} waiting to send.", [pendingCount, pendingCount === 1 ? '' : tr("s")])}

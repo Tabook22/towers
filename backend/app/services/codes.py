@@ -99,6 +99,8 @@ def _apply_default_evidence_status(position: Position, img) -> None:
     file (COMPLETE) or a reviewer's manual RECAPTURE REQUIRED flag is never overwritten."""
     if img.file_path:
         return
+    if img.evidence_status == 'NOT REQUIRED' and img.exemption_reason:
+        return
     if img.evidence_status == "RECAPTURE REQUIRED":
         return
 

@@ -74,9 +74,9 @@ export function towerNumbersById(towers: NumberableTower[]): Map<number, number>
 const CHECK_BADGE = `<div class="tower-pin-check" title="Inspection completed"><svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>`;
 
 /** Wraps a pin's dot/number markup so a completed check badge can sit at its top-right corner. */
-function withCheckBadge(pinHtml: string, completed?: boolean): string {
+function withCheckBadge(pinHtml: string, completed?: boolean, missingEvidence?: boolean): string {
   if (!completed) return pinHtml;
-  return `<div class="tower-pin-num-wrap">${pinHtml}${CHECK_BADGE}</div>`;
+  return `<div class="tower-pin-num-wrap">${pinHtml}${CHECK_BADGE.replace('Inspection completed', 'Visit recorded / زيارة مسجلة')}${missingEvidence ? '<div class="tower-pin-question" title="Evidence incomplete / الأدلة غير مكتملة">?</div>' : ''}</div>`;
 }
 
 /** Green = free, one color per team = assigned (see colorForTeam). A check badge marks a tower
@@ -87,6 +87,7 @@ export function assignmentPinIcon(opts: {
   teamName?: string | null;
   mapNumber?: number | null;
   completed?: boolean;
+  missingEvidence?: boolean;
 }): L.DivIcon {
   const free = !opts.teamName;
   const color = free ? FREE_TOWER_COLOR : colorForTeam(opts.teamId);
@@ -101,7 +102,7 @@ export function assignmentPinIcon(opts: {
   return L.divIcon({
     className: 'tower-pin',
     html: `<div class="tower-pin-hit tower-pin-hit--labeled">
-      ${withCheckBadge(pin, opts.completed)}
+      ${withCheckBadge(pin, opts.completed, opts.missingEvidence)}
       <div class="tower-map-label">
         <div class="tower-map-label-id">${escapeHtml(opts.towerId)}</div>
         ${teamLine}

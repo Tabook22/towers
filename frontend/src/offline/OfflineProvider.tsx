@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { deleteOutbox, listOutbox, subscribeOutbox } from './db';
+import { deleteOutbox, listOutbox, subscribeOutbox, unownedOutboxCount } from './db';
 import { flushOutbox, queryKeysTouched } from './flush';
 import { isBrowserOnline } from './network';
 import type { OutboxItem } from './types';
@@ -29,6 +29,7 @@ interface OfflineState {
   online: boolean;
   items: OutboxItem[];
   pendingCount: number;
+  unownedCount: number;
   syncing: boolean;
   lastFlushError: string | null;
   previewUrl: (itemId: string) => string | null;
@@ -44,6 +45,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const online = useSyncExternalStore(subscribeOnline, isBrowserOnline, () => true);
   const [items, setItems] = useState<OutboxItem[]>([]);
+  const [unownedCount, setUnownedCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [lastFlushError, setLastFlushError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -52,6 +54,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     const next = await listOutbox();
+    setUnownedCount(await unownedOutboxCount());
     const keep = new Set(next.map((i) => i.id));
     for (const [id, url] of previewMap.current) {
       if (!keep.has(id)) {
@@ -73,7 +76,14 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => subscribeOutbox(() => setTick((n) => n + 1)), []);
   useEffect(() => {
-    void refresh();
+    const previews = previewMap.current;
+    return () => {
+      previews.forEach(url => URL.revokeObjectURL(url));
+      previews.clear();
+    };
+  }, []);
+  useEffect(() => {
+    void refresh().catch(err => setLastFlushError(err instanceof Error ? err.message : tr("Could not send saved work")));
   }, [tick, refresh]);
 
   const flushNow = useCallback(async () => {
@@ -86,9 +96,9 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
     setLastFlushError(null);
     try {
       const result = await flushOutbox();
-      if (result.failed > 0 && result.sent === 0) {
+      if (result.failed > 0) {
         const leftover = await listOutbox();
-        setLastFlushError(leftover[0]?.lastError || tr("Could not send saved work"));
+        setLastFlushError(leftover.find(item => item.lastError)?.lastError || tr("Could not send saved work"));
       }
       const keys = queryKeysTouched(before);
       keys.forEach((key) => {
@@ -104,10 +114,10 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
   }, [qc, refresh, uiLanguage]);
 
   useEffect(() => {
-    if (!online) return;
+    if (!online || lastFlushError) return;
     const t = window.setTimeout(() => void flushNow(), 800);
     return () => window.clearTimeout(t);
-  }, [online, tick, flushNow]);
+  }, [online, tick, flushNow, lastFlushError]);
 
   useEffect(() => {
     const onVis = () => {
@@ -147,6 +157,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
       online,
       items,
       pendingCount: items.length,
+      unownedCount,
       syncing,
       lastFlushError,
       previewUrl,
@@ -154,7 +165,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
       flushNow,
       discard,
     }),
-    [online, items, syncing, lastFlushError, previewUrl, previewUrlForImage, flushNow, discard],
+    [online, items, unownedCount, syncing, lastFlushError, previewUrl, previewUrlForImage, flushNow, discard],
   );
 
   return <OfflineContext.Provider value={value}>{children}</OfflineContext.Provider>;

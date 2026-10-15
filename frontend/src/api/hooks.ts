@@ -1482,6 +1482,7 @@ export function useUpdateBrandingSettings() {
     },
     onSuccess: (data) => {
       qc.setQueryData(['branding'], data);
+      void qc.invalidateQueries({ queryKey: ['report-logo'] });
     },
   });
 }

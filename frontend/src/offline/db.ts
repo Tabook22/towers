@@ -1,4 +1,5 @@
 import type { OutboxItem } from './types';
+import { currentAccountKey } from '../auth/session';
 
 const DB_NAME = 'iip-offline-v1';
 const STORE = 'outbox';
@@ -38,7 +39,7 @@ function txDone(tx: IDBTransaction): Promise<void> {
   });
 }
 
-export async function listOutbox(): Promise<OutboxItem[]> {
+async function storedOutbox(): Promise<OutboxItem[]> {
   const db = await openDb();
   try {
     const items = await new Promise<OutboxItem[]>((resolve, reject) => {
@@ -54,13 +55,25 @@ export async function listOutbox(): Promise<OutboxItem[]> {
   }
 }
 
+export async function listOutbox(): Promise<OutboxItem[]> {
+  const owner = currentAccountKey();
+  if (!owner) return [];
+  const items = await storedOutbox();
+  return owner === currentAccountKey() ? items.filter(item => item.ownerKey === owner) : [];
+}
+
+/** Legacy records have no trustworthy owner. Preserve them for explicit recovery. */
+export async function unownedOutboxCount(): Promise<number> {
+  return (await storedOutbox()).filter(item => !item.ownerKey).length;
+}
+
 export async function getOutbox(id: string): Promise<OutboxItem | undefined> {
   const db = await openDb();
   try {
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly');
       const req = tx.objectStore(STORE).get(id);
-      req.onsuccess = () => resolve(req.result as OutboxItem | undefined);
+      req.onsuccess = () => resolve(req.result?.ownerKey === currentAccountKey() ? req.result : undefined);
       req.onerror = () => reject(req.error);
     });
   } finally {
@@ -69,10 +82,13 @@ export async function getOutbox(id: string): Promise<OutboxItem | undefined> {
 }
 
 export async function putOutbox(item: OutboxItem): Promise<void> {
+  if (!item.ownerKey || item.ownerKey !== currentAccountKey()) {
+    throw new Error('Sign-in changed. Save this work again with the original account.');
+  }
   const db = await openDb();
   try {
     const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(item);
+    tx.objectStore(STORE).put({ ...item, revision: newOutboxId() });
     await txDone(tx);
   } catch (err) {
     if (err instanceof DOMException && err.name === 'QuotaExceededError') {
@@ -85,12 +101,21 @@ export async function putOutbox(item: OutboxItem): Promise<void> {
   notify();
 }
 
-export async function deleteOutbox(id: string): Promise<void> {
+export async function deleteOutbox(id: string, expected?: OutboxItem): Promise<void> {
+  const owner = currentAccountKey();
+  if (!owner) return;
   const db = await openDb();
   try {
     const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).delete(id);
-    await txDone(tx);
+    const done = txDone(tx);
+    const store = tx.objectStore(STORE);
+    const request = store.get(id);
+    request.onsuccess = () => {
+      const stored = request.result as OutboxItem | undefined;
+      if (owner === currentAccountKey() && stored?.ownerKey === owner &&
+          (!expected || stored.revision === expected.revision)) store.delete(id);
+    };
+    await done;
   } finally {
     db.close();
   }

@@ -15,7 +15,7 @@ import { DEFAULT_MAP_LAYER, TILE_LAYERS, type MapLayer } from './MapPicker';
 import { assignmentPinIcon, colorForTeam, FREE_TOWER_COLOR, teamsPresent, towerNumbersById } from './towerMapPins';
 
 function isCompleted(row: DashboardTowerRow): boolean {
-  return row.latest_visit?.mission_status === 'completed' || row.tower.latest_visit_mission_status === 'completed';
+  return row.tower.map_visit_recorded === true;
 }
 
 function MapRefBridge({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
@@ -109,9 +109,10 @@ export function TowersOverviewMap({
         <Chip
           size="small"
           icon={<CheckRoundedIcon sx={{ color: '#fff !important', fontSize: 14 }} />}
-          label={tr("Inspection completed")}
+          label={tr('Visit recorded')}
           sx={{ bgcolor: '#2e7d32', color: '#fff' }}
         />
+        <Chip size="small" label={tr('? Evidence incomplete')} sx={{ bgcolor: '#fff2cc', color: '#9c6500' }} />
       </Stack>
       <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.12)' }}>
       {/* Plain div, not MUI Box — see MapPicker.tsx for why the resizable height can't live on
@@ -138,6 +139,7 @@ export function TowersOverviewMap({
                   teamName: row.tower.assigned_team_name,
                   mapNumber: mapNumbers.get(row.tower.id),
                   completed,
+                  missingEvidence: row.tower.map_evidence_missing,
                 })}
                 title={row.tower.tower_id}
                 alt={row.tower.tower_id}
@@ -183,7 +185,7 @@ export function TowersOverviewMap({
                   )}
                   {completed && (
                     <>
-                      <br />{tr("✓ Inspection completed")}</>
+                      <br />{tr('✓ Visit recorded')}{row.tower.map_evidence_missing && <><br />{tr('? Evidence incomplete')}</>}</>
                   )}
                 </LeafletTooltip>
               </Marker>

@@ -73,7 +73,7 @@ import {
 import { mediaUrl } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { getPermissionLevel, type DashboardTowerRow, type Tower, type TowerWithStats } from '../api/types';
-import { VisitStatusChip } from '../components/Badges';
+import { TowerInspectionStatus } from '../components/TowerInspectionStatus';
 import { MapPicker } from '../components/MapPicker';
 import { TowerActionsDialog } from '../components/TowerActionsDialog';
 import { TowersOverviewMap } from '../components/TowersOverviewMap';
@@ -593,7 +593,7 @@ export function TowersPage() {
                   )}
                 </TableCell>
                 <TableCell sx={{ minWidth: 180 }}>
-                  <VisitStatusChip status={t.latest_visit_status} />
+                  <TowerInspectionStatus status={t.latest_visit_status} towerId={t.id} towerName={t.tower_id} />
                   <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mt: 1, flexWrap: 'wrap' }}>
                     <Typography variant="caption" color="text.secondary">{tr('Visits: {0}', [t.visit_count])}</Typography>
                     {t.open_hotspots > 0 && <Chip size="small" icon={<LocalFireDepartmentRounded />} label={tr('Hotspots: {0}', [t.open_hotspots])} color="warning" variant="outlined" />}
@@ -661,7 +661,7 @@ export function TowersPage() {
       <DashboardSection icon={<MapRounded />} title={tr('Tower locations')} description={tr('Click a tower pin or table row to view its details, open inspections, or choose an assignment action.')} eyebrow={tr('EXPLORE THE NETWORK')} tone="blue">
           {(isTeamLeader || canEditCatalog) && (
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-              <Typography variant="caption" color="text.secondary">{tr("Each team has its own pin color (see the legend on the map below) and a ✓ marks a tower whose inspection is complete. The number in the circle is the Tower ID number (Ashoor-Saada-2 → 2).")}</Typography>
+              <Typography variant="caption" color="text.secondary">{tr('✓ means a visit with inspection activity is recorded. ? beside it means required image evidence is incomplete. A planned visit alone does not receive a tick.')}</Typography>
             </Stack>
           )}
           {assignmentMessage && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setAssignmentMessage('')}>{tr(assignmentMessage)}</Alert>}

@@ -120,6 +120,8 @@ export function TeamSiteMap({
     assigned_team_id: number | null;
     assigned_team_name: string | null;
     latest_visit_mission_status?: string | null;
+    map_visit_recorded?: boolean;
+    map_evidence_missing?: boolean;
   }[];
   onFreeTowerClick?: (towerId: number) => void;
   onCatalogTowerClick?: (tower: {
@@ -252,7 +254,7 @@ export function TeamSiteMap({
             <Chip
               size="small"
               icon={<CheckRoundedIcon sx={{ color: '#fff !important', fontSize: 14 }} />}
-              label={tr("Inspection completed")}
+              label={tr('Visit recorded')}
               sx={{ bgcolor: '#2e7d32', color: '#fff' }}
             />
           </>
@@ -285,7 +287,7 @@ export function TeamSiteMap({
             {showCatalog
               ? catalogPts.map((t) => {
                   const free = t.assigned_team_id == null;
-                  const completed = t.latest_visit_mission_status === 'completed';
+                  const completed = t.map_visit_recorded === true;
                   return (
                     <Marker
                       key={`cat-${t.id}`}
@@ -296,6 +298,7 @@ export function TeamSiteMap({
                         teamName: t.assigned_team_name,
                         mapNumber: mapNumbers.get(t.id),
                         completed,
+                        missingEvidence: t.map_evidence_missing,
                       })}
                       interactive
                       bubblingMouseEvents={false}
@@ -323,7 +326,7 @@ export function TeamSiteMap({
                         {free ? tr("Free — click to assign to this team") : tr("Assigned to {0} — click to unassign", [t.assigned_team_name || tr("a team")])}
                         {completed && (
                           <>
-                            <br />{tr("✓ Inspection completed")}</>
+                            <br />{tr('✓ Visit recorded')}{t.map_evidence_missing && <><br />{tr('? Evidence incomplete')}</>}</>
                         )}
                       </LeafletTooltip>
                     </Marker>
@@ -502,7 +505,7 @@ export function TeamSiteMap({
             {showCatalog
               ? catalogPts.map((t) => {
                   const free = t.assigned_team_id == null;
-                  const completed = t.latest_visit_mission_status === 'completed';
+                  const completed = t.map_visit_recorded === true;
                   return (
                     <Marker
                       key={`p-cat-${t.id}`}
@@ -513,6 +516,7 @@ export function TeamSiteMap({
                         teamName: t.assigned_team_name,
                         mapNumber: mapNumbers.get(t.id),
                         completed,
+                        missingEvidence: t.map_evidence_missing,
                       })}
                       interactive
                       bubblingMouseEvents={false}
@@ -540,7 +544,7 @@ export function TeamSiteMap({
                         {free ? tr("Free — click to assign to this team") : tr("Assigned to {0} — click to unassign", [t.assigned_team_name || tr("a team")])}
                         {completed && (
                           <>
-                            <br />{tr("✓ Inspection completed")}</>
+                            <br />{tr('✓ Visit recorded')}{t.map_evidence_missing && <><br />{tr('? Evidence incomplete')}</>}</>
                         )}
                       </LeafletTooltip>
                     </Marker>

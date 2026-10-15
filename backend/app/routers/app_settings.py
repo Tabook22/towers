@@ -3,11 +3,13 @@ components/SplashScreen.tsx. A singleton row (id=1), created on first write."""
 from __future__ import annotations
 
 import uuid
+from io import BytesIO
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from PIL import Image, UnidentifiedImageError
 
 from app.config import settings
 from app.database import get_db
@@ -16,6 +18,75 @@ from app.models import AppSetting, User
 from app.schemas import BrandingOut, PublicBrandingOut
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
+
+
+def _report_logo_out(row: AppSetting) -> dict:
+    filename = row.org_logo_filename
+    return {"logo_url": f"/api/settings/report-logo/image?v={filename}" if filename else None}
+
+
+@router.get("/report-logo")
+def get_report_logo(db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
+    return _report_logo_out(_get_or_create(db))
+
+
+@router.get("/report-logo/image")
+def get_report_logo_image(db: Session = Depends(get_db)):
+    return get_branding_image("org", db)
+
+
+@router.put("/report-logo")
+def upload_report_logo(
+    logo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_permission("manage_settings")),
+):
+    # Normalize real raster images to PNG, preserving transparency and making the logo usable
+    # by both browser headers and the existing organization-branded PDF generator.
+    data = logo.file.read(5 * 1024 * 1024 + 1)
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Choose a logo smaller than 5 MB.")
+    try:
+        with Image.open(BytesIO(data)) as image:
+            if image.format not in ("PNG", "JPEG", "WEBP") or image.width * image.height > 16_000_000:
+                raise ValueError("Unsupported image")
+            image.load()
+            normalized = image.convert("RGBA")
+            normalized.thumbnail((1600, 1600))
+            output = BytesIO()
+            normalized.save(output, format="PNG")
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+        raise HTTPException(status_code=400, detail="Choose a valid PNG, JPG or WebP logo.")
+    row = _get_or_create(db)
+    old_name = row.org_logo_filename
+    filename = f"org_logo_filename-{uuid.uuid4().hex}.png"
+    path = settings.branding_dir / filename
+    path.write_bytes(output.getvalue())
+    row.org_logo_filename = filename
+    try:
+        db.commit()
+        db.refresh(row)
+    except Exception:
+        db.rollback()
+        path.unlink(missing_ok=True)
+        raise
+    if old_name:
+        (settings.branding_dir / old_name).unlink(missing_ok=True)
+    return _report_logo_out(row)
+
+
+@router.delete("/report-logo")
+def remove_report_logo(
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_permission("manage_settings")),
+):
+    row = _get_or_create(db)
+    old_name = row.org_logo_filename
+    row.org_logo_filename = None
+    db.commit()
+    if old_name:
+        (settings.branding_dir / old_name).unlink(missing_ok=True)
+    return _report_logo_out(row)
 
 _IMAGE_FIELDS = {
     "oetc": "oetc_logo_filename",

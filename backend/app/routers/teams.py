@@ -23,7 +23,7 @@ from __future__ import annotations
 import datetime as dt
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -80,6 +80,7 @@ from app.services.movement import build_team_progress, current_field_date, haver
 from app.utils import natural_sort_key
 from app.services.next_towers import build_next_towers
 from app.services.rollup import visit_rollup
+from app.services.tower_reconciliation import reconcile_towers
 from app.services.visit_creation import create_visit_once
 from app.services.transcribe import transcribe_audio
 
@@ -309,6 +310,37 @@ def list_teams(
         else {}
     )
     return [_team_out(t, db, counts.get(t.id, 0)) for t in teams]
+
+
+@router.get("/tower-reconciliation")
+def tower_reconciliation(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if user.role not in (UserRole.ADMIN.value, UserRole.REVIEWER.value, UserRole.TEAM_LEADER.value):
+        raise HTTPException(status_code=403, detail="Not available for this account")
+    if user.role == UserRole.ADMIN.value and not user.is_super_admin:
+        if not any(item in user.menu_permissions for item in ('teams', 'archive')):
+            raise HTTPException(status_code=403, detail="Not enough permissions")
+    query = db.query(Team.id).filter(Team.is_active.is_(True))
+    if user.role == UserRole.TEAM_LEADER.value:
+        query = query.filter(Team.id == effective_team_id(db, user))
+    ids = [tid for (tid,) in query.all()]
+    return reconcile_towers(db, ids, include_inventory=user.role in (UserRole.ADMIN.value, UserRole.REVIEWER.value))
+
+
+@router.get("/tower-reconciliation.xlsx")
+def tower_reconciliation_xlsx(
+    team_id: int | None = Query(default=None, gt=0),
+    db: Session = Depends(get_db), user: User = Depends(get_current_user),
+):
+    from app.services.tower_reconciliation_export import build_reconciliation_workbook
+    data = tower_reconciliation(db=db, user=user)
+    teams = data['teams']
+    if team_id is not None:
+        teams = [team for team in teams if team['id'] == team_id]
+        if not teams:
+            raise HTTPException(status_code=404, detail="Team not available in this scope")
+    return Response(content=build_reconciliation_workbook(teams),
+                    media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    headers={'Content-Disposition': 'attachment; filename="tower-reconciliation.xlsx"'})
 
 
 @router.post("", response_model=TeamOut, status_code=201)
